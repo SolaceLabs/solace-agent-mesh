@@ -1,7 +1,11 @@
+/**
+ * Model aliases that are system defaults and cannot be edited or deleted
+ */
+export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
+
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     anthropic: "Anthropic",
     openai: "OpenAI",
-    openai_compatible: "OpenAI Compatible",
     google_ai_studio: "Google AI Studio",
     vertex_ai: "Google Vertex AI",
     azure_openai: "Azure OpenAI",

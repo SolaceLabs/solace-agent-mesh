@@ -724,7 +724,10 @@ async def _send_truncation_notification(
     log_identifier: str = ""
 ):
     """
-    Send a status update to the user notifying them that conversation was summarized.
+    Send a structured compaction notification so the frontend can render a custom UI.
+
+    Sends a DataPart with type "compaction_notification" containing the summary text
+    and background flag. The frontend owns all user-facing copy.
 
     Only root tasks (no parentTaskId) send notifications. Subtasks peek at the summary
     but leave it for the root task to notify, preventing duplicate notifications when
@@ -737,33 +740,52 @@ async def _send_truncation_notification(
         is_background: True if this is a background task, False if interactive
         log_identifier: Logging prefix
     """
-    # Different messages for background vs interactive tasks
-    if is_background:
-        notification_text = (
-            f"\n\n---\n\n"
-            f"**ℹ️ Note:** Conversation history was automatically summarized to stay within limits.\n\n"
-            f"**Summary of earlier messages:**\n\n"
-            f"*{summary}*\n\n"
-            f"---\n"
-        )
-    else:
-        notification_text = (
-            f"\n\n---\n\n"
-            f"**ℹ️ Your conversation history reached the limit. We automatically summarized your older messages to keep things running smoothly. All important context is preserved, so you can keep chatting seamlessly.**\n\n"
-            f"Alternatively, you can start a new chat for a fresh conversation.\n\n"
-            f"**Summary of earlier messages:**\n\n"
-            f"*{summary}*\n\n"
-            f"---\n"
+    from ...common.data_parts import CompactionNotificationData
+
+    try:
+        logical_task_id = a2a_context.get("logical_task_id", "unknown")
+
+        signal_data = CompactionNotificationData(
+            summary=summary,
+            is_background=is_background,
         )
 
-    await _send_status_notification(
-        component=component,
-        a2a_context=a2a_context,
-        notification_text=notification_text,
-        is_final=False,
-        log_message="Sent truncation notification",
-        log_identifier=log_identifier
-    )
+        status_update = a2a.create_data_signal_event(
+            task_id=logical_task_id,
+            context_id=a2a_context.get("contextId"),
+            signal_data=signal_data,
+            agent_name=component.agent_name,
+        )
+
+        response = a2a.create_success_response(
+            result=status_update,
+            request_id=a2a_context.get("jsonrpc_request_id"),
+        )
+
+        namespace = component.get_config("namespace")
+        client_id = a2a_context.get("client_id")
+        peer_reply_topic = a2a_context.get("replyToTopic")
+
+        target_topic = peer_reply_topic or a2a.get_client_response_topic(namespace, client_id)
+
+        component._publish_a2a_event(
+            response.model_dump(exclude_none=True),
+            target_topic,
+            a2a_context,
+        )
+
+        log.info(
+            "%s Sent truncation notification for task %s",
+            log_identifier,
+            logical_task_id,
+        )
+
+    except Exception as e:
+        log.error(
+            "%s Failed to send truncation notification: %s",
+            log_identifier,
+            e,
+        )
 
 
 async def _handle_max_retries_exceeded(

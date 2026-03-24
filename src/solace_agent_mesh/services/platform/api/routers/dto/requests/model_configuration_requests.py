@@ -32,16 +32,11 @@ class ModelConfigurationCreateRequest(CamelCaseModel):
         max_length=2048,
         description="API base URL (auto-filled for known providers if not provided)",
     )
-    auth_type: str = Field(
-        default="none",
-        max_length=50,
-        description="Type of authentication (e.g., 'apikey', 'oauth2', 'none')",
-    )
     auth_config: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Authentication configuration (secrets like api_key should be included)",
+        description="Authentication configuration. Must include 'type' field (e.g., 'apikey', 'oauth2', 'none').",
     )
-    model_params: Dict[str, Any] = Field(
+    model_params: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Model-specific parameters",
     )
@@ -136,14 +131,9 @@ class ModelConfigurationUpdateRequest(CamelCaseModel):
         max_length=2048,
         description="API base URL (set to empty string to clear)",
     )
-    auth_type: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Type of authentication",
-    )
     auth_config: Optional[Dict[str, Any]] = Field(
         None,
-        description="Authentication configuration (will be merged with existing config)",
+        description="Authentication configuration. If 'type' field is included, auth_type will be updated.",
     )
     model_params: Optional[Dict[str, Any]] = Field(
         None,

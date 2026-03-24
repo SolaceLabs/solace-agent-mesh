@@ -23,6 +23,11 @@ from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.common.oauth.oauth_client import OAuth2Client
 
+from solace_agent_mesh.shared.exceptions.exceptions import (
+    EntityAlreadyExistsError,
+    EntityNotFoundError,
+)
+
 log = logging.getLogger(__name__)
 
 # Default API bases for known providers
@@ -67,22 +72,49 @@ class ModelConfigService:
         db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
-    def get_by_alias(self, db: Session, alias: str) -> Optional[ModelConfigurationResponse]:
+    def get_by_alias(self, db: Session, alias: str, raw=False) -> ModelConfigurationResponse:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
 
         Args:
             db: SQLAlchemy database session
             alias: Model alias to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
 
         Returns:
-            ModelConfigurationResponse if found, None otherwise
+            ModelConfigurationResponse if found, or dict if raw=True
+
+        Raises:
+            EntityNotFoundError: If no configuration found with the given alias
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
+            raise EntityNotFoundError("ModelConfiguration", alias)
+
+        if raw:
+            return self._to_raw_litellm_config(db_config)
+        return self._to_response(db_config)
+    
+    def get_by_alias_or_id(self, db: Session, alias: str, raw=False) -> Optional[Dict]:
+        """
+        Retrieve a model configuration by alias (case-sensitive exact match) or ID.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model alias or ID to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
+
+        Returns:
+            ModelConfigurationResponse if found, None otherwise
+        """
+        db_config = self.repository.get_by_alias_or_id(db, alias)
+
+        if not db_config:
             return None
 
+        if raw:
+            return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
     def get_raw_config_by_alias(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
@@ -121,16 +153,20 @@ class ModelConfigService:
             ModelConfigurationResponse for the created configuration
 
         Raises:
-            ValueError: If alias already exists (case-sensitive, matches unique index)
+            EntityAlreadyExistsError: If alias already exists (case-sensitive, matches unique index)
         """
         # Check for duplicate alias (case-sensitive, matches unique index)
         if self.repository.exists_by_alias(db, request.alias):
-            raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+            raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
 
         # Auto-fill api_base for known providers if not provided
         api_base = request.api_base
         if not api_base and request.provider in _DEFAULT_API_BASES:
             api_base = _DEFAULT_API_BASES[request.provider]
+
+        # Extract auth_type from auth_config['type'], default to 'none'
+        auth_config = request.auth_config or {}
+        auth_type = auth_config.get("type", "none")
 
         # Create new configuration
         db_config = ModelConfiguration(
@@ -138,8 +174,8 @@ class ModelConfigService:
             provider=request.provider,
             model_name=request.model_name,
             api_base=api_base,
-            model_auth_type=request.auth_type,
-            model_auth_config=request.auth_config or {},
+            model_auth_type=auth_type,
+            model_auth_config=auth_config,
             model_params=request.model_params or {},
             description=request.description,
             created_by=created_by,
@@ -158,7 +194,7 @@ class ModelConfigService:
         alias: str,
         request: ModelConfigurationUpdateRequest,
         updated_by: str,
-    ) -> Optional[ModelConfigurationResponse]:
+    ) -> ModelConfigurationResponse:
         """
         Update an existing model configuration.
 
@@ -173,20 +209,21 @@ class ModelConfigService:
             updated_by: User or system identifier performing the update
 
         Returns:
-            ModelConfigurationResponse if found and updated, None if not found
+            ModelConfigurationResponse for the updated configuration
 
         Raises:
-            ValueError: If new alias already exists (case-sensitive)
+            EntityNotFoundError: If no configuration found with the given alias
+            EntityAlreadyExistsError: If new alias already exists (case-sensitive)
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
-            return None
+            raise EntityNotFoundError("ModelConfiguration", alias)
 
         # If updating alias, check for case-sensitive collision with other configs
         if request.alias is not None and request.alias != alias:
             if self.repository.exists_by_alias(db, request.alias):
-                raise ValueError(f"Model configuration with alias '{request.alias}' already exists")
+                raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
 
         # Update only provided fields
         if request.alias is not None:
@@ -200,12 +237,14 @@ class ModelConfigService:
         elif request.provider is not None and request.provider in _DEFAULT_API_BASES:
             # Auto-fill api_base if provider changed to a known provider
             db_config.api_base = _DEFAULT_API_BASES[request.provider]
-        if request.auth_type is not None:
-            db_config.model_auth_type = request.auth_type
         if request.auth_config is not None:
             # Merge with existing auth config (preserve existing secrets)
             existing_config = db_config.model_auth_config or {}
-            db_config.model_auth_config = {**existing_config, **request.auth_config}
+            merged_config = {**existing_config, **request.auth_config}
+            db_config.model_auth_config = merged_config
+            # Update auth_type from the merged config's 'type' field
+            if "type" in merged_config:
+                db_config.model_auth_type = merged_config["type"]
         if request.model_params is not None:
             db_config.model_params = request.model_params
         if request.description is not None:
@@ -218,7 +257,7 @@ class ModelConfigService:
 
         return self._to_response(db_config)
 
-    def delete(self, db: Session, alias: str) -> bool:
+    def delete(self, db: Session, alias: str) -> None:
         """
         Delete a model configuration by alias.
 
@@ -226,13 +265,13 @@ class ModelConfigService:
             db: SQLAlchemy database session
             alias: Model alias to delete
 
-        Returns:
-            True if configuration was found and deleted, False otherwise
+        Raises:
+            EntityNotFoundError: If no configuration found with the given alias
         """
         db_config = self.repository.get_by_alias(db, alias)
 
         if not db_config:
-            return False
+            raise EntityNotFoundError("ModelConfiguration", alias)
 
         self.repository.delete(db, db_config)
 
@@ -425,3 +464,19 @@ class ModelConfigService:
             created_time=db_model.created_time,
             updated_time=db_model.updated_time,
         )
+
+    @staticmethod
+    def _to_raw_litellm_config(db_model: ModelConfiguration) -> Dict:
+        """Build an unredacted LiteLlm config dict from a DB record."""
+        config = {"model": db_model.model_name}
+        if db_model.api_base:
+            config["api_base"] = db_model.api_base
+        # Merge auth credentials (unredacted)
+        if db_model.model_auth_config:
+            auth_config = dict(db_model.model_auth_config)
+            auth_config.pop("type", None)
+            config.update(auth_config)
+        # Merge model params
+        if db_model.model_params:
+            config.update(db_model.model_params)
+        return config

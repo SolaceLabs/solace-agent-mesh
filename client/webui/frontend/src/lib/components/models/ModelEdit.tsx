@@ -4,12 +4,14 @@ import { Input, Textarea, Button } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
 
 import type { ModelConfig } from "@/lib/api/models";
-import { PageLabel, PageSection, PageLabelWithValue, ErrorLabel } from "../common/PageCommon";
-import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
+import { PageSection, PageLabel } from "../common/PageCommon";
+import { PasswordInput, FormField, TextInput, SelectField } from "../common/FormComponents";
+import { getProviderConfig, AUTH_FIELDS, COMMON_MODEL_PARAMS, REDACTED_CREDENTIAL_PLACEHOLDER, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type SupportedModel, type ModelProvider } from "./modelProviderUtils";
 import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { DropDown } from "../common/DropDown";
 import { KeyValuePairList } from "../common/KeyValuePairList";
+import { DEFAULT_MODEL_ALIASES } from "./common";
 
 interface FormData {
     alias: string;
@@ -47,12 +49,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         reValidateMode: "onChange",
         defaultValues: {
             customParams: [],
+            cache_strategy: "5m",
         },
     });
 
     const [providerConfig, setProviderConfig] = useState<ReturnType<typeof getProviderConfig> | null>(null);
     const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
+    const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
+    const lastFetchedProviderRef = useRef<string | null>(null);
+    const lastFetchedApiKeyRef = useRef<string | null>(null);
 
     const {
         register,
@@ -75,6 +82,37 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
 
+    // Determine if we have sufficient provider and auth config to enable model dropdown
+    // For editing: just need provider + auth type (cached models already available)
+    // For creating: need provider + auth type + credentials filled in (must fetch models dynamically)
+    const isProviderConfigured = !!selectedProvider && !!selectedAuthType;
+
+    const isAuthCredentialsConfigured = (() => {
+        if (!selectedAuthType) return false;
+        if (selectedAuthType === "none") return true;
+        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        if (selectedAuthType === "oauth2") {
+            const clientId = getValues("clientId");
+            const clientSecret = getValues("clientSecret");
+            const tokenUrl = getValues("tokenUrl");
+            return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
+        }
+        if (selectedAuthType === "aws_iam") {
+            const accessKey = getValues("awsAccessKeyId");
+            const secretKey = getValues("awsSecretAccessKey");
+            return !!accessKey && accessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        }
+        if (selectedAuthType === "gcp_service_account") {
+            const json = getValues("gcpServiceAccountJson");
+            return !!json && json !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        }
+        return false;
+    })();
+
+    // For editing: enable if provider and auth type are set (cached models available)
+    // For creating: also need credentials to be filled in (to fetch models)
+    const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
+
     useEffect(() => {
         onDirtyStateChange(isDirty);
     }, [isDirty, onDirtyStateChange]);
@@ -89,6 +127,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             const config = getProviderConfig(selectedProvider);
             setProviderConfig(config);
             setDynamicModels([]); // Reset dynamic models when provider changes
+            lastFetchedProviderRef.current = null; // Clear fetch tracking
+            lastFetchedApiKeyRef.current = null;
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
             if (hasInitializedFromModelRef.current && !isNew && modelToEdit && modelToEdit.provider === selectedProvider) {
@@ -128,6 +168,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
+    // Clear dynamic models when auth type or API key changes
+    // This prevents showing stale models from previous credentials (avoids flicker)
+    useEffect(() => {
+        if (selectedProvider) {
+            setDynamicModels([]);
+            lastFetchedProviderRef.current = null; // Clear fetch tracking
+            lastFetchedApiKeyRef.current = null;
+        }
+    }, [selectedAuthType, apiKey, selectedProvider]);
+
     // Fetch models when dropdown opens
     // For editing: use cached models from database (via modelsByProvider)
     // For creating: fetch from provider API using credentials from form
@@ -141,7 +191,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         }
 
         // For creating new models, fetch from provider using form credentials
+        // Only fetch if provider or API key has changed since last fetch
         if (isNew) {
+            const currentApiKey = apiKey || "";
+            const needsRefetch = lastFetchedProviderRef.current !== selectedProvider || lastFetchedApiKeyRef.current !== currentApiKey;
+
+            if (!needsRefetch) {
+                // Already fetched for this provider/key combo, don't fetch again
+                return;
+            }
+
+            setIsLoadingModels(true);
             const authType = selectedAuthType || "apikey";
 
             // Collect provider-specific model params from form
@@ -169,9 +229,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                     modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
                 });
                 setDynamicModels(models);
+                // Track what we just fetched
+                lastFetchedProviderRef.current = selectedProvider;
+                lastFetchedApiKeyRef.current = currentApiKey;
             } catch (error) {
                 console.error("Error fetching models:", error);
                 setDynamicModels([]);
+                // Track the failed fetch to avoid retrying immediately
+                lastFetchedProviderRef.current = selectedProvider;
+                lastFetchedApiKeyRef.current = currentApiKey;
+            } finally {
+                setIsLoadingModels(false);
             }
         }
     }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues, providerConfig]);
@@ -188,7 +256,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
             let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "openai_compatible" && modelName?.startsWith("openai/")) {
+            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -196,6 +264,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("apiBase", modelToEdit.apiBase || "");
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
+
+            // Populate auth credential fields from authConfig
+            // For password fields that are redacted by the server, populate with REDACTED_CREDENTIAL_PLACEHOLDER
+            if (modelToEdit.authConfig) {
+                Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
+                    const value = modelToEdit.authConfig[configKey];
+                    // If the value is empty/falsy (redacted by server), use placeholder
+                    setValue(fieldName, value ? String(value) : REDACTED_CREDENTIAL_PLACEHOLDER);
+                });
+            }
 
             // Populate provider-specific fields and custom params from modelParams
             if (modelToEdit.modelParams) {
@@ -212,14 +290,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
                 // Populate common model params
                 knownParamNames.add("temperature");
-                knownParamNames.add("maxTokens");
                 knownParamNames.add("max_tokens");
+                knownParamNames.add("cache_strategy");
 
                 if ("temperature" in modelToEdit.modelParams) {
                     setValue("temperature", String(modelToEdit.modelParams.temperature));
                 }
                 if ("max_tokens" in modelToEdit.modelParams) {
                     setValue("maxTokens", String(modelToEdit.modelParams.max_tokens));
+                }
+                if ("cache_strategy" in modelToEdit.modelParams) {
+                    setValue("cache_strategy", String(modelToEdit.modelParams.cache_strategy));
                 }
 
                 // Extract custom parameters (anything not in known params)
@@ -246,10 +327,28 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
 
-        return (
-            <PageLabelWithValue key={field.name}>
-                <PageLabel required={isRequiredField}>{field.label}</PageLabel>
-                {field.type === "textarea" ? (
+        // Password fields use the dedicated PasswordInput component
+        if (field.type === "password") {
+            return (
+                <PasswordInput
+                    key={field.name}
+                    name={field.name}
+                    label={field.label}
+                    register={register}
+                    error={errors[field.name] as { message?: string }}
+                    helpText={field.helpText}
+                    required={isRequiredField}
+                    placeholder={field.placeholder}
+                    showPassword={showPassword[field.name] || false}
+                    onToggle={() => setShowPassword(prev => ({ ...prev, [field.name]: !prev[field.name] }))}
+                />
+            );
+        }
+
+        // Textarea fields use FormField wrapper
+        if (field.type === "textarea") {
+            return (
+                <FormField key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Textarea
                         rows={6}
                         placeholder={field.placeholder}
@@ -258,48 +357,41 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                         })}
                         aria-invalid={!!errors[field.name]}
                     />
-                ) : (
-                    <Input
-                        type={field.type === "password" ? "password" : field.type === "number" ? "number" : "text"}
-                        inputMode={field.type === "number" ? "decimal" : undefined}
-                        placeholder={field.placeholder}
-                        step={field.type === "number" ? field.step : undefined}
-                        {...register(field.name, {
-                            required: isRequiredField ? `${field.label} is required` : false,
-                            ...(field.type === "number" &&
-                                field.min !== undefined && {
-                                    min: {
-                                        value: field.min,
-                                        message: `${field.label} must be at least ${field.min}`,
-                                    },
-                                }),
-                            ...(field.type === "number" &&
-                                field.max !== undefined && {
-                                    max: {
-                                        value: field.max,
-                                        message: `${field.label} must not exceed ${field.max}`,
-                                    },
-                                }),
-                        })}
-                        aria-invalid={!!errors[field.name]}
-                    />
-                )}
-                {field.helpText && <div className="text-secondary-foreground text-xs">{field.helpText}</div>}
-                {errors[field.name] && <ErrorLabel>{getErrorMessage(errors[field.name])}</ErrorLabel>}
-            </PageLabelWithValue>
+                </FormField>
+            );
+        }
+
+        // Select fields use SelectField component
+        if (field.type === "select") {
+            const selectOptions = (field.options || []).map(opt => ({
+                value: opt.value,
+                label: opt.label,
+            }));
+
+            return <SelectField key={field.name} name={field.name} label={field.label} control={control} options={selectOptions} error={errors[field.name] as { message?: string }} required={isRequiredField} />;
+        }
+
+        // Text and number fields use TextInput component
+        return (
+            <TextInput
+                key={field.name}
+                name={field.name}
+                label={field.label}
+                register={register}
+                error={errors[field.name] as { message?: string }}
+                helpText={field.helpText}
+                required={isRequiredField}
+                type={field.type === "number" ? "number" : "text"}
+                inputMode={field.type === "number" ? "decimal" : undefined}
+                step={field.type === "number" ? field.step : undefined}
+                min={field.type === "number" ? field.min : undefined}
+                max={field.type === "number" ? field.max : undefined}
+            />
         );
     };
 
     const onFormSubmit = async (data: FormData) => {
         await onSave(data);
-    };
-
-    // Helper to safely extract error message from react-hook-form errors
-    const getErrorMessage = (error: unknown): string | undefined => {
-        if (!error || typeof error !== "object") return undefined;
-        const errObj = error as Record<string, unknown>;
-        if (typeof errObj.message === "string") return errObj.message;
-        return undefined;
     };
 
     // Map auth type labels
@@ -314,99 +406,90 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     return (
         <FormProvider {...methods}>
             <div>
-                <form id="model-form" onSubmit={handleSubmit(onFormSubmit)}>
+                <form id="model-form" className="w-full max-w-[1200px]" onSubmit={handleSubmit(onFormSubmit)}>
                     <PageSection className="gap-6">
-                        {/* Display Name / Alias - Always Visible */}
-                        <PageLabelWithValue>
-                            <PageLabel required>Display Name</PageLabel>
-                            <Input
-                                {...register("alias", { required: "Display name is required" })}
-                                aria-invalid={!!errors.alias}
-                                disabled={!isNew && modelToEdit?.alias.toLowerCase() === "general"}
-                                title={!isNew && modelToEdit?.alias.toLowerCase() === "general" ? "The General model's name cannot be changed" : ""}
-                            />
-                            <div className="text-secondary-foreground text-xs">
-                                Provide a short, descriptive name for this model for others in your organization to reference. Example: "Analysis".
-                                {!isNew && modelToEdit?.alias.toLowerCase() === "general" && <div className="mt-1 text-xs text-orange-600">The General model's name cannot be changed.</div>}
-                            </div>
-                            {errors.alias && <ErrorLabel>{getErrorMessage(errors.alias)}</ErrorLabel>}
-                        </PageLabelWithValue>
+                        {(() => {
+                            const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
+                            return (
+                                <FormField
+                                    label="Display Name"
+                                    required
+                                    error={errors.alias as { message?: string }}
+                                    helpText="Provide a short, descriptive name for this model for others in your organization to reference. Example: 'Analysis'."
+                                    statusIndicator={isDefaultModel ? <div className="text-xs text-orange-600">Cannot be changed</div> : undefined}
+                                >
+                                    <Input {...register("alias", { required: "Display name is required" })} aria-invalid={!!errors.alias} disabled={isDefaultModel} title={isDefaultModel ? "This model's name cannot be changed" : ""} />
+                                </FormField>
+                            );
+                        })()}
 
                         {/* Description - Always Visible */}
-                        <PageLabelWithValue>
-                            <PageLabel required>Description</PageLabel>
+                        <FormField label="Description" required error={errors.description as { message?: string }} helpText="Describe types of tasks this model is suitable or not suitable for.">
                             <Textarea {...register("description", { required: "Description is required" })} rows={4} maxLength={1001} aria-invalid={!!errors.description} />
-                            <div className="text-secondary-foreground text-xs">Describe types of tasks this model is suitable or not suitable for.</div>
-                            {errors.description && <ErrorLabel>{getErrorMessage(errors.description)}</ErrorLabel>}
-                        </PageLabelWithValue>
+                        </FormField>
 
                         {/* Provider Dropdown - Always Visible */}
-                        <PageLabelWithValue>
-                            <PageLabel required>Model Provider</PageLabel>
+                        <FormField label="Model Provider" required error={errors.provider as { message?: string }}>
                             <Controller
                                 name="provider"
                                 control={control}
                                 rules={{ required: "Provider is required" }}
                                 render={({ field }) => <ProviderSelect value={field.value} onValueChange={field.onChange} providers={providers} invalid={!!errors.provider} />}
                             />
-                            {errors.provider && <ErrorLabel>{getErrorMessage(errors.provider)}</ErrorLabel>}
-                        </PageLabelWithValue>
+                        </FormField>
 
                         {/* Provider-specific fields only shown after provider selection */}
                         {selectedProvider && providerConfig && (
                             <>
                                 {/* API Base (conditional) */}
                                 {providerConfig.showApiBase && (
-                                    <PageLabelWithValue>
-                                        <PageLabel required={providerConfig.apiBaseRequired}>API Base URL</PageLabel>
+                                    <FormField label="API Base URL" required={providerConfig.apiBaseRequired} error={errors.apiBase as { message?: string }}>
                                         <Input
                                             {...register("apiBase", {
                                                 required: providerConfig.apiBaseRequired ? "API Base URL is required" : false,
                                             })}
                                             aria-invalid={!!errors.apiBase}
                                         />
-                                        {errors.apiBase && <ErrorLabel>{getErrorMessage(errors.apiBase)}</ErrorLabel>}
-                                    </PageLabelWithValue>
+                                    </FormField>
                                 )}
 
                                 {/* Provider-specific fields */}
                                 {providerConfig.fields.length > 0 && <>{providerConfig.fields.map((field: ProviderField) => renderField(field))}</>}
 
-                                {/* Authentication Type - Show only provider's allowed auth types */}
-                                <div>
-                                    <PageLabel required>Authentication Type</PageLabel>
-                                    <Controller
-                                        name="authType"
-                                        control={control}
-                                        rules={{ required: "Authentication type is required" }}
-                                        render={({ field }) => (
-                                            <div className="mt-2 flex gap-4">
-                                                {providerConfig?.allowedAuthTypes.map(authType => (
-                                                    <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                        <input
-                                                            type="radio"
-                                                            value={authType}
-                                                            checked={field.value === authType}
-                                                            onChange={() => {
-                                                                console.log("[ModelEdit] Auth type changed to:", authType);
-                                                                field.onChange(authType);
-                                                            }}
-                                                        />
-                                                        <span className="text-sm">{authTypeLabels[authType as AuthType]}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    />
-                                    {errors.authType && <ErrorLabel>{getErrorMessage(errors.authType)}</ErrorLabel>}
-                                </div>
+                                {/* Authentication Type - Only show if provider has multiple auth types */}
+                                {providerConfig?.allowedAuthTypes && providerConfig.allowedAuthTypes.length > 1 && (
+                                    <FormField label="Authentication Type" required error={errors.authType as { message?: string }}>
+                                        <Controller
+                                            name="authType"
+                                            control={control}
+                                            rules={{ required: "Authentication type is required" }}
+                                            render={({ field }) => (
+                                                <div className="flex gap-4">
+                                                    {providerConfig.allowedAuthTypes.map(authType => (
+                                                        <label key={authType} className="flex cursor-pointer items-center gap-2">
+                                                            <input
+                                                                type="radio"
+                                                                value={authType}
+                                                                checked={field.value === authType}
+                                                                onChange={() => {
+                                                                    console.log("[ModelEdit] Auth type changed to:", authType);
+                                                                    field.onChange(authType);
+                                                                }}
+                                                            />
+                                                            <span className="text-sm">{authTypeLabels[authType as AuthType]}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        />
+                                    </FormField>
+                                )}
 
                                 {/* Render auth credential fields based on selected auth type */}
                                 {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
 
                                 {/* Model Name - Shown after authentication is configured */}
-                                <PageLabelWithValue>
-                                    <PageLabel required>Model Name</PageLabel>
+                                <FormField label="Model Name" required error={errors.modelName as { message?: string }} helpText={!isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}>
                                     <Controller
                                         name="modelName"
                                         control={control}
@@ -415,23 +498,33 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                             // Use dynamic models if available, otherwise use cached models from modelsByProvider
                                             const cachedModels = modelsByProvider[selectedProvider] || [];
                                             const modelItems = dynamicModels.length > 0 ? dynamicModels : cachedModels;
+
+                                            let displayItems = modelItems.map((model: { id: string; label: string }) => ({
+                                                id: model.id,
+                                                label: model.id,
+                                            }));
+
+                                            // Always include the selected model in the list, even if it's not in the fetched models
+                                            // This ensures the selected model shows up when we clear the list to force a refetch
+                                            if (field.value && !displayItems.find(item => item.id === field.value)) {
+                                                displayItems = [{ id: field.value, label: field.value }, ...displayItems];
+                                            }
+
                                             return (
                                                 <DropDown
                                                     value={field.value}
                                                     onValueChange={field.onChange}
-                                                    items={modelItems.map((model: { id: string; label: string }) => ({
-                                                        id: model.id,
-                                                        label: model.id, // Display model ID in input field
-                                                    }))}
-                                                    placeholder="Select a model..."
+                                                    items={displayItems}
+                                                    placeholder="Type or select a model..."
+                                                    disabled={!isModelDropdownEnabled}
                                                     invalid={!!errors.modelName}
+                                                    isLoading={isLoadingModels}
                                                     onOpen={handleModelDropdownOpen}
                                                 />
                                             );
                                         }}
                                     />
-                                    {errors.modelName && <ErrorLabel>{getErrorMessage(errors.modelName)}</ErrorLabel>}
-                                </PageLabelWithValue>
+                                </FormField>
 
                                 {/* Advanced Parameters Section - Collapsible */}
                                 <details className="group border-t pt-4">

@@ -3,6 +3,39 @@
  * Uses LiteLLM provider specifications to define required fields per provider.
  */
 
+// ============================================================================
+// Redacted credentials placeholder and field names
+// ============================================================================
+
+/**
+ * Placeholder value for redacted credential fields when editing
+ * Shows user that a credential exists without exposing it
+ * Should be stripped out before submitting to server
+ */
+export const REDACTED_CREDENTIAL_PLACEHOLDER = "<encrypted>";
+
+/**
+ * Mapping of backend authConfig keys to form field names for sensitive credentials
+ * Used for populating form fields when editing with redacted values
+ */
+export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
+    api_key: "apiKey",
+    client_id: "clientId",
+    client_secret: "clientSecret",
+    aws_access_key_id: "awsAccessKeyId",
+    aws_secret_access_key: "awsSecretAccessKey",
+    aws_session_token: "awsSessionToken",
+    gcp_service_account_json: "gcpServiceAccountJson",
+};
+
+/**
+ * Form field names that contain sensitive credentials and are redacted by the server
+ * Used for:
+ * - Populating with REDACTED_CREDENTIAL_PLACEHOLDER during edit
+ * - Stripping placeholder values before submission
+ */
+export const REDACTED_CREDENTIAL_FIELDS = Object.values(AUTH_CONFIG_TO_FORM_FIELD_MAP);
+
 export interface ModelProvider {
     id: string;
     label: string;
@@ -13,7 +46,7 @@ interface ModelResponseItem {
     name?: string;
 }
 
-export type FieldType = "text" | "password" | "number" | "textarea";
+export type FieldType = "text" | "password" | "number" | "textarea" | "select";
 export type AuthType = "apikey" | "oauth2" | "none" | "aws_iam" | "gcp_service_account";
 
 export interface ProviderField {
@@ -27,6 +60,7 @@ export interface ProviderField {
     min?: number; // for number fields
     max?: number;
     step?: number;
+    options?: Array<{ value: string; label: string }>; // for select fields
 }
 
 export interface SupportedModel {
@@ -40,6 +74,7 @@ export interface ProviderConfig {
     showApiBase: boolean;
     apiBaseRequired?: boolean;
     apiBasePlaceholder?: string;
+    description?: string; // optional description of the provider
     fields: ProviderField[]; // provider-specific required/optional fields
     modelNamePlaceholder: string; // example shown in model name input
     hideCommonParams?: boolean; // if true, hide temperature/max_tokens (e.g., for custom provider)
@@ -56,7 +91,6 @@ const AZURE_OPENAI_FIELDS: ProviderField[] = [
         label: "API Version",
         type: "text",
         required: true,
-        placeholder: "2024-10-21",
         storageTarget: "model_params",
     },
 ];
@@ -67,7 +101,6 @@ const VERTEX_AI_FIELDS: ProviderField[] = [
         label: "GCP Project ID",
         type: "text",
         required: true,
-        placeholder: "my-gcp-project",
         storageTarget: "model_params",
     },
     {
@@ -75,7 +108,6 @@ const VERTEX_AI_FIELDS: ProviderField[] = [
         label: "GCP Region",
         type: "text",
         required: true,
-        placeholder: "us-central1",
         storageTarget: "model_params",
     },
 ];
@@ -101,7 +133,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "API Key",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
     ],
@@ -125,7 +156,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "Client Secret",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
         {
@@ -158,7 +188,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "AWS Secret Access Key",
             type: "password",
             required: true,
-            helpText: "Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
         {
@@ -166,7 +195,6 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "AWS Session Token",
             type: "password",
             required: false,
-            helpText: "Optional. Required for temporary credentials (STS). Leave unchanged to keep current value when editing.",
             storageTarget: "auth",
         },
     ],
@@ -176,7 +204,7 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             label: "Service Account JSON",
             type: "textarea",
             required: true,
-            helpText: "Paste the full JSON key file contents. Leave unchanged to keep current value when editing.",
+            helpText: "Paste the full JSON key file contents",
             storageTarget: "auth",
         },
     ],
@@ -206,6 +234,19 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         helpText: "Maximum number of tokens in response",
         storageTarget: "model_params",
         min: 1,
+    },
+    {
+        name: "cache_strategy",
+        label: "Prompt Caching Strategy",
+        type: "select",
+        required: false,
+        helpText: "Controls how the model caches prompts for cost optimization",
+        storageTarget: "model_params",
+        options: [
+            { value: "5m", label: "5 minutes (default)" },
+            { value: "1h", label: "1 hour" },
+            { value: "none", label: "Disabled" },
+        ],
     },
 ];
 
@@ -274,25 +315,15 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         modelNamePlaceholder: "ollama/llama2",
         allowedAuthTypes: ["apikey", "none"],
     },
-    openai_compatible: {
-        id: "openai_compatible",
-        label: "OpenAI Compatible",
-        showApiBase: true,
-        apiBaseRequired: true,
-        apiBasePlaceholder: "https://api.example.com/v1",
-        fields: [],
-        modelNamePlaceholder: "gpt-4o, claude-3-5-sonnet",
-        allowedAuthTypes: ["apikey", "oauth2", "none"],
-    },
     custom: {
         id: "custom",
         label: "Custom",
+        description: "Configure a provider that implements the OpenAI-compatible API protocol",
         showApiBase: true,
         apiBaseRequired: false,
         apiBasePlaceholder: "https://api.example.com",
         fields: [],
         modelNamePlaceholder: "my-model-id",
-        hideCommonParams: true,
         allowedAuthTypes: ["apikey", "oauth2", "none"],
     },
 };
@@ -318,18 +349,17 @@ export function getAllProviders(): ModelProvider[] {
         { id: "vertex_ai", label: "Google Vertex AI" },
         { id: "ollama", label: "Ollama" },
         { id: "openai", label: "OpenAI" },
-        { id: "openai_compatible", label: "OpenAI Compatible" },
         { id: "custom", label: "Custom" },
     ];
 }
 
 /**
- * Fetch supported models dynamically from an OpenAI-compatible provider endpoint.
+ * Fetch supported models dynamically from a custom provider endpoint.
  * For other providers, models are fetched from the backend API.
  */
 export async function fetchSupportedModels(providerId: string, apiBase?: string, apiKey?: string): Promise<SupportedModel[]> {
-    // Only OpenAI-compatible providers support dynamic model fetching
-    if (providerId === "openai_compatible" && apiBase && apiKey) {
+    // Only custom providers support dynamic model fetching
+    if (providerId === "custom" && apiBase && apiKey) {
         return await fetchModelsFromCustomEndpoint(apiBase, apiKey);
     }
 

@@ -1,25 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { within, expect } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
-import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { AgentMeshPage } from "@/lib/components/pages";
-import { modelKeys } from "@/lib/api/models";
 import { mockModelConfigs } from "../data/models";
 import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+import { InvalidateModelCacheDecorator } from "../decorators/InvalidateModelCacheDecorator";
 
 const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: true } });
-
-const InvalidateCacheDecorator = (Story: React.ComponentType) => {
-    const queryClient = useQueryClient();
-
-    React.useLayoutEffect(() => {
-        queryClient.removeQueries({ queryKey: modelKeys.lists() });
-    }, [queryClient]);
-
-    return <Story />;
-};
 
 const successHandlers = [
     http.get("*/api/v1/platform/models", () => {
@@ -59,7 +47,7 @@ const meta = {
     },
     decorators: [
         OpenFeatureDecorator,
-        InvalidateCacheDecorator,
+        InvalidateModelCacheDecorator,
         Story => (
             <div style={{ height: "100vh", width: "100vw" }}>
                 <Story />
