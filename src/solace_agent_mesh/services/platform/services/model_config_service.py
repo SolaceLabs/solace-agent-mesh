@@ -89,6 +89,43 @@ class ModelConfigService:
         if raw:
             return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
+
+    def get_models_from_provider_by_alias(
+        self,
+        db: Session,
+        alias: str,
+        model_list_service: "ModelListService"
+    ) -> List[Dict]:
+        """
+        Fetch supported models from a provider using stored credentials.
+
+        Retrieves the configuration by alias and uses its stored credentials to query
+        the provider for available models. Orchestrates both the config lookup and
+        the model listing in one operation.
+
+        Args:
+            db: SQLAlchemy database session
+            alias: Model configuration alias to look up
+            model_list_service: ModelListService instance for fetching provider models
+
+        Returns:
+            List of available models from the provider
+
+        Raises:
+            EntityNotFoundError: If no configuration found with the given alias
+            RuntimeError: If provider API query fails
+        """
+        raw_config = self.repository.get_by_alias(db, alias)
+        if not raw_config:
+            raise EntityNotFoundError("ModelConfiguration", alias)
+
+        return model_list_service.get_models_by_provider_with_config(
+            provider=raw_config.provider,
+            api_base=raw_config.api_base,
+            auth_type=raw_config.model_auth_type,
+            auth_config=raw_config.model_auth_config,
+            model_params=raw_config.model_params or {},
+        )
     
     def get_by_alias_or_id(self, db: Session, alias: str, raw=False) -> Optional[Dict]:
         """
@@ -287,7 +324,18 @@ class ModelConfigService:
 
     @staticmethod
     def _to_raw_litellm_config(db_model: ModelConfiguration) -> Dict:
-        """Build an unredacted LiteLlm config dict from a DB record."""
+        """
+        Format a model configuration as a LiteLlm config dict.
+
+        Extracts model name, api_base, unredacted auth credentials, and model params
+        into a format suitable for LiteLlm library calls.
+
+        Args:
+            db_model: ModelConfiguration ORM model
+
+        Returns:
+            Dict with keys: model, api_base (optional), auth credentials, model params
+        """
         config = {"model": db_model.model_name}
         if db_model.api_base:
             config["api_base"] = db_model.api_base
@@ -300,3 +348,4 @@ class ModelConfigService:
         if db_model.model_params:
             config.update(db_model.model_params)
         return config
+
