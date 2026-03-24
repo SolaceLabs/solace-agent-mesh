@@ -21,7 +21,7 @@ export interface PasswordInputProps {
  */
 export const PasswordInput = ({ name, register, showPassword, onToggle, placeholder, disabled = false }: PasswordInputProps) => (
     <div className="relative">
-        <Input {...register(name)} type={showPassword ? "text" : "password"} placeholder={placeholder} autoComplete="new-password" disabled={disabled} className="pr-10" />
+        <Input {...register(name)} type={showPassword ? "text" : "password"} placeholder={placeholder} autoComplete="new-password" disabled={disabled} className="pr-10" role="textbox" />
         <Button
             type="button"
             onClick={onToggle}
