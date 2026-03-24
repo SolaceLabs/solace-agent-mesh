@@ -5,6 +5,7 @@ class OllamaConnector:
     """
     Connector for Ollama local LLM inference.
     Enables privacy-first agent mesh operations.
+    Addresses issue #267.
     """
     def __init__(self, base_url="http://localhost:11434"):
         self.base_url = f"{base_url}/api/generate"
