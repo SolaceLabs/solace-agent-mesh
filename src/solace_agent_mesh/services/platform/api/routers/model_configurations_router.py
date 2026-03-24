@@ -218,7 +218,7 @@ async def list_supported_models_by_provider(
     # Mode 1: Editing - use stored credentials from database
     if request.model_alias:
         models = config_service.get_models_from_provider_by_alias(db, request.model_alias, service)
-        return DataResponse.create(models)
+        return create_data_response(models)
 
     # Mode 2: Creating - use credentials from request
     # Validate that either model_alias or auth_type is provided
@@ -243,4 +243,4 @@ async def list_supported_models_by_provider(
         model_params=request.model_params,
     )
 
-    return DataResponse.create(models)    
+    return create_data_response(models)    
