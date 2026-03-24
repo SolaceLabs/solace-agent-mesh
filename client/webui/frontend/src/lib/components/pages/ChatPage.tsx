@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PanelLeftIcon } from "lucide-react";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
@@ -11,6 +13,7 @@ import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog,
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useLocation, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -33,7 +36,8 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { autoTitleGenerationEnabled, llmModelConfigured } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const location = useLocation();
     const navigate = useNavigate();
     const {
@@ -56,6 +60,8 @@ export function ChatPage() {
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [isTitleWarningDismissed, setIsTitleWarningDismissed] = useState(false);
+    const showTitleWarning = autoTitleGenerationEnabled && !llmModelConfigured && !isTitleWarningDismissed;
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -276,6 +282,28 @@ export function ChatPage() {
                     }
                 />
             </div>
+            {showTitleWarning && (
+                <div className={cn("transition-all duration-300", isSessionSidePanelCollapsed ? "ml-0" : "ml-100")}>
+                    <MessageBanner
+                        variant="warning"
+                        dismissible
+                        onDismiss={() => setIsTitleWarningDismissed(true)}
+                        message={
+                            <div className="flex w-full items-center justify-between gap-3">
+                                <span>
+                                    &quot;Auto Title Generation&quot; requires an LLM model to work. No model has been configured for your organization. Contact your administrator for
+                                    assistance.
+                                </span>
+                                {modelConfigUiEnabled && (
+                                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
+                                        Add Model
+                                    </Button>
+                                )}
+                            </div>
+                        }
+                    />
+                </div>
+            )}
             <div className="flex min-h-0 flex-1">
                 <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">

@@ -4,7 +4,7 @@ import { Sparkles, Loader2, AlertCircle, Pencil } from "lucide-react";
 import { Button, Input, HighlightedTextarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, CardTitle } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
-import { useNavigationBlocker } from "@/lib/hooks";
+import { useNavigationBlocker, useConfigContext } from "@/lib/hooks";
 import type { PromptGroup } from "@/lib/types/prompts";
 
 import { usePromptTemplateBuilder } from "./hooks/usePromptTemplateBuilder";
@@ -22,6 +22,8 @@ interface PromptTemplateBuilderProps {
 
 export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
+    const { configFeatureEnablement } = useConfigContext();
+    const aiAssistedEnabled = configFeatureEnablement?.promptAIAssisted ?? true;
 
     const [builderMode, setBuilderMode] = useState<"manual" | "ai-assisted">(initialMode || "ai-assisted");
     const [isReadyToSave, setIsReadyToSave] = useState(false);
@@ -162,6 +164,9 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     const handleSwitchToAI = () => {
+        if (!aiAssistedEnabled) {
+            return;
+        }
         setBuilderMode("ai-assisted");
         // Clear highlighted fields when switching back to AI mode
         // This ensures "Updated" badges only show after new AI interactions
@@ -184,7 +189,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                   </Button>,
                               ]
                             : [
-                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} variant="ghost" size="sm">
+                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} disabled={!aiAssistedEnabled}  variant="ghost" size="sm">
                                       <Sparkles className="mr-1 h-3 w-3" />
                                       {isEditing ? "Edit with AI" : "Build with AI"}
                                   </Button>,
