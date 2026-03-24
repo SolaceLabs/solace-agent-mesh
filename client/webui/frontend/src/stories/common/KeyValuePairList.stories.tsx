@@ -178,9 +178,9 @@ export const MinPairsEnforcement: Story = {
         );
     },
     play: async ({ canvasElement }) => {
-        // With 4 pairs and minPairs=3, only the last pair should have remove button
+        // With 4 pairs and minPairs=3, all pairs should have remove button (because 4 > 3)
         const removeButtons = canvasElement.querySelectorAll('[title="Remove pair"]');
-        await expect(removeButtons.length).toBe(1);
+        await expect(removeButtons.length).toBe(4);
 
         // Verify all 4 pairs are rendered
         const inputs = canvasElement.querySelectorAll('input[type="text"]');
