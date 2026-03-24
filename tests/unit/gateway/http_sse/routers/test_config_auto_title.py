@@ -2,12 +2,22 @@
 Unit tests for feature-flag-gated configuration helpers in config.py router.
 """
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.gateway.http_sse.routers.config import (
     _determine_auto_title_generation_enabled,
     _determine_mentions_enabled,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_feature_flags():
+    feature_flags._reset_for_testing()
+    feature_flags.initialize()
+    yield
+    feature_flags._reset_for_testing()
 
 
 class TestDetermineAutoTitleGenerationEnabled:
@@ -24,31 +34,23 @@ class TestDetermineAutoTitleGenerationEnabled:
 
     def test_disabled_when_flag_is_off(self):
         mock_component = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_boolean_value.return_value = False
 
-        with patch("solace_agent_mesh.gateway.http_sse.routers.config.openfeature_api") as mock_api:
-            mock_api.get_client.return_value = mock_client
+        with mock_flags(auto_title_generation=False):
             result = _determine_auto_title_generation_enabled(
                 mock_component, {"persistence_enabled": True}, "[TEST]"
             )
 
         assert result is False
-        mock_client.get_boolean_value.assert_called_once_with("auto_title_generation", False)
 
     def test_enabled_when_persistence_and_flag_on(self):
         mock_component = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_boolean_value.return_value = True
 
-        with patch("solace_agent_mesh.gateway.http_sse.routers.config.openfeature_api") as mock_api:
-            mock_api.get_client.return_value = mock_client
+        with mock_flags(auto_title_generation=True):
             result = _determine_auto_title_generation_enabled(
                 mock_component, {"persistence_enabled": True}, "[TEST]"
             )
 
         assert result is True
-        mock_client.get_boolean_value.assert_called_once_with("auto_title_generation", False)
 
 
 class TestDetermineMentionsEnabled:
@@ -65,25 +67,17 @@ class TestDetermineMentionsEnabled:
     def test_disabled_when_flag_is_off(self):
         mock_component = MagicMock()
         mock_component.identity_service = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_boolean_value.return_value = False
 
-        with patch("solace_agent_mesh.gateway.http_sse.routers.config.openfeature_api") as mock_api:
-            mock_api.get_client.return_value = mock_client
+        with mock_flags(mentions=False):
             result = _determine_mentions_enabled(mock_component, "[TEST]")
 
         assert result is False
-        mock_client.get_boolean_value.assert_called_once_with("mentions", False)
 
     def test_enabled_when_identity_service_and_flag_on(self):
         mock_component = MagicMock()
         mock_component.identity_service = MagicMock()
-        mock_client = MagicMock()
-        mock_client.get_boolean_value.return_value = True
 
-        with patch("solace_agent_mesh.gateway.http_sse.routers.config.openfeature_api") as mock_api:
-            mock_api.get_client.return_value = mock_client
+        with mock_flags(mentions=True):
             result = _determine_mentions_enabled(mock_component, "[TEST]")
 
         assert result is True
-        mock_client.get_boolean_value.assert_called_once_with("mentions", False)
