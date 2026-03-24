@@ -853,7 +853,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // For configured items, use their configured filename
                 // For non-configured items, compute what their default filename would be
                 let tempFilename = "snippet.txt";
-                pendingPastedTextItems.forEach((item, idx) => {
+                pendingPastedTextItems.forEach((item) => {
                     if (item.id === selectedPendingPasteId) {
                         // Skip the currently selected item - we don't want to warn about itself
                         return;
