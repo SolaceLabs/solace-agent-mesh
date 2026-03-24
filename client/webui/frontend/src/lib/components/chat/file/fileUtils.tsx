@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import { File, FileAudio, FileCode, FileImage, FileJson, FileSpreadsheet, FileText } from "lucide-react";
 
 import type { ArtifactInfo } from "@/lib/types";
@@ -205,12 +206,7 @@ export const extractHtmlPreview = (content: string): string => {
     }
 
     // Fallback to text extraction
-    const textContent = content
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-        .replace(/<[^>]*>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    const textContent = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).replace(/\s+/g, " ").trim();
 
     return textContent.substring(0, 150);
 };
@@ -256,12 +252,7 @@ export const generateFileTypePreview = (content: string, filename?: string, mime
         }
         case "html": {
             // For HTML, try to extract text content or show structure
-            const htmlPreview = content
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove scripts
-                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "") // Remove styles
-                .replace(/<[^>]*>/g, " ") // Remove HTML tags
-                .replace(/\s+/g, " ") // Normalize whitespace
-                .trim();
+            const htmlPreview = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).replace(/\s+/g, " ").trim();
             return generateContentPreview(htmlPreview || content, maxLength);
         }
         default:
