@@ -13,7 +13,7 @@ const createNewModelHandlers = [
     http.get("*/api/v1/platform/models", () => {
         return HttpResponse.json({ data: mockModelConfigs, total: mockModelConfigs.length });
     }),
-    http.get("*/api/v1/platform/models/supported-by-provider", () => {
+    http.post("*/api/v1/platform/supported-models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -52,7 +52,7 @@ const editModelHandlers = [
         }
         return HttpResponse.json({ error: "Not found" }, { status: 404 });
     }),
-    http.get("*/api/v1/platform/models/supported-by-provider", () => {
+    http.post("*/api/v1/platform/supported-models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -130,14 +130,15 @@ export const CreateNewModel: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify we're in create mode by checking the title
-        await expect(await canvas.findByText("Create Model")).toBeInTheDocument();
+        // Verify we're in create mode by checking the title (appears in both breadcrumb and title)
+        const createModelTexts = await canvas.findAllByText("Create Model");
+        expect(createModelTexts.length).toBeGreaterThanOrEqual(1);
 
-        // Verify form fields are present
-        await expect(canvas.getByLabelText(/Display Name/i)).toBeInTheDocument();
-        await expect(canvas.getByLabelText(/Description/i)).toBeInTheDocument();
-        await expect(canvas.getByLabelText(/Model Provider/i)).toBeInTheDocument();
-        await expect(canvas.getByLabelText(/Model Name/i)).toBeInTheDocument();
+        // Verify form fields are present (using text queries since labels are divs, not <label> elements)
+        // Model Name and other provider-specific fields only appear after provider selection
+        await expect(await canvas.findByText("Display Name")).toBeInTheDocument();
+        await expect(await canvas.findByText("Description")).toBeInTheDocument();
+        await expect(await canvas.findByText("Model Provider")).toBeInTheDocument();
 
         // Verify buttons
         const addButton = await canvas.findByRole("button", { name: /Add/i });
@@ -160,35 +161,41 @@ export const CreateAnthropicModel: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Fill in Display Name
-        const aliasInput = await canvas.findByLabelText(/Display Name/i);
+        // Fill in Display Name (find input by name attribute since labels are divs, not <label> elements)
+        const aliasInput = canvasElement.querySelector('input[name="alias"]') as HTMLInputElement;
+        expect(aliasInput).toBeTruthy();
         await userEvent.clear(aliasInput);
         await userEvent.type(aliasInput, "my-planning-model");
 
         // Fill in Description
-        const descInput = await canvas.findByLabelText(/Description/i);
+        const descInput = canvasElement.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
+        expect(descInput).toBeTruthy();
         await userEvent.clear(descInput);
         await userEvent.type(descInput, "Custom planning model for complex reasoning tasks");
 
-        // Select provider
-        const providerButton = await canvas.findByRole("button", { name: /Select a provider/i });
-        await userEvent.click(providerButton);
+        // Select provider (ProviderSelect is a ComboBox with role="combobox")
+        const providerComboboxes = await canvas.findAllByRole("combobox");
+        const providerCombobox = providerComboboxes[0]; // Provider is the first combobox
+        await userEvent.click(providerCombobox);
 
         const anthropicOption = await screen.findByText("Anthropic");
         await userEvent.click(anthropicOption);
 
-        // Wait for auth type to appear
-        await expect(await canvas.findByLabelText(/Authentication Type/i)).toBeInTheDocument();
+        // Anthropic only supports apikey auth (single type, no radio buttons shown)
+        // Wait for API Key field to appear after provider selection
+        const apiKeyInput = await canvas.findByText("API Key");
+        expect(apiKeyInput).toBeInTheDocument();
 
-        // Fill in API Key
-        const apiKeyInputs = await canvas.findAllByLabelText(/API Key/i);
-        const apiKeyInput = apiKeyInputs[0];
-        await userEvent.type(apiKeyInput, "sk-ant-test-key-123456");
+        // Fill in API Key (find password input by name attribute)
+        const apiKeyField = canvasElement.querySelector('input[name="apiKey"]') as HTMLInputElement;
+        expect(apiKeyField).toBeTruthy();
+        await userEvent.type(apiKeyField, "sk-ant-test-key-123456");
 
         // Select model name - should enable model dropdown after API key is filled
         const modelNameCombo = await canvas.findByPlaceholderText(/Type or select a model/i);
         await userEvent.click(modelNameCombo);
-        await expect(await canvas.findByText("Claude 3.5 Sonnet")).toBeInTheDocument();
+        // Model dropdown shows model IDs (not labels) as display text
+        await expect(await canvas.findByText("claude-3-5-sonnet")).toBeInTheDocument();
     },
 };
 
@@ -207,18 +214,21 @@ export const EditExistingModel: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Wait for model to load
-        await expect(await canvas.findByText("Edit anthropic-model")).toBeInTheDocument();
+        // Wait for model to load (appears in both breadcrumb and title)
+        const editTexts = await canvas.findAllByText("Edit anthropic-model");
+        expect(editTexts.length).toBeGreaterThanOrEqual(1);
 
         // Verify form fields are populated with existing data
-        const aliasInput = (await canvas.findByLabelText(/Display Name/i)) as HTMLInputElement;
+        const aliasInput = canvasElement.querySelector('input[name="alias"]') as HTMLInputElement;
+        expect(aliasInput).toBeTruthy();
         expect(aliasInput.value).toBe("anthropic-model");
 
-        const descInput = (await canvas.findByLabelText(/Description/i)) as HTMLTextAreaElement;
+        const descInput = canvasElement.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
+        expect(descInput).toBeTruthy();
         expect(descInput.value).toContain("planning model");
 
-        // Verify provider is set
-        const providerElement = await canvas.findByText("Anthropic");
+        // Verify provider is set (displayed as input value in ComboBox)
+        const providerElement = await canvas.findByDisplayValue("Anthropic");
         expect(providerElement).toBeInTheDocument();
 
         // Verify model name is populated
@@ -290,8 +300,9 @@ export const EditModelWithAdvancedParams: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Wait for model to load
-        await expect(await canvas.findByText("Edit anthropic-model")).toBeInTheDocument();
+        // Wait for model to load (appears in both breadcrumb and title)
+        const editTexts = await canvas.findAllByText("Edit anthropic-model");
+        expect(editTexts.length).toBeGreaterThanOrEqual(1);
 
         // Open Advanced Settings
         const advancedSummary = await canvas.findByText("Advanced Settings");
@@ -300,16 +311,16 @@ export const EditModelWithAdvancedParams: Story = {
 
         await userEvent.click(advancedSummary);
 
-        // Verify advanced parameters are visible
-        const temperatureInput = await canvas.findByLabelText(/Temperature/i);
-        expect(temperatureInput).toBeInTheDocument();
+        // Verify advanced parameters are visible (find inputs by name attribute)
+        const temperatureInput = canvasElement.querySelector('input[name="temperature"]') as HTMLInputElement;
+        expect(temperatureInput).toBeTruthy();
 
-        const maxTokensInput = await canvas.findByLabelText(/Max Tokens/i);
-        expect(maxTokensInput).toBeInTheDocument();
+        const maxTokensInput = canvasElement.querySelector('input[name="maxTokens"]') as HTMLInputElement;
+        expect(maxTokensInput).toBeTruthy();
 
         // Verify values are populated from model
-        expect((temperatureInput as HTMLInputElement).value).toBe("0.1");
-        expect((maxTokensInput as HTMLInputElement).value).toBe("4096");
+        expect(temperatureInput.value).toBe("0.1");
+        expect(maxTokensInput.value).toBe("4096");
     },
 };
 
@@ -328,23 +339,26 @@ export const CreateCustomProviderModel: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Fill basic fields
-        const aliasInput = await canvas.findByLabelText(/Display Name/i);
+        // Fill basic fields (find inputs by name attribute since labels are divs, not <label> elements)
+        const aliasInput = canvasElement.querySelector('input[name="alias"]') as HTMLInputElement;
+        expect(aliasInput).toBeTruthy();
         await userEvent.type(aliasInput, "custom-llm");
 
-        const descInput = await canvas.findByLabelText(/Description/i);
+        const descInput = canvasElement.querySelector('textarea[name="description"]') as HTMLTextAreaElement;
+        expect(descInput).toBeTruthy();
         await userEvent.type(descInput, "Custom OpenAI-compatible provider");
 
-        // Select Custom provider
-        const providerButton = await canvas.findByRole("button", { name: /Select a provider/i });
-        await userEvent.click(providerButton);
+        // Select Custom provider (ProviderSelect is a ComboBox with role="combobox")
+        const providerComboboxes = await canvas.findAllByRole("combobox");
+        const providerCombobox = providerComboboxes[0]; // Provider is the first combobox
+        await userEvent.click(providerCombobox);
 
         const customOption = await screen.findByText("Custom");
         await userEvent.click(customOption);
 
         // Verify API Base URL field appears for custom provider
-        const apiBaseInput = await canvas.findByLabelText(/API Base URL/i);
-        expect(apiBaseInput).toBeInTheDocument();
+        const apiBaseInput = canvasElement.querySelector('input[name="apiBase"]') as HTMLInputElement;
+        expect(apiBaseInput).toBeTruthy();
 
         await userEvent.type(apiBaseInput, "https://my-api.example.com");
     },
