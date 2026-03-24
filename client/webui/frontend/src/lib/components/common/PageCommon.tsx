@@ -69,8 +69,8 @@ export const FormFieldLayoutItem = ({ label, required = false, error, warning, h
             {(error || warning || helpText) && (
                 <div className="mt-1">
                     {error && <ErrorLabel message={error.message} />}
-                    {warning && <div className="text-xs text-yellow-600">{warning}</div>}
-                    {helpText && <div className="text-secondary-foreground text-xs">{helpText}</div>}
+                    {warning && <div className="text-xs text-(--warning-wMain)">{warning}</div>}
+                    {helpText && <div className="text-xs text-(--secondary-text-wMain)">{helpText}</div>}
                 </div>
             )}
         </div>

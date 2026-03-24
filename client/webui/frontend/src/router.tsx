@@ -2,7 +2,7 @@ import { createHashRouter, Navigate } from "react-router-dom";
 
 import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
-import { ModelDetailsPage } from "./lib/components/models";
+import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
@@ -85,8 +85,21 @@ export const createRouter = () => {
                     ],
                 },
                 {
-                    path: "models/:alias",
-                    element: <ModelDetailsPage />,
+                    path: "models",
+                    children: [
+                        {
+                            path: "new/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias",
+                            element: <ModelDetailsPage />,
+                        },
+                    ],
                 },
                 {
                     path: "*",
