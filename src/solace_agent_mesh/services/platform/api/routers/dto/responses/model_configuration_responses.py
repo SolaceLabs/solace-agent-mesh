@@ -39,3 +39,13 @@ class ModelConfigurationResponse(CamelCaseModel):
     updated_by: str = Field(..., description="User who last updated this configuration")
     created_time: int = Field(..., description="Creation timestamp (epoch ms)")
     updated_time: int = Field(..., description="Last update timestamp (epoch ms)")
+
+class ModelConfigurationTestResponse(CamelCaseModel):
+    """Response model for model configuration test connection result."""
+
+    success: bool = Field(
+        ..., description="Whether the test connection was successful"
+    )
+    message: str = Field(
+        ..., description="Test result message (error details if failed, response content if succeeded)"
+    )    
