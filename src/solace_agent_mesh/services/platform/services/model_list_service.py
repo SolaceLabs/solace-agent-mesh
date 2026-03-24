@@ -75,15 +75,15 @@ class ModelListService:
 
         if auth_type == "apikey":
             if not api_key:
-                raise ValidationErrorBuilder(
-                    message="API key is required for apikey authentication"
+                raise ValidationErrorBuilder().message(
+                    "API key is required for apikey authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["api_key"] = api_key
 
         elif auth_type == "oauth2":
             if not (client_id and client_secret and token_url):
-                raise ValidationErrorBuilder(
-                    message="client_id, client_secret, and token_url are required for oauth2 authentication"
+                raise ValidationErrorBuilder().message(
+                    "client_id, client_secret, and token_url are required for oauth2 authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["client_id"] = client_id
             auth_config["client_secret"] = client_secret
@@ -91,8 +91,8 @@ class ModelListService:
 
         elif auth_type == "aws_iam":
             if not (aws_access_key_id and aws_secret_access_key):
-                raise ValidationErrorBuilder(
-                    message="aws_access_key_id and aws_secret_access_key are required for aws_iam authentication"
+                raise ValidationErrorBuilder().message(
+                    "aws_access_key_id and aws_secret_access_key are required for aws_iam authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["aws_access_key_id"] = aws_access_key_id
             auth_config["aws_secret_access_key"] = aws_secret_access_key
@@ -101,8 +101,8 @@ class ModelListService:
 
         elif auth_type == "gcp_service_account":
             if not gcp_service_account_json:
-                raise ValidationErrorBuilder(
-                    message="gcp_service_account_json is required for gcp_service_account authentication"
+                raise ValidationErrorBuilder().message(
+                    "gcp_service_account_json is required for gcp_service_account authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["service_account_json"] = gcp_service_account_json
 
@@ -110,8 +110,8 @@ class ModelListService:
             pass  # No credentials needed
 
         else:
-            raise ValidationErrorBuilder(
-                message=f"Unsupported auth_type: {auth_type}"
+            raise ValidationErrorBuilder().message(
+                f"Unsupported auth_type: {auth_type}"
             ).entity_type("ProviderCredentials").entity_identifier(provider).build()
 
         # Delegate to the main method
