@@ -64,40 +64,6 @@ class TestInferProvider:
         )
         assert _infer_provider("https://makersuite.google.com/api") == "google_ai_studio"
 
-    # OpenAI-Compatible Providers
-    def test_openai_compatible_from_path(self):
-        """Detect OpenAI-compatible from /v1/ in path."""
-        assert (
-            _infer_provider(
-                "https://my-custom-server.com/v1/",
-                model_name="gpt-4"
-            )
-            == "openai_compatible"
-        )
-        assert (
-            _infer_provider(
-                "https://localhost:8000/v1/chat/completions",
-                model_name="gpt-3.5"
-            )
-            == "openai_compatible"
-        )
-
-    def test_openai_compatible_from_model_name(self):
-        """Detect OpenAI-compatible from openai/ prefix in model name."""
-        assert (
-            _infer_provider(
-                "https://example.com/api",
-                model_name="openai/gpt-4"
-            )
-            == "openai_compatible"
-        )
-        assert (
-            _infer_provider(
-                "https://example.com",
-                model_name="openai/gpt-3.5-turbo"
-            )
-            == "openai_compatible"
-        )
 
     # Custom Provider (Fallback)
     def test_custom_provider_no_url(self):
@@ -125,13 +91,6 @@ class TestInferProvider:
             _infer_provider("https://API.ANTHROPIC.COM/v1")
             == "anthropic"
         )
-        assert (
-            _infer_provider(
-                "https://example.com/V1/models",
-                model_name="openai/gpt-4"
-            )
-            == "openai_compatible"
-        )
 
     # Edge Cases
     def test_bedrock_in_path(self):
@@ -148,13 +107,13 @@ class TestInferProvider:
         """Handle missing api_base but infer provider from model name."""
         # Gemini models are detected as Google AI Studio
         assert _infer_provider("", model_name="gemini-2.5-flash") == "google_ai_studio"
-        # OpenAI-compatible prefix is detected
+        # Custom-prefixed models are detected as custom
         assert (
             _infer_provider(
                 None,
                 model_name="openai/gpt-4"
             )
-            == "openai_compatible"
+            == "custom"
         )
         # GPT models are detected as OpenAI
         assert _infer_provider("", model_name="gpt-4") == "openai"
@@ -206,9 +165,9 @@ class TestSeedFromModelsConfig:
         assert gpt4.model_auth_type == "apikey"
         assert gpt4.description  # Verify description is set (not null/empty)
 
-        # OpenAI-compatible
+        # Custom provider (local LLM with /v1/ path)
         local = next(m for m in added_models if m.alias == "local-llm")
-        assert local.provider == "openai_compatible"
+        assert local.provider == "custom"
         assert local.model_params == {"temperature": 0.7}
         assert local.description  # Verify description is set (not null/empty)
 

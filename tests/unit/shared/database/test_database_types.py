@@ -2,8 +2,9 @@ import uuid as uuid_module
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import BaseModel
 
-from solace_agent_mesh.shared.database.database_types import OptimizedUUID, coerce_uuid
+from solace_agent_mesh.shared.database.database_types import OptimizedUUID, UUIDStr, coerce_uuid
 
 
 def make_dialect(name: str) -> MagicMock:
@@ -46,6 +47,33 @@ class TestProcessBindParamBytesHandling:
         original = uuid_module.uuid4()
         result = uuid_type.process_bind_param(original.bytes, make_dialect("sqlite"))
         assert result == str(original)
+
+
+class TestUUIDStr:
+    """Tests for the UUIDStr annotated Pydantic type.
+
+    Confirms that BeforeValidator(coerce_uuid) is wired correctly so that
+    Pydantic model fields typed as UUIDStr coerce bytes to a hyphenated UUID
+    string at validation time.
+    """
+
+    class _Model(BaseModel):
+        id: UUIDStr
+
+    def test_bytes_coerced_to_hyphenated_string(self):
+        original = uuid_module.uuid4()
+        m = self._Model(id=original.bytes)
+        assert m.id == str(original)
+
+    def test_string_passthrough(self):
+        original = str(uuid_module.uuid4())
+        m = self._Model(id=original)
+        assert m.id == original
+
+    def test_none_raises_validation_error(self):
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            self._Model(id=None)
 
 
 class TestCoerceComparedValueRemoved:

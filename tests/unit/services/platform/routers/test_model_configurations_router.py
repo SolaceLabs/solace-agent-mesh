@@ -1,12 +1,13 @@
-"""Unit tests for model_configurations_router new endpoints and helpers.
+"""Unit tests for model_configurations_router helpers and endpoint event emission.
 
 Tests:
 - _emit_model_config_update publishes on both ID and alias topics
-- POST /models emits events and returns 501
-- PUT /models/{alias} emits events and returns 501
+- POST /models emits events after create
+- PUT /models/{alias} emits events after update
+- DELETE /models/{alias} emits events after delete
 """
 
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch, AsyncMock
 
 import pytest
 
@@ -67,161 +68,137 @@ class TestEmitModelConfigUpdate:
 
 
 class TestCreateModelEndpoint:
-    """Tests for POST /models endpoint."""
+    """Tests for POST /models endpoint event emission."""
 
     @pytest.mark.asyncio
     @patch(
         "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
     )
-    async def test_emits_update_then_raises_501(self, mock_emit):
-        """Emits config update when all fields present, then raises 501."""
+    async def test_emits_update_after_create(self, mock_emit):
+        """Emits config update event after successful create."""
         from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
             create_model,
         )
-        from fastapi import HTTPException
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+            ModelConfigurationCreateRequest,
+        )
 
-        body = {
-            "id": "uuid-123",
-            "alias": "my-model",
-            "model_config": {"model": "gpt-4"},
-        }
+        request = ModelConfigurationCreateRequest(
+            alias="my-model",
+            provider="openai",
+            model_name="gpt-4",
+        )
+
+        mock_service = Mock()
+        created_config = Mock()
+        created_config.id = "uuid-123"
+        created_config.alias = "my-model"
+        mock_service.create.return_value = created_config
+
+        raw_config = {"model": "gpt-4", "api_key": "sk-123"}
+        mock_service.get_by_alias.return_value = raw_config
+
         mock_component = Mock()
+        mock_user = {"id": "user-1"}
 
-        with pytest.raises(HTTPException) as exc_info:
-            await create_model(
-                body=body,
-                _=None,
-                db=Mock(),
-                service=Mock(),
-                component=mock_component,
-            )
+        result = await create_model(
+            request=request,
+            _=None,
+            db=Mock(),
+            user=mock_user,
+            service=mock_service,
+            component=mock_component,
+        )
 
-        assert exc_info.value.status_code == 501
+        mock_service.create.assert_called_once()
+        mock_service.get_by_alias.assert_called_once_with(
+            mock_service.create.call_args[0][0], "my-model", raw=True
+        )
         mock_emit.assert_called_once_with(
-            mock_component, "uuid-123", "my-model", {"model": "gpt-4"}
+            mock_component, "uuid-123", "my-model", raw_config
         )
-
-    @pytest.mark.asyncio
-    @patch(
-        "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
-    )
-    async def test_skips_emit_when_fields_missing(self, mock_emit):
-        """Does not emit when model_config, id, or alias is missing."""
-        from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
-            create_model,
-        )
-        from fastapi import HTTPException
-
-        # Missing model_config
-        body = {"id": "uuid-123", "alias": "my-model"}
-
-        with pytest.raises(HTTPException) as exc_info:
-            await create_model(
-                body=body, _=None, db=Mock(), service=Mock(), component=Mock()
-            )
-
-        assert exc_info.value.status_code == 501
-        mock_emit.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch(
-        "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
-    )
-    async def test_skips_emit_when_id_empty(self, mock_emit):
-        """Does not emit when id is empty string."""
-        from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
-            create_model,
-        )
-        from fastapi import HTTPException
-
-        body = {"id": "", "alias": "my-model", "model_config": {"model": "gpt-4"}}
-
-        with pytest.raises(HTTPException):
-            await create_model(
-                body=body, _=None, db=Mock(), service=Mock(), component=Mock()
-            )
-
-        mock_emit.assert_not_called()
 
 
 class TestUpdateModelEndpoint:
-    """Tests for PUT /models/{alias} endpoint."""
+    """Tests for PUT /models/{alias} endpoint event emission."""
 
     @pytest.mark.asyncio
     @patch(
         "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
     )
-    async def test_emits_update_then_raises_501(self, mock_emit):
-        """Emits config update with alias from path, then raises 501."""
+    async def test_emits_update_after_update(self, mock_emit):
+        """Emits config update event after successful update."""
         from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
             update_model,
         )
-        from fastapi import HTTPException
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+            ModelConfigurationUpdateRequest,
+        )
 
-        body = {"id": "uuid-456", "model_config": {"model": "claude-3"}}
+        request = ModelConfigurationUpdateRequest(
+            model_name="claude-3",
+        )
+
+        mock_service = Mock()
+        updated_config = Mock()
+        updated_config.id = "uuid-456"
+        updated_config.alias = "my-alias"
+        mock_service.update.return_value = updated_config
+
+        raw_config = {"model": "claude-3", "api_key": "sk-456"}
+        mock_service.get_by_alias.return_value = raw_config
+
         mock_component = Mock()
+        mock_user = {"id": "user-1"}
 
-        with pytest.raises(HTTPException) as exc_info:
-            await update_model(
-                alias="my-alias",
-                body=body,
-                _=None,
-                service=Mock(),
-                db=Mock(),
-                component=mock_component,
-            )
+        result = await update_model(
+            alias="my-alias",
+            request=request,
+            _=None,
+            db=Mock(),
+            user=mock_user,
+            service=mock_service,
+            component=mock_component,
+        )
 
-        assert exc_info.value.status_code == 501
+        mock_service.update.assert_called_once()
         mock_emit.assert_called_once_with(
-            mock_component, "uuid-456", "my-alias", {"model": "claude-3"}
+            mock_component, "uuid-456", "my-alias", raw_config
         )
+
+
+class TestDeleteModelEndpoint:
+    """Tests for DELETE /models/{alias} endpoint event emission."""
 
     @pytest.mark.asyncio
     @patch(
         "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
     )
-    async def test_skips_emit_when_model_config_missing(self, mock_emit):
-        """Does not emit when model_config is missing from body."""
+    async def test_emits_update_with_none_after_delete(self, mock_emit):
+        """Emits config update with None model_config after delete."""
         from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
-            update_model,
+            delete_model,
         )
-        from fastapi import HTTPException
 
-        body = {"id": "uuid-456"}
+        mock_service = Mock()
+        existing_config = Mock()
+        existing_config.id = "uuid-789"
+        mock_service.get_by_alias.return_value = existing_config
 
-        with pytest.raises(HTTPException):
-            await update_model(
-                alias="my-alias",
-                body=body,
-                _=None,
-                service=Mock(),
-                db=Mock(),
-                component=Mock(),
-            )
+        mock_component = Mock()
+        mock_user = {"id": "user-1"}
 
-        mock_emit.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch(
-        "solace_agent_mesh.services.platform.api.routers.model_configurations_router._emit_model_config_update"
-    )
-    async def test_skips_emit_when_id_missing(self, mock_emit):
-        """Does not emit when id is missing (defaults to empty string)."""
-        from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
-            update_model,
+        await delete_model(
+            alias="my-alias",
+            _=None,
+            db=Mock(),
+            user=mock_user,
+            service=mock_service,
+            component=mock_component,
         )
-        from fastapi import HTTPException
 
-        body = {"model_config": {"model": "gpt-4"}}
-
-        with pytest.raises(HTTPException):
-            await update_model(
-                alias="my-alias",
-                body=body,
-                _=None,
-                service=Mock(),
-                db=Mock(),
-                component=Mock(),
-            )
-
-        mock_emit.assert_not_called()
+        mock_service.get_by_alias.assert_called_once()
+        mock_service.delete.assert_called_once()
+        mock_emit.assert_called_once_with(
+            mock_component, "uuid-789", "my-alias", None
+        )

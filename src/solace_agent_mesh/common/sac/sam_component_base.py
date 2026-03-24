@@ -11,6 +11,7 @@ import functools
 import time
 from typing import Any, Optional, Union
 from google.adk.models import BaseLlm
+from openfeature import api as openfeature_api
 from solace_ai_connector.components.component_base import ComponentBase
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...agent.adk.models.dynamic_model_provider import start_model_listener
@@ -76,9 +77,7 @@ class SamComponentBase(ComponentBase, abc.ABC):
         model_provider_config = self.get_config("model_provider") or []
         self.model_provider = model_provider_config[0] if model_provider_config and isinstance(model_provider_config, list) else None
 
-        self._lazy_model_mode = (
-            os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "").lower() == "true"
-        )
+        self._lazy_model_mode = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
         log.info("%s Initialized SamComponentBase", self.log_identifier)
 
     def get_component_id(self) -> str:

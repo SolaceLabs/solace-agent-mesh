@@ -29,7 +29,7 @@ import {
 import { useChatContext } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn, createLruCache, getArtifactUrl, getArtifactContent } from "@/lib/utils";
+import { formatTimestamp, cn, getArtifactUrl, getArtifactContent, createSemaphore, createPersistentCache } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
@@ -43,13 +43,37 @@ import { LifecycleBadge } from "@/lib/components/ui";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 
-// LRU Cache for document content with max size to prevent memory leaks
-const documentContentCache = createLruCache<string>(50);
+// Persistent cache for document thumbnails (base64 PDF/DOCX data).
+// Survives page refreshes via IndexedDB with an in-memory LRU fast path.
+const documentContentCache = createPersistentCache<string>({
+    dbName: "sam-document-thumbnails",
+    storeName: "document-thumbnails",
+    maxEntries: 100,
+    memoryMaxEntries: 50,
+    ttlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
 
-// Generate cache key for document content
-function getDocumentCacheKey(sessionId: string, filename: string): string {
-    return `${sessionId}:${filename}`;
+// Persistent cache for text preview snippets (~500 chars each).
+// Survives page refreshes via IndexedDB with an in-memory LRU fast path.
+const textPreviewCache = createPersistentCache<string>({
+    dbName: "sam-text-snippets",
+    storeName: "text-snippets",
+    maxEntries: 500,
+    memoryMaxEntries: 200,
+    ttlMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
+
+// Generate cache key for document content, including lastModified to bust stale entries
+function getDocumentCacheKey(sessionId: string, filename: string, lastModified?: string | null): string {
+    return `${sessionId}:${filename}:${lastModified ?? ""}`;
 }
+
+/**
+ * Concurrency limiter for preview fetches.
+ * Browsers typically allow ~6 concurrent connections per origin.
+ * We cap at 4 to leave headroom for user-initiated requests (navigation, downloads, etc.).
+ */
+const { release: releaseFetchSlot, acquireOrAbort: acquireFetchSlotOrAbort } = createSemaphore(4);
 
 // Helper to check if artifact is a project artifact
 // Note: Backend uses "project-{id}" format, but we also check "project:{id}" for backward compatibility
@@ -81,6 +105,13 @@ function getFileExtension(filename: string): string {
     const parts = filename.split(".");
     return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
 }
+
+/**
+ * Maximum bytes to request from the backend for text tile previews.
+ * The backend's `max_bytes` query parameter truncates the response server-side,
+ * so even a 5 MB CSV only transfers ~2 KB over the wire.
+ */
+const TEXT_PREVIEW_MAX_BYTES = 2048;
 
 /**
  * Check if a MIME type supports text preview
@@ -118,9 +149,16 @@ interface ArtifactGridCardProps {
 }
 
 const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, onDelete, onPreview, onGoToChat, onGoToProject, isSelected, binaryArtifactPreviewEnabled }: ArtifactGridCardProps) {
-    const [contentPreview, setContentPreview] = useState<string | null>(null);
+    const [contentPreview, setContentPreview] = useState<string | null>(() => {
+        // Initialise from in-memory LRU synchronously so cached tiles never flash a spinner
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
+        return textPreviewCache.getSync(cacheKey) ?? null;
+    });
     const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-    const [documentContent, setDocumentContent] = useState<string | null>(null);
+    const [documentContent, setDocumentContent] = useState<string | null>(() => {
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
+        return documentContentCache.getSync(cacheKey) ?? null;
+    });
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
     const [documentThumbnailFailed, setDocumentThumbnailFailed] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -136,20 +174,24 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     // Only enable document thumbnail if: it's a PDF (always works) OR it's an Office doc and conversion is enabled
     const canAttemptDocumentThumbnail = isDocumentThumbnailSupported && (isPdfFile || binaryArtifactPreviewEnabled);
 
-    // Use IntersectionObserver to defer heavy thumbnail loading until card is visible
+    // Determine whether this card needs a network fetch for its preview
+    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || supportsTextPreview(artifact.mime_type);
+
+    // Use IntersectionObserver to defer ALL preview loading until card is near the viewport.
+    // This prevents hundreds of simultaneous fetches when the page first loads with many artifacts.
     useEffect(() => {
         const el = cardRef.current;
         if (!el) return;
 
-        // Images and text previews are cheap; only gate document thumbnails behind visibility
-        if (!canAttemptDocumentThumbnail) {
+        // If this card type doesn't need a fetch at all, mark visible immediately
+        if (!needsPreviewFetch) {
             setIsVisible(true);
             return;
         }
 
-        // If already cached, no need to wait for visibility
-        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-        if (documentContentCache.get(cacheKey)) {
+        // If content is already cached, no need to wait for visibility
+        const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
+        if (documentContentCache.getSync(cacheKey) || textPreviewCache.getSync(cacheKey)) {
             setIsVisible(true);
             return;
         }
@@ -161,21 +203,34 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     observer.disconnect();
                 }
             },
-            { rootMargin: "100px" }
+            { rootMargin: "200px" }
         );
         observer.observe(el);
         return () => observer.disconnect();
-    }, [canAttemptDocumentThumbnail, artifact.sessionId, artifact.filename]);
+    }, [needsPreviewFetch, artifact.sessionId, artifact.filename, artifact.last_modified]);
 
-    // Load content preview for text files, image thumbnail, or document thumbnail
+    // Load content preview for text files, image thumbnail, or document thumbnail.
+    // Gated behind isVisible (IntersectionObserver) AND a concurrency semaphore to
+    // avoid overwhelming the browser's connection pool.
     useEffect(() => {
-        // Defer document thumbnail loading until card is visible
-        if (!isVisible && canAttemptDocumentThumbnail) return;
+        // Defer ALL preview loading until card is visible
+        if (!isVisible) return;
 
         // Track if component is still mounted
         let isMounted = true;
         const abortController = new AbortController();
         let imageBlobUrl: string | null = null;
+
+        /** Acquire a semaphore slot, run `fn`, and release the slot when done. */
+        async function fetchWithSlot<T>(signal: AbortSignal, fn: () => Promise<T>): Promise<T | undefined> {
+            const acquired = await acquireFetchSlotOrAbort(signal);
+            if (!acquired) return undefined;
+            try {
+                return await fn();
+            } finally {
+                releaseFetchSlot();
+            }
+        }
 
         const loadPreview = async () => {
             // Get the correct API URL for this artifact (handles both session and project artifacts)
@@ -183,39 +238,46 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
 
             if (isImageType(artifact.mime_type)) {
                 // For images, fetch via authenticated API client and create a blob URL.
-                try {
+                await fetchWithSlot(abortController.signal, async () => {
                     const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        if (abortController.signal.aborted) return;
-                        imageBlobUrl = URL.createObjectURL(blob);
-                        if (isMounted) setImagePreviewUrl(imageBlobUrl);
+                    if (!response.ok) {
+                        throw new Error(`Image fetch failed with status ${response.status}`);
                     }
-                } catch (error) {
-                    if (!abortController.signal.aborted) {
-                        console.error("Error loading image preview:", error);
-                    }
-                }
+                    const blob = await response.blob();
+                    if (abortController.signal.aborted) return;
+                    imageBlobUrl = URL.createObjectURL(blob);
+                    if (isMounted) setImagePreviewUrl(imageBlobUrl);
+                });
             } else if (canAttemptDocumentThumbnail) {
                 // For PDF, DOCX, PPTX, etc. - check cache first, then fetch content for thumbnail
-                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename);
-                const cachedContent = documentContentCache.get(cacheKey);
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
+                const cachedContent = await documentContentCache.get(cacheKey);
 
                 if (cachedContent) {
-                    // Use cached content
+                    // Use cached content (from memory or IndexedDB)
                     if (isMounted) setDocumentContent(cachedContent);
                     return;
                 }
 
                 if (isMounted) setIsLoadingPreview(true);
+
+                // Wrap only the network calls so the slot is released before local FileReader work
+                const blob = await fetchWithSlot(abortController.signal, async () => {
+                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true, signal: abortController.signal });
+                    if (abortController.signal.aborted) return undefined;
+
+                    const b = await response.blob();
+                    if (abortController.signal.aborted) return undefined;
+                    return b;
+                });
+
+                if (!blob) {
+                    if (isMounted) setIsLoadingPreview(false);
+                    return;
+                }
+
                 try {
-                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
-                    if (abortController.signal.aborted) return;
-
-                    const blob = await response.blob();
-                    if (abortController.signal.aborted) return;
-
                     // Note: FileReader.readAsDataURL cannot be cancelled - it will complete in the background.
                     // The isMounted/abortController checks after this prevent state updates on unmounted components.
                     const base64data = await new Promise<string>((resolve, reject) => {
@@ -249,10 +311,23 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     }
                 }
             } else if (supportsTextPreview(artifact.mime_type)) {
-                // For text files, fetch a preview of the content
+                // For text files — check cache first, then fetch a preview snippet
+                const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
+                const cachedPreview = await textPreviewCache.get(cacheKey);
+
+                if (cachedPreview) {
+                    if (isMounted) setContentPreview(cachedPreview);
+                    return;
+                }
+
                 if (isMounted) setIsLoadingPreview(true);
-                try {
-                    const response = await api.webui.get(artifactApiUrl, { fullResponse: true });
+
+                await fetchWithSlot(abortController.signal, async () => {
+                    // Append max_bytes to request only the first ~2 KB from the backend.
+                    // This avoids downloading multi-MB files just for an 8-line tile snippet.
+                    const separator = artifactApiUrl.includes("?") ? "&" : "?";
+                    const previewUrl = `${artifactApiUrl}${separator}max_bytes=${TEXT_PREVIEW_MAX_BYTES}`;
+                    const response = await api.webui.get(previewUrl, { fullResponse: true, signal: abortController.signal });
                     if (abortController.signal.aborted) return;
 
                     const text = await response.text();
@@ -269,20 +344,23 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         })
                         .join("\n");
 
+                    // Cache the text snippet so subsequent renders are instant
+                    textPreviewCache.set(cacheKey, preview).catch(err => console.warn("[ArtifactsPage] Failed to cache text preview:", err));
+
                     if (isMounted) {
                         setContentPreview(preview);
                         setIsLoadingPreview(false);
                     }
-                } catch (error) {
-                    if (!abortController.signal.aborted) {
-                        console.error("Error loading text preview:", error);
-                        if (isMounted) setIsLoadingPreview(false);
-                    }
-                }
+                });
             }
         };
 
-        loadPreview();
+        loadPreview().catch(error => {
+            if (!abortController.signal.aborted) {
+                console.error("Error loading preview:", error);
+                if (isMounted) setIsLoadingPreview(false);
+            }
+        });
 
         return () => {
             isMounted = false;
@@ -292,7 +370,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 URL.revokeObjectURL(imageBlobUrl);
             }
         };
-    }, [artifact.sessionId, artifact.filename, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
+    }, [artifact.sessionId, artifact.filename, artifact.last_modified, artifact.mime_type, canAttemptDocumentThumbnail, isVisible]);
 
     // Handle document thumbnail error - fall back to icon
     const handleDocumentThumbnailError = useCallback(() => {
@@ -307,24 +385,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     };
 
     return (
-        <Card
-            className={cn(
-                "group relative flex h-[220px] w-[320px] flex-shrink-0 cursor-pointer flex-col gap-0 overflow-hidden transition-all",
-                "hover:bg-(--primary-w10)",
-                "focus-visible:border-(--brand-w100) focus-visible:outline-none",
-                isSelected && "border-(--brand-w100)"
-            )}
-            onClick={handleCardClick}
-            onKeyDown={e => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleCardClick();
-                }
-            }}
-            role="button"
-            tabIndex={0}
-            noPadding
-        >
+        <Card noPadding isCardSelected={isSelected} onCardSelect={handleCardClick} className="group relative flex h-55 w-[320px] shrink-0 flex-col gap-0 overflow-hidden">
             {/* Header with filename, project badge, and menu */}
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">

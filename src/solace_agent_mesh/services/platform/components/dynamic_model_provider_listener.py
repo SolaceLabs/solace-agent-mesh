@@ -6,6 +6,7 @@ and responds with the full LiteLlm config from the database.
 """
 
 import logging
+from contextlib import contextmanager
 from typing import Any, Dict
 
 from solace_ai_connector.components.component_base import ComponentBase
@@ -124,6 +125,6 @@ class BootstrapRequestListenerComponent(ComponentBase):
 
     def _get_model_config(self, model_id: str) -> dict | None:
         """Look up raw LiteLlm config from DB using ModelConfigService."""
-        db = get_platform_db()
-        service = get_model_config_service()
-        return service.get_by_alias_or_id(db, model_id, raw=True)
+        with contextmanager(get_platform_db)() as db:
+            service = get_model_config_service()
+            return service.get_by_alias_or_id(db, model_id, raw=True)
