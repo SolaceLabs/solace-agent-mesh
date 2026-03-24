@@ -3,7 +3,6 @@ Helper functions for artifact management, including metadata handling and schema
 """
 
 import asyncio
-import asyncio
 import logging
 import base64
 import binascii
@@ -1190,6 +1189,50 @@ async def get_artifact_info_list(
     return artifact_info_list
 
 
+def _metadata_to_artifact_info(
+    filename: str,
+    metadata: Dict[str, Any],
+    *,
+    version: Optional[int] = None,
+    version_count: int = 0,
+    schema_definition: Optional[Dict] = None,
+) -> ArtifactInfo:
+    """
+    Convert a raw metadata dict into an ArtifactInfo.
+
+    Shared helper used by both get_artifact_info_list and get_artifact_info_list_fast
+    to avoid duplicating the metadata extraction logic.
+    """
+    mime_type = metadata.get("mime_type", "application/data")
+    size = metadata.get("size_bytes", 0)
+    description = metadata.get("description", "No description provided")
+
+    last_modified_ts = metadata.get("timestamp_utc")
+    last_modified_iso = (
+        datetime.fromtimestamp(last_modified_ts, tz=timezone.utc).isoformat()
+        if last_modified_ts
+        else None
+    )
+
+    source = metadata.get("source")
+    tags = metadata.get("tags")
+    source_project_id = metadata.get("source_project_id")
+
+    return ArtifactInfo(
+        filename=filename,
+        mime_type=mime_type,
+        size=size,
+        last_modified=last_modified_iso,
+        schema_definition=schema_definition or metadata.get("schema", {}),
+        description=description,
+        version=version,
+        version_count=version_count,
+        source=source,
+        tags=tags,
+        source_project_id=source_project_id,
+    )
+
+
 async def get_artifact_info_list_fast(
     artifact_service: BaseArtifactService,
     app_name: str,
@@ -1238,32 +1281,7 @@ async def get_artifact_info_list_fast(
                     log_identifier_prefix=f"{log_prefix} [{filename}]",
                 )
 
-                metadata = data.get("metadata", {})
-                mime_type = metadata.get("mime_type", "application/data")
-                size = metadata.get("size_bytes", 0)
-                description = metadata.get("description", "No description provided")
-
-                last_modified_ts = metadata.get("timestamp_utc")
-                last_modified_iso = (
-                    datetime.fromtimestamp(last_modified_ts, tz=timezone.utc).isoformat()
-                    if last_modified_ts
-                    else None
-                )
-
-                source = metadata.get("source")
-                tags = metadata.get("tags")
-                source_project_id = metadata.get("source_project_id")
-
-                return ArtifactInfo(
-                    filename=filename,
-                    mime_type=mime_type,
-                    size=size,
-                    last_modified=last_modified_iso,
-                    description=description,
-                    source=source,
-                    tags=tags,
-                    source_project_id=source_project_id,
-                )
+                return _metadata_to_artifact_info(filename, data.get("metadata", {}))
             except FileNotFoundError:
                 log.warning("%s Artifact '%s' not found. Skipping.", log_prefix, filename)
                 return None
