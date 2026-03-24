@@ -18,6 +18,7 @@ from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
 
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.gateway.http_sse.dependencies import get_user_id
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 
@@ -80,6 +81,7 @@ class TestGetFeatureFlagsEndpoint:
         self.client = _create_feature_flags_client(db_url)
         yield
         self.client.cleanup()
+        feature_flags._reset_for_testing()
 
     def test_returns_200(self):
         response = self.client.get("/api/v1/config/features")

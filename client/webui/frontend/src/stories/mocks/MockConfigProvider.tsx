@@ -40,9 +40,9 @@ export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children
         [mockValues]
     );
 
-    const featureFlags = contextValue.configFeatureEnablement ?? {};
+    const featureFlags = contextValue.configFeatureEnablement;
     const prevFlagsRef = useRef<Record<string, boolean> | undefined>(undefined);
-    if (prevFlagsRef.current !== featureFlags) {
+    if (featureFlags !== undefined && featureFlags !== prevFlagsRef.current) {
         OpenFeature.setProvider(new SamFeatureProvider(featureFlags));
         prevFlagsRef.current = featureFlags;
     }
