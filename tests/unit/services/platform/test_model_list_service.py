@@ -209,7 +209,6 @@ class TestModelListServiceValidation:
     """Tests for credential validation in get_models_with_new_credentials."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.service = ModelListService()
 
     def test_apikey_auth_missing_api_key(self):

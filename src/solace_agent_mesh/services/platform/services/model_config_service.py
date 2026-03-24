@@ -500,5 +500,5 @@ class ModelConfigService:
             return response.get("access_token") if response else None
         except Exception as e:
             log.error(f"Failed to fetch OAuth2 token: {e}")
-            return None        
+            return None
 
