@@ -34,7 +34,6 @@ async def has_pending_project_context(
     session_id: str,
     artifact_service: BaseArtifactService,
     app_name: str,
-    db: DbSession,
 ) -> bool:
     """
     Check if session has any artifacts with pending project context.
@@ -47,7 +46,6 @@ async def has_pending_project_context(
         session_id: Session ID
         artifact_service: Artifact service instance
         app_name: Application name for artifact storage
-        db: Database session
 
     Returns:
         True if any artifacts have project_context_pending=True metadata
