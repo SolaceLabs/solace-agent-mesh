@@ -23,7 +23,6 @@ class ModelProviders:
     AZURE_OPENAI = "azure_openai"
     BEDROCK = "bedrock"
     OLLAMA = "ollama"
-    OPENAI_COMPATIBLE = "openai_compatible"
     CUSTOM = "custom"
 
 
@@ -239,7 +238,7 @@ class ModelListService:
 
         # Build endpoint URL and prepare query params based on provider
         query_params = {}
-        if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE or provider == ModelProviders.CUSTOM:
+        if provider == ModelProviders.OPENAI or provider == ModelProviders.CUSTOM:
             endpoint = f"{api_base}/models"
         elif provider == ModelProviders.ANTHROPIC:
             endpoint = f"{api_base}/v1/models"
@@ -263,7 +262,7 @@ class ModelListService:
                 response.raise_for_status()
 
                 # Parse response based on provider format
-                if provider == ModelProviders.OPENAI or provider == ModelProviders.OPENAI_COMPATIBLE or provider == ModelProviders.CUSTOM:
+                if provider == ModelProviders.OPENAI or provider == ModelProviders.CUSTOM:
                     data = response.json()
                     return [model["id"] for model in data.get("data", [])]
 

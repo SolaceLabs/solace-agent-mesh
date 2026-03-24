@@ -100,7 +100,7 @@ class SupportedModelsRequest(CamelCaseModel):
         ...,
         min_length=1,
         max_length=50,
-        description="Provider ID (e.g., 'openai', 'anthropic', 'openai_compatible')",
+        description="Provider ID (e.g., 'openai', 'anthropic', 'custom')",
     )
     model_alias: Optional[str] = Field(
         None,
@@ -109,7 +109,7 @@ class SupportedModelsRequest(CamelCaseModel):
     api_base: Optional[str] = Field(
         None,
         max_length=2048,
-        description="API base URL for custom endpoints (required for openai_compatible in creating mode)",
+        description="API base URL for custom endpoints (required for custom provider in creating mode)",
     )
     auth_type: Optional[str] = Field(
         None,
