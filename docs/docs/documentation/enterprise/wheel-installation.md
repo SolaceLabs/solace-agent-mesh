@@ -11,7 +11,7 @@ You can run Agent Mesh Enterprise directly from a Python wheel file without usin
 
 To run Agent Mesh Enterprise from a wheel file, you need:
 
-- Python 3.10.16 or later
+- Python 3.10.16 – 3.13.x
 - pip or uv package manager
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
 - An LLM service API key and endpoint

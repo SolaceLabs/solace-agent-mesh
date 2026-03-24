@@ -468,6 +468,7 @@ class TestModelConfigurationAPI:
         assert "detail" in data
         assert "could not find" in data["detail"].lower()
 
+
 class TestSupportedModelsAPI:
     """Tests for /api/v1/platform/supported-models endpoints."""
 
@@ -566,4 +567,4 @@ class TestSupportedModelsAPI:
             # Assert: Response contains error detail
             data = response.json()
             assert "detail" in data
-            assert "not enabled" in data["detail"].lower()        
+            assert "not enabled" in data["detail"].lower()

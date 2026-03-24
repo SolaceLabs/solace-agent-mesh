@@ -151,4 +151,4 @@ class SupportedModelsRequest(CamelCaseModel):
     model_params: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Provider-specific parameters (e.g., awsRegionName, vertexProject, vertexLocation, apiVersion)",
-    )    
+    )
