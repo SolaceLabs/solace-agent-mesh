@@ -1,3 +1,5 @@
+// This component is still in experimental phase
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
@@ -173,7 +175,7 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
                 ) : (
                     <>
                         <div>{item.label}</div>
-                        {item.subtext && <div className="text-muted-foreground text-xs">{item.subtext}</div>}
+                        {item.subtext && <div className="text-xs text-(--secondary-text-w50)">{item.subtext}</div>}
                     </>
                 )}
             </div>
@@ -205,9 +207,9 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
                 autoComplete="off"
             />
             {isLoading ? (
-                <Loader2 className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin" />
+                <Loader2 className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin text-(--secondary-text-w50)" />
             ) : (
-                <ChevronDown className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform text-(--secondary-text-w50)" />
             )}
 
             {isOpen && (flatItems.length > 0 || searchText) && (
@@ -225,7 +227,7 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
                                 {groupedItems.advanced && groupedItems.advanced.length > 0 && <div>{groupedItems.advanced.map((item, index) => renderOption(item, (groupedItems.default?.length || 0) + index))}</div>}
                             </>
                         ) : searchText ? (
-                            <div className="text-muted-foreground py-1.5 pr-8 pl-2 text-sm">{noItemsFoundText}</div>
+                            <div className="py-1.5 pr-8 pl-2 text-sm text-(--secondary-text-wMain)">{noItemsFoundText}</div>
                         ) : null}
                     </div>
                 </div>

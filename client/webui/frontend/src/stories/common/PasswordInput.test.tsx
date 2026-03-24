@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, test, expect, vi } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { useForm } from "react-hook-form";
-import { PasswordInput } from "./PasswordInput";
+import { PasswordInput } from "../../lib/components/common/PasswordInput";
 
 expect.extend(matchers);
 
