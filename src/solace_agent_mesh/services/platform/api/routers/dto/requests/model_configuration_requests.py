@@ -151,7 +151,8 @@ class SupportedModelsRequest(CamelCaseModel):
     model_params: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Provider-specific parameters (e.g., awsRegionName, vertexProject, vertexLocation, apiVersion)",
-    )   
+    )
+
 
 class ModelConfigurationTestRequest(CamelCaseModel):
     """Request model for testing a model configuration connection.
@@ -202,4 +203,4 @@ class ModelConfigurationTestRequest(CamelCaseModel):
     model_params: Dict[str, Any] = Field(
         default_factory=dict,
         description="Model-specific parameters to test validation",
-    )     
+    )

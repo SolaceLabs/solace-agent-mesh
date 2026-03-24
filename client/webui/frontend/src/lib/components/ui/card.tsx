@@ -1,13 +1,32 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { clickableNodeProps } from "@/lib/components/utils/nodeInteraction";
 
 interface CardProps extends React.ComponentProps<"div"> {
     noPadding?: boolean;
+    onCardSelect?: () => void;
+    isCardSelected?: boolean;
 }
 
-function Card({ className, noPadding, ...props }: CardProps) {
-    return <div data-slot="card" className={cn("card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)", !noPadding && "py-6", className)} {...props} />;
+function Card({ className, noPadding, onCardSelect, isCardSelected, ...props }: CardProps) {
+    const selectableProps = onCardSelect ? clickableNodeProps(onCardSelect) : {};
+
+    return (
+        <div
+            data-slot="card"
+            className={cn(
+                "card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)",
+                !noPadding && "py-6",
+                onCardSelect && "card-surface-hover cursor-pointer transition-all outline-none hover:bg-(--primary-w10) focus-visible:border-(--brand-wMain)",
+                isCardSelected && "border-(--brand-wMain)",
+                className
+            )}
+            {...props}
+            {...selectableProps}
+            {...(onCardSelect && { "aria-selected": isCardSelected ?? false })}
+        />
+    );
 }
 
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {

@@ -37,6 +37,7 @@ from solace_agent_mesh.shared.api.response_utils import create_data_response
 from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
 
+
 router = APIRouter()
 
 
@@ -199,6 +200,7 @@ async def delete_model(
     service.delete(db, alias)
     _emit_model_config_update(component, config.id, alias, None)
 
+
 @router.post(
     "/supported-models",
     response_model=DataResponse[list[dict]],
@@ -249,7 +251,8 @@ async def list_supported_models_by_provider(
         model_params=request.model_params,
     )
 
-    return create_data_response(models)   
+    return create_data_response(models)
+
 
 @router.post(
     "/models/test",
@@ -281,4 +284,4 @@ async def test_model_connection(
     """
     success, message = await asyncio.to_thread(service.test_connection, db, request)
     response = ModelConfigurationTestResponse(success=success, message=message)
-    return create_data_response(response)      
+    return create_data_response(response)
