@@ -4,14 +4,12 @@ Provides endpoints for retrieving model configurations.
 All sensitive authentication information (API keys, OAuth secrets) is filtered
 from responses to ensure data security through the ModelConfigService business
 logic layer.
-
-Feature flag: SAM_FEATURE_MODEL_CONFIG_UI
-  Controlled by environment variable. When disabled, all endpoints return 501 Not Implemented.
 """
 
 import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from openfeature import api as openfeature_api
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import (
@@ -36,7 +34,7 @@ router = APIRouter()
 def _require_model_config_ui_enabled() -> bool:
     """Dependency that checks if model configuration UI feature is enabled.
 
-    Checks the SAM_FEATURE_MODEL_CONFIG_UI environment variable at request time.
+    Checks the model_config_ui environment variable at request time.
 
     Returns:
         True if feature is enabled, False otherwise.
@@ -44,7 +42,7 @@ def _require_model_config_ui_enabled() -> bool:
     Raises:
         HTTPException: 501 Not Implemented if feature is disabled.
     """
-    is_enabled = os.environ.get("SAM_FEATURE_MODEL_CONFIG_UI", "false").lower() == "true"
+    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
     if not is_enabled:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,

@@ -22,6 +22,7 @@ from google.genai import types as adk_types
 from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
+from ...common.constants import ARTIFACT_TAG_WORKING
 
 log = logging.getLogger(__name__)
 
@@ -350,6 +351,9 @@ async def web_request(
                     description=f"Web content from {url} (status: {response_status_code})",
                     metadata=metadata,
                     preview=preview_text if preview_text else None,
+                    # Auto-generated web_content_ filenames are intermediate deep-research
+                    # artifacts that should be hidden from users by default.
+                    tags=[ARTIFACT_TAG_WORKING] if not output_artifact_filename else None,
                 )
             ],
         )

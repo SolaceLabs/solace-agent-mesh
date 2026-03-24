@@ -934,7 +934,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
             <div className="min-h-0 flex-1 overflow-hidden">
                 {hasRequestAndResult ? (
                     /* Split view for request and result (and optionally created artifacts) */
-                    <div className={`grid h-full grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-gray-200 lg:divide-x lg:divide-y-0`}>
+                    <div className={`grid h-full grid-cols-1 ${hasCreatedArtifacts ? "lg:grid-cols-3" : "lg:grid-cols-2"} divide-y divide-(--secondary-w40) lg:divide-x lg:divide-y-0`}>
                         {/* Request Column */}
                         <div className="max-h-[calc(85vh-140px)] overflow-y-auto p-4">
                             <ColumnHeader label="REQUEST" color="(--info-wMain)" />

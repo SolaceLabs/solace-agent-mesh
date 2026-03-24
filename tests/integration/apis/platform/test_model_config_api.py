@@ -24,7 +24,9 @@ log = logging.getLogger(__name__)
 @pytest.fixture
 def enable_model_config_feature_flag():
     """Enable the model_config_ui feature flag for testing."""
-    with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+    with patch("openfeature.api.get_client") as mock_get_client:
+        mock_client = mock_get_client.return_value
+        mock_client.get_boolean_value.return_value = True
         yield
 
 
@@ -244,7 +246,9 @@ class TestModelConfigurationAPI:
         app = platform_api_client_factory.app
 
         # Ensure the feature flag is disabled
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "false"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             client = TestClient(app)
 
             # Act: Try to get models with feature flag disabled

@@ -175,7 +175,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
     // Render YAML code view
     const renderCodeView = () => {
         if (!nodeConfig) {
-            return <div className="flex h-full items-center justify-center bg-(--background-w20)">There is no code associated with this node.</div>;
+            return <div className="flex h-full items-center justify-center">There is no code associated with this node.</div>;
         }
         try {
             const yamlStr = yaml.dump(nodeConfig, { indent: 2, lineWidth: -1 });
@@ -184,7 +184,7 @@ const WorkflowNodeDetailPanel: React.FC<WorkflowNodeDetailPanelProps> = ({ node,
                     <Button variant="ghost" size="icon" onClick={handleCopy} tooltip={isCopied ? "Copied!" : "Copy"} className="absolute top-2 right-2 z-10 h-8 w-8">
                         {isCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
                     </Button>
-                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg bg-(--background-w20) p-3 font-mono text-sm">{yamlStr}</pre>
+                    <pre className="scrollbar-themed h-full overflow-auto rounded-lg p-3 font-mono text-sm">{yamlStr}</pre>
                 </div>
             );
         } catch {

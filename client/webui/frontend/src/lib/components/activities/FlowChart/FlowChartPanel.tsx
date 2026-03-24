@@ -184,7 +184,8 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
         setIsDialogOpen(false);
         setSelectedNodeDetails(null);
         setIsDialogExpanded(false);
-    }, []);
+        setHighlightedStepId(null);
+    }, [setHighlightedStepId]);
 
     // Handle pane click (clear selection)
     const handlePaneClick = useCallback(
@@ -206,7 +207,7 @@ const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowCha
     return (
         <div style={{ height: "100%", width: "100%" }} className="relative bg-(--background-w20)">
             {/* Controls bar - Show Detail toggle and Re-center button */}
-            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border bg-(--background-w10) px-4 py-2 shadow-md">
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border bg-(--background-w10) px-4 py-2">
                 {/* Re-center button */}
                 <Button onClick={handleRecenter} variant="ghost" size="sm" tooltip="Center Workflow">
                     <Scan className="h-4 w-4" />
