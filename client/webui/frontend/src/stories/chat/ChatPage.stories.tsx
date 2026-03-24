@@ -4,6 +4,9 @@ import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { defaultPromptGroups } from "../data/prompts";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+
+const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: false } });
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -24,6 +27,7 @@ const meta = {
         msw: { handlers },
     },
     decorators: [
+        OpenFeatureDecorator,
         (Story: StoryFn, context: StoryContext) => {
             const storyResult = Story(context.args, context);
 
