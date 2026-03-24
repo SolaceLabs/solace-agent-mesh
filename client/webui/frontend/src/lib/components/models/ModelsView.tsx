@@ -8,6 +8,7 @@ import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
+import { ModelDeleteDialog } from "./ModelDeleteDialog";
 import { PROVIDER_DISPLAY_NAMES } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
@@ -25,6 +26,7 @@ export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
     const [currentPage, setCurrentPage] = useState<number>(1);
+    const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
 
     const modelConfigsError = modelConfigsErrorObj ? (modelConfigsErrorObj instanceof Error ? modelConfigsErrorObj.message : "Failed to load models") : null;
 
@@ -57,8 +59,7 @@ export const ModelsView: React.FC = () => {
         {
             id: "delete",
             label: "Delete",
-            onClick: () => {},
-            disabled: true,
+            onClick: () => setModelToDelete(model),
             divider: true,
         },
     ];
@@ -131,6 +132,20 @@ export const ModelsView: React.FC = () => {
                 {/* Pagination */}
                 <PaginationControls totalPages={totalPages} currentPage={effectiveCurrentPage} onPageChange={setCurrentPage} />
             </div>
+
+            {modelToDelete && (
+                <ModelDeleteDialog
+                    open={!!modelToDelete}
+                    onOpenChange={open => {
+                        if (!open) setModelToDelete(null);
+                    }}
+                    onConfirm={() => {
+                        // TODO: call delete API
+                        setModelToDelete(null);
+                    }}
+                    modelAlias={modelToDelete.alias}
+                />
+            )}
         </div>
     );
 };

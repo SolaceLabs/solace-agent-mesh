@@ -1,3 +1,5 @@
+export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
+
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
     anthropic: "Anthropic",
     openai: "OpenAI",

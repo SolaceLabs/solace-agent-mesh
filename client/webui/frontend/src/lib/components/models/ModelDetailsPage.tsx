@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
@@ -9,11 +9,13 @@ import { Header } from "@/lib/components/header";
 import { useModelConfigs } from "@/lib/api/models";
 import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
+import { ModelDeleteDialog } from "./ModelDeleteDialog";
 
 export const ModelDetailsPage = () => {
     const navigate = useNavigate();
     const { alias: modelAlias } = useParams<{ alias: string }>();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading } = useModelConfigs();
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const modelToView = useMemo(() => {
         if (!modelAlias) return null;
@@ -29,10 +31,9 @@ export const ModelDetailsPage = () => {
             {
                 id: "delete",
                 label: "Delete",
-                onClick: () => {},
+                onClick: () => setDeleteDialogOpen(true),
                 icon: <Trash2 />,
                 iconPosition: "left",
-                disabled: true,
             },
         ];
         return actions;
@@ -130,6 +131,18 @@ export const ModelDetailsPage = () => {
                         }}
                     />
                 </PageContentWrapper>
+            )}
+
+            {modelToView && (
+                <ModelDeleteDialog
+                    open={deleteDialogOpen}
+                    onOpenChange={setDeleteDialogOpen}
+                    onConfirm={() => {
+                        // TODO: call delete API
+                        setDeleteDialogOpen(false);
+                    }}
+                    modelAlias={modelToView.alias}
+                />
             )}
 
             <Footer>
