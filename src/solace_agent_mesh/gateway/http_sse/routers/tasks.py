@@ -31,7 +31,6 @@ from ....agent.utils.artifact_helpers import (
 )
 from ....common import a2a
 from ....gateway.http_sse.dependencies import (
-    SessionLocal,
     get_db,
     get_project_service_optional,
     get_sac_component,
@@ -262,6 +261,8 @@ async def _inject_project_context(
     if not project_id or not message_text:
         return message_text
 
+    from ....gateway.http_sse.dependencies import SessionLocal
+
     if SessionLocal is None:
         log.warning(
             "%sProject context injection skipped: database not configured", log_prefix
@@ -489,6 +490,7 @@ async def _submit_task(
                 frontend_session_id = context_id.strip()
 
         user_id = user_identity.get("id")
+        from ....gateway.http_sse.dependencies import SessionLocal
 
         # If project_id not in metadata, check if session has a project_id in database
         # This handles cases where sessions are moved to projects after creation

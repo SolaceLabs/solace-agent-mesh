@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { ProjectImportDialog } from "@/lib";
+import { MAX_ZIP_FILE_COUNT } from "@/lib/components/projects/ProjectImportDialog";
 import JSZip from "jszip";
 
 // ============================================================================
@@ -109,6 +110,63 @@ export const Default: Story = {
         const dialogContent = within(dialog);
 
         expect(await dialogContent.findByRole("button", { name: "Upload File" })).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
+    },
+};
+
+/**
+ * ZIP with too many entries - triggers zip bomb file count guard
+ */
+export const TooManyFiles: Story = {
+    args: {
+        open: true,
+        onOpenChange: () => console.log("Dialog closed"),
+        onImport: async () => {},
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toBeInTheDocument();
+        const dialogContent = within(dialog);
+
+        const file = await createValidProjectZip({ name: "Too Many Files", artifactCount: MAX_ZIP_FILE_COUNT + 1 });
+
+        const fileInput = (await dialogContent.findByTestId("projectImportFileInput")) as HTMLInputElement;
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(await dialogContent.findByText(/too many entries/i)).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
+    },
+};
+
+/**
+ * Unsupported version - shows error when project.json has an unrecognised version
+ */
+export const UnsupportedVersion: Story = {
+    args: {
+        open: true,
+        onOpenChange: () => console.log("Dialog closed"),
+        onImport: async () => {},
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toBeInTheDocument();
+        const dialogContent = within(dialog);
+
+        const zip = new JSZip();
+        zip.file("project.json", JSON.stringify({ version: "9.9", project: { name: "Bad Version" }, artifacts: [] }));
+        const blob = await zip.generateAsync({ type: "blob" });
+        const file = new File([blob], "bad-version.zip", { type: "application/zip" });
+
+        const fileInput = (await dialogContent.findByTestId("projectImportFileInput")) as HTMLInputElement;
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+        fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(await dialogContent.findByText(/unsupported export version: 9\.9/i)).toBeInTheDocument();
         expect(await dialogContent.findByRole("button", { name: "Import" })).toBeDisabled();
     },
 };

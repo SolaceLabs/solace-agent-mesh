@@ -206,7 +206,9 @@ export const extractHtmlPreview = (content: string): string => {
     }
 
     // Fallback to text extraction
-    const textContent = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).replace(/\s+/g, " ").trim();
+    const textContent = DOMPurify.sanitize(
+        content.replace(/<(?:p|div|h[1-6]|li|br|tr|td|th)[^>]*>/gi, " "), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }
+    ).replace(/\s+/g, " ").trim();
 
     return textContent.substring(0, 150);
 };
@@ -252,7 +254,9 @@ export const generateFileTypePreview = (content: string, filename?: string, mime
         }
         case "html": {
             // For HTML, try to extract text content or show structure
-            const htmlPreview = DOMPurify.sanitize(content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }).replace(/\s+/g, " ").trim();
+            const htmlPreview = DOMPurify.sanitize(
+                content.replace(/<(?:p|div|h[1-6]|li|br|tr|td|th)[^>]*>/gi, " "), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] }
+            ).replace(/\s+/g, " ").trim();
             return generateContentPreview(htmlPreview || content, maxLength);
         }
         default:

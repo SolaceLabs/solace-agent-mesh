@@ -33,8 +33,8 @@ interface ProjectPreview {
 // Default max ZIP upload size (100MB) - fallback if not configured
 const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 // Zip bomb protection: cap on number of entries and total uncompressed size
-const MAX_ZIP_FILE_COUNT = 1000;
-const MAX_ZIP_UNCOMPRESSED_BYTES = 500 * 1024 * 1024; // 500MB
+export const MAX_ZIP_FILE_COUNT = 1000;
+export const MAX_ZIP_UNCOMPRESSED_BYTES = 500 * 1024 * 1024; // 500MB
 
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const { validationLimits } = useConfigContext();
