@@ -87,7 +87,7 @@ class ModelConfigService:
             raise EntityNotFoundError("ModelConfiguration", alias)
 
         if raw:
-            return self._format_as_litellm_config(db_config)
+            return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
     def get_models_from_provider_by_alias(
@@ -145,7 +145,7 @@ class ModelConfigService:
             return None
 
         if raw:
-            return self._format_as_litellm_config(db_config)
+            return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
     def create(
@@ -323,7 +323,7 @@ class ModelConfigService:
         )
 
     @staticmethod
-    def _format_as_litellm_config(db_model: ModelConfiguration) -> Dict:
+    def _to_raw_litellm_config(db_model: ModelConfiguration) -> Dict:
         """
         Format a model configuration as a LiteLlm config dict.
 
