@@ -12,7 +12,7 @@ import logging
 import os
 import uuid
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from sqlalchemy.orm import Session
 
 from solace_agent_mesh.services.platform.models import ModelConfiguration
@@ -463,3 +463,103 @@ class TestModelConfigurationAPI:
         data = response.json()
         assert "detail" in data
         assert "could not find" in data["detail"].lower()
+
+class TestSupportedModelsAPI:
+    """Tests for /api/v1/platform/supported-models endpoints."""
+
+    def test_list_supported_models_by_provider_returns_correct_structure(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that POST /supported-models returns correct structure."""
+        # Mock the HTTP call to OpenAI API
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "gpt-4", "object": "model"},
+                {"id": "gpt-3.5-turbo", "object": "model"},
+            ]
+        }
+        mock_response.status_code = 200
+
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client.get", return_value=mock_response):
+            # Act: Fetch models for openai provider with apikey auth
+            response = platform_api_client.post(
+                "/api/v1/platform/supported-models",
+                json={
+                    "provider": "openai",
+                    "auth_type": "apikey",
+                    "api_key": "sk-test-key",
+                }
+            )
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Response has expected structure
+            data = response.json()
+            assert "data" in data
+            assert isinstance(data["data"], list)
+
+            # Assert: If models are returned, they all have required fields
+            if len(data["data"]) > 0:
+                for model in data["data"]:
+                    assert "id" in model
+                    assert "label" in model
+                    assert "provider" in model
+                    assert model["provider"] == "openai"
+
+    def test_list_supported_models_by_provider_accepts_various_providers(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that POST /supported-models works for different provider IDs."""
+        # Mock the HTTP call to provider APIs
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"data": []}
+        mock_response.status_code = 200
+
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client.get", return_value=mock_response):
+            # Test with multiple provider IDs (openai and anthropic support basic apikey auth)
+            providers = ["openai", "anthropic"]
+
+            for provider in providers:
+                # Act: Fetch models for the provider
+                response = platform_api_client.post(
+                    "/api/v1/platform/supported-models",
+                    json={
+                        "provider": provider,
+                        "auth_type": "apikey",
+                        "api_key": "sk-test-key",
+                    }
+                )
+
+                # Assert: Status code is 200 (not 404 or 500)
+                assert response.status_code == 200
+
+                # Assert: Response structure is valid
+                data = response.json()
+                assert "data" in data
+                assert isinstance(data["data"], list)
+
+    def test_supported_models_by_provider_feature_flag_disabled_returns_501(self, platform_api_client_factory):
+        """Test that POST /supported-models returns 501 when feature flag is disabled."""
+        from fastapi.testclient import TestClient
+
+        app = platform_api_client_factory.app
+
+        # Ensure the feature flag is disabled
+        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "false"}):
+            client = TestClient(app)
+
+            # Act: Try to fetch models with feature flag disabled
+            response = client.post(
+                "/api/v1/platform/supported-models",
+                json={
+                    "provider": "openai",
+                    "auth_type": "apikey",
+                    "api_key": "sk-test-key",
+                }
+            )
+
+            # Assert: Status code is 501
+            assert response.status_code == 501
+
+            # Assert: Response contains error detail
+            data = response.json()
+            assert "detail" in data
+            assert "not enabled" in data["detail"].lower()        
