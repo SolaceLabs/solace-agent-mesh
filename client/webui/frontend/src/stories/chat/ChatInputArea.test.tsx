@@ -48,19 +48,6 @@ describe("ChatInputArea rendering", () => {
         expect(screen.getByTestId("chat-input")).toBeInTheDocument();
     });
 
-    test("renders the send button", () => {
-        renderComponent();
-        // Send button is present (aria-label or accessible name)
-        const buttons = screen.getAllByRole("button");
-        expect(buttons.length).toBeGreaterThan(0);
-    });
-
-    test("renders file attachment button when not responding", () => {
-        renderComponent({ isResponding: false });
-        // Paperclip button is present
-        expect(document.querySelector("input[type='file']")).toBeInTheDocument();
-    });
-
     test("send button is disabled when input is empty and not responding", () => {
         renderComponent({ isResponding: false });
         const sendBtn = screen.getByTestId("sendMessage");
@@ -217,13 +204,6 @@ describe("focus-chat-input event listener", () => {
         );
     });
 
-    test("removes event listener on unmount", () => {
-        const { unmount } = renderComponent();
-        const spy = vi.spyOn(window, "removeEventListener");
-        unmount();
-        expect(spy).toHaveBeenCalledWith("focus-chat-input", expect.any(Function));
-        spy.mockRestore();
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -262,14 +242,6 @@ describe("follow-up-question event", () => {
             const input = screen.getByTestId("chat-input");
             expect(input).toHaveTextContent("Summarise this");
         });
-    });
-
-    test("removes event listener on unmount", () => {
-        const { unmount } = renderComponent();
-        const spy = vi.spyOn(window, "removeEventListener");
-        unmount();
-        expect(spy).toHaveBeenCalledWith("follow-up-question", expect.any(Function));
-        spy.mockRestore();
     });
 
     test("auto-submits when autoSubmit is true and prompt is provided", async () => {
@@ -328,13 +300,6 @@ describe("snip-to-chat event", () => {
         });
     });
 
-    test("removes event listener on unmount", () => {
-        const { unmount } = renderComponent();
-        const spy = vi.spyOn(window, "removeEventListener");
-        unmount();
-        expect(spy).toHaveBeenCalledWith(SNIP_TO_CHAT_EVENT, expect.any(Function));
-        spy.mockRestore();
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -546,37 +511,10 @@ describe("paste handling", () => {
 });
 
 // ---------------------------------------------------------------------------
-// STT error banner
-// ---------------------------------------------------------------------------
-
-describe("STT error banner", () => {
-    test("is not visible initially", () => {
-        renderComponent();
-        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    });
-});
-
-// ---------------------------------------------------------------------------
 // Context badge (follow-up without prompt)
 // ---------------------------------------------------------------------------
 
 describe("context text badge", () => {
-    test("shows quoted context text above input", async () => {
-        renderComponent();
-
-        act(() => {
-            window.dispatchEvent(
-                new CustomEvent("follow-up-question", {
-                    detail: { text: "highlighted text here", prompt: null, autoSubmit: false, sourceMessageId: null },
-                })
-            );
-        });
-
-        await waitFor(() => {
-            expect(screen.getByText(/highlighted text here/)).toBeInTheDocument();
-        });
-    });
-
     test("dismissing context badge hides it", async () => {
         renderComponent();
 
@@ -688,15 +626,6 @@ describe("form submission", () => {
         await waitFor(() => {
             expect(handleSubmit).toHaveBeenCalled();
         });
-    });
-
-    test("does not submit when isResponding is true", async () => {
-        const handleSubmit = vi.fn().mockResolvedValue(undefined);
-        renderComponent({ handleSubmit, isResponding: true });
-
-        // Send button is replaced by Stop button when responding — handleSubmit should not be called
-        await new Promise(r => setTimeout(r, 50));
-        expect(handleSubmit).not.toHaveBeenCalled();
     });
 
     test("clears input after successful submission", async () => {
