@@ -38,3 +38,4 @@ export type { WorkflowPanelView, NodeProps, WorkflowVisualNodeType } from "./wor
 // Note: LayoutNode, Edge, LayoutResult types not exported here to avoid conflicts with activities
 export * from "./jsonViewer";
 export * from "./projects";
+export * from "./models";

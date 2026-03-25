@@ -7,7 +7,8 @@ import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useBooleanFlagDetails } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -22,6 +23,7 @@ import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
+
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     if (command === "create-template") {
@@ -57,6 +59,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -383,7 +388,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, inputValue, selectedFiles, pendingPastedTextItems]);
+    const isSubmittingEnabled = useMemo(() => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();

@@ -23,6 +23,7 @@ from solace_agent_mesh.services.platform.api.dependencies import (
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
     ModelConfigurationTestResponse,
+    ModelConfigStatusResponse,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
@@ -107,6 +108,38 @@ async def list_models(
     """
     configurations = service.list_all(db)
     return create_data_response(configurations)
+
+@router.get(
+    "/models/status",
+    response_model=DataResponse[ModelConfigStatusResponse],
+    summary="Check model configuration status",
+    description="Check if default LLM models (general, planning) are properly configured. Not gated by feature flag.",
+)
+async def get_models_status(
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[ModelConfigStatusResponse]:
+    """Check whether the required default model aliases are configured.
+
+    Returns configured=true only when both 'general' and 'planning' aliases
+    exist and have a non-empty model_name value.
+    """
+    configs = service.list_all(db)
+    if not configs:
+        return create_data_response(ModelConfigStatusResponse(configured=False))
+
+    alias_map = {c.alias: c for c in configs}
+    general = alias_map.get("general")
+    planning = alias_map.get("planning")
+
+    if not general or not planning:
+        return create_data_response(ModelConfigStatusResponse(configured=False))
+
+    configured = bool(
+        general.model_name and general.model_name.strip()
+        and planning.model_name and planning.model_name.strip()
+    )
+    return create_data_response(ModelConfigStatusResponse(configured=configured))
 
 @router.get(
     "/models/{alias}",
@@ -253,7 +286,6 @@ async def list_supported_models_by_provider(
 
     return create_data_response(models)
 
-
 @router.post(
     "/models/test",
     response_model=DataResponse[ModelConfigurationTestResponse],
@@ -285,3 +317,4 @@ async def test_model_connection(
     success, message = await asyncio.to_thread(service.test_connection, db, request)
     response = ModelConfigurationTestResponse(success=success, message=message)
     return create_data_response(response)
+

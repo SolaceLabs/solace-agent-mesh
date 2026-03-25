@@ -63,6 +63,8 @@ export interface ChatState {
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
+    // Permission: user can configure LLM models
+    hasModelConfigWrite: boolean;
 }
 
 export interface ChatActions {
