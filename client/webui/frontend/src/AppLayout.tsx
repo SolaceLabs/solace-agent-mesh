@@ -184,7 +184,10 @@ function AppLayoutContent() {
                         style={{ alignItems: "center" }}
                         message={
                             <div className="flex w-full items-center justify-between gap-3">
-                                <span>No model has been set up. Some features may not work as intended without a configured model. Contact your administrator for assistance.</span>
+                                <span>
+                                    No model has been set up. Some features may not work as intended without a configured model.
+                                    {!hasModelConfigWrite && " Contact your administrator for assistance."}
+                                </span>
                                 {hasModelConfigWrite && (
                                     <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
                                         Add Model
