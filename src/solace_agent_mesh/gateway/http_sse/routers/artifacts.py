@@ -1434,12 +1434,10 @@ async def get_artifact_by_uri(
         )
 
     except HTTPException:
+        # Re-raise HTTP exceptions (authorization denied, not found, etc.)
         raise
     except (ValueError, IndexError) as e:
         raise HTTPException(status_code=400, detail=f"Invalid artifact URI: {e}")
-    except HTTPException:
-        # Re-raise HTTP exceptions (authorization denied, not found, etc.)
-        raise
     except Exception as e:
         log.exception("%s Error fetching artifact by URI: %s", log_id_prefix, e)
         raise HTTPException(
