@@ -33,7 +33,7 @@ export const AdminVariant: Story = {
 
         expect(content.getByText("Set Up Your Default LLM Models")).toBeInTheDocument();
         expect(content.getByRole("button", { name: /Skip for Now/i })).toBeInTheDocument();
-        expect(content.getByRole("button", { name: /Add Model/i })).toBeInTheDocument();
+        expect(content.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
     },
 };
 
@@ -52,7 +52,7 @@ export const NonAdminVariant: Story = {
         expect(content.getByRole("button", { name: /Close/i })).toBeInTheDocument();
 
         // Admin-only buttons should NOT be present
-        expect(content.queryByRole("button", { name: /Add Model/i })).not.toBeInTheDocument();
+        expect(content.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         expect(content.queryByRole("button", { name: /Skip for Now/i })).not.toBeInTheDocument();
     },
 };
@@ -70,7 +70,7 @@ export const WarningBannerAdmin: StoryObj = {
                     <div className="flex w-full items-center justify-between gap-3">
                         <span>No model has been set up. Some features may not work as intended without a configured model.</span>
                         <Button variant="outline" size="sm" className="shrink-0">
-                            Add Model
+                            Go to Models
                         </Button>
                     </div>
                 }
@@ -81,7 +81,7 @@ export const WarningBannerAdmin: StoryObj = {
         const canvas = within(canvasElement);
 
         expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
-        expect(canvas.getByRole("button", { name: /Add Model/i })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
         expect(canvas.queryByText(/Contact your administrator/)).not.toBeInTheDocument();
     },
 };
@@ -108,6 +108,6 @@ export const WarningBannerNonAdmin: StoryObj = {
 
         expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
         expect(canvas.getByText(/Contact your administrator/)).toBeInTheDocument();
-        expect(canvas.queryByRole("button", { name: /Add Model/i })).not.toBeInTheDocument();
+        expect(canvas.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
     },
 };

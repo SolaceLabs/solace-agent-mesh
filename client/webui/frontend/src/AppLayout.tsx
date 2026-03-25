@@ -185,7 +185,7 @@ function AppLayoutContent() {
                                 </span>
                                 {hasModelConfigWrite && (
                                     <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
-                                        Add Model
+                                        Go to Models
                                     </Button>
                                 )}
                             </div>

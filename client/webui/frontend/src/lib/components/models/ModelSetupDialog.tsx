@@ -30,7 +30,7 @@ export function ModelSetupDialog({ open, onOpenChange, hasWritePermissions }: Mo
                                     capabilities. Some features may not work as intended without a configured model.
                                 </span>
                                 <span className="flex items-center gap-1.5 inline">
-                                    Add a model now to get the best experience, or explore first and set up models later from the
+                                    Set up the models now to get the best experience, or explore first and set up models later from the
                                     <Bot className="inline size-4 shrink-0 mx-1" />
                                     <strong>Agent Mesh</strong> area.
                                 </span>
@@ -54,7 +54,7 @@ export function ModelSetupDialog({ open, onOpenChange, hasWritePermissions }: Mo
                             <Button variant="ghost" onClick={() => onOpenChange(false)}>
                                 Skip for Now
                             </Button>
-                            <Button onClick={handleAddModel}>Add Model</Button>
+                            <Button onClick={handleAddModel}>Go to Models</Button>
                         </>
                     ) : (
                         <Button variant="outline" onClick={() => onOpenChange(false)}>
