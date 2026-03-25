@@ -67,9 +67,12 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
 
                         return (
                             <div
-                                key={index}
+                                key={image.imageUrl}
                                 className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg border border-(--secondary-w20) bg-(--secondary-w10) transition-all hover:border-(--primary-wMain)"
                                 onClick={() => !hasError && handleImageClick(index)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!hasError) handleImageClick(index); } }}
+                                role="button"
+                                tabIndex={0}
                             >
                                 {!hasError ? (
                                     <>
@@ -100,7 +103,7 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
 
             {/* Image Modal with Navigation */}
             {selectedImage && selectedImageIndex !== null && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={handleCloseModal}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" onClick={handleCloseModal} onKeyDown={(e) => { if (e.key === "Escape") handleCloseModal(); }} tabIndex={-1}>
                     {/* Previous button */}
                     {selectedImageIndex > 0 && (
                         <button onClick={handlePrevious} className="absolute left-4 z-10 text-(--darkSurface-text) transition-colors hover:text-(--secondary-w40)" aria-label="Previous image">

@@ -224,7 +224,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                         return (
                                             <div className="flex h-full flex-col">
                                                 <FlowChartDetails task={visualizedTask} />
-                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} isSidePanelTransitioning={isSidePanelTransitioning} />
+                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} />
                                             </div>
                                         );
                                     }

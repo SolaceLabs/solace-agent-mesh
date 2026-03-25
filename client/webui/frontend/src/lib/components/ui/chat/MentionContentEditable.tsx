@@ -102,8 +102,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             acceptNode: (node: Node) => {
                 // Skip text nodes that are children of mention-chip spans
                 if (node.nodeType === Node.TEXT_NODE) {
-                    const parent = node.parentElement;
-                    if (parent && parent.classList.contains("mention-chip")) {
+                    if (node.parentElement?.classList.contains("mention-chip")) {
                         return NodeFilter.FILTER_REJECT;
                     }
                 }
@@ -116,7 +115,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
 
         while ((node = walker.nextNode())) {
             if (node.nodeType === Node.TEXT_NODE) {
-                parts.push(node.textContent || "");
+                parts.push(node.textContent ?? "");
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const el = node as HTMLElement;
                 if (el.classList.contains("mention-chip")) {
@@ -132,7 +131,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                             parts.push(`@[${personName}](${personId})`);
                         } else {
                             // Last resort: just use display text
-                            parts.push(el.textContent || "");
+                            parts.push(el.textContent ?? "");
                         }
                     }
                 } else if (el.tagName === "BR") {
@@ -168,8 +167,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
             acceptNode: (node: Node) => {
                 // Skip text nodes that are children of mention-chip spans
                 if (node.nodeType === Node.TEXT_NODE) {
-                    const parent = node.parentElement;
-                    if (parent && parent.classList.contains("mention-chip")) {
+                    if (node.parentElement?.classList.contains("mention-chip")) {
                         return NodeFilter.FILTER_REJECT;
                     }
                 }
@@ -180,7 +178,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
         let node: Node | null;
         while ((node = walker.nextNode())) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const nodeLength = node.textContent?.length || 0;
+                const nodeLength = node.textContent?.length ?? 0;
                 if (currentOffset + nodeLength >= offset) {
                     targetNode = node;
                     targetOffset = offset - currentOffset;
@@ -191,14 +189,14 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 const el = node as HTMLElement;
                 if (el.classList.contains("mention-chip")) {
                     // Use internal format length for cursor positioning
-                    const internal = el.getAttribute("data-internal") || "";
+                    const internal = el.getAttribute("data-internal") ?? "";
                     const mentionLength = internal.length;
 
                     if (currentOffset + mentionLength > offset) {
                         // Cursor is within this mention (not at the end)
                         // Position after the mention span
                         targetNode = el.nextSibling || el.parentNode;
-                        targetOffset = el.nextSibling?.nodeType === Node.TEXT_NODE ? 0 : 0;
+                        targetOffset = 0;
 
                         // If no next sibling, we need to position after this element
                         if (!el.nextSibling) {
@@ -314,7 +312,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                 const html = e.clipboardData.getData("text/html");
                 const text = e.clipboardData.getData("text/plain");
 
-                if (html && html.includes("mention-chip")) {
+                if (html?.includes("mention-chip")) {
                     // HTML contains our mention chips, insert it directly
                     // But we need to extract just the mention spans and text, not full HTML structure
                     const tempDiv = document.createElement("div");
@@ -330,7 +328,7 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                                     return el.outerHTML;
                                 }
                             }
-                            return node.textContent || "";
+                            return node.textContent ?? "";
                         })
                         .join("");
 
