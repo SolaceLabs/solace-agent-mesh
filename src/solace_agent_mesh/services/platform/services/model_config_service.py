@@ -2,9 +2,14 @@
 
 import logging
 
-from typing import Dict, List, Optional
-
+from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
+
+try:
+    import litellm
+except ImportError:
+    litellm = None
+
 
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
 from solace_agent_mesh.services.platform.models import ModelConfiguration
@@ -14,6 +19,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.responses import (
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
+    ModelConfigurationTestRequest,
 )
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -21,6 +27,7 @@ from solace_agent_mesh.shared.exceptions.exceptions import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
 )
+from solace_agent_mesh.common.oauth import OAuth2Client
 
 log = logging.getLogger(__name__)
 
@@ -348,4 +355,150 @@ class ModelConfigService:
         if db_model.model_params:
             config.update(db_model.model_params)
         return config
+
+    def test_connection(self, db: Session, request: ModelConfigurationTestRequest) -> Tuple[bool, str]:
+        """
+        Test a model configuration connection by making a minimal LLM call.
+        Supports two scenarios:
+        1. New configuration: Provide provider, model_name, and credentials
+        2. Test existing model: Provide alias to load full config from database
+           - Provider/model_name optional (loaded from database if not provided)
+           - Credentials loaded from database as fallback
+        Args:
+            db: SQLAlchemy database session
+            request: Test request with model configuration details
+        Returns:
+            Tuple of (success: bool, message: str) where message contains either
+            the LLM response (on success) or error details (on failure)
+        """
+        try:
+            if not litellm:
+                return False, "Test connection failed. litellm library not available"
+
+            # Resolve configuration from alias or request
+            provider = request.provider
+            model_name = request.model_name
+            auth_config = dict(request.auth_config or {})
+            auth_type = request.auth_type
+            api_base = request.api_base
+
+            # Load stored config if alias provided
+            if request.alias:
+                stored_config = self.repository.get_by_alias(db, request.alias)
+                if not stored_config:
+                    return False, f"Test connection failed. Model configuration with alias '{request.alias}' not found"
+
+                # Use stored values as defaults if not provided in request
+                if not provider:
+                    provider = stored_config.provider
+                if not model_name:
+                    model_name = stored_config.model_name
+
+                # Use stored auth_type if not explicitly provided in request
+                if not request.auth_type or request.auth_type == "none":
+                    auth_type = stored_config.model_auth_type or "none"
+
+                # Use stored credentials as fallback for empty fields
+                stored_auth = stored_config.model_auth_config or {}
+                for key, stored_value in stored_auth.items():
+                    if key not in auth_config or not auth_config[key]:
+                        auth_config[key] = stored_value
+
+                # Use stored api_base if not provided in request
+                if not api_base and stored_config.api_base:
+                    api_base = stored_config.api_base
+
+            # Validate required fields
+            if not provider:
+                return False, "Test connection failed. provider is required (either in request or via alias)"
+            if not model_name:
+                return False, "Test connection failed. model_name is required (either in request or via alias)"
+
+            # Resolve api_base: auto-fill from defaults if not provided
+            if not api_base and provider in _DEFAULT_API_BASES:
+                api_base = _DEFAULT_API_BASES[provider]
+
+            # Build litellm call kwargs
+            litellm_kwargs: Dict[str, Any] = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": "Say OK"}],
+                "max_tokens": 5,
+            }
+
+            # Add api_base if available
+            if api_base:
+                litellm_kwargs["api_base"] = api_base
+
+            # Handle authentication based on auth_type
+            if auth_type == "apikey":
+                api_key = auth_config.get("api_key")
+                if api_key:
+                    litellm_kwargs["api_key"] = api_key
+            elif auth_type == "oauth2":
+                # Fetch OAuth2 token and pass as Bearer in Authorization header
+                token = self._fetch_oauth2_token(auth_config)
+                if token:
+                    litellm_kwargs["api_key"] = token
+                else:
+                    return False, "Test connection failed. Failed to fetch OAuth2 token"
+
+            # For connection testing, do NOT include model_params.
+            # The test is purely to verify connectivity and authentication work.
+            # Custom parameters are validated during actual model usage, not in the test.
+
+            # Bedrock models require tool_choice to be explicitly set
+            if "bedrock" in (model_name or "").lower() and "tool_choice" not in litellm_kwargs:
+                litellm_kwargs["tool_choice"] = {"type": "auto"}
+
+            # Make the test call
+            response = litellm.completion(**litellm_kwargs)
+
+            # Extract response message
+            if response and response.choices and len(response.choices) > 0:
+                return True, "Connection test successful"
+            else:
+                return False, "Test connection failed. No response from LLM"
+
+        except Exception as e:
+            # Return error message, but sanitize it to avoid exposing sensitive data
+            error_msg = str(e)
+            # Truncate very long errors
+            if len(error_msg) > 500:
+                error_msg = error_msg[:500] + "..."
+            return False, f"Test connection failed. {error_msg}"
+
+    @staticmethod
+    def _fetch_oauth2_token(auth_config: Dict[str, Any]) -> Optional[str]:
+        """
+        Fetch an OAuth2 access token using client credentials flow.
+        Args:
+            auth_config: Auth config dict with oauth credentials
+        Returns:
+            Access token string if successful, None otherwise
+        """
+        try:
+            client_id = auth_config.get("client_id")
+            client_secret = auth_config.get("client_secret")
+            token_url = auth_config.get("token_url")
+            scope = auth_config.get("scope")
+            ca_cert_path = auth_config.get("ca_cert")
+
+            if not all([client_id, client_secret, token_url]):
+                log.warning("Missing required OAuth2 fields: client_id, client_secret, token_url")
+                return None
+
+            # Fetch token using OAuth2Client
+            response = OAuth2Client.fetch_client_credentials_token(
+                token_url=token_url,
+                client_id=client_id,
+                client_secret=client_secret,
+                scope=scope,
+                verify=ca_cert_path or True,
+                timeout=10.0,
+            )
+
+            return response.get("access_token") if response else None
+        except Exception as e:
+            log.error(f"Failed to fetch OAuth2 token: {e}")
+            return None
 

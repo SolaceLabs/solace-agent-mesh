@@ -568,3 +568,175 @@ class TestSupportedModelsAPI:
             data = response.json()
             assert "detail" in data
             assert "not enabled" in data["detail"].lower()
+
+
+class TestModelConnectionAPI:
+    """Tests for /api/v1/platform/models/test endpoint."""
+
+    def test_test_connection_with_valid_apikey_returns_success(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that POST /models/test with valid credentials returns success."""
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
+            # Mock successful LLM response
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_litellm.completion.return_value = mock_response
+
+            # Act: Test connection with valid apikey
+            response = platform_api_client.post(
+                "/api/v1/platform/models/test",
+                json={
+                    "provider": "openai",
+                    "model_name": "gpt-4",
+                    "auth_type": "apikey",
+                    "api_key": "sk-test-key-valid",
+                }
+            )
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Response contains success flag and message
+            data = response.json()
+            assert "data" in data
+            assert data["data"]["success"] is True
+            assert "successful" in data["data"]["message"].lower()
+
+    def test_test_connection_with_stored_credentials_via_alias(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Test that test_connection uses stored credentials when alias is provided."""
+        db = platform_db_session_factory()
+        try:
+            # Setup: Create a model configuration in database
+            model_config = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="test-gpt4-stored",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="apikey",
+                model_auth_config={"api_key": "sk-stored-key-12345", "type": "apikey"},
+                model_params={},
+                description="Test model with stored credentials",
+                created_by="test_user",
+                updated_by="test_user",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
+                # Mock successful LLM response
+                mock_response = MagicMock()
+                mock_response.choices = [MagicMock()]
+                mock_litellm.completion.return_value = mock_response
+
+                # Act: Test connection using stored credentials
+                response = platform_api_client.post(
+                    "/api/v1/platform/models/test",
+                    json={
+                        "alias": "test-gpt4-stored",
+                    }
+                )
+
+                # Assert: Status code is 200
+                assert response.status_code == 200
+
+                # Assert: Response shows success
+                data = response.json()
+                assert data["data"]["success"] is True
+
+                # Assert: Service used the stored credentials
+                call_kwargs = mock_litellm.completion.call_args[1]
+                assert call_kwargs["api_key"] == "sk-stored-key-12345"
+
+        finally:
+            db.close()
+
+    def test_test_connection_missing_alias_and_auth_returns_error(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that test_connection fails gracefully when neither alias nor auth credentials are provided."""
+        # Act: Test connection without alias or credentials
+        response = platform_api_client.post(
+            "/api/v1/platform/models/test",
+            json={
+                "provider": "openai",
+                "model_name": "gpt-4",
+            }
+        )
+
+        # Assert: Status code is 200 (endpoint returns 200 with success=false for errors)
+        assert response.status_code == 200
+
+        # Assert: Response shows failure
+        data = response.json()
+        assert data["data"]["success"] is False
+        # When no auth is provided, litellm may attempt the call and fail with authentication error
+        assert "failed" in data["data"]["message"].lower()
+
+    def test_test_connection_nonexistent_alias_returns_error(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that test_connection returns error for non-existent alias."""
+        # Act: Test connection with non-existent alias
+        response = platform_api_client.post(
+            "/api/v1/platform/models/test",
+            json={
+                "alias": "nonexistent-model-alias",
+            }
+        )
+
+        # Assert: Status code is 200
+        assert response.status_code == 200
+
+        # Assert: Response shows failure with not found message
+        data = response.json()
+        assert data["data"]["success"] is False
+        assert "not found" in data["data"]["message"].lower()
+
+    def test_test_connection_with_litellm_unavailable(self, platform_api_client, enable_model_config_feature_flag):
+        """Test that test_connection fails gracefully when litellm is not available."""
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
+            # Act: Test connection when litellm is not available
+            response = platform_api_client.post(
+                "/api/v1/platform/models/test",
+                json={
+                    "provider": "openai",
+                    "model_name": "gpt-4",
+                    "auth_type": "apikey",
+                    "api_key": "sk-test-key",
+                }
+            )
+
+            # Assert: Status code is 200
+            assert response.status_code == 200
+
+            # Assert: Response shows failure
+            data = response.json()
+            assert data["data"]["success"] is False
+            assert "litellm" in data["data"]["message"].lower()
+
+    def test_test_connection_feature_flag_disabled_returns_501(self, platform_api_client_factory):
+        """Test that POST /models/test returns 501 when feature flag is disabled."""
+        from fastapi.testclient import TestClient
+
+        app = platform_api_client_factory.app
+
+        # Ensure the feature flag is disabled
+        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "false"}):
+            client = TestClient(app)
+
+            # Act: Try to test connection with feature flag disabled
+            response = client.post(
+                "/api/v1/platform/models/test",
+                json={
+                    "provider": "openai",
+                    "model_name": "gpt-4",
+                    "auth_type": "apikey",
+                    "api_key": "sk-test-key",
+                }
+            )
+
+            # Assert: Status code is 501
+            assert response.status_code == 501
+
+            # Assert: Response contains error detail
+            data = response.json()
+            assert "detail" in data
+            assert "not enabled" in data["detail"].lower()

@@ -2,11 +2,15 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
+import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useBooleanFlagDetails, useLocalStorage } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
 
@@ -15,12 +19,34 @@ function AppLayoutContent() {
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
-    const { addNotification } = useChatContext();
+    const { addNotification, hasModelConfigWrite } = useChatContext();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
+    const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
+
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const showModelWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
+
+    useEffect(() => {
+        if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
+            setIsModelSetupDialogOpen(true);
+        }
+    }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
+
+    const handleModelSetupDialogChange = useCallback(
+        (open: boolean) => {
+            setIsModelSetupDialogOpen(open);
+            if (!open) {
+                setModelSetupDismissed(true);
+            }
+        },
+        [setModelSetupDismissed]
+    );
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -150,6 +176,25 @@ function AppLayoutContent() {
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="h-full w-full flex-1 overflow-auto">
+                {showModelWarning && (
+                    <MessageBanner
+                        variant="warning"
+                        style={{ alignItems: "center" }}
+                        message={
+                            <div className="flex w-full items-center justify-between gap-3">
+                                <span>
+                                    No model has been set up. Some features may not work as intended without a configured model.
+                                    {!hasModelConfigWrite && " Contact your administrator for assistance."}
+                                </span>
+                                {hasModelConfigWrite && (
+                                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
+                                        Go to Models
+                                    </Button>
+                                )}
+                            </div>
+                        }
+                    />
+                )}
                 <Outlet />
             </main>
             <ToastContainer />
@@ -166,6 +211,7 @@ function AppLayoutContent() {
                 currentProjectId={sessionToMove?.projectId}
             />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
+            <ModelSetupDialog open={isModelSetupDialogOpen} onOpenChange={handleModelSetupDialogChange} hasWritePermissions={hasModelConfigWrite} />
         </div>
     );
 }

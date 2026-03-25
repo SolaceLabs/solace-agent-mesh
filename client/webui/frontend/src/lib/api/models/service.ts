@@ -5,7 +5,7 @@
 import { api } from "@/lib/api";
 import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
 import type { AuthType } from "@/lib/components/models/modelProviderUtils";
-import type { ModelConfig } from "./types";
+import type { ModelConfig, ModelConfigStatus } from "./types";
 
 interface ModelData {
     alias: string;
@@ -94,5 +94,20 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
  */
 export async function updateModelConfig(alias: string, data: ModelData): Promise<ModelConfig> {
     const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(alias)}`, data);
+    return response.data;
+}
+
+/**
+ * Delete a model configuration by alias.
+ */
+export async function deleteModel(alias: string): Promise<void> {
+    await api.platform.delete(`/api/v1/platform/models/${alias}`);
+}
+
+/**
+ * Check if default LLM models are configured.
+ */
+export async function fetchModelConfigStatus(): Promise<ModelConfigStatus> {
+    const response = await api.platform.get("/api/v1/platform/models/status");
     return response.data;
 }
