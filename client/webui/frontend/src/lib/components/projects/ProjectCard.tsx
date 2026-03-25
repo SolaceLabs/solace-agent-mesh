@@ -121,7 +121,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div className="flex items-center justify-between">
                     <div className="max-w-[200px] truncate text-(--secondary-text-wMain)">{project.userId}</div>
                     <div className="flex items-center gap-4">
-                        {project.artifactCount !== undefined && project.artifactCount !== null && (
+                        {isOwner && project.artifactCount !== undefined && project.artifactCount !== null && (
                             <div className="flex items-center gap-1">
                                 <span className="text-(--secondary-text-wMain)">
                                     {project.artifactCount} {project.artifactCount === 1 ? "file" : "files"}
