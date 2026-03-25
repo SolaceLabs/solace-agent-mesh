@@ -66,6 +66,7 @@ from sqlalchemy.orm import Session
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_info_list,
+    get_artifact_info_list_fast,
     load_artifact_content_or_metadata,
     process_artifact_upload,
 )
@@ -562,7 +563,7 @@ async def list_all_artifacts(
         """Fetch artifacts for a single session, respecting the semaphore."""
         async with _ARTIFACT_FETCH_SEMAPHORE:
             try:
-                artifacts = await get_artifact_info_list(
+                artifacts = await get_artifact_info_list_fast(
                     artifact_service=artifact_service,
                     app_name=app_name,
                     user_id=fetch_user_id,
