@@ -12,6 +12,8 @@ const WorkflowDiagramEdgeComponent: React.FC<EdgeProps> = ({
     markerEnd,
     data,
 }) => {
+    const edgeStyle = { strokeWidth: 2, stroke: "var(--secondary-w70)" };
+
     // Straight line for condition pill → target edges
     if (data?.isStraight) {
         const path = `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
@@ -19,8 +21,7 @@ const WorkflowDiagramEdgeComponent: React.FC<EdgeProps> = ({
             <BaseEdge
                 id={id}
                 path={path}
-                style={{ strokeWidth: 2 }}
-                className="stroke-(--color-secondary-w70) dark:stroke-(--color-secondary-w70)"
+                style={edgeStyle}
                 markerEnd={markerEnd}
             />
         );
@@ -41,8 +42,7 @@ const WorkflowDiagramEdgeComponent: React.FC<EdgeProps> = ({
         <BaseEdge
             id={id}
             path={edgePath}
-            style={{ strokeWidth: 2 }}
-            className="stroke-(--color-secondary-w70) dark:stroke-(--color-secondary-w70)"
+            style={edgeStyle}
             markerEnd={markerEnd}
         />
     );

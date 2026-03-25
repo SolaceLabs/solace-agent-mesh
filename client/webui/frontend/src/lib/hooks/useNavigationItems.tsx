@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, Hammer, User, LogOut, Files } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, LayoutGrid, Sparkles, Workflow, Plug, Globe, Brain } from "lucide-react";
 import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 
@@ -68,23 +68,71 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
             });
         }
 
-        if (builderEnabled) {
-            navItems.push({
-                id: "build",
-                label: "Build",
-                icon: Hammer,
-                route: "/builder",
-                routeMatch: "/builder",
-                position: "top",
-            });
-        }
-
         navItems.push({
             id: "agents",
-            label: "Agents",
+            label: "Browse Agents",
             icon: Bot,
             route: "/agents",
             routeMatch: "/agents",
+            position: "top",
+        });
+
+        // System Management group with Quick Build and management sub-items
+        const systemManagementChildren: NavItemConfig[] = [];
+
+        if (builderEnabled) {
+            systemManagementChildren.push({
+                id: "build",
+                label: "Quick Build",
+                icon: Sparkles,
+                route: "/builder",
+                routeMatch: "/builder",
+            });
+        }
+
+        systemManagementChildren.push(
+            {
+                id: "workflows",
+                label: "Workflows",
+                icon: Workflow,
+                route: "/workflows",
+                routeMatch: "/workflows",
+            },
+            {
+                id: "agents-mgmt",
+                label: "Agent",
+                icon: Bot,
+                route: "/agents-mgmt",
+                routeMatch: "/agents-mgmt",
+            },
+            {
+                id: "connectors-mgmt",
+                label: "Connectors",
+                icon: Plug,
+                route: "/connectors",
+                routeMatch: "/connectors",
+            },
+            {
+                id: "gateways-mgmt",
+                label: "Gateways",
+                icon: Globe,
+                route: "/gateways",
+                routeMatch: "/gateways",
+            },
+            {
+                id: "models",
+                label: "Models",
+                icon: Brain,
+                route: "/models",
+                routeMatch: "/models",
+            },
+        );
+
+        navItems.push({
+            id: "systemManagement",
+            label: "System Management",
+            icon: LayoutGrid,
+            children: systemManagementChildren,
             position: "top",
         });
 
@@ -116,6 +164,11 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
+        if (path.startsWith("/workflows")) return "workflows";
+        if (path.startsWith("/agents-mgmt")) return "agents-mgmt";
+        if (path.startsWith("/connectors")) return "connectors-mgmt";
+        if (path.startsWith("/gateways")) return "gateways-mgmt";
+        if (path.startsWith("/models")) return "models";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

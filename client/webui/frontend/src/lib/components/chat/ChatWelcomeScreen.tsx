@@ -108,7 +108,19 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
         <div className="flex h-full w-full flex-col">
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
                 <div className="flex flex-col items-center gap-6" style={{ maxWidth: "640px" }}>
-                    <SolaceIcon variant="short" className="h-12 w-12 opacity-80" />
+                    {(effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon) ? (
+                        <img
+                            src={effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon}
+                            alt=""
+                            className={`w-auto opacity-90 ${
+                                { small: "h-12", medium: "h-24", large: "h-40" }[
+                                    effectiveWelcome?.welcome_icon_size || welcomeOverride?.welcome_icon_size || "small"
+                                ]
+                            }`}
+                        />
+                    ) : (
+                        <SolaceIcon variant="short" className="h-12 w-12 opacity-80" />
+                    )}
                     <h1 className="text-foreground text-center text-3xl font-semibold tracking-tight">
                         {welcomeMessage || defaultHeading}
                     </h1>

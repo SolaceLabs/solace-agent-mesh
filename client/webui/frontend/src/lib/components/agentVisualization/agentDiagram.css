@@ -25,15 +25,15 @@
 
 /* Edge path styling - theme colors */
 .agent-diagram .react-flow__edge-path {
-    stroke: var(--color-secondary-w70);
+    stroke: var(--secondary-w70);
     stroke-width: 2;
 }
 
 .dark .agent-diagram .react-flow__edge-path {
-    stroke: var(--color-secondary-w70);
+    stroke: var(--secondary-w70);
 }
 
 /* Selected edge styling */
 .agent-diagram .react-flow__edge.selected .react-flow__edge-path {
-    stroke: var(--color-accent-n2-wMain);
+    stroke: var(--accent-n2-wMain);
 }

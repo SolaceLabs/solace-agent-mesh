@@ -46,6 +46,7 @@
         "build-lib": "vite build --config vite.lib.config.ts",
         "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
         "build-package": "npm run build-lib && npm run build-types",
+        "watch-lib": "vite build --watch --config vite.lib.config.ts",
         "lint": "eslint .",
         "cypress:open": "cypress open",
         "cypress:run": "cypress run",

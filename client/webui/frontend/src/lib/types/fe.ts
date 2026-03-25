@@ -62,6 +62,10 @@ export interface WelcomeSuggestion {
 export interface AgentWelcomeConfig {
     welcome_message?: string;
     suggestions?: WelcomeSuggestion[];
+    /** Optional icon URL or imported image to replace the default Solace logo on the welcome screen. */
+    welcome_icon?: string;
+    /** Size of the welcome icon: "small" (3rem), "medium" (6rem), "large" (10rem). Defaults to "small". */
+    welcome_icon_size?: "small" | "medium" | "large";
 }
 
 /**
