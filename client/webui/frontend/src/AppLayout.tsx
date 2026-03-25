@@ -9,7 +9,8 @@ import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useBooleanFlagDetails, useLocalStorage } from "@/lib/hooks";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
@@ -38,12 +39,15 @@ function AppLayoutContent() {
         }
     }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
 
-    const handleModelSetupDialogChange = useCallback((open: boolean) => {
-        setIsModelSetupDialogOpen(open);
-        if (!open) {
-            setModelSetupDismissed(true);
-        }
-    }, [setModelSetupDismissed]);
+    const handleModelSetupDialogChange = useCallback(
+        (open: boolean) => {
+            setIsModelSetupDialogOpen(open);
+            if (!open) {
+                setModelSetupDismissed(true);
+            }
+        },
+        [setModelSetupDismissed]
+    );
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
