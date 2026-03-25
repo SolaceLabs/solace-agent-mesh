@@ -53,9 +53,16 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
+        // Skip fetching if a compaction just completed — the optimistic update
+        // from handleCompress already reflects the correct post-compaction state
+        // and the backend won't have updated task-level data yet.
+        if (compactingRef.current) return;
         setIsLoading(true);
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
+            // Double-check the flag again after the async call in case compaction
+            // completed while the request was in flight.
+            if (compactingRef.current) return data;
             setUsage(data);
             return data;
         } catch (err) {
@@ -147,13 +154,46 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         try {
             const result = await compactSession(sessionId);
             setCompactSuccess(`Compacted ${result.eventsCompacted} events. ${result.remainingTokens > 0 ? `${formatTokenCount(result.remainingTokens)} tokens remaining.` : ""}`);
-            await fetchUsage();
+
+            // Immediately update the usage state with compaction response data.
+            // The backend context-usage endpoint reads from the tasks table, but
+            // compaction is a session-level operation that doesn't create a new
+            // task, so fetchUsage() alone would return stale values until the
+            // next user message.  We optimistically patch the local state with
+            // the token/event counts returned by the compact endpoint.
+            if (usage && result.remainingTokens > 0) {
+                setUsage(prev =>
+                    prev
+                        ? {
+                              ...prev,
+                              currentContextTokens: result.remainingTokens,
+                              // promptTokens: keep prev.promptTokens (cumulative, unchanged by compaction)
+                              // completionTokens: keep prev.completionTokens (cumulative, unchanged by compaction)
+                              totalEvents: result.remainingEvents,
+                              usagePercentage: prev.maxInputTokens > 0 ? Math.round((result.remainingTokens / prev.maxInputTokens) * 100) : 0,
+                              hasCompaction: true,
+                          }
+                        : prev
+                );
+            }
+
+            // Do NOT call fetchUsage() here — the backend context-usage endpoint
+            // still returns pre-compaction data (stale) because compaction doesn't
+            // create a new task.  Calling fetchUsage() would immediately overwrite
+            // the optimistic setUsage() above with stale values.  The next user
+            // message will trigger a fresh fetch via the messageCount effect.
             onCompacted?.();
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
         } finally {
-            compactingRef.current = false;
             setIsCompacting(false);
+            // Release the compacting guard AFTER React has had a chance to commit
+            // the optimistic state update.  Without this delay, effects triggered
+            // by onCompacted (e.g. messageCount change → fetchUsage) could still
+            // slip through and overwrite the optimistic value.
+            setTimeout(() => {
+                compactingRef.current = false;
+            }, 2000);
         }
     };
 
@@ -219,20 +259,24 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             <div className="space-y-2 border-t pt-3">
                                 {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
                                 {compactError && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">{compactError}</div>}
-                                <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
-                                    {isCompacting ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                            Summarizing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="mr-2 h-3 w-3" />
-                                            Summarize Conversation
-                                        </>
-                                    )}
-                                </Button>
-                                <p className="text-muted-foreground mt-1 text-center text-xs">Summarize older messages to free context space</p>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
+                                            {isCompacting ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                    Summarizing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="mr-2 h-3 w-3" />
+                                                    Summarize Conversation
+                                                </>
+                                            )}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Summarize older messages to free context space</TooltipContent>
+                                </Tooltip>
                             </div>
                         )}
 
