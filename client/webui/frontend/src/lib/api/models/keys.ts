@@ -5,4 +5,5 @@
 export const modelKeys = {
     all: ["models"] as const,
     lists: () => [...modelKeys.all, "list"] as const,
+    status: () => [...modelKeys.all, "status"] as const,
 };

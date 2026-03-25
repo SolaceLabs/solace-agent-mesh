@@ -1,4 +1,6 @@
 import React from "react";
+import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
+import { InMemoryProvider } from "@openfeature/web-sdk";
 
 import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
@@ -10,6 +12,9 @@ import { MockProjectProvider } from "./MockProjectProvider";
 import type { ProjectContextValue } from "@/lib/types/projects";
 import { MockTextSelectionProvider } from "./MockTextSelectionProvider";
 import { MockAudioSettingsProvider } from "./MockAudioSettingsProvider";
+
+// Initialize OpenFeature with an in-memory provider for tests
+OpenFeature.setProvider(new InMemoryProvider({}));
 
 interface RouterValues {
     initialPath?: string;
@@ -59,23 +64,25 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
 }) => {
     return (
         <QueryProvider>
-            <ThemeProvider>
-                <MockConfigProvider mockValues={configContextValues}>
-                    <MockAuthProvider mockValues={authContextValues}>
-                        <SSEProvider>
-                            <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
-                                <MockProjectProvider mockValues={projectContextValues}>
-                                    <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                                        <MockTaskProvider mockValues={taskContextValues}>
-                                            <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                                        </MockTaskProvider>
-                                    </MockTextSelectionProvider>
-                                </MockProjectProvider>
-                            </MockAudioSettingsProvider>
-                        </SSEProvider>
-                    </MockAuthProvider>
-                </MockConfigProvider>
-            </ThemeProvider>
+            <OpenFeatureProvider>
+                <ThemeProvider>
+                    <MockConfigProvider mockValues={configContextValues}>
+                        <MockAuthProvider mockValues={authContextValues}>
+                            <SSEProvider>
+                                <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                                    <MockProjectProvider mockValues={projectContextValues}>
+                                        <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                            <MockTaskProvider mockValues={taskContextValues}>
+                                                <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                            </MockTaskProvider>
+                                        </MockTextSelectionProvider>
+                                    </MockProjectProvider>
+                                </MockAudioSettingsProvider>
+                            </SSEProvider>
+                        </MockAuthProvider>
+                    </MockConfigProvider>
+                </ThemeProvider>
+            </OpenFeatureProvider>
         </QueryProvider>
     );
 };

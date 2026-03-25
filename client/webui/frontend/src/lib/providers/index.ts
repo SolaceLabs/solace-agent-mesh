@@ -1,5 +1,6 @@
 export * from "./AudioSettingsProvider";
 export * from "./ConfigProvider";
+export * from "./FeatureFlagProvider";
 export * from "./TaskProvider";
 export * from "./ChatProvider";
 export * from "./AuthProvider";

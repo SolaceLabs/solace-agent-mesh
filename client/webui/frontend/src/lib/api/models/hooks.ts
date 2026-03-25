@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { deleteModel, fetchModelConfigs } from "./service";
+import { deleteModel, fetchModelConfigs, fetchModelConfigStatus } from "./service";
 
 /**
  * Hook to fetch all model configurations.
@@ -27,5 +27,19 @@ export function useDeleteModel() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
         },
+    });
+}
+
+/**
+ * Hook to check if default LLM models are configured.
+ * Fetches once and caches indefinitely for the session.
+ */
+export function useModelConfigStatus() {
+    return useQuery({
+        queryKey: modelKeys.status(),
+        queryFn: fetchModelConfigStatus,
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+        retry: 1,
     });
 }

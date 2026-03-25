@@ -1,19 +1,40 @@
 export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
 
-export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-    anthropic: "Anthropic",
-    openai: "OpenAI",
-    openai_compatible: "OpenAI Compatible",
-    google_ai_studio: "Google AI Studio",
-    vertex_ai: "Google Vertex AI",
-    azure_openai: "Azure OpenAI",
-    bedrock: "Amazon Bedrock",
-    ollama: "Ollama",
-    custom: "Custom",
+// Re-export from single source of truth
+export { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./modelProviderUtils";
+
+/**
+ * Strip LiteLLM provider prefix from model name for display purposes.
+ * LiteLLM prefixes model names with the provider routing path (e.g., "openai/", "anthropic/").
+ * e.g., "openai/gpt-4o" → "gpt-4o", "anthropic/claude-sonnet" → "claude-sonnet"
+ */
+export const getDisplayModelName = (modelName: string): string => {
+    if (!modelName) return "";
+    const slashIndex = modelName.indexOf("/");
+    if (slashIndex > 0 && slashIndex < modelName.length - 1) {
+        return modelName.substring(slashIndex + 1);
+    }
+    return modelName;
 };
 
-export const AUTH_TYPE_LABELS: Record<string, string> = {
-    apikey: "API Key",
-    oauth2: "OAuth2",
-    none: "None",
+/**
+ * Convert alias to user-friendly display name for UI tables.
+ * Only converts aliases for system-created models to title case.
+ * User-created models show their original alias.
+ * e.g., "audio_transcription" (system-created) → "Audio Transcription"
+ * e.g., "my_custom_model" (user-created) → "my_custom_model"
+ */
+export const getDisplayAliasName = (alias: string, createdBy?: string): string => {
+    if (!alias) return "";
+
+    // Only convert to title case if created by system
+    if (createdBy === "system") {
+        return alias
+            .split("_")
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" ");
+    }
+
+    // Return original alias for user-created models
+    return alias;
 };

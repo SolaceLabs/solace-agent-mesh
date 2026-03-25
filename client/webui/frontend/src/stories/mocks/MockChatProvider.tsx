@@ -67,6 +67,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     configCollectFeedback: false,
     showWorkingArtifacts: false,
     workingArtifactCount: 0,
+    hasModelConfigWrite: false,
 
     // Background task monitoring
     backgroundTasks: [],
