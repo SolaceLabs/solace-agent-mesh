@@ -4,7 +4,9 @@ Includes background task status endpoints.
 """
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import yaml
@@ -21,13 +23,13 @@ from openfeature import api as openfeature_api
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 
-from ....gateway.http_sse.services.project_service import ProjectService
+from solace_agent_mesh.shared.api.pagination import PaginationParams
+from solace_agent_mesh.shared.utils.types import UserId
 
 from ....agent.utils.artifact_helpers import (
     BM25_INDEX_FILENAME,
     get_artifact_info_list,
 )
-
 from ....common import a2a
 from ....gateway.http_sse.dependencies import (
     get_db,
@@ -40,15 +42,22 @@ from ....gateway.http_sse.dependencies import (
     get_user_config,
     get_user_id,
 )
+from ....gateway.http_sse.repository.chat_task_repository import ChatTaskRepository
 from ....gateway.http_sse.repository.entities import Task
 from ....gateway.http_sse.repository.interfaces import ITaskRepository
+from ....gateway.http_sse.repository.sse_event_buffer_repository import (
+    SSEEventBufferRepository,
+)
 from ....gateway.http_sse.repository.task_repository import TaskRepository
+from ....gateway.http_sse.services.project_service import ProjectService
 from ....gateway.http_sse.services.session_service import SessionService
 from ....gateway.http_sse.services.task_service import TaskService
 from ....gateway.http_sse.session_manager import SessionManager
-from solace_agent_mesh.shared.api.pagination import PaginationParams
-from solace_agent_mesh.shared.utils.types import UserId
-from ..utils.stim_utils import create_stim_from_task_data
+from ..utils.artifact_copy_utils import (
+    copy_project_artifacts_to_session,
+    has_pending_project_context,
+)
+from ..utils.stim_utils import create_stim_from_task_hierarchy
 
 if TYPE_CHECKING:
     from ....gateway.http_sse.component import WebUIBackendComponent
@@ -81,10 +90,10 @@ async def get_task_status(
     """
     Get the current status of a task.
     Used by frontend to check if a background task is still running.
-    
+
     Args:
         task_id: The task ID to query
-        
+
     Returns:
         Task status information including whether it's running and can be reconnected to
     """
@@ -121,18 +130,19 @@ async def get_task_status(
                     # Check if this is a final response or error
                     if "result" in payload:
                         result_data = payload["result"]
-                        if isinstance(result_data, dict):
-                            # Check for status message in final task
-                            if "status" in result_data and "message" in result_data["status"]:
-                                msg_obj = result_data["status"]["message"]
-                                if isinstance(msg_obj, dict) and "text" in msg_obj:
-                                    error_message = msg_obj["text"]
-                                    break
+                        if (
+                            isinstance(result_data, dict)
+                            and "status" in result_data
+                            and "message" in result_data["status"]
+                        ):
+                            msg_obj = result_data["status"]["message"]
+                            if isinstance(msg_obj, dict) and "text" in msg_obj:
+                                error_message = msg_obj["text"]
+                                break
                     # Also check for JSON-RPC error messages
-                    if "error" in payload and isinstance(payload["error"], dict):
-                        if "message" in payload["error"]:
-                            error_message = payload["error"]["message"]
-                            break
+                    if "error" in payload and isinstance(payload["error"], dict) and "message" in payload["error"]:
+                        error_message = payload["error"]["message"]
+                        break
 
     log.info(
         "%sTask status: running=%s, background=%s, can_reconnect=%s, has_error=%s",
@@ -160,21 +170,21 @@ async def get_active_background_tasks(
     """
     Get all active background tasks for a user.
     Used by frontend on session load to detect running background tasks.
-    
+
     Args:
         user_id: The user ID to filter by
-        
+
     Returns:
         List of active background tasks
     """
     log_prefix = "[GET /api/v1/tasks/background/active] "
     log.debug("%sQuerying active background tasks for user %s", log_prefix, user_id)
-    
+
     repo = TaskRepository()
-    
+
     # Get all background tasks
     all_background_tasks = repo.find_background_tasks_by_status(db, status=None)
-    
+
     # Filter by user and running status
     active_tasks = [
         task for task in all_background_tasks
@@ -182,9 +192,9 @@ async def get_active_background_tasks(
         and task.status in [None, "running", "pending"]
         and task.end_time is None
     ]
-    
+
     log.info("%sFound %d active background tasks for user %s", log_prefix, len(active_tasks), user_id)
-    
+
     return {
         "tasks": active_tasks,
         "count": len(active_tasks)
@@ -199,7 +209,7 @@ async def get_active_background_tasks(
 async def _check_project_has_bm25_index(
     project,
     project_service: ProjectService,
-    component: "WebUIBackendComponent",
+    component: WebUIBackendComponent,
     log_prefix: str,
 ) -> bool:
     """Check whether a project has a BM25 search index artifact.
@@ -234,7 +244,7 @@ async def _inject_project_context(
     user_id: str,
     session_id: str,
     project_service: ProjectService,
-    component: "WebUIBackendComponent",
+    component: WebUIBackendComponent,
     log_prefix: str,
     inject_full_context: bool = True,
 ) -> str:
@@ -253,7 +263,6 @@ async def _inject_project_context(
         return message_text
 
     from ....gateway.http_sse.dependencies import SessionLocal
-    from ..utils.artifact_copy_utils import copy_project_artifacts_to_session
 
     if SessionLocal is None:
         log.warning(
@@ -426,7 +435,7 @@ async def _submit_task(
     request: FastAPIRequest,
     payload: SendMessageRequest | SendStreamingMessageRequest,
     session_manager: SessionManager,
-    component: "WebUIBackendComponent",
+    component: WebUIBackendComponent,
     project_service: ProjectService | None,
     is_streaming: bool,
     session_service: SessionService | None = None,
@@ -484,59 +493,57 @@ async def _submit_task(
 
         # If project_id not in metadata, check if session has a project_id in database
         # This handles cases where sessions are moved to projects after creation
-        if not project_id and session_service and frontend_session_id:
-            if SessionLocal is not None:
-                db = SessionLocal()
-                try:
-                    session_details = session_service.get_session_details(
-                        db, frontend_session_id, user_id
+        if not project_id and session_service and frontend_session_id and SessionLocal is not None:
+            db = SessionLocal()
+            try:
+                session_details = session_service.get_session_details(
+                    db, frontend_session_id, user_id
+                )
+                if session_details and session_details.project_id:
+                    project_id = session_details.project_id
+                    log.info(
+                        "%sFound project_id %s from session database for session %s",
+                        log_prefix,
+                        project_id,
+                        frontend_session_id,
                     )
-                    if session_details and session_details.project_id:
-                        project_id = session_details.project_id
-                        log.info(
-                            "%sFound project_id %s from session database for session %s",
-                            log_prefix,
-                            project_id,
-                            frontend_session_id,
-                        )
-                except Exception as e:
-                    log.warning(
-                        "%sFailed to lookup session project_id: %s", log_prefix, e
-                    )
-                finally:
-                    db.close()
+            except Exception as e:
+                log.warning(
+                    "%sFailed to lookup session project_id: %s", log_prefix, e
+                )
+            finally:
+                db.close()
 
         # Security: Validate user still has project access
         # Retain project object for downstream index existence check
         project = None
-        if project_id and project_service:
-            if SessionLocal is not None:
-                db = SessionLocal()
-                try:
-                    project = project_service.get_project(db, project_id, user_id)
-                    if not project:
-                        log.warning(
-                            "%sUser %s denied - project %s not found or access denied",
-                            log_prefix,
-                            user_id,
-                            project_id
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail=SESSION_NOT_FOUND_MSG
-                        )
-                except HTTPException:
-                    raise
-                except Exception as e:
-                    log.error(
-                        "%sFailed to validate project access: %s", log_prefix, e
+        if project_id and project_service and SessionLocal is not None:
+            db = SessionLocal()
+            try:
+                project = project_service.get_project(db, project_id, user_id)
+                if not project:
+                    log.warning(
+                        "%sUser %s denied - project %s not found or access denied",
+                        log_prefix,
+                        user_id,
+                        project_id
                     )
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=SESSION_NOT_FOUND_MSG
                     )
-                finally:
-                    db.close()
+            except HTTPException:
+                raise
+            except Exception as e:
+                log.error(
+                    "%sFailed to validate project access: %s", log_prefix, e
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=SESSION_NOT_FOUND_MSG
+                ) from e
+            finally:
+                db.close()
 
         if frontend_session_id:
             session_id = frontend_session_id
@@ -630,29 +637,21 @@ async def _submit_task(
 
             # Check if there are artifacts with pending project context
             if frontend_session_id and not should_inject_full_context:
-                from ..utils.artifact_copy_utils import has_pending_project_context
-                from ....gateway.http_sse.dependencies import SessionLocal
-
                 artifact_service = component.get_shared_artifact_service()
-                if artifact_service and SessionLocal:
-                    db = SessionLocal()
-                    try:
-                        has_pending = await has_pending_project_context(
-                            user_id=client_id,
-                            session_id=session_id,
-                            artifact_service=artifact_service,
-                            app_name=component.gateway_id,
-                            db=db,
+                if artifact_service:
+                    has_pending = await has_pending_project_context(
+                        user_id=client_id,
+                        session_id=session_id,
+                        artifact_service=artifact_service,
+                        app_name=component.gateway_id,
+                    )
+                    if has_pending:
+                        should_inject_full_context = True
+                        log.info(
+                            "%sDetected pending project context for session %s, will inject full context",
+                            log_prefix,
+                            session_id,
                         )
-                        if has_pending:
-                            should_inject_full_context = True
-                            log.info(
-                                "%sDetected pending project context for session %s, will inject full context",
-                                log_prefix,
-                                session_id,
-                            )
-                    finally:
-                        db.close()
 
             modified_message_text = await _inject_project_context(
                 project_id=project_id,
@@ -719,14 +718,12 @@ async def _submit_task(
             if session_id not in _fork_metadata_cache:
                 _fork_metadata_cache[session_id] = None  # default
                 try:
-                    from ..repository.chat_task_repository import ChatTaskRepository
-                    import json as json_mod_fork
                     db_fork = SessionLocal()
                     try:
                         task_repo = ChatTaskRepository()
                         tasks = task_repo.find_by_session(db_fork, session_id, client_id)
                         if tasks and tasks[0].task_metadata:
-                            meta = json_mod_fork.loads(tasks[0].task_metadata)
+                            meta = json.loads(tasks[0].task_metadata)
                             forked_session_id = meta.get("forked_from_session_id")
                             forked_owner_id = meta.get("forked_from_owner_id")
                             if forked_session_id and forked_owner_id:
@@ -830,16 +827,16 @@ async def _submit_task(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(pe),
-        )
+        ) from pe
     except Exception as e:
         log.exception("%sUnexpected error submitting task: %s", log_prefix, e)
         error_resp = a2a.create_internal_error(
-            message="Unexpected server error: %s" % e
+            message=f"Unexpected server error: {e}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
-        )
+        ) from e
 
 
 @router.get("/tasks", response_model=list[Task], tags=["Tasks"])
@@ -888,21 +885,21 @@ async def search_tasks(
     if start_date:
         try:
             start_time_ms = int(datetime.fromisoformat(start_date).timestamp() * 1000)
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid start_date format. Use ISO 8601 format.",
-            )
+            ) from err
 
     end_time_ms = None
     if end_date:
         try:
             end_time_ms = int(datetime.fromisoformat(end_date).timestamp() * 1000)
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid end_date format. Use ISO 8601 format.",
-            )
+            ) from err
 
     pagination = PaginationParams(page_number=page, page_size=page_size)
 
@@ -920,7 +917,7 @@ async def search_tasks(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while searching for tasks.",
-        )
+        ) from e
 
 
 @router.get("/tasks/{task_id}/events", tags=["Tasks"])
@@ -960,14 +957,13 @@ async def get_task_events(
         # Transform task events into A2AEventSSEPayload format for the frontend
         # Need to reconstruct the SSE structure from stored data
         formatted_events = []
-        
+
         for event in events:
             # event.payload contains the raw A2A JSON-RPC message
             # event.created_time is epoch milliseconds
             # event.direction is simplified (request, response, status, error, etc)
 
             # Convert timestamp from epoch milliseconds to ISO 8601
-            from datetime import datetime, timezone
             timestamp_dt = datetime.fromtimestamp(event.created_time / 1000, tz=timezone.utc)
             timestamp_iso = timestamp_dt.isoformat()
 
@@ -997,9 +993,8 @@ async def get_task_events(
                         # For status updates, check the message inside
                         if "message" in result:
                             message = result["message"]
-                            if isinstance(message, dict) and "metadata" in message:
-                                if source_entity == "unknown":
-                                    source_entity = message["metadata"].get("agent_name", "unknown")
+                            if isinstance(message, dict) and "metadata" in message and source_entity == "unknown":
+                                source_entity = message["metadata"].get("agent_name", "unknown")
 
             # Map stored direction to SSE direction format
             direction_map = {
@@ -1066,10 +1061,8 @@ async def get_task_events(
 
             # Format events for this related task
             related_formatted_events = []
-            
-            for event in related_events:
-                from datetime import datetime, timezone
 
+            for event in related_events:
                 timestamp_dt = datetime.fromtimestamp(
                     event.created_time / 1000, tz=timezone.utc
                 )
@@ -1098,11 +1091,14 @@ async def get_task_events(
                                 )
                             if "message" in result:
                                 message = result["message"]
-                                if isinstance(message, dict) and "metadata" in message:
-                                    if source_entity == "unknown":
-                                        source_entity = message["metadata"].get(
-                                            "agent_name", "unknown"
-                                        )
+                                if (
+                                    isinstance(message, dict)
+                                    and "metadata" in message
+                                    and source_entity == "unknown"
+                                ):
+                                    source_entity = message["metadata"].get(
+                                        "agent_name", "unknown"
+                                    )
 
                 direction_map = {
                     "request": "request",
@@ -1142,7 +1138,7 @@ async def get_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving the task events.",
-        )
+        ) from e
 
 
 @router.get("/tasks/{task_id}/events/buffered", tags=["Tasks"])
@@ -1160,16 +1156,16 @@ async def get_buffered_task_events(
 ):
     """
     Retrieves buffered SSE events for a background task.
-    
+
     This endpoint is used by the frontend to replay SSE events for background tasks
     that completed while the user was disconnected. The events are returned in the
     same format as the live SSE stream, allowing the frontend to process them
     through its existing event handling logic.
-    
+
     Args:
         task_id: The ID of the task to fetch buffered events for
         mark_consumed: If True, marks events as consumed after fetching (default: True)
-    
+
     Returns:
         A list of buffered SSE events in sequence order, ready for frontend replay
     """
@@ -1198,10 +1194,8 @@ async def get_buffered_task_events(
         # Note: We query the sse_event_buffer table directly instead of relying on
         # task.events_buffered flag, which may not be set if the task was created
         # after events started being buffered (timing issue)
-        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
-        
         buffer_repo = SSEEventBufferRepository()
-        
+
         # Check if this task has buffered events by querying the buffer table directly
         has_buffered = buffer_repo.has_unconsumed_events(db, task_id)
         if not has_buffered:
@@ -1216,7 +1210,7 @@ async def get_buffered_task_events(
                     "events_buffered": False,
                     "events_consumed": task.events_consumed or False,
                 }
-        
+
         if mark_consumed:
             # Get unconsumed events and mark them as consumed
             # Note: We use task_id directly, not session_id, since session_id might not be set
@@ -1225,7 +1219,7 @@ async def get_buffered_task_events(
                 task_id=task_id,
                 mark_consumed=True,
             )
-            
+
             # The repository already marks events as consumed
         else:
             # Get all buffered events without marking as consumed
@@ -1263,7 +1257,7 @@ async def get_buffered_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving buffered events.",
-        )
+        ) from e
 
 
 @router.delete("/tasks/{task_id}/events/buffered", tags=["Tasks"])
@@ -1275,16 +1269,16 @@ async def clear_buffered_task_events(
 ):
     """
     Clear all buffered SSE events for a task.
-    
+
     This endpoint is used to clean up orphan buffered events without
     triggering a chat_task save. Use cases:
     1. Clean up leftover events when a chat_task already exists
     2. Explicitly clear buffer without updating session modified time
-    
+
     NOTE: Buffer cleanup also happens implicitly in save_task endpoint
     (POST /sessions/{session_id}/chat-tasks), so this endpoint is only
     needed when you want cleanup without a save operation.
-    
+
     Returns:
         JSON object with the number of events deleted
     """
@@ -1293,20 +1287,20 @@ async def clear_buffered_task_events(
 
     try:
         # Get the SSE manager to access the persistent buffer
-        component: "WebUIBackendComponent" = get_sac_component()
-        
+        component: WebUIBackendComponent = get_sac_component()
+
         if component is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="WebUI backend component not available",
             )
-        
+
         sse_manager = component.sse_manager
         persistent_buffer = sse_manager.get_persistent_buffer() if sse_manager else None
         if persistent_buffer is None:
             log.debug("%sPersistent buffer not available", log_prefix)
             return {"deleted": 0, "message": "Persistent buffer not enabled"}
-        
+
         # Verify user owns this task by checking the task's user_id in the buffer metadata
         # or the task itself in the database
         task_metadata = persistent_buffer.get_task_metadata(task_id)
@@ -1326,30 +1320,27 @@ async def clear_buffered_task_events(
                 )
         else:
             # No metadata found, try to verify via database task record
-            from ..repository.task_repository import TaskRepository
-            
             repo = TaskRepository()
             task = repo.find_by_id(db, task_id)
-            if task and hasattr(task, 'user_id') and task.user_id:
-                if task.user_id != user_id:
-                    log.warning(
-                        "%sUser %s attempted to clear buffer for task %s owned by %s",
-                        log_prefix,
-                        user_id,
-                        task_id,
-                        task.user_id,
-                    )
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You do not have permission to clear events for this task",
-                    )
-        
+            if task and hasattr(task, 'user_id') and task.user_id and task.user_id != user_id:
+                log.warning(
+                    "%sUser %s attempted to clear buffer for task %s owned by %s",
+                    log_prefix,
+                    user_id,
+                    task_id,
+                    task.user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have permission to clear events for this task",
+                )
+
         # Delete all events for this task
         deleted_count = persistent_buffer.delete_events_for_task(task_id)
-        
+
         if deleted_count > 0:
             log.info("%sDeleted %d buffered events for task %s", log_prefix, deleted_count, task_id)
-        
+
         return {
             "deleted": deleted_count,
             "task_id": task_id
@@ -1362,7 +1353,7 @@ async def clear_buffered_task_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while clearing buffered events.",
-        )
+        ) from e
 
 
 @router.get("/tasks/{task_id}/title-data", tags=["Tasks"])
@@ -1373,26 +1364,21 @@ async def get_task_title_data(
 ):
     """
     Extract user message and agent response from task for title generation.
-    
+
     This endpoint extracts the first user message and final agent response from:
     1. The Task table (initial_request_text for user message)
     2. The SSE event buffer (final response for agent response)
-    
+
     Used for background task title generation when the frontend was not watching.
     """
     log_prefix = f"[GET /api/v1/tasks/{task_id}/title-data] "
     log.info("%sRequest from user %s", log_prefix, user_id)
-    
+
     try:
-        from ..repository.task_repository import TaskRepository
-        from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
-        from ..repository.chat_task_repository import ChatTaskRepository
-        import json
-        
         task_repo = TaskRepository()
         buffer_repo = SSEEventBufferRepository()
         chat_task_repo = ChatTaskRepository()
-        
+
         # Get task for initial_request_text (user message) and session_id
         task = task_repo.find_by_id(db, task_id)
         if not task:
@@ -1402,7 +1388,7 @@ async def get_task_title_data(
                 "agent_response": None,
                 "error": "Task not found"
             }
-        
+
         # Authorization: Verify user owns this task
         if task.user_id and task.user_id != user_id:
             log.warning(
@@ -1416,18 +1402,18 @@ async def get_task_title_data(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this task's data",
             )
-        
+
         user_message = None
         agent_response = None
-        
+
         try:
             chat_task = chat_task_repo.find_by_id(db, task_id, user_id)
             if chat_task:
                 log.info("%sPrimary: Found chat_task for task %s", log_prefix, task_id)
-                
+
                 # Use the clean user_message from chat_task
                 user_message = chat_task.user_message
-                
+
                 # Extract agent response from message_bubbles
                 if chat_task.message_bubbles:
                     bubbles = json.loads(chat_task.message_bubbles)
@@ -1443,28 +1429,28 @@ async def get_task_title_data(
                                         break
                             if agent_response:
                                 break
-                                
+
                 if user_message and agent_response:
                     log.info("%sUsing chat_task data: user=%d chars, agent=%d chars",
                              log_prefix, len(user_message), len(agent_response))
         except Exception as e:
             log.warning("%sError reading from chat_tasks: %s", log_prefix, e)
-        
+
         # Fallback to task.initial_request_text if no user_message from chat_task
         if not user_message:
             user_message = task.initial_request_text
-        
+
         # FALLBACK: SSE event buffer (if chat_task didn't have agent response)
         # This handles cases where task completed but FE hasn't saved chat_task yet
         if not agent_response:
             try:
                 events = buffer_repo.get_buffered_events(db, task_id, mark_consumed=False)
                 log.info("%sFallback SSE buffer: Found %d buffered events for task %s", log_prefix, len(events), task_id)
-                
+
                 # Collect streaming text fragments from status-update events (agent_progress_update)
                 # In streaming mode, text is sent incrementally, not in the final task response
                 streaming_text_parts = []
-                
+
                 # Look for final "task" event with response text OR accumulate streaming text
                 for event in events:  # Process in sequence order for streaming text
                     event_data = event.get("data", "")
@@ -1475,7 +1461,7 @@ async def get_task_title_data(
                             continue
                     else:
                         parsed = event_data
-                    
+
                     # Check if this is an SSE wrapper with nested data
                     if "data" in parsed and isinstance(parsed.get("data"), str):
                         try:
@@ -1483,7 +1469,7 @@ async def get_task_title_data(
                             parsed = inner_data
                         except json.JSONDecodeError:
                             pass
-                        
+
                     # Check for task response with text parts (non-streaming final response)
                     result = parsed.get("result", {})
                     if result.get("kind") == "task":
@@ -1501,7 +1487,7 @@ async def get_task_title_data(
                                 break
                         if agent_response:
                             break
-                            
+
                     # Collect streaming text from status updates (agent_progress_update)
                     if result.get("kind") == "status-update":
                         status_data = result.get("status", {})
@@ -1513,37 +1499,36 @@ async def get_task_title_data(
                                     text = part.get("text", "")
                                     if text:
                                         streaming_text_parts.append(text)
-                                        
+
                     # Also check for agent_progress_update type (direct SSE event type)
                     if parsed.get("type") == "agent_progress_update":
                         text = parsed.get("text", "")
                         if text:
                             streaming_text_parts.append(text)
-                
+
                 # If no bundled response, use accumulated streaming text
                 if not agent_response and streaming_text_parts:
                     agent_response = "".join(streaming_text_parts)
                     log.info("%sReconstructed agent response from %d streaming fragments (%d chars)",
                              log_prefix, len(streaming_text_parts), len(agent_response))
-                        
+
             except Exception as e:
                 log.warning("%sError extracting agent response from SSE buffer: %s", log_prefix, e)
-        
-        
+
         log.info(
             "%sExtracted title data: user_message=%s, agent_response=%s",
             log_prefix,
             "yes" if user_message else "no",
             "yes" if agent_response else "no"
         )
-        
+
         return {
             "user_message": user_message,
             "agent_response": agent_response,
             "task_id": task_id,
             "session_id": task.session_id,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1551,7 +1536,7 @@ async def get_task_title_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while extracting title data.",
-        )
+        ) from e
 
 
 @router.get("/tasks/{task_id}", tags=["Tasks"])
@@ -1613,7 +1598,6 @@ async def get_task_as_stim_file(
                 break
 
         # Format into .stim structure with all tasks
-        from ..utils.stim_utils import create_stim_from_task_hierarchy
         stim_data = create_stim_from_task_hierarchy(tasks_dict, events_dict, root_task_id)
 
         yaml_content = yaml.dump(
@@ -1638,7 +1622,7 @@ async def get_task_as_stim_file(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving the task.",
-        )
+        ) from e
 
 
 @router.post("/message:send", response_model=SendMessageSuccessResponse)
@@ -1646,7 +1630,7 @@ async def send_task_to_agent(
     request: FastAPIRequest,
     payload: SendMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    component: WebUIBackendComponent = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
 ):
     """
@@ -1669,7 +1653,7 @@ async def subscribe_task_from_agent(
     request: FastAPIRequest,
     payload: SendStreamingMessageRequest,
     session_manager: SessionManager = Depends(get_session_manager),
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    component: WebUIBackendComponent = Depends(get_sac_component),
     project_service: ProjectService | None = Depends(get_project_service_optional),
     session_service: SessionService = Depends(get_session_business_service),
 ):
@@ -1696,7 +1680,7 @@ async def cancel_agent_task(
     payload: CancelTaskRequest,
     session_manager: SessionManager = Depends(get_session_manager),
     task_service: TaskService = Depends(get_task_service),
-    component: "WebUIBackendComponent" = Depends(get_sac_component),
+    component: WebUIBackendComponent = Depends(get_sac_component),
     db: DBSession = Depends(get_db),
 ):
     """
@@ -1760,11 +1744,11 @@ async def cancel_agent_task(
         try:
             repo = TaskRepository()
             log.info("%sLooking up active child tasks for parent task '%s'", log_prefix, taskId)
-            
+
             # Find children by parent_task_id column
             active_children = repo.find_active_children(db, taskId)
             log.info("%sfind_active_children returned %d children: %s", log_prefix, len(active_children), active_children)
-            
+
             if not active_children:
                 log.debug("%sNo active child tasks found", log_prefix)
                 log.info("%sCancellation request(s) published successfully.", log_prefix)
@@ -1776,7 +1760,7 @@ async def cancel_agent_task(
                 len(active_children),
                 [child_id for child_id, _ in active_children],
             )
-            
+
             for child_task_id, child_agent_name in active_children:
                 if child_agent_name:
                     try:
@@ -1817,9 +1801,9 @@ async def cancel_agent_task(
     except Exception as e:
         log.exception("%sUnexpected error sending cancellation: %s", log_prefix, e)
         error_resp = a2a.create_internal_error(
-            message="Unexpected server error: %s" % e
+            message=f"Unexpected server error: {e}"
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_resp.model_dump(exclude_none=True),
-        )
+        ) from e

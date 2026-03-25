@@ -145,15 +145,28 @@ class TestGetByAlias:
         assert hasattr(result, "alias")
         assert result.alias == "my-model"
 
-    def test_not_found_returns_none(self):
-        """Returns None when alias not found, regardless of raw flag."""
+    def test_not_found_raises_entity_not_found(self):
+        """Raises EntityNotFoundError when alias not found."""
+        from solace_agent_mesh.shared.exceptions.exceptions import EntityNotFoundError
+
         service = ModelConfigService()
         service.repository = Mock()
         service.repository.get_by_alias.return_value = None
         mock_db = Mock()
 
-        assert service.get_by_alias(mock_db, "nonexistent", raw=True) is None
-        assert service.get_by_alias(mock_db, "nonexistent", raw=False) is None
+        raised = False
+        try:
+            service.get_by_alias(mock_db, "nonexistent", raw=True)
+        except EntityNotFoundError:
+            raised = True
+        assert raised, "Expected EntityNotFoundError for raw=True"
+
+        raised = False
+        try:
+            service.get_by_alias(mock_db, "nonexistent", raw=False)
+        except EntityNotFoundError:
+            raised = True
+        assert raised, "Expected EntityNotFoundError for raw=False"
 
 
 class TestGetByAliasOrId:
@@ -206,3 +219,151 @@ class TestGetByAliasOrId:
         service.get_by_alias_or_id(mock_db, "some-id-or-alias")
 
         service.repository.get_by_alias_or_id.assert_called_once_with(mock_db, "some-id-or-alias")
+
+
+class TestTestConnection:
+    """Tests for ModelConfigService.test_connection method."""
+
+    def test_test_connection_with_valid_apikey(self):
+        """Test connection succeeds with valid API key credentials."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(
+            provider="openai",
+            model_name="gpt-4",
+            auth_type="apikey",
+            api_key="sk-test-key",
+        )
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
+            # Mock successful response
+            mock_response = Mock()
+            mock_response.choices = [Mock()]
+            mock_litellm.completion.return_value = mock_response
+
+            success, message = service.test_connection(mock_db, request)
+
+            assert success is True
+            assert "successful" in message.lower()
+            mock_litellm.completion.assert_called_once()
+
+    def test_test_connection_fails_without_litellm(self):
+        """Test connection fails gracefully when litellm is not available."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(
+            provider="openai",
+            model_name="gpt-4",
+            auth_type="apikey",
+            api_key="sk-test-key",
+        )
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
+            success, message = service.test_connection(mock_db, request)
+
+            assert success is False
+            assert "litellm" in message.lower()
+
+    def test_test_connection_uses_stored_config_as_fallback(self):
+        """Test that stored config is used as fallback when alias is provided."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        # Create stored config
+        stored_config = _make_db_model(
+            provider="openai",
+            model_name="gpt-4",
+            model_auth_config={"type": "apikey", "api_key": "sk-stored-secret"},
+        )
+        service.repository.get_by_alias.return_value = stored_config
+
+        # Request with only alias
+        request = ModelConfigurationTestRequest(alias="my-model")
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
+            mock_response = Mock()
+            mock_response.choices = [Mock()]
+            mock_litellm.completion.return_value = mock_response
+
+            success, message = service.test_connection(mock_db, request)
+
+            assert success is True
+            # Verify stored credentials were used
+            call_kwargs = mock_litellm.completion.call_args[1]
+            assert call_kwargs["api_key"] == "sk-stored-secret"
+
+    def test_test_connection_missing_required_fields(self):
+        """Test connection fails when required fields are missing."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        # Request without provider
+        request = ModelConfigurationTestRequest(
+            model_name="gpt-4",
+            auth_type="apikey",
+            api_key="sk-test-key",
+        )
+
+        success, message = service.test_connection(mock_db, request)
+
+        assert success is False
+        assert "provider" in message.lower() or "required" in message.lower()
+
+    def test_test_connection_nonexistent_alias(self):
+        """Test connection fails when alias is not found in database."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        service.repository.get_by_alias.return_value = None
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(alias="nonexistent-model")
+
+        success, message = service.test_connection(mock_db, request)
+
+        assert success is False
+        assert "not found" in message.lower()
+
+    def test_test_connection_sanitizes_error_messages(self):
+        """Test that error messages are sanitized to avoid leaking sensitive data."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(
+            provider="openai",
+            model_name="gpt-4",
+            auth_type="apikey",
+            api_key="sk-very-secret-key-that-should-not-appear",
+        )
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
+            # Simulate a long error message
+            mock_litellm.completion.side_effect = Exception(
+                "A" * 600  # Very long error message
+            )
+
+            success, message = service.test_connection(mock_db, request)
+
+            assert success is False
+            # Check that the error is truncated
+            assert "..." in message or len(message) < 600
+            # Check that sensitive key doesn't appear
+            assert "sk-very-secret-key" not in message

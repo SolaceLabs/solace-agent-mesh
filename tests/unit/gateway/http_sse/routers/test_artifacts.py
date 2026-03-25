@@ -1244,7 +1244,7 @@ class TestListAllArtifacts:
         mock_artifact.last_modified = "2023-01-01T00:00:00Z"
         mock_artifact.uri = "artifact://app/user/session-123/test.txt"
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = [mock_artifact]
             
             result = await list_all_artifacts(
@@ -1292,7 +1292,7 @@ class TestListAllArtifacts:
             MagicMock(filename="project_bm25_index.zip", size=2048, mime_type="application/zip", last_modified="2023-01-01T00:00:00Z", uri="uri3"),
         ]
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = mock_artifacts
             
             result = await list_all_artifacts(
@@ -1336,7 +1336,7 @@ class TestListAllArtifacts:
         mock_artifact.last_modified = "2023-01-01T00:00:00Z"
         mock_artifact.uri = "artifact://app/user/project-456/knowledge.docx"
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = [mock_artifact]
             
             result = await list_all_artifacts(
@@ -1389,7 +1389,7 @@ class TestListAllArtifacts:
         mock_artifact.last_modified = "2023-01-01T00:00:00Z"
         mock_artifact.uri = "artifact://app/user/project-456/shared.pdf"
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = [mock_artifact]
             
             result = await list_all_artifacts(
@@ -1439,7 +1439,7 @@ class TestListAllArtifacts:
             artifact.uri = f"artifact://app/user/session-123/file{i}.txt"
             mock_artifacts.append(artifact)
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = mock_artifacts
             
             # Request with limit of 5
@@ -1541,7 +1541,7 @@ class TestListAllArtifacts:
             MagicMock(filename="middle.txt", size=100, mime_type="text/plain", last_modified="2023-06-15T00:00:00Z", uri="uri3"),
         ]
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = mock_artifacts
             
             result = await list_all_artifacts(
@@ -1674,7 +1674,7 @@ class TestListAllArtifacts:
             MagicMock(filename="knowledge.docx", size=4096, mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", last_modified="2023-01-03T00:00:00Z", uri="uri3"),
         ]
         
-        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list') as mock_get_list:
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             # Return different artifacts based on session_id
             def get_artifacts_for_session(**kwargs):
                 session_id = kwargs.get('session_id', '')

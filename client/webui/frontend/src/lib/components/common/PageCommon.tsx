@@ -1,4 +1,5 @@
 import React from "react";
+import { ErrorLabel } from "./ErrorLabel";
 
 export const PageLabel = ({ children, required, className = "" }: { children: React.ReactNode; required?: boolean; className?: string }) => {
     return (
@@ -43,3 +44,35 @@ export const Metadata = ({ metadata }: { metadata: Record<string, string | numbe
         </PageSection>
     );
 };
+
+export interface FormFieldLayoutItemProps {
+    label: string;
+    required?: boolean;
+    error?: { message?: string };
+    warning?: string;
+    helpText?: string;
+    statusIndicator?: React.ReactNode;
+    children: React.ReactNode;
+}
+
+/**
+ * Reusable form field wrapper with label, error, and warning handling
+ */
+export const FormFieldLayoutItem = ({ label, required = false, error, warning, helpText, statusIndicator, children }: FormFieldLayoutItemProps) => (
+    <div className="grid grid-rows-[auto_1fr] gap-2">
+        <div className="flex items-start justify-between gap-2">
+            <PageLabel required={required}>{label}</PageLabel>
+            {statusIndicator}
+        </div>
+        <div className="flex flex-col gap-1">
+            {children}
+            {(error || warning || helpText) && (
+                <div className="mt-1">
+                    {error && <ErrorLabel message={error.message} />}
+                    {warning && <div className="text-xs text-(--warning-wMain)">{warning}</div>}
+                    {helpText && <div className="text-xs text-(--secondary-text-wMain)">{helpText}</div>}
+                </div>
+            )}
+        </div>
+    </div>
+);
