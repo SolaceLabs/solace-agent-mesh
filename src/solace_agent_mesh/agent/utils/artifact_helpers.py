@@ -1303,7 +1303,7 @@ async def get_artifact_info_list_fast(
         artifact_info_list: List[ArtifactInfo] = []
         for result in results:
             if isinstance(result, Exception):
-                log.warning("%s Metadata load task failed: %s", log_prefix, result)
+                log.warning("%s Metadata load task failed with %s", log_prefix, type(result).__name__)
                 continue
             if result is not None:
                 artifact_info_list.append(result)
