@@ -493,7 +493,7 @@ Conversation history:
 Create a progressive summary that emphasizes recent activity while compressing historical context:"""
 
         summarizer = LlmEventSummarizer(
-            llm=component.adk_agent.model,
+            llm=component.adk_agent,
             prompt_template=progressive_prompt_template
         )
         compaction_event = await summarizer.maybe_summarize_events(events=events_to_compact)
