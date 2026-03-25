@@ -5,7 +5,7 @@ import { Ellipsis } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 
-import { useModelConfigs } from "@/lib/api/models";
+import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
@@ -25,6 +25,7 @@ const EMPTY_STATE_DESCRIPTION =
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
+    const deleteModel = useDeleteModel();
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
 
@@ -139,10 +140,8 @@ export const ModelsView: React.FC = () => {
                     onOpenChange={open => {
                         if (!open) setModelToDelete(null);
                     }}
-                    onConfirm={() => {
-                        // TODO: call delete API
-                        setModelToDelete(null);
-                    }}
+                    onConfirm={() => deleteModel.mutateAsync(modelToDelete.alias)}
+                    isLoading={deleteModel.isPending}
                     modelAlias={modelToDelete.alias}
                 />
             )}

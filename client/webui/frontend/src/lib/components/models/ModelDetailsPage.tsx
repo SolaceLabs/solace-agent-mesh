@@ -6,7 +6,7 @@ import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction 
 import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, PageValue, Metadata } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
-import { useModelConfigs } from "@/lib/api/models";
+import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
@@ -15,6 +15,7 @@ export const ModelDetailsPage = () => {
     const navigate = useNavigate();
     const { alias: modelAlias } = useParams<{ alias: string }>();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading } = useModelConfigs();
+    const deleteModel = useDeleteModel();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const modelToView = useMemo(() => {
@@ -137,10 +138,11 @@ export const ModelDetailsPage = () => {
                 <ModelDeleteDialog
                     open={deleteDialogOpen}
                     onOpenChange={setDeleteDialogOpen}
-                    onConfirm={() => {
-                        // TODO: call delete API
-                        setDeleteDialogOpen(false);
+                    onConfirm={async () => {
+                        await deleteModel.mutateAsync(modelToView.alias);
+                        navigate("/agents?tab=models");
                     }}
+                    isLoading={deleteModel.isPending}
                     modelAlias={modelToView.alias}
                 />
             )}
