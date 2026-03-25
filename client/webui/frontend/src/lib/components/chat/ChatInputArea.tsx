@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
@@ -57,7 +58,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, llmModelConfigured } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
+    const modelNotConfigured = modelConfigUiEnabled && !llmModelConfigured;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -384,7 +387,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, inputValue, selectedFiles, pendingPastedTextItems]);
+    const isSubmittingEnabled = useMemo(() => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]);
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
