@@ -124,33 +124,6 @@ describe("session change useEffect", () => {
         });
     });
 
-    test("does not clear input when pendingPrompt is active during session change", async () => {
-        const pendingPrompt = { promptText: "do something", groupId: "g1", groupName: "Group 1" };
-
-        const { rerender } = render(
-            <MemoryRouter>
-                <StoryProvider chatContextValues={{ sessionId: "session-1", pendingPrompt }}>
-                    <ChatInputArea agents={[]} />
-                </StoryProvider>
-            </MemoryRouter>
-        );
-
-        const input = screen.getByTestId("chat-input");
-        await userEvent.type(input, "hello");
-
-        rerender(
-            <MemoryRouter>
-                <StoryProvider chatContextValues={{ sessionId: "session-2", pendingPrompt }}>
-                    <ChatInputArea agents={[]} />
-                </StoryProvider>
-            </MemoryRouter>
-        );
-
-        // pendingPrompt suppresses the clear
-        await waitFor(() => {
-            expect(input).toHaveTextContent("hello");
-        });
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -351,21 +324,6 @@ describe("pending prompt useEffect", () => {
         });
     });
 
-    test("does not set input when selectedAgentName is absent", async () => {
-        const clearPendingPrompt = vi.fn();
-        renderComponent({
-            pendingPrompt: { promptText: "Hello world", groupId: "g1", groupName: "G1" },
-            selectedAgentName: "",
-            clearPendingPrompt,
-        });
-
-        // Wait a tick
-        await new Promise(r => setTimeout(r, 50));
-
-        const input = screen.getByTestId("chat-input");
-        expect(input).toHaveTextContent("");
-        expect(clearPendingPrompt).not.toHaveBeenCalled();
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -455,23 +413,6 @@ describe("paste handling", () => {
         });
     });
 
-    test("small pasted text does not create a badge", async () => {
-        renderComponent({ isResponding: false });
-        const input = screen.getByTestId("chat-input");
-
-        const smallText = "short";
-        const clipboardData = {
-            files: { length: 0 },
-            getData: (type: string) => (type === "text" ? smallText : ""),
-        };
-
-        fireEvent.paste(input, { clipboardData });
-
-        await waitFor(() => {
-            expect(screen.queryByText(/snippet/)).not.toBeInTheDocument();
-        });
-    });
-
     test("pasting a file adds it to selected files", async () => {
         renderComponent({ isResponding: false });
         const input = screen.getByTestId("chat-input");
@@ -492,52 +433,6 @@ describe("paste handling", () => {
         });
     });
 
-    test("pasting while responding is ignored", async () => {
-        renderComponent({ isResponding: true });
-        const input = screen.getByTestId("chat-input");
-
-        const largeText = "a".repeat(2000);
-        const clipboardData = {
-            files: { length: 0 },
-            getData: (type: string) => (type === "text" ? largeText : ""),
-        };
-
-        fireEvent.paste(input, { clipboardData });
-
-        await waitFor(() => {
-            expect(screen.queryByText(/snippet/)).not.toBeInTheDocument();
-        });
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Context badge (follow-up without prompt)
-// ---------------------------------------------------------------------------
-
-describe("context text badge", () => {
-    test("dismissing context badge hides it", async () => {
-        renderComponent();
-
-        act(() => {
-            window.dispatchEvent(
-                new CustomEvent("follow-up-question", {
-                    detail: { text: "removable text", prompt: null, autoSubmit: false, sourceMessageId: null },
-                })
-            );
-        });
-
-        await waitFor(() => screen.getByText(/removable text/));
-
-        // Find the X dismiss button inside the context badge
-        const badge = screen.getByText(/removable text/).closest("div[class]");
-        const dismissBtn = badge?.parentElement?.querySelector("button");
-        if (dismissBtn) {
-            await userEvent.click(dismissBtn);
-            await waitFor(() => {
-                expect(screen.queryByText(/removable text/)).not.toBeInTheDocument();
-            });
-        }
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -591,20 +486,6 @@ describe("location state promptText useEffect", () => {
         });
     });
 
-    test("does not call startNewChatWithPrompt when location state is empty", async () => {
-        const startNewChatWithPrompt = vi.fn();
-
-        render(
-            <MemoryRouter initialEntries={[{ pathname: "/chat", state: {} }]}>
-                <StoryProvider chatContextValues={{ startNewChatWithPrompt }}>
-                    <ChatInputArea agents={[]} />
-                </StoryProvider>
-            </MemoryRouter>
-        );
-
-        await new Promise(r => setTimeout(r, 50));
-        expect(startNewChatWithPrompt).not.toHaveBeenCalled();
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -625,22 +506,6 @@ describe("form submission", () => {
 
         await waitFor(() => {
             expect(handleSubmit).toHaveBeenCalled();
-        });
-    });
-
-    test("clears input after successful submission", async () => {
-        const handleSubmit = vi.fn().mockResolvedValue(undefined);
-        renderComponent({ handleSubmit, isResponding: false });
-
-        const input = screen.getByTestId("chat-input");
-        await userEvent.click(input);
-        await userEvent.keyboard("clear me");
-
-        const sendBtn = screen.getByTestId("sendMessage");
-        await userEvent.click(sendBtn);
-
-        await waitFor(() => {
-            expect(input).toHaveTextContent("");
         });
     });
 

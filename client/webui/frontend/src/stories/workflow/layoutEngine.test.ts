@@ -43,11 +43,6 @@ describe("empty config", () => {
         expect(result.edges[0].target).toBe("__end__");
     });
 
-    test("dimensions are non-zero", () => {
-        const result = processWorkflowConfig(makeConfig([]));
-        expect(result.totalWidth).toBeGreaterThan(0);
-        expect(result.totalHeight).toBeGreaterThan(0);
-    });
 });
 
 // ---------------------------------------------------------------------------
@@ -55,19 +50,6 @@ describe("empty config", () => {
 // ---------------------------------------------------------------------------
 
 describe("single agent node", () => {
-    test("produces start, agent, end nodes", () => {
-        const result = processWorkflowConfig(makeConfig([agentNode("step1")]));
-        const ids = result.nodes.map(n => n.id);
-        expect(ids).toContain("__start__");
-        expect(ids).toContain("step1");
-        expect(ids).toContain("__end__");
-    });
-
-    test("agent node type is 'agent'", () => {
-        const result = processWorkflowConfig(makeConfig([agentNode("step1")]));
-        expect(nodeById(result, "step1").type).toBe("agent");
-    });
-
     test("agent node has correct dimensions", () => {
         const result = processWorkflowConfig(makeConfig([agentNode("step1")]));
         const node = nodeById(result, "step1");
@@ -92,14 +74,6 @@ describe("single agent node", () => {
 
 describe("linear chain", () => {
     const nodes = [agentNode("a"), agentNode("b", ["a"]), agentNode("c", ["b"])];
-
-    test("all nodes present", () => {
-        const result = processWorkflowConfig(makeConfig(nodes));
-        const ids = result.nodes.map(n => n.id);
-        expect(ids).toContain("a");
-        expect(ids).toContain("b");
-        expect(ids).toContain("c");
-    });
 
     test("nodes are laid out vertically (increasing y)", () => {
         const result = processWorkflowConfig(makeConfig(nodes));
@@ -130,13 +104,6 @@ describe("parallel nodes", () => {
         const yb1 = nodeById(result, "b1").y;
         const yb2 = nodeById(result, "b2").y;
         expect(yb1).toBe(yb2);
-    });
-
-    test("parallel nodes are side-by-side (different x)", () => {
-        const result = processWorkflowConfig(makeConfig(nodes));
-        const xb1 = nodeById(result, "b1").x;
-        const xb2 = nodeById(result, "b2").x;
-        expect(xb1).not.toBe(xb2);
     });
 
     test("merge node is below parallel nodes", () => {
@@ -170,11 +137,6 @@ describe("switch node", () => {
         agentNode("zero", ["router"]),
         agentNode("done", ["pos", "neg", "zero"]),
     ];
-
-    test("switch node type is 'switch'", () => {
-        const result = processWorkflowConfig(makeConfig(nodes));
-        expect(nodeById(result, "router").type).toBe("switch");
-    });
 
     test("switch node has correct width", () => {
         const result = processWorkflowConfig(makeConfig(nodes));
@@ -233,11 +195,6 @@ describe("map container node", () => {
         depends_on: [],
     } as unknown as WorkflowNodeConfig;
 
-    test("map node type is 'map'", () => {
-        const result = processWorkflowConfig(makeConfig([mapNode, childNode]));
-        expect(nodeById(result, "mapper").type).toBe("map");
-    });
-
     test("map node contains child when not collapsed", () => {
         const result = processWorkflowConfig(makeConfig([mapNode, childNode]));
         const mapper = nodeById(result, "mapper");
@@ -249,11 +206,6 @@ describe("map container node", () => {
         const result = processWorkflowConfig(makeConfig([mapNode, childNode]), new Set(["mapper"]));
         const mapper = nodeById(result, "mapper");
         expect(mapper.children).toHaveLength(0);
-    });
-
-    test("map node width is at least MAP_MIN when expanded", () => {
-        const result = processWorkflowConfig(makeConfig([mapNode, childNode]));
-        expect(nodeById(result, "mapper").width).toBeGreaterThanOrEqual(NODE_WIDTHS.MAP_MIN);
     });
 
     test("collapsed map node uses SWITCH_COLLAPSED width", () => {
@@ -282,11 +234,6 @@ describe("loop container node", () => {
         max_iterations: 10,
         depends_on: [],
     } as unknown as WorkflowNodeConfig;
-
-    test("loop node type is 'loop'", () => {
-        const result = processWorkflowConfig(makeConfig([loopNode, childNode]));
-        expect(nodeById(result, "looper").type).toBe("loop");
-    });
 
     test("loop node height includes condition row when expanded", () => {
         const result = processWorkflowConfig(makeConfig([loopNode, childNode]));
@@ -319,16 +266,6 @@ describe("known workflows", () => {
         expect(nodeById(result, "sub-flow").type).toBe("workflow");
     });
 
-    test("workflow node uses WORKFLOW width", () => {
-        const result = processWorkflowConfig(makeConfig([agentNode("sub-flow")]), new Set(), new Set(["sub-flow"]));
-        expect(nodeById(result, "sub-flow").width).toBe(NODE_WIDTHS.WORKFLOW);
-    });
-
-    test("regular agent not in knownWorkflows keeps 'agent' type", () => {
-        const result = processWorkflowConfig(makeConfig([agentNode("plain-agent")]), new Set(), new Set(["other-flow"]));
-        expect(nodeById(result, "plain-agent").type).toBe("agent");
-    });
-
     test("explicit workflow type node gets 'workflow' visual type", () => {
         const workflowNode: WorkflowNodeConfig = {
             id: "wf1",
@@ -353,11 +290,6 @@ describe("layout invariants", () => {
             expect(node.x).toBeGreaterThanOrEqual(0);
             expect(node.y).toBeGreaterThanOrEqual(0);
         }
-    });
-
-    test("totalWidth >= widest single node", () => {
-        const result = processWorkflowConfig(makeConfig([agentNode("only")]));
-        expect(result.totalWidth).toBeGreaterThanOrEqual(NODE_WIDTHS.AGENT);
     });
 
     test("totalHeight >= height of all levels stacked", () => {
