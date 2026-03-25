@@ -417,17 +417,6 @@ async def get_app_config(
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Auto title generation feature flag is disabled.", log_prefix)
-        
-        # Check if any LLM model is configured (used by frontend for warnings)
-        _model_config = component.get_config("model", {})
-        _model_provider_config = component.get_config("model_provider", [])
-        _llm_model = None
-        if isinstance(_model_provider_config, list) and len(_model_provider_config) > 0:
-            _llm_model = _model_provider_config[0]
-        elif isinstance(_model_config, dict):
-            _llm_model = _model_config.get("model")
-
-        feature_enablement["llm_model_configured"] = bool(_llm_model)
 
         # Determine if binary artifact preview (DOCX, PPTX, XLSX to PDF) should be enabled
         binary_artifact_preview_enabled = _determine_binary_artifact_preview_enabled(component, log_prefix)
