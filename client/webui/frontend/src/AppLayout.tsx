@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
+import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
 import { api } from "@/lib/api";
@@ -14,9 +17,11 @@ function AppLayoutContent() {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, llmModelConfigured } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
-    const { addNotification } = useChatContext();
+    const { addNotification, hasModelConfigWrite } = useChatContext();
+    const showModelWarning = modelConfigUiEnabled && !llmModelConfigured;
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -150,6 +155,22 @@ function AppLayoutContent() {
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="h-full w-full flex-1 overflow-auto">
+                {showModelWarning && (
+                    <MessageBanner
+                        variant="warning"
+                        style={{ alignItems: "center" }}
+                        message={
+                            <div className="flex w-full items-center justify-between gap-3">
+                                <span>No model has been set up. Some features may not work as intended without a configured model. Contact your administrator for assistance.</span>
+                                {hasModelConfigWrite && (
+                                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
+                                        Add Model
+                                    </Button>
+                                )}
+                            </div>
+                        }
+                    />
+                )}
                 <Outlet />
             </main>
             <ToastContainer />
