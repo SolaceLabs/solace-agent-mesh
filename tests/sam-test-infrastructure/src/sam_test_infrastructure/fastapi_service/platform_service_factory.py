@@ -266,6 +266,24 @@ class PlatformServiceFactory:
     def _setup_exception_handlers(self):
         """Set up exception handlers for the FastAPI application."""
         from fastapi.responses import JSONResponse
+        from solace_agent_mesh.shared.exceptions.exceptions import (
+            EntityNotFoundError,
+            EntityAlreadyExistsError,
+        )
+
+        @self.app.exception_handler(EntityNotFoundError)
+        async def entity_not_found_handler(request, exc):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": exc.message}
+            )
+
+        @self.app.exception_handler(EntityAlreadyExistsError)
+        async def entity_already_exists_handler(request, exc):
+            return JSONResponse(
+                status_code=409,
+                content={"detail": exc.message}
+            )
 
         @self.app.exception_handler(HTTPException)
         async def http_exception_handler(request, exc):

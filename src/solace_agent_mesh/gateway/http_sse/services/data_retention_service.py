@@ -399,8 +399,9 @@ class DataRetentionService:
 
         db = self.session_factory()
         try:
-            repo = DocumentConversionCacheRepository(db)
-            total_deleted = repo.cleanup_old_entries(retention_hours)
+            repo = DocumentConversionCacheRepository()
+            cutoff_ms = now_epoch_ms() - (retention_hours * 3600 * 1000)
+            total_deleted = repo.cleanup_old_entries(db, cutoff_ms)
 
             if total_deleted == 0:
                 log.info(

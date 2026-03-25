@@ -4,6 +4,9 @@ import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { defaultPromptGroups } from "../data/prompts";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+
+const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: false } });
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -24,6 +27,7 @@ const meta = {
         msw: { handlers },
     },
     decorators: [
+        OpenFeatureDecorator,
         (Story: StoryFn, context: StoryContext) => {
             const storyResult = Story(context.args, context);
 
@@ -203,6 +207,131 @@ export const WithPromptDialogOpen: Story = {
         await userEvent.type(chatInput, "/");
         const promptCommand = await canvas.findByTestId("promptCommand");
         expect(promptCommand).toBeVisible();
+    },
+};
+
+const mockResearchProgressMessage = {
+    isUser: false,
+    isComplete: false,
+    taskId: "mock-research-task-id",
+    parts: [
+        {
+            kind: "data",
+            data: {
+                type: "deep_research_progress",
+                phase: "searching",
+                status_text: "Searching for relevant sources...",
+                progress_percentage: 40,
+                current_iteration: 2,
+                total_iterations: 5,
+                sources_found: 8,
+                current_query: "latest advances in large language models 2024",
+                fetching_urls: [
+                    { url: "https://arxiv.org/abs/2401.00001", title: "Advances in LLMs", favicon: "" },
+                    { url: "https://openai.com/research", title: "OpenAI Research Blog", favicon: "" },
+                ],
+                elapsed_seconds: 45,
+                max_runtime_seconds: 300,
+                query_history: [
+                    {
+                        query: "large language model benchmarks 2024",
+                        timestamp: "2024-01-01T00:00:00Z",
+                        urls: [{ url: "https://arxiv.org/abs/2401.00001", title: "LLM Benchmarks Survey", favicon: "" }],
+                    },
+                ],
+            },
+        },
+    ],
+    metadata: { sessionId: "mock-session-id", lastProcessedEventSequence: 10 },
+};
+
+export const WithResearchInProgress: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            currentTaskId: "mock-research-task-id",
+            messages: [...mockMessages, mockResearchProgressMessage],
+            isResponding: true,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await canvas.findByText(/Searching for relevant sources/i);
+    },
+};
+
+export const WithResearchComplete: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: [
+                ...mockMessages,
+                {
+                    ...mockResearchProgressMessage,
+                    isComplete: true,
+                    parts: [
+                        {
+                            kind: "data",
+                            data: {
+                                ...mockResearchProgressMessage.parts[0].data,
+                                phase: "writing",
+                                status_text: "Research complete",
+                                progress_percentage: 100,
+                                current_iteration: 5,
+                                sources_found: 8,
+                            },
+                        },
+                        {
+                            kind: "text",
+                            text: "Based on my research, here is a summary of the latest advances in large language models...",
+                        },
+                    ],
+                },
+            ],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+            ragData: [
+                {
+                    taskId: "mock-research-task-id",
+                    searchType: "deep_research",
+                    query: "latest advances in large language models 2024",
+                    timestamp: "2024-01-01T00:00:00Z",
+                    sources: [
+                        {
+                            citationId: "1",
+                            title: "Advances in LLMs",
+                            url: "https://arxiv.org/abs/2401.00001",
+                            contentPreview: "[Full Content Fetched] LLM research...",
+                            metadata: { fetched: true, favicon: "" },
+                        },
+                        {
+                            citationId: "2",
+                            title: "OpenAI Research Blog",
+                            url: "https://openai.com/research",
+                            contentPreview: "[Full Content Fetched] OpenAI research...",
+                            metadata: { fetched: true, favicon: "" },
+                        },
+                    ],
+                },
+            ],
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await canvas.findByText("Research complete");
     },
 };
 

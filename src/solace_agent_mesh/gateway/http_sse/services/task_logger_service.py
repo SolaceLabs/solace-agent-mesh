@@ -7,7 +7,7 @@ import json
 import logging
 import math
 import uuid
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Dict
 
 from a2a.types import (
     A2ARequest,
@@ -81,7 +81,7 @@ class TaskLoggerService:
 
             # Infer details from the parsed event
             direction, task_id, user_id, session_id = self._infer_event_details(
-                topic, parsed_event, user_properties
+                parsed_event, user_properties
             )
 
             if not task_id:
@@ -157,7 +157,7 @@ class TaskLoggerService:
                     log.info(
                         f"{self.log_identifier} Created new task record for ID: {task_id}"
                         + (f" with parent: {parent_task_id}" if parent_task_id else "")
-                        + (f" (background execution enabled)" if background_execution_enabled else "")
+                        + (" (background execution enabled)" if background_execution_enabled else "")
                         + (f" (session: {session_id})" if session_id else "")
                     )
                 else:
@@ -247,14 +247,7 @@ class TaskLoggerService:
         finally:
             db.close()
 
-    def _parse_a2a_event(self, topic: str, payload: dict) -> Union[
-        A2ARequest,
-        A2ATask,
-        TaskStatusUpdateEvent,
-        TaskArtifactUpdateEvent,
-        JSONRPCError,
-        None,
-    ]:
+    def _parse_a2a_event(self, topic: str, payload: dict) -> A2ARequest | A2ATask | TaskStatusUpdateEvent | TaskArtifactUpdateEvent | JSONRPCError | None:
         """
         Safely parses a raw A2A message payload into a Pydantic model.
         Returns the parsed model or None if parsing fails or is not applicable.
@@ -293,7 +286,7 @@ class TaskLoggerService:
             return None
 
     def _infer_event_details(
-        self, topic: str, parsed_event: Any, user_props: Dict | None
+        self, parsed_event: Any, user_props: Dict | None
     ) -> tuple[str, str | None, str | None, str | None]:
         """Infers direction, task_id, user_id, and session_id from a parsed A2A event.
         
@@ -359,13 +352,12 @@ class TaskLoggerService:
 
     def _should_log_event(self, topic: str, parsed_event: Any) -> bool:
         """Determines if an event should be logged based on configuration."""
-        if not self.config.get("log_status_updates", True):
-            if "status" in topic:
-                return False
-        if not self.config.get("log_artifact_events", True):
-            if isinstance(parsed_event, TaskArtifactUpdateEvent):
-                return False
-        return True
+        if not self.config.get("log_status_updates", True) and "status" in topic:
+            return False
+        return not (
+            not self.config.get("log_artifact_events", True)
+            and isinstance(parsed_event, TaskArtifactUpdateEvent)
+        )
 
     @staticmethod
     def _sanitize_non_finite_floats(value: Any) -> Any:
@@ -563,71 +555,68 @@ class TaskLoggerService:
                                             else:
                                                 # Accumulate other non-text, non-data parts
                                                 accumulated_agent_parts.append(part)
-                    
+
                     # Extract artifacts and any additional text from final task response
-                    elif event.direction == "response":
-                        if "result" in payload:
-                            result = payload["result"]
-                            
-                            # Only process final task response (kind="task")
-                            if isinstance(result, dict) and result.get("kind") == "task":
-                                # Extract artifacts from task metadata
-                                metadata = result.get("metadata", {})
-                                if isinstance(metadata, dict):
-                                    # Try both 'produced_artifacts' and 'artifact_manifest'
-                                    artifact_list = metadata.get("produced_artifacts") or metadata.get("artifact_manifest", [])
-                                    if isinstance(artifact_list, list):
-                                        for artifact_info in artifact_list:
-                                            if isinstance(artifact_info, dict):
-                                                # Handle both 'name' and 'filename' keys
-                                                artifact_name = artifact_info.get("name") or artifact_info.get("filename")
-                                                # Skip web_content_ artifacts (temporary files from deep research)
-                                                if artifact_name and not artifact_name.startswith("web_content_"):
-                                                    artifacts.append({
-                                                        "kind": "artifact",
-                                                        "status": "completed",
+                    elif event.direction == "response" and "result" in payload:
+                        result = payload["result"]
+                        # Only process final task response (kind="task")
+                        if isinstance(result, dict) and result.get("kind") == "task":
+                            # Extract artifacts from task metadata
+                            metadata = result.get("metadata", {})
+                            if isinstance(metadata, dict):
+                                # Try both 'produced_artifacts' and 'artifact_manifest'
+                                artifact_list = metadata.get("produced_artifacts") or metadata.get("artifact_manifest", [])
+                                if isinstance(artifact_list, list):
+                                    for artifact_info in artifact_list:
+                                        if isinstance(artifact_info, dict):
+                                            # Handle both 'name' and 'filename' keys
+                                            artifact_name = artifact_info.get("name") or artifact_info.get("filename")
+                                            # Skip web_content_ artifacts (temporary files from deep research)
+                                            if artifact_name and not artifact_name.startswith("web_content_"):
+                                                artifacts.append({
+                                                    "kind": "artifact",
+                                                    "status": "completed",
+                                                    "name": artifact_name,
+                                                    "file": {
                                                         "name": artifact_name,
-                                                        "file": {
-                                                            "name": artifact_name,
-                                                            "mime_type": artifact_info.get("mime_type"),
-                                                            "uri": f"artifact://{session_id}/{artifact_name}" if session_id else f"artifact://unknown/{artifact_name}"
-                                                        }
-                                                    })
-                                
-                                # Final task object - extract any additional text not in status updates
-                                status = result.get("status", {})
-                                if isinstance(status, dict):
-                                    message = status.get("message", {})
-                                    if isinstance(message, dict):
-                                        parts = message.get("parts", [])
-                                        
-                                        # Extract RAG metadata from tool_result data parts in final response
-                                        for part in parts:
-                                            if isinstance(part, dict) and part.get("kind") == "data":
-                                                data = part.get("data", {})
-                                                if isinstance(data, dict) and data.get("type") == "tool_result":
-                                                    result_data = data.get("result_data", {})
-                                                    if isinstance(result_data, dict) and "rag_metadata" in result_data:
-                                                        rag_metadata = result_data["rag_metadata"]
-                                                        if isinstance(rag_metadata, dict):
-                                                            # Add taskId to the RAG metadata
-                                                            rag_metadata["taskId"] = task_id
-                                                            # Avoid duplicates
-                                                            if rag_metadata not in rag_data:
-                                                                rag_data.append(rag_metadata)
-                                                                log.info(
-                                                                    f"{self.log_identifier} Extracted RAG metadata from final response for task {task_id}: "
-                                                                    f"searchType={rag_metadata.get('searchType')}, "
-                                                                    f"sources_count={len(rag_metadata.get('sources', []))}"
-                                                                )
-                                        
-                                        
+                                                        "mime_type": artifact_info.get("mime_type"),
+                                                        "uri": f"artifact://{session_id}/{artifact_name}" if session_id else f"artifact://unknown/{artifact_name}"
+                                                    }
+                                                })
+
+                            # Final task object - extract any additional text not in status updates
+                            status = result.get("status", {})
+                            if isinstance(status, dict):
+                                message = status.get("message", {})
+                                if isinstance(message, dict):
+                                    parts = message.get("parts", [])
+
+                                    # Extract RAG metadata from tool_result data parts in final response
+                                    for part in parts:
+                                        if isinstance(part, dict) and part.get("kind") == "data":
+                                            data = part.get("data", {})
+                                            if isinstance(data, dict) and data.get("type") == "tool_result":
+                                                result_data = data.get("result_data", {})
+                                                if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                                                    rag_metadata = result_data["rag_metadata"]
+                                                    if isinstance(rag_metadata, dict):
+                                                        # Add taskId to the RAG metadata
+                                                        rag_metadata["taskId"] = task_id
+                                                        # Avoid duplicates
+                                                        if rag_metadata not in rag_data:
+                                                            rag_data.append(rag_metadata)
+                                                            log.info(
+                                                                f"{self.log_identifier} Extracted RAG metadata from final response for task {task_id}: "
+                                                                f"searchType={rag_metadata.get('searchType')}, "
+                                                                f"sources_count={len(rag_metadata.get('sources', []))}"
+                                                            )
+
                 except Exception as e:
                     log.warning(
                         f"{self.log_identifier} Error parsing event for chat message reconstruction: {e}"
                     )
                     continue
-            
+
             # After processing all events, create the agent message bubble from accumulated content
             if accumulated_agent_text or artifacts:
                 combined_text = "".join(accumulated_agent_text).strip()
@@ -706,7 +695,7 @@ class TaskLoggerService:
             # Check if a chat task already exists (frontend may have saved it first with frontend-only fields)
             # If so, preserve frontend-only fields like contextQuote and displayHtml from the user message
             chat_task_repo = ChatTaskRepository()
-            existing_chat_task = chat_task_repo.find_by_id(db, task_id)
+            existing_chat_task = chat_task_repo.find_by_id(db, task_id, user_id)
             if existing_chat_task:
                 try:
                     existing_bubbles = json.loads(existing_chat_task.message_bubbles) if isinstance(existing_chat_task.message_bubbles, str) else existing_chat_task.message_bubbles
