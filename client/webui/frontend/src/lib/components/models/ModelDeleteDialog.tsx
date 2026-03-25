@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { CircleAlert } from "lucide-react";
 
 import { Button, Input } from "@/lib/components/ui";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
@@ -39,12 +38,7 @@ const DefaultModelDialog: React.FC<{
                     <DialogDescription />
                 </DialogHeader>
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-start gap-2">
-                        <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-(--warning-wMain)" />
-                        <p>
-                            The <strong>{displayName}</strong> model is a system default and cannot be deleted. It is required for core platform functionality.
-                        </p>
-                    </div>
+                    <p>The {displayName} model cannot be deleted as it is required for AI features in the platform.</p>
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
@@ -63,9 +57,9 @@ const ConfirmDeleteDialog: React.FC<{
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void | Promise<void>;
-    modelAlias: string;
+    modelAlias?: string;
     isLoading?: boolean;
-}> = ({ open, onOpenChange, onConfirm, modelAlias, isLoading }) => {
+}> = ({ open, onOpenChange, onConfirm, isLoading }) => {
     const [confirmText, setConfirmText] = useState("");
     const isConfirmEnabled = confirmText === "DELETE";
 
@@ -90,17 +84,12 @@ const ConfirmDeleteDialog: React.FC<{
                     <DialogDescription />
                 </DialogHeader>
                 <div className="flex flex-col gap-4">
-                    <div className="flex items-start gap-2">
-                        <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-(--warning-wMain)" />
-                        <p>
-                            Agents that reference <strong>{modelAlias}</strong> may stop working if this model is deleted. This action cannot be undone.
-                        </p>
-                    </div>
+                    <p>If any code-based agents are referencing this agent, they will no longer function correctly. This action cannot be undone.</p>
                     <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium">
                             Type <strong>DELETE</strong> to confirm
                         </label>
-                        <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="DELETE" disabled={isLoading} autoComplete="off" />
+                        <Input value={confirmText} onChange={e => setConfirmText(e.target.value)} disabled={isLoading} autoComplete="off" />
                     </div>
                 </div>
                 <DialogFooter>
@@ -117,7 +106,7 @@ const ConfirmDeleteDialog: React.FC<{
                         </Button>
                     </DialogClose>
                     <Button
-                        variant="destructive"
+                        variant="ghost"
                         title="Delete"
                         onClick={async e => {
                             e.stopPropagation();
