@@ -12,16 +12,15 @@ All tests in this file run against both SQLite and PostgreSQL via pytest paramet
 Docker must be running for PostgreSQL tests (testcontainers handles container lifecycle).
 """
 
-import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
-from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
-from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 from solace_agent_mesh.gateway.http_sse.repository.project_user_repository import (
     ProjectUserRepository,
 )
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
+from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 
 
 class TestAddUserToProject:
@@ -532,4 +531,3 @@ class TestGetUserProjectsAccess:
         project_ids = [pu.project_id for pu in result]
         assert "proj-1" in project_ids
         assert "proj-2" in project_ids
-

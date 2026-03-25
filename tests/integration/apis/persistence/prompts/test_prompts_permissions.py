@@ -13,13 +13,13 @@ import pytest
 import sqlalchemy as sa
 from fastapi import HTTPException
 
-from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
-from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-    get_user_role,
     check_permission,
+    get_user_role,
 )
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
+from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 
 
 class TestGetUserRole:
@@ -525,5 +525,3 @@ class TestPermissionMatrix:
                 check_permission(db_session, group_id, test_user, permission)
             assert exc_info.value.status_code == 403
         db_session.close()
-
-

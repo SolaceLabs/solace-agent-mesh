@@ -9,16 +9,16 @@ All tests in this file run against both SQLite and PostgreSQL via pytest paramet
 Docker must be running for PostgreSQL tests (testcontainers handles container lifecycle).
 """
 
-import pytest
-import sqlalchemy as sa
-from fastapi.testclient import TestClient
 from unittest.mock import patch
 
-from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
-from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
+import sqlalchemy as sa
+from fastapi.testclient import TestClient
+
 from solace_agent_mesh.common.services.default_resource_sharing_service import (
     DefaultResourceSharingService,
 )
+from tests.integration.apis.infrastructure.database_inspector import DatabaseInspector
+from tests.integration.apis.infrastructure.gateway_adapter import GatewayAdapter
 
 
 class TestProjectRepositoryAccessibleProjects:
@@ -116,7 +116,10 @@ class TestProjectRepositoryAccessibleProjects:
 
         def _patched_get_shared(self, session, user_email, resource_type):
             result = original_get_shared(
-                self, session=session, user_email=user_email, resource_type=resource_type
+                self,
+                session=session,
+                user_email=user_email,
+                resource_type=resource_type,
             )
             if user_email == "secondary_user":
                 # Secondary user has access to shared-1
@@ -234,7 +237,10 @@ class TestProjectRepositoryAccessibleProjects:
 
         def _patched_get_shared(self, session, user_email, resource_type):
             result = original_get_shared(
-                self, session=session, user_email=user_email, resource_type=resource_type
+                self,
+                session=session,
+                user_email=user_email,
+                resource_type=resource_type,
             )
             if user_email == "secondary_user":
                 return ["shared-1", "shared-2", "shared-3"]
@@ -553,5 +559,3 @@ class TestProjectRepositoryFiltered:
         # At least one project should exist (proj-2)
         project_ids = [p["id"] for p in projects]
         assert "proj-2" in project_ids
-
-

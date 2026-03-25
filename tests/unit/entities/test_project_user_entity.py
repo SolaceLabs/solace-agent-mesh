@@ -7,7 +7,9 @@ Extracted from tests/unit/repository/test_project_user_repository.py
 
 import pytest
 
-from src.solace_agent_mesh.gateway.http_sse.repository.entities.project_user import ProjectUser
+from src.solace_agent_mesh.gateway.http_sse.repository.entities.project_user import (
+    ProjectUser,
+)
 
 
 class TestProjectUserEntity:
@@ -21,7 +23,7 @@ class TestProjectUserEntity:
             user_id="user-456",
             role="owner",
             added_at=1000,
-            added_by_user_id="user-456"
+            added_by_user_id="user-456",
         )
 
         assert user.can_edit_project() is True
@@ -34,7 +36,7 @@ class TestProjectUserEntity:
             user_id="user-456",
             role="editor",
             added_at=1000,
-            added_by_user_id="user-owner"
+            added_by_user_id="user-owner",
         )
 
         assert user.can_edit_project() is True
@@ -47,7 +49,7 @@ class TestProjectUserEntity:
             user_id="user-456",
             role="viewer",
             added_at=1000,
-            added_by_user_id="user-owner"
+            added_by_user_id="user-owner",
         )
 
         assert user.can_edit_project() is False
@@ -60,7 +62,7 @@ class TestProjectUserEntity:
             user_id="user-456",
             role="owner",
             added_at=1000,
-            added_by_user_id="user-456"
+            added_by_user_id="user-456",
         )
 
         editor = ProjectUser(
@@ -69,7 +71,7 @@ class TestProjectUserEntity:
             user_id="user-789",
             role="editor",
             added_at=1000,
-            added_by_user_id="user-456"
+            added_by_user_id="user-456",
         )
 
         assert owner.can_manage_users() is True
@@ -84,7 +86,7 @@ class TestProjectUserEntity:
                 user_id="user-456",
                 role=role,
                 added_at=1000,
-                added_by_user_id="user-owner"
+                added_by_user_id="user-owner",
             )
             assert user.can_view_project() is True
 
@@ -96,7 +98,7 @@ class TestProjectUserEntity:
             user_id="user-456",
             role="viewer",
             added_at=1000,
-            added_by_user_id="user-owner"
+            added_by_user_id="user-owner",
         )
 
         # Valid role should work
@@ -106,4 +108,3 @@ class TestProjectUserEntity:
         # Invalid role should raise ValueError
         with pytest.raises(ValueError, match="Invalid role"):
             user.update_role("invalid_role")
-
