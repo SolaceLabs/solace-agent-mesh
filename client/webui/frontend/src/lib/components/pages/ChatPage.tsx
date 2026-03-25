@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
@@ -11,7 +12,7 @@ import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
-import { getShareLinkForSession, getShareUsers } from "@/lib/api/share";
+import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
@@ -36,6 +37,7 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
+    const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
     const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
@@ -75,19 +77,18 @@ export function ChatPage() {
         >
     >([]);
     const [sharedEditorUsers, setSharedEditorUsers] = useState<CollaborativeUser[]>([]);
-    const [shareVersion, setShareVersion] = useState(0);
 
-    // Listen for share-updated events from ShareDialog to refresh notifications
+    // Listen for share-updated events from ShareDialog to invalidate React Query cache
     useEffect(() => {
         const handleShareUpdated = (event: Event) => {
             const detail = (event as CustomEvent).detail;
             if (detail?.sessionId === sessionId) {
-                setShareVersion(v => v + 1);
+                queryClient.invalidateQueries({ queryKey: ["shares"] });
             }
         };
         window.addEventListener("share-updated", handleShareUpdated);
         return () => window.removeEventListener("share-updated", handleShareUpdated);
-    }, [sessionId]);
+    }, [sessionId, queryClient]);
 
     // Fork collaborative chat into user's own session
     const handleForkCollaborativeChat = useCallback(async () => {
@@ -120,103 +121,85 @@ export function ChatPage() {
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
 
-    // Fetch share link info and share users for the current session (to show share notifications for owner)
+    // Fetch share link and users for current session via React Query (owner's view only)
+    const shareLinkQuery = useShareLink(!isCollaborativeSession ? sessionId : "");
+    const shareLink = shareLinkQuery.data ?? null;
+    const shareUsersQuery = useShareUsers(shareLink?.shareId);
+    const shareUsers = useMemo(() => shareUsersQuery.data?.users ?? [], [shareUsersQuery.data?.users]);
+
+    // Rebuild share notifications and editor users when share data changes
     useEffect(() => {
-        if (!sessionId || isCollaborativeSession) {
+        if (isCollaborativeSession || !sessionId) {
             setShareNotifications([]);
             setSharedEditorUsers([]);
             return;
         }
-        // Only fetch for owner's sessions (non-collaborative)
-        getShareLinkForSession(sessionId)
-            .then(async link => {
-                if (link) {
-                    try {
-                        const usersResponse = await getShareUsers(link.shareId);
-                        const users = usersResponse.users || [];
-                        if (users.length === 0) {
-                            setShareNotifications([]);
-                            return;
-                        }
-                        // Build notifications: for each user, emit the original share event
-                        // and, if access was changed, a separate role-changed event.
-                        type ShareNotif =
-                            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
-                            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" };
 
-                        const toDisplayName = (email: string) => {
-                            const emailName = email.split("@")[0] || email;
-                            return emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-                        };
+        if (shareUsers.length === 0) {
+            setShareNotifications([]);
+            setSharedEditorUsers([]);
+            return;
+        }
 
-                        // Group original share events by (timestamp, accessLevel)
-                        const origGroupKey = (ts: number, level: string) => `orig:${ts}:${level}`;
-                        const origGroupMap = new Map<string, ShareNotif & { variant: "shared-with-users" }>();
+        type ShareNotif =
+            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
+            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" };
 
-                        // Group role-changed events by (timestamp, from, to)
-                        const changeGroupKey = (ts: number, from: string, to: string) => `change:${ts}:${from}:${to}`;
-                        const changeGroupMap = new Map<string, ShareNotif & { variant: "role-changed" }>();
+        const toDisplayName = (email: string) => {
+            const emailName = email.split("@")[0] || email;
+            return emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        };
 
-                        for (const user of users) {
-                            const displayName = toDisplayName(user.userEmail);
+        const origGroupKey = (ts: number, level: string) => `orig:${ts}:${level}`;
+        const origGroupMap = new Map<string, ShareNotif & { variant: "shared-with-users" }>();
+        const changeGroupKey = (ts: number, from: string, to: string) => `change:${ts}:${from}:${to}`;
+        const changeGroupMap = new Map<string, ShareNotif & { variant: "role-changed" }>();
 
-                            if (user.originalAccessLevel && user.originalAddedAt) {
-                                // User had their access changed — emit original share event
-                                const origLevel = user.originalAccessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const oKey = origGroupKey(user.originalAddedAt, user.originalAccessLevel);
-                                if (!origGroupMap.has(oKey)) {
-                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.originalAddedAt, names: [], accessLevel: origLevel });
-                                }
-                                origGroupMap.get(oKey)!.names.push(displayName);
+        for (const user of shareUsers) {
+            const displayName = toDisplayName(user.userEmail);
 
-                                // Emit role-changed event at the current added_at time
-                                const newLevel = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const cKey = changeGroupKey(user.addedAt, user.originalAccessLevel, user.accessLevel);
-                                if (!changeGroupMap.has(cKey)) {
-                                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.addedAt, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
-                                }
-                                changeGroupMap.get(cKey)!.names.push(displayName);
-                            } else {
-                                // Normal share — no access change history
-                                const level = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
-                                const oKey = origGroupKey(user.addedAt, user.accessLevel);
-                                if (!origGroupMap.has(oKey)) {
-                                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.addedAt, names: [], accessLevel: level });
-                                }
-                                origGroupMap.get(oKey)!.names.push(displayName);
-                            }
-                        }
-
-                        const notifications: ShareNotif[] = [...Array.from(origGroupMap.values()), ...Array.from(changeGroupMap.values())].sort((a, b) => a.timestamp - b.timestamp);
-                        setShareNotifications(notifications);
-                        // Build editor users list for presence avatars (owner's view)
-                        const editorUsers: CollaborativeUser[] = users
-                            .filter(u => u.accessLevel === "RESOURCE_EDITOR")
-                            .map(u => {
-                                const emailName = u.userEmail.split("@")[0] || u.userEmail;
-                                const name = emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-                                return {
-                                    id: u.userEmail.toLowerCase(),
-                                    name,
-                                    email: u.userEmail,
-                                    role: "collaborator" as const,
-                                    isOnline: true,
-                                };
-                            });
-                        setSharedEditorUsers(editorUsers);
-                    } catch {
-                        setShareNotifications([]);
-                    }
-                } else {
-                    setShareNotifications([]);
-                    setSharedEditorUsers([]);
+            if (user.originalAccessLevel && user.originalAddedAt) {
+                const origLevel = user.originalAccessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const oKey = origGroupKey(user.originalAddedAt, user.originalAccessLevel);
+                if (!origGroupMap.has(oKey)) {
+                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.originalAddedAt, names: [], accessLevel: origLevel });
                 }
-            })
-            .catch(() => {
-                setShareNotifications([]);
-                setSharedEditorUsers([]);
+                origGroupMap.get(oKey)!.names.push(displayName);
+
+                const newLevel = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const cKey = changeGroupKey(user.addedAt, user.originalAccessLevel, user.accessLevel);
+                if (!changeGroupMap.has(cKey)) {
+                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.addedAt, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
+                }
+                changeGroupMap.get(cKey)!.names.push(displayName);
+            } else {
+                const level = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const oKey = origGroupKey(user.addedAt, user.accessLevel);
+                if (!origGroupMap.has(oKey)) {
+                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.addedAt, names: [], accessLevel: level });
+                }
+                origGroupMap.get(oKey)!.names.push(displayName);
+            }
+        }
+
+        const notifications: ShareNotif[] = [...Array.from(origGroupMap.values()), ...Array.from(changeGroupMap.values())].sort((a, b) => a.timestamp - b.timestamp);
+        setShareNotifications(notifications);
+
+        const editorUsers: CollaborativeUser[] = shareUsers
+            .filter(u => u.accessLevel === "RESOURCE_EDITOR")
+            .map(u => {
+                const emailName = u.userEmail.split("@")[0] || u.userEmail;
+                const name = emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+                return {
+                    id: u.userEmail.toLowerCase(),
+                    name,
+                    email: u.userEmail,
+                    role: "collaborator" as const,
+                    isOnline: true,
+                };
             });
-    }, [sessionId, isCollaborativeSession, shareVersion]);
+        setSharedEditorUsers(editorUsers);
+    }, [sessionId, isCollaborativeSession, shareUsers]);
 
     // When a new task starts, remember which session it belongs to
     // Don't rely on currentTaskId changes during session switches
