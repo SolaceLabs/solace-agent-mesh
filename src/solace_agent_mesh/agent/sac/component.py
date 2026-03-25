@@ -84,7 +84,7 @@ from ...common.constants import (
     EXTENSION_URI_SCHEMAS,
 )
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
-from ...common.error_handlers import get_error_message
+from ...common.error_handlers import get_error_message, is_llm_exception
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -3021,11 +3021,8 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            # Detect context limit errors and provide user-friendly message
-            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-
-            if isinstance(exception, BadRequestError):
-                # Use centralized error handler
+            # Use centralized error handler for all LLM-related exceptions
+            if is_llm_exception(exception):
                 error_message, is_context_limit = get_error_message(exception)
 
                 if is_context_limit:
@@ -3035,6 +3032,11 @@ class SamAgentComponent(SamComponentBase):
                         logical_task_id,
                         exception,
                     )
+            else:
+                error_message = (
+                    "An unexpected error occurred while processing your request. "
+                    "Please try again. If the problem persists, contact an administrator."
+                )
 
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,

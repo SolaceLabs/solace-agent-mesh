@@ -9,6 +9,8 @@ import os
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
 
+from ...common.error_handlers import LITELLM_EXCEPTIONS
+
 
 class TaskCancelledError(Exception):
     """Raised when an ADK task is cancelled via external signal."""
@@ -1312,13 +1314,14 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             llm_limit_e,
         )
-    except BadRequestError as e:
+    except tuple(LITELLM_EXCEPTIONS) as e:
         exception_to_finalize_with = e
         log.error(
-            "%s Bad Request for task %s: %s. Scheduling finalization.",
+            "%s LLM error [%s] for task %s: %s. Scheduling finalization.",
             component.log_identifier,
+            type(e).__name__,
             logical_task_id,
-            e.message,
+            getattr(e, "message", str(e)),
         )
     except Exception as e:
         exception_to_finalize_with = e

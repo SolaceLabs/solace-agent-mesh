@@ -8,7 +8,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
-from litellm.exceptions import BadRequestError
+from ...common.error_handlers import LITELLM_EXCEPTIONS
 
 from a2a.types import (
     A2ARequest,
@@ -1164,9 +1164,12 @@ async def handle_a2a_request(component, message: SolaceMessage):
         component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
-    except BadRequestError as e:
+    except LITELLM_EXCEPTIONS as e:
         log.error(
-            "%s Bad Request error handling A2A request: %s", component.log_identifier, e
+            "%s LLM error [%s] handling A2A request: %s",
+            component.log_identifier,
+            type(e).__name__,
+            e,
         )
 
         # Use centralized error handler
@@ -1196,12 +1199,12 @@ async def handle_a2a_request(component, message: SolaceMessage):
         try:
             message.call_negative_acknowledgements()
             log.warning(
-                "%s NACKed original A2A request due to bad request error.",
+                "%s NACKed original A2A request due to LLM error.",
                 component.log_identifier,
             )
         except Exception as nack_e:
             log.error(
-                "%s Failed to NACK message after bad request error: %s",
+                "%s Failed to NACK message after LLM error: %s",
                 component.log_identifier,
                 nack_e,
             )
@@ -1264,7 +1267,10 @@ async def handle_a2a_request(component, message: SolaceMessage):
             "%s Unexpected error handling A2A request: %s", component.log_identifier, e
         )
         error_response = a2a.create_internal_error_response(
-            message=f"Unexpected server error: {e}",
+            message=(
+                "An unexpected error occurred while processing your request. "
+                "Please try again. If the problem persists, contact an administrator."
+            ),
             request_id=jsonrpc_request_id,
             data={"taskId": logical_task_id},
         )
