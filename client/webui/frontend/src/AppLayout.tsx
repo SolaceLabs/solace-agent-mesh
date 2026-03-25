@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
@@ -10,12 +9,10 @@ import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useBooleanFlagDetails, useLocalStorage } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
-
-const MODEL_SETUP_DISMISSED_KEY = "model-setup-dialog-dismissed";
 
 function AppLayoutContent() {
     const location = useLocation();
@@ -31,24 +28,22 @@ function AppLayoutContent() {
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
+    const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
     const { data: modelConfigStatus } = useModelConfigStatus();
 
     useEffect(() => {
-        if (modelConfigStatus && !modelConfigStatus.configured) {
-            const dismissed = localStorage.getItem(MODEL_SETUP_DISMISSED_KEY);
-            if (!dismissed) {
-                setIsModelSetupDialogOpen(true);
-            }
+        if (modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
+            setIsModelSetupDialogOpen(true);
         }
-    }, [modelConfigStatus]);
+    }, [modelConfigStatus, modelSetupDismissed]);
 
     const handleModelSetupDialogChange = useCallback((open: boolean) => {
         setIsModelSetupDialogOpen(open);
         if (!open) {
-            localStorage.setItem(MODEL_SETUP_DISMISSED_KEY, "true");
+            setModelSetupDismissed(true);
         }
-    }, []);
+    }, [setModelSetupDismissed]);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {

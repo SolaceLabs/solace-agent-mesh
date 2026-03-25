@@ -3,12 +3,11 @@ import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
-import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useBooleanFlagDetails } from "@/lib/hooks";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
