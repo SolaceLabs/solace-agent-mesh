@@ -14,6 +14,8 @@ import "./agentDiagram.css";
 interface AgentDiagramProps {
     config: AgentDiagramConfig;
     onNodeSelect?: (node: AgentLayoutNode | null) => void;
+    /** Callback when canvas transform (zoom/pan) changes */
+    onTransformChange?: (transform: { scale: number; x: number; y: number }) => void;
     /** Additional CSS class for the root container (e.g. to override background) */
     className?: string;
 }
@@ -39,17 +41,17 @@ const DEFAULT_EDGE_MARKER = {
  * AgentDiagram - Main agent visualization component using ReactFlow.
  * Shows the agent at the top with tools to the right and skills below.
  */
-const AgentDiagram: React.FC<AgentDiagramProps> = ({ config, onNodeSelect, className }) => {
+const AgentDiagram: React.FC<AgentDiagramProps> = ({ config, onNodeSelect, onTransformChange, className }) => {
     return (
         <div className={`agent-diagram ${className ?? "bg-card-background"} relative h-full w-full`}>
             <ReactFlowProvider>
-                <AgentDiagramInner config={config} onNodeSelect={onNodeSelect} />
+                <AgentDiagramInner config={config} onNodeSelect={onNodeSelect} onTransformChange={onTransformChange} />
             </ReactFlowProvider>
         </div>
     );
 };
 
-const AgentDiagramInner: React.FC<Omit<AgentDiagramProps, "className">> = ({ config, onNodeSelect }) => {
+const AgentDiagramInner: React.FC<Omit<AgentDiagramProps, "className">> = ({ config, onNodeSelect, onTransformChange }) => {
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     // Calculate layout whenever config changes
@@ -118,22 +120,23 @@ const AgentDiagramInner: React.FC<Omit<AgentDiagramProps, "className">> = ({ con
 
     return (
         <ReactFlow
-            nodes={nodesWithSelection}
-            edges={rfEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onNodeClick={handleNodeClick}
-            onPaneClick={handlePaneClick}
-            nodesDraggable={true}
-            nodesConnectable={false}
-            elementsSelectable={true}
-            fitView
-            fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.25}
-            maxZoom={2}
-            proOptions={{ hideAttribution: true }}
-        />
+                nodes={nodesWithSelection}
+                edges={rfEdges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                onNodesChange={onNodesChange}
+                onNodeClick={handleNodeClick}
+                onPaneClick={handlePaneClick}
+                nodesDraggable={true}
+                nodesConnectable={false}
+                elementsSelectable={true}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                onMove={onTransformChange ? (_event, viewport) => onTransformChange({ scale: viewport.zoom, x: viewport.x, y: viewport.y }) : undefined}
+                minZoom={0.25}
+                maxZoom={2}
+                proOptions={{ hideAttribution: true }}
+            />
     );
 };
 

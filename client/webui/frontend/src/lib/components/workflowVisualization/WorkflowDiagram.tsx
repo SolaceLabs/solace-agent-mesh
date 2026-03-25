@@ -303,25 +303,25 @@ const WorkflowDiagramInner: React.FC<WorkflowDiagramInnerProps> = ({
 
     return (
         <ReactFlow
-            nodes={nodesWithState}
-            edges={rfEdges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onNodeClick={handleRFNodeClick}
-            onNodeDragStart={handleNodeDragStart}
-            onNodeDrag={handleNodeDrag}
-            onPaneClick={handlePaneClick}
-            onMoveEnd={onTransformChange ? (_event, viewport) => onTransformChange({ scale: viewport.zoom, x: viewport.x, y: viewport.y }) : undefined}
-            nodesDraggable={true}
-            nodesConnectable={false}
-            elementsSelectable={true}
-            fitView
-            fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.25}
-            maxZoom={2}
-            proOptions={{ hideAttribution: true }}
-        />
+                nodes={nodesWithState}
+                edges={rfEdges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                onNodesChange={onNodesChange}
+                onNodeClick={handleRFNodeClick}
+                onNodeDragStart={handleNodeDragStart}
+                onNodeDrag={handleNodeDrag}
+                onPaneClick={handlePaneClick}
+                onMove={onTransformChange ? (_event, viewport) => onTransformChange({ scale: viewport.zoom, x: viewport.x, y: viewport.y }) : undefined}
+                nodesDraggable={true}
+                nodesConnectable={false}
+                elementsSelectable={true}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                minZoom={0.25}
+                maxZoom={2}
+                proOptions={{ hideAttribution: true }}
+            />
     );
 };
 

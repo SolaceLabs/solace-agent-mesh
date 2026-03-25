@@ -13,7 +13,7 @@ const AgentDiagramEdgeComponent: React.FC<EdgeProps> = ({ id, sourceX, sourceY, 
         offset: 24,
     });
 
-    return <BaseEdge id={id} path={edgePath} style={{ strokeWidth: 2 }} className="stroke-(--color-secondary-w70) dark:stroke-(--color-secondary-w70)" markerEnd={markerEnd} />;
+    return <BaseEdge id={id} path={edgePath} style={{ strokeWidth: 2, stroke: "var(--secondary-w70)" }} markerEnd={markerEnd} />;
 };
 
 export const AgentDiagramEdge = memo(AgentDiagramEdgeComponent);
