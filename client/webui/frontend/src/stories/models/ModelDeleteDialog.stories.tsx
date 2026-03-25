@@ -109,8 +109,8 @@ export const DefaultModelGeneral: Story = {
         const dialog = await screen.findByRole("dialog");
         const content = within(dialog);
 
-        expect(content.getByText("Cannot Delete Model")).toBeInTheDocument();
-        expect(content.getByText(/General model cannot be deleted/)).toBeInTheDocument();
+        expect(content.getByText("Unable to Delete")).toBeInTheDocument();
+        expect(content.getByText(/General model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
         expect(content.getByRole("button", { name: "Close" })).toBeInTheDocument();
 
         expect(content.queryByRole("textbox")).not.toBeInTheDocument();
@@ -132,7 +132,7 @@ export const DefaultModelPlanning: Story = {
         const dialog = await screen.findByRole("dialog");
         const content = within(dialog);
 
-        expect(content.getByText("Cannot Delete Model")).toBeInTheDocument();
-        expect(content.getByText(/Planning model cannot be deleted/)).toBeInTheDocument();
+        expect(content.getByText("Unable to Delete")).toBeInTheDocument();
+        expect(content.getByText(/Planning model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
     },
 };

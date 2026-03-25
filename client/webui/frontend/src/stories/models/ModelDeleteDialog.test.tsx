@@ -97,14 +97,14 @@ describe("ModelDeleteDialog - Custom model", () => {
 describe("ModelDeleteDialog - Default model", () => {
     test("shows cannot delete dialog for general model", () => {
         render(<ModelDeleteDialog {...defaultProps} modelAlias="general" />);
-        expect(screen.getByText("Cannot Delete Model")).toBeInTheDocument();
-        expect(screen.getByText(/General model cannot be deleted/)).toBeInTheDocument();
+        expect(screen.getByText("Unable to Delete")).toBeInTheDocument();
+        expect(screen.getByText(/General model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
     });
 
     test("shows cannot delete dialog for planning model", () => {
         render(<ModelDeleteDialog {...defaultProps} modelAlias="planning" />);
-        expect(screen.getByText("Cannot Delete Model")).toBeInTheDocument();
-        expect(screen.getByText(/Planning model cannot be deleted/)).toBeInTheDocument();
+        expect(screen.getByText("Unable to Delete")).toBeInTheDocument();
+        expect(screen.getByText(/Planning model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
     });
 
     test("shows Close button instead of Delete for default models", () => {
@@ -120,6 +120,6 @@ describe("ModelDeleteDialog - Default model", () => {
 
     test("is case-insensitive for default model check", () => {
         render(<ModelDeleteDialog {...defaultProps} modelAlias="General" />);
-        expect(screen.getByText("Cannot Delete Model")).toBeInTheDocument();
+        expect(screen.getByText("Unable to Delete")).toBeInTheDocument();
     });
 });
