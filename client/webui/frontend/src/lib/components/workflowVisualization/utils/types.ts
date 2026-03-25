@@ -191,7 +191,7 @@ export const LAYOUT_CONSTANTS = {
         LOOP_CONDITION_ROW: 28, // Extra height for loop condition/max iterations row
     },
     SPACING: {
-        VERTICAL: 60,
+        VERTICAL: 80,
         VERTICAL_BRANCH: 100, // Extra spacing when there are condition pills (switch branches)
         HORIZONTAL: 32,
         CONTAINER_PADDING: 24, // Padding inside container nodes (Map/Loop)
