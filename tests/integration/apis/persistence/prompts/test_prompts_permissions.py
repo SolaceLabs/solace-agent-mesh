@@ -40,9 +40,8 @@ class TestGetUserRole:
         )
 
         # Act: Get role for alice
-        db_session = db_session_factory()
-        role = get_user_role(db_session, group_id, "alice")
-        db_session.close()
+        with db_session_factory() as db_session:
+            role = get_user_role(db_session, group_id, "alice")
 
         # Assert
         assert role == "owner"
@@ -81,9 +80,8 @@ class TestGetUserRole:
             conn.commit()
 
         # Act: Get role for bob
-        db_session = db_session_factory()
-        role = get_user_role(db_session, group_id, "bob")
-        db_session.close()
+        with db_session_factory() as db_session:
+            role = get_user_role(db_session, group_id, "bob")
 
         # Assert
         assert role == "editor"  # get_user_role returns lowercase
@@ -122,9 +120,8 @@ class TestGetUserRole:
             conn.commit()
 
         # Act: Get role for charlie
-        db_session = db_session_factory()
-        role = get_user_role(db_session, group_id, "charlie")
-        db_session.close()
+        with db_session_factory() as db_session:
+            role = get_user_role(db_session, group_id, "charlie")
 
         # Assert
         assert role == "viewer"  # get_user_role returns lowercase
@@ -144,9 +141,8 @@ class TestGetUserRole:
         )
 
         # Act: Get role for dave (who has no access)
-        db_session = db_session_factory()
-        role = get_user_role(db_session, group_id, "dave")
-        db_session.close()
+        with db_session_factory() as db_session:
+            role = get_user_role(db_session, group_id, "dave")
 
         # Assert
         assert role is None
@@ -170,9 +166,8 @@ class TestCheckPermission:
         )
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "alice", "read")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "alice", "read")
 
     def test_read_permission_allowed_for_editor(
         self,
@@ -206,9 +201,8 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "bob", "read")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "bob", "read")
 
     def test_read_permission_allowed_for_viewer(
         self,
@@ -242,9 +236,8 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "charlie", "read")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "charlie", "read")
 
     def test_write_permission_allowed_for_owner(
         self,
@@ -261,9 +254,8 @@ class TestCheckPermission:
         )
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "alice", "write")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "alice", "write")
 
     def test_write_permission_allowed_for_editor(
         self,
@@ -297,9 +289,8 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "bob", "write")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "bob", "write")
 
     def test_write_permission_denied_for_viewer(
         self,
@@ -333,10 +324,9 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should raise 403
-        db_session = db_session_factory()
-        with pytest.raises(HTTPException) as exc_info:
-            check_permission(db_session, group_id, "charlie", "write")
-        db_session.close()
+        with db_session_factory() as db_session:
+            with pytest.raises(HTTPException) as exc_info:
+                check_permission(db_session, group_id, "charlie", "write")
 
         assert exc_info.value.status_code == 403
 
@@ -355,9 +345,8 @@ class TestCheckPermission:
         )
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "alice", "delete")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "alice", "delete")
 
     def test_delete_permission_allowed_for_editor(
         self,
@@ -391,9 +380,8 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should not raise
-        db_session = db_session_factory()
-        check_permission(db_session, group_id, "bob", "delete")
-        db_session.close()
+        with db_session_factory() as db_session:
+            check_permission(db_session, group_id, "bob", "delete")
 
     def test_delete_permission_denied_for_viewer(
         self,
@@ -427,10 +415,9 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should raise 403
-        db_session = db_session_factory()
-        with pytest.raises(HTTPException) as exc_info:
-            check_permission(db_session, group_id, "charlie", "delete")
-        db_session.close()
+        with db_session_factory() as db_session:
+            with pytest.raises(HTTPException) as exc_info:
+                check_permission(db_session, group_id, "charlie", "delete")
 
         assert exc_info.value.status_code == 403
 
@@ -449,10 +436,9 @@ class TestCheckPermission:
         )
 
         # Act & Assert: Should raise 404 for dave (no access)
-        db_session = db_session_factory()
-        with pytest.raises(HTTPException) as exc_info:
-            check_permission(db_session, group_id, "dave", "read")
-        db_session.close()
+        with db_session_factory() as db_session:
+            with pytest.raises(HTTPException) as exc_info:
+                check_permission(db_session, group_id, "dave", "read")
 
         assert exc_info.value.status_code == 404
 
@@ -515,13 +501,12 @@ class TestPermissionMatrix:
                 conn.commit()
 
         # Act & Assert
-        db_session = db_session_factory()
-        if should_allow:
-            # Should not raise
-            check_permission(db_session, group_id, test_user, permission)
-        else:
-            # Should raise 403
-            with pytest.raises(HTTPException) as exc_info:
+        with db_session_factory() as db_session:
+            if should_allow:
+                # Should not raise
                 check_permission(db_session, group_id, test_user, permission)
-            assert exc_info.value.status_code == 403
-        db_session.close()
+            else:
+                # Should raise 403
+                with pytest.raises(HTTPException) as exc_info:
+                    check_permission(db_session, group_id, test_user, permission)
+                assert exc_info.value.status_code == 403

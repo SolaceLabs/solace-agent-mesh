@@ -43,15 +43,14 @@ class TestAddUserToProject:
         )
 
         # Act: Add user to project using repository
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.add_user_to_project(
-            project_id=project_id,
-            user_id="user-456",
-            role="editor",
-            added_by_user_id="sam_dev_user",
-        )
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.add_user_to_project(
+                project_id=project_id,
+                user_id="user-456",
+                role="editor",
+                added_by_user_id="sam_dev_user",
+            )
 
         # Assert: Verify return value
         assert result is not None
@@ -128,10 +127,9 @@ class TestGetProjectUsers:
             conn.commit()
 
         # Act: Get project users
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.get_project_users(project_id)
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.get_project_users(project_id)
 
         # Assert
         assert len(result) == 2
@@ -160,10 +158,9 @@ class TestGetProjectUsers:
         )
 
         # Act: Get project users
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.get_project_users(project_id)
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.get_project_users(project_id)
 
         # Assert
         assert result == []
@@ -205,10 +202,9 @@ class TestGetUserProjectAccess:
             conn.commit()
 
         # Act: Get user's access
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.get_user_project_access(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.get_user_project_access(project_id, "user-456")
 
         # Assert
         assert result is not None
@@ -231,10 +227,9 @@ class TestGetUserProjectAccess:
         )
 
         # Act: Try to get non-existent access
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.get_user_project_access(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.get_user_project_access(project_id, "user-456")
 
         # Assert
         assert result is None
@@ -276,10 +271,9 @@ class TestUpdateUserRole:
             conn.commit()
 
         # Act: Update role to editor
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.update_user_role(project_id, "user-456", "editor")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.update_user_role(project_id, "user-456", "editor")
 
         # Assert: Return value - repository returns lowercase
         assert result is not None
@@ -313,10 +307,9 @@ class TestUpdateUserRole:
         )
 
         # Act: Try to update non-existent user access
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.update_user_role(project_id, "user-456", "editor")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.update_user_role(project_id, "user-456", "editor")
 
         # Assert
         assert result is None
@@ -358,10 +351,9 @@ class TestRemoveUserFromProject:
             conn.commit()
 
         # Act: Remove user
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.remove_user_from_project(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.remove_user_from_project(project_id, "user-456")
 
         # Assert: Returns True
         assert result is True
@@ -394,10 +386,9 @@ class TestRemoveUserFromProject:
         )
 
         # Act: Try to remove non-existent user
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.remove_user_from_project(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.remove_user_from_project(project_id, "user-456")
 
         # Assert
         assert result is False
@@ -439,10 +430,9 @@ class TestUserHasAccess:
             conn.commit()
 
         # Act: Check access
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.user_has_access(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.user_has_access(project_id, "user-456")
 
         # Assert
         assert result is True
@@ -460,10 +450,9 @@ class TestUserHasAccess:
         )
 
         # Act: Check access for user not in project
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.user_has_access(project_id, "user-456")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.user_has_access(project_id, "user-456")
 
         # Assert
         assert result is False
@@ -521,10 +510,9 @@ class TestGetUserProjectsAccess:
             conn.commit()
 
         # Act: Get user's project access
-        db_session = db_session_factory()
-        repo = ProjectUserRepository(db_session)
-        result = repo.get_user_projects_access("user-123")
-        db_session.close()
+        with db_session_factory() as db_session:
+            repo = ProjectUserRepository(db_session)
+            result = repo.get_user_projects_access("user-123")
 
         # Assert
         assert len(result) == 2

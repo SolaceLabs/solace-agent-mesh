@@ -460,13 +460,13 @@ class TestProjectRepositoryDelete:
 class TestProjectRepositoryGetAll:
     """Test ProjectRepository.get_all_projects() with real database."""
 
-    def test_get_all_projects_returns_all_non_deleted(
+    def test_get_all_projects_returns_only_current_users_accessible_projects(
         self,
         api_client: TestClient,
         gateway_adapter: GatewayAdapter,
         database_inspector: DatabaseInspector,
     ):
-        """Test that GET /api/v1/projects returns all non-deleted projects."""
+        """Test that GET /api/v1/projects returns only the current user's non-deleted (accessible) projects by default."""
         # Arrange: Seed multiple projects for different users
         gateway_adapter.seed_project(
             project_id="proj-1",
