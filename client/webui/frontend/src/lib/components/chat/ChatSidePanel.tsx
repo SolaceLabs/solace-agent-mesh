@@ -17,10 +17,9 @@ interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
     isSidePanelCollapsed: boolean;
     setIsSidePanelCollapsed: (isSidePanelCollapsed: boolean) => void;
-    isSidePanelTransitioning: boolean;
 }
 
-export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
+export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const isProjectIndexingEnabled = useIsProjectIndexingEnabled();

@@ -323,7 +323,7 @@ export function ChatPage() {
                             className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
                         >
                             <div className="h-full">
-                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} isSidePanelTransitioning={isSidePanelTransitioning} />
+                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} />
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
