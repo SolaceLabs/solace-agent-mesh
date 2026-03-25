@@ -1032,6 +1032,7 @@ async def trigger_title_generation(
                 session_id=session_id,
                 user_message=user_message,
                 agent_response=agent_response,
+                user_id=user_id,
                 update_callback=update_session_callback,
             )
         )
