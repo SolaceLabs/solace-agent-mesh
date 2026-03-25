@@ -185,7 +185,10 @@ export const ModelsView: React.FC = () => {
                     onOpenChange={open => {
                         if (!open) setModelToDelete(null);
                     }}
-                    onConfirm={() => deleteModel.mutateAsync(modelToDelete.alias)}
+                    onConfirm={async () => {
+                        await deleteModel.mutateAsync(modelToDelete.alias);
+                        setModelToDelete(null);
+                    }}
                     isLoading={deleteModel.isPending}
                     modelAlias={modelToDelete.alias}
                 />

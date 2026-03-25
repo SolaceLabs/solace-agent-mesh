@@ -34,7 +34,7 @@ const DefaultModelDialog: React.FC<{
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-xl max-w-xl sm:max-w-xl">
+            <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Unable to Delete</DialogTitle>
                     <DialogDescription />

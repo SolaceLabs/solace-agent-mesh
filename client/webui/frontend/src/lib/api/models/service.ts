@@ -101,7 +101,7 @@ export async function updateModelConfig(alias: string, data: ModelData): Promise
  * Delete a model configuration by alias.
  */
 export async function deleteModel(alias: string): Promise<void> {
-    await api.platform.delete(`/api/v1/platform/models/${alias}`);
+    await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
 }
 
 /**
