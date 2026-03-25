@@ -64,6 +64,8 @@ export const ModelEditPage = () => {
                     }));
                 })
                 .catch((error: Error) => {
+                    // TODO: Surface a subtle UI notification so the user knows model fetch failed
+                    // and can fall back to manual entry. Discuss UX approach with design team.
                     console.error(`Error fetching models for provider ${modelToEdit.provider}:`, error);
                     setModelsByProvider(prev => ({
                         ...prev,

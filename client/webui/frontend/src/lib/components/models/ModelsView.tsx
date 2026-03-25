@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ellipsis } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
-import { Toast } from "@/lib/components/toast";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
+import { useChatContext } from "@/lib/hooks";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
@@ -25,10 +25,10 @@ const EMPTY_STATE_DESCRIPTION =
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { addNotification } = useChatContext();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [highlightedModelAlias, setHighlightedModelAlias] = useState<string | null>(null);
-    const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
     const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
     // Check if we're coming back from creating a new model
@@ -36,15 +36,10 @@ export const ModelsView: React.FC = () => {
     useEffect(() => {
         if (locationState?.highlightModelAlias) {
             setHighlightedModelAlias(locationState.highlightModelAlias);
-            setShowSuccessToast(true);
+            addNotification("Model Added", "success");
 
             // Clear the location state to prevent re-triggering on refresh
             navigate(location.pathname + location.search, { replace: true });
-
-            // Auto-hide toast after 6 seconds
-            const toastTimer = setTimeout(() => {
-                setShowSuccessToast(false);
-            }, 6000);
 
             // Auto-fade highlight after 4 seconds
             const highlightTimer = setTimeout(() => {
@@ -52,7 +47,6 @@ export const ModelsView: React.FC = () => {
             }, 4000);
 
             return () => {
-                clearTimeout(toastTimer);
                 clearTimeout(highlightTimer);
             };
         }
@@ -122,13 +116,6 @@ export const ModelsView: React.FC = () => {
 
     return (
         <div className="flex h-full w-full flex-col overflow-hidden">
-            {/* Toast Notification */}
-            {showSuccessToast && (
-                <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 transform">
-                    <Toast id="model-added" message="Model Added" type="success" />
-                </div>
-            )}
-
             <div className="flex h-full flex-col overflow-hidden">
                 {/* Onboarding Banner - only show when models exist */}
                 {hasModels && <OnboardingBanner storageKey={MODELS_STORAGE_KEY} header={MODELS_HEADER} description={MODELS_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreUrl={MODELS_URL} className="mx-6 mt-6" />}

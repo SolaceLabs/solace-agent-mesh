@@ -4,13 +4,15 @@ export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
 export { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./modelProviderUtils";
 
 /**
- * Strip provider prefix from model name for display purposes.
- * e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
+ * Strip LiteLLM provider prefix from model name for display purposes.
+ * LiteLLM prefixes model names with the provider routing path (e.g., "openai/", "anthropic/").
+ * e.g., "openai/gpt-4o" → "gpt-4o", "anthropic/claude-sonnet" → "claude-sonnet"
  */
 export const getDisplayModelName = (modelName: string): string => {
     if (!modelName) return "";
-    if (modelName.startsWith("openai/")) {
-        return modelName.substring(7);
+    const slashIndex = modelName.indexOf("/");
+    if (slashIndex > 0 && slashIndex < modelName.length - 1) {
+        return modelName.substring(slashIndex + 1);
     }
     return modelName;
 };

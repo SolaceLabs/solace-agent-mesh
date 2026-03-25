@@ -3,6 +3,8 @@
  */
 
 import { api } from "@/lib/api";
+import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
+import type { AuthType } from "@/lib/components/models/modelProviderUtils";
 import type { ModelConfig } from "./types";
 
 interface ModelData {
@@ -28,7 +30,7 @@ export async function fetchModelConfigs(): Promise<ModelConfig[]> {
  * Fetch a single model configuration by alias.
  */
 export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
-    const response = await api.platform.get(`/api/v1/platform/models/${alias}`);
+    const response = await api.platform.get(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
     return response.data;
 }
 
@@ -44,17 +46,9 @@ export async function fetchSupportedModelsByProvider(
     modelAlias?: string,
     options?: {
         apiBase?: string;
-        authType?: string;
-        apiKey?: string;
-        clientId?: string;
-        clientSecret?: string;
-        tokenUrl?: string;
-        awsAccessKeyId?: string;
-        awsSecretAccessKey?: string;
-        awsSessionToken?: string;
-        gcpServiceAccountJson?: string;
+        authType?: AuthType;
         modelParams?: Record<string, unknown>;
-    }
+    } & Record<string, unknown>
 ): Promise<Array<{ id: string; label: string }>> {
     const body: Record<string, unknown> = {
         provider,
@@ -66,26 +60,20 @@ export async function fetchSupportedModelsByProvider(
         // Creating mode - pass credentials
         body.authType = options.authType;
 
-        if (options.apiBase) {
+        if (options.apiBase != null) {
             body.apiBase = options.apiBase;
         }
 
-        if (options.modelParams) {
+        if (options.modelParams != null) {
             body.modelParams = options.modelParams;
         }
 
-        if (options.authType === "apikey" && options.apiKey) {
-            body.apiKey = options.apiKey;
-        } else if (options.authType === "oauth2") {
-            if (options.clientId) body.clientId = options.clientId;
-            if (options.clientSecret) body.clientSecret = options.clientSecret;
-            if (options.tokenUrl) body.tokenUrl = options.tokenUrl;
-        } else if (options.authType === "aws_iam") {
-            if (options.awsAccessKeyId) body.awsAccessKeyId = options.awsAccessKeyId;
-            if (options.awsSecretAccessKey) body.awsSecretAccessKey = options.awsSecretAccessKey;
-            if (options.awsSessionToken) body.awsSessionToken = options.awsSessionToken;
-        } else if (options.authType === "gcp_service_account") {
-            if (options.gcpServiceAccountJson) body.gcpServiceAccountJson = options.gcpServiceAccountJson;
+        // Copy auth fields for the selected auth type
+        for (const field of AUTH_FIELDS[options.authType] ?? []) {
+            const value = options[field.name];
+            if (value != null) {
+                body[field.name] = value;
+            }
         }
     }
 
@@ -105,6 +93,6 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
  * Update an existing model configuration.
  */
 export async function updateModelConfig(alias: string, data: ModelData): Promise<ModelConfig> {
-    const response = await api.platform.put(`/api/v1/platform/models/${alias}`, data);
+    const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(alias)}`, data);
     return response.data;
 }

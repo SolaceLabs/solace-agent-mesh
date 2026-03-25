@@ -158,6 +158,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             // Reset custom params
             resetField("customParams");
         }
+        // Omitting resetField, setValue, onProviderChange — these are stable refs from useForm/props
+        // and including them would cause unnecessary re-runs of the provider reset logic
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
@@ -177,27 +179,21 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const handleModelDropdownOpen = useCallback(async () => {
         if (!selectedProvider) return;
 
-        // For editing, use cached models from modelsByProvider (fetched server-side with stored credentials)
+        // Editing mode: use cached models fetched server-side with stored credentials
         if (!isNew && modelsByProvider[selectedProvider]) {
             setDynamicModels(modelsByProvider[selectedProvider]);
             return;
         }
 
-        // For creating new models, fetch from provider using form credentials
-        // Only fetch if provider or API key has changed since last fetch
+        // Creating mode: fetch from provider using form credentials
         if (isNew) {
             const currentApiKey = apiKey || "";
             const needsRefetch = lastFetchedProviderRef.current !== selectedProvider || lastFetchedApiKeyRef.current !== currentApiKey;
-
-            if (!needsRefetch) {
-                // Already fetched for this provider/key combo, don't fetch again
-                return;
-            }
+            if (!needsRefetch) return;
 
             setIsLoadingModels(true);
-            const authType = selectedAuthType || "apikey";
+            const authType: AuthType = (selectedAuthType as AuthType) || "apikey";
 
-            // Collect provider-specific model params from form
             const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
             const modelParams: Record<string, unknown> = {};
             for (const field of currentProviderConfig.fields) {
@@ -208,27 +204,27 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             }
 
             try {
+                const authCredentials: Record<string, unknown> = {};
+                for (const field of AUTH_FIELDS[authType] ?? []) {
+                    const value = getValues(field.name);
+                    if (value != null) {
+                        authCredentials[field.name] = value;
+                    }
+                }
+
                 const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
                     apiBase: apiBase || undefined,
                     authType,
-                    apiKey: authType === "apikey" ? apiKey : undefined,
-                    clientId: authType === "oauth2" ? (getValues("clientId") as string) : undefined,
-                    clientSecret: authType === "oauth2" ? (getValues("clientSecret") as string) : undefined,
-                    tokenUrl: authType === "oauth2" ? (getValues("tokenUrl") as string) : undefined,
-                    awsAccessKeyId: authType === "aws_iam" ? (getValues("awsAccessKeyId") as string) : undefined,
-                    awsSecretAccessKey: authType === "aws_iam" ? (getValues("awsSecretAccessKey") as string) : undefined,
-                    awsSessionToken: authType === "aws_iam" ? (getValues("awsSessionToken") as string) : undefined,
-                    gcpServiceAccountJson: authType === "gcp_service_account" ? (getValues("gcpServiceAccountJson") as string) : undefined,
+                    ...authCredentials,
                     modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
                 });
                 setDynamicModels(models);
-                // Track what we just fetched
                 lastFetchedProviderRef.current = selectedProvider;
                 lastFetchedApiKeyRef.current = currentApiKey;
             } catch (error) {
+                // TODO: Surface a subtle UI notification for failed model fetch
                 console.error("Error fetching models:", error);
                 setDynamicModels([]);
-                // Track the failed fetch to avoid retrying immediately
                 lastFetchedProviderRef.current = selectedProvider;
                 lastFetchedApiKeyRef.current = currentApiKey;
             } finally {
@@ -400,25 +396,22 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         await onSave(data);
     };
 
+    const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
+
     return (
         <FormProvider {...methods}>
             <div>
                 <form id="model-form" className="w-full max-w-[1200px]" onSubmit={handleSubmit(onFormSubmit)}>
                     <PageSection className="gap-6">
-                        {(() => {
-                            const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
-                            return (
-                                <FormFieldLayoutItem
-                                    label="Display Name"
-                                    required
-                                    error={errors.alias as { message?: string }}
-                                    helpText="Provide a short, descriptive name for this model for others in your organization to reference. Example: 'Analysis'."
-                                    statusIndicator={isDefaultModel ? <div className="text-xs text-(--warning-wMain)">Cannot be changed</div> : undefined}
-                                >
-                                    <Input {...register("alias", { required: "Display name is required" })} aria-invalid={!!errors.alias} disabled={isDefaultModel} title={isDefaultModel ? "This model's name cannot be changed" : ""} />
-                                </FormFieldLayoutItem>
-                            );
-                        })()}
+                        <FormFieldLayoutItem
+                            label="Display Name"
+                            required
+                            error={errors.alias as { message?: string }}
+                            helpText="Provide a short, descriptive name for this model for others in your organization to reference. Example: 'Analysis'."
+                            statusIndicator={isDefaultModel ? <div className="text-xs text-(--warning-wMain)">Cannot be changed</div> : undefined}
+                        >
+                            <Input {...register("alias", { required: "Display name is required" })} aria-invalid={!!errors.alias} disabled={isDefaultModel} title={isDefaultModel ? "This model's name cannot be changed" : ""} />
+                        </FormFieldLayoutItem>
 
                         {/* Description - Always Visible */}
                         <FormFieldLayoutItem label="Description" required error={errors.description as { message?: string }} helpText="Describe types of tasks this model is suitable or not suitable for.">
