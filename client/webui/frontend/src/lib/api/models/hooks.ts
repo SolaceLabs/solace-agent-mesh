@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { fetchModelConfigs } from "./service";
+import { fetchModelConfigs, fetchModelConfigStatus } from "./service";
 
 /**
  * Hook to fetch all model configurations.
@@ -13,5 +13,19 @@ export function useModelConfigs() {
         queryFn: fetchModelConfigs,
         refetchOnMount: "always",
         retry: 0,
+    });
+}
+
+/**
+ * Hook to check if default LLM models are configured.
+ * Fetches once and caches indefinitely for the session.
+ */
+export function useModelConfigStatus() {
+    return useQuery({
+        queryKey: modelKeys.status(),
+        queryFn: fetchModelConfigStatus,
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+        retry: 1,
     });
 }

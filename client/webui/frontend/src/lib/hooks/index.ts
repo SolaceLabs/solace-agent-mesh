@@ -37,3 +37,6 @@ export * from "./useIsProjectIndexingEnabled";
 export * from "./useSSEContext";
 export * from "./useIndexingSSE";
 export * from "./useNavigationItems";
+
+// Re-export OpenFeature hook so consumers share the same React context instance
+export { useBooleanFlagDetails } from "@openfeature/react-sdk";

@@ -6,12 +6,16 @@ import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottom
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/types";
+
+const MODEL_SETUP_DISMISSED_KEY = "model-setup-dialog-dismissed";
 
 function AppLayoutContent() {
     const location = useLocation();
@@ -26,6 +30,25 @@ function AppLayoutContent() {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
+
+    const { data: modelConfigStatus } = useModelConfigStatus();
+
+    useEffect(() => {
+        if (modelConfigStatus && !modelConfigStatus.configured) {
+            const dismissed = localStorage.getItem(MODEL_SETUP_DISMISSED_KEY);
+            if (!dismissed) {
+                setIsModelSetupDialogOpen(true);
+            }
+        }
+    }, [modelConfigStatus]);
+
+    const handleModelSetupDialogChange = useCallback((open: boolean) => {
+        setIsModelSetupDialogOpen(open);
+        if (!open) {
+            localStorage.setItem(MODEL_SETUP_DISMISSED_KEY, "true");
+        }
+    }, []);
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -187,6 +210,7 @@ function AppLayoutContent() {
                 currentProjectId={sessionToMove?.projectId}
             />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
+            <ModelSetupDialog open={isModelSetupDialogOpen} onOpenChange={handleModelSetupDialogChange} hasWritePermissions={hasModelConfigWrite} />
         </div>
     );
 }

@@ -39,3 +39,11 @@ class ModelConfigurationResponse(CamelCaseModel):
     updated_by: str = Field(..., description="User who last updated this configuration")
     created_time: int = Field(..., description="Creation timestamp (epoch ms)")
     updated_time: int = Field(..., description="Last update timestamp (epoch ms)")
+
+
+class ModelConfigStatusResponse(CamelCaseModel):
+    """Response model for model configuration status check."""
+
+    configured: bool = Field(
+        ..., description="Whether default LLM models (general, planning) are properly configured"
+    )
