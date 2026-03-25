@@ -7,6 +7,8 @@ logic layer.
 """
 
 import os
+import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from openfeature import api as openfeature_api
@@ -18,11 +20,15 @@ from solace_agent_mesh.services.platform.api.dependencies import (
     get_platform_db,
     get_component_instance,
 )
-from solace_agent_mesh.services.platform.api.routers.dto.responses import ModelConfigurationResponse
+from solace_agent_mesh.services.platform.api.routers.dto.responses import (
+    ModelConfigurationResponse,
+    ModelConfigurationTestResponse,
+)
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
     SupportedModelsRequest,
+    ModelConfigurationTestRequest,
 )
 from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
 from solace_agent_mesh.shared.api.pagination import DataResponse
@@ -225,8 +231,8 @@ async def list_supported_models_by_provider(
     # Mode 2: Creating - use credentials from request
     # Validate that either model_alias or auth_type is provided
     if not request.auth_type:
-        raise ValidationErrorBuilder(
-            message="Either model_alias (for editing) or auth_type with credentials (for creating) is required"
+        raise ValidationErrorBuilder().message(
+            "Either model_alias (for editing) or auth_type with credentials (for creating) is required"
         ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
 
     # Delegate auth validation and config building to service
@@ -278,3 +284,36 @@ async def get_models_status(
         and planning.model_name and planning.model_name.strip()
     )
     return create_data_response(ModelConfigStatusResponse(configured=configured))
+
+@router.post(
+    "/models/test",
+    response_model=DataResponse[ModelConfigurationTestResponse],
+    summary="Test a model configuration",
+    description="Test connectivity by making a minimal LLM call. Supports both new configurations (all config in body) and existing models (provide alias to use stored credentials as fallback).",
+)
+async def test_model_connection(
+    request: ModelConfigurationTestRequest,
+    _: None = Depends(_require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[ModelConfigurationTestResponse]:
+    """
+    Test a model configuration connection.
+    Makes a minimal LLM call with the provided configuration to verify connectivity
+    and validate credentials. Supports two scenarios:
+    1. New model: Provide all configuration details
+    2. Editing existing model: Provide alias to use stored credentials as fallback
+    When testing an existing model by alias, any empty auth_config fields will use
+    the stored values. This allows testing a new provider/model with existing credentials.
+    Args:
+        request: Test request with model configuration details
+        _: Feature flag dependency
+        db: Database session
+        service: Model configuration service
+    Returns:
+        DataResponse with success status and message
+    """
+    success, message = await asyncio.to_thread(service.test_connection, db, request)
+    response = ModelConfigurationTestResponse(success=success, message=message)
+    return create_data_response(response)
+

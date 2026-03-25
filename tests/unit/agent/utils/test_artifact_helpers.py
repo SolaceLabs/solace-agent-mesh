@@ -21,12 +21,14 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     parse_artifact_uri,
     _inspect_structure,
     _infer_schema,
+    _metadata_to_artifact_info,
     save_artifact_with_metadata,
     process_artifact_upload,
     format_metadata_for_llm,
     decode_and_get_bytes,
     get_latest_artifact_version,
     get_artifact_counts_batch,
+    get_artifact_info_list_fast,
     load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
 )
@@ -1555,3 +1557,174 @@ class TestGetArtifactCountsBatch:
         )
 
         assert result["session1"] == 3
+
+
+# ---------------------------------------------------------------------------
+# _metadata_to_artifact_info
+# ---------------------------------------------------------------------------
+
+class TestMetadataToArtifactInfo:
+    """Tests for the shared _metadata_to_artifact_info helper."""
+
+    def test_full_metadata(self):
+        metadata = {
+            "mime_type": "text/csv",
+            "size_bytes": 1024,
+            "description": "Sales data",
+            "timestamp_utc": 1700000000.0,
+            "source": "upload",
+            "tags": ["__working"],
+            "source_project_id": "proj-1",
+            "schema": {"columns": ["a", "b"]},
+        }
+        info = _metadata_to_artifact_info("data.csv", metadata)
+        assert info.filename == "data.csv"
+        assert info.mime_type == "text/csv"
+        assert info.size == 1024
+        assert info.description == "Sales data"
+        assert info.source == "upload"
+        assert info.tags == ["__working"]
+        assert info.source_project_id == "proj-1"
+        assert info.last_modified is not None
+        assert "2023" in info.last_modified  # 1700000000 is in 2023
+
+    def test_minimal_metadata(self):
+        info = _metadata_to_artifact_info("file.txt", {})
+        assert info.filename == "file.txt"
+        assert info.mime_type == "application/data"
+        assert info.size == 0
+        assert info.last_modified is None
+
+    def test_version_passthrough(self):
+        info = _metadata_to_artifact_info("f.txt", {}, version=3, version_count=5)
+        assert info.version == 3
+        assert info.version_count == 5
+
+
+# ---------------------------------------------------------------------------
+# get_artifact_info_list_fast
+# ---------------------------------------------------------------------------
+
+class TestGetArtifactInfoListFast:
+    """Tests for the parallel fast-path artifact listing."""
+
+    @pytest.fixture
+    def mock_service(self):
+        svc = AsyncMock(spec=BaseArtifactService)
+        svc.list_artifact_keys = AsyncMock(return_value=[])
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_empty_session(self, mock_service):
+        """Returns empty list when session has no artifacts."""
+        mock_service.list_artifact_keys.return_value = []
+        result = await get_artifact_info_list_fast(
+            artifact_service=mock_service,
+            app_name="app",
+            user_id="user",
+            session_id="sess",
+        )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_filters_metadata_suffix(self, mock_service):
+        """Metadata-only keys (.metadata.json) are excluded from results."""
+        mock_service.list_artifact_keys.return_value = [
+            "report.csv",
+            "report.csv.metadata.json",
+        ]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/csv", "size_bytes": 100}
+            }
+            result = await get_artifact_info_list_fast(
+                artifact_service=mock_service,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+        assert len(result) == 1
+        assert result[0].filename == "report.csv"
+
+    @pytest.mark.asyncio
+    async def test_parallel_loading_multiple_artifacts(self, mock_service):
+        """Multiple artifacts are loaded in parallel and all returned."""
+        mock_service.list_artifact_keys.return_value = ["a.txt", "b.csv", "c.json"]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 50}
+            }
+            result = await get_artifact_info_list_fast(
+                artifact_service=mock_service,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+        assert len(result) == 3
+        assert {r.filename for r in result} == {"a.txt", "b.csv", "c.json"}
+        # All 3 should have been called (parallel)
+        assert mock_load.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_partial_failure(self, mock_service):
+        """If one artifact fails, others still succeed."""
+        mock_service.list_artifact_keys.return_value = ["good.txt", "bad.txt"]
+
+        async def _side_effect(**kwargs):
+            if kwargs.get("filename") == "bad.txt":
+                raise RuntimeError("storage error")
+            return {"metadata": {"mime_type": "text/plain", "size_bytes": 10}}
+
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+            side_effect=_side_effect,
+        ):
+            result = await get_artifact_info_list_fast(
+                artifact_service=mock_service,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+        # good.txt succeeds, bad.txt returns error ArtifactInfo
+        assert len(result) == 2
+        good = next(r for r in result if r.filename == "good.txt")
+        bad = next(r for r in result if r.filename == "bad.txt")
+        assert good.mime_type == "text/plain"
+        assert "Error" in bad.description
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_skipped(self, mock_service):
+        """FileNotFoundError artifacts are silently skipped."""
+        mock_service.list_artifact_keys.return_value = ["gone.txt"]
+
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError("not found"),
+        ):
+            result = await get_artifact_info_list_fast(
+                artifact_service=mock_service,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_keys_failure_returns_empty(self, mock_service):
+        """If list_artifact_keys itself fails, returns empty list."""
+        mock_service.list_artifact_keys.side_effect = RuntimeError("S3 down")
+        result = await get_artifact_info_list_fast(
+            artifact_service=mock_service,
+            app_name="app",
+            user_id="user",
+            session_id="sess",
+        )
+        assert result == []
