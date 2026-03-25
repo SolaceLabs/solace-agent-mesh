@@ -269,6 +269,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self.background_task_monitor = None
         self._background_task_monitor_timer_id = None
 
+        # Compaction correlation map: correlation_id -> asyncio.Future
+        # Used to correlate session.compact_request with session.compact_response
+        self._compaction_futures: dict[str, asyncio.Future] = {}
+
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
 
@@ -570,6 +574,50 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_broker_input = None
             raise
 
+    def _subscribe_to_compact_response(self) -> None:
+        """Subscribe the visualization broker input to session/compact_response
+        so the gateway can receive compaction results from agents."""
+        log_id_prefix = f"{self.log_identifier}[CompactResponseSub]"
+        if not self._visualization_broker_input:
+            log.warning(
+                "%s Cannot subscribe to compact_response: visualization broker input not available.",
+                log_id_prefix,
+            )
+            return
+
+        from ...common.a2a.protocol import get_sam_events_topic
+
+        topic = get_sam_events_topic(self.namespace, "session", "compact_response")
+        try:
+            if hasattr(self._visualization_broker_input, "add_subscription") and callable(
+                self._visualization_broker_input.add_subscription
+            ):
+                result = self._visualization_broker_input.add_subscription(topic)
+                if result:
+                    log.info(
+                        "%s Subscribed to compact_response topic: %s",
+                        log_id_prefix,
+                        topic,
+                    )
+                else:
+                    log.error(
+                        "%s Failed to subscribe to compact_response topic: %s",
+                        log_id_prefix,
+                        topic,
+                    )
+            else:
+                log.warning(
+                    "%s Visualization broker input does not support add_subscription.",
+                    log_id_prefix,
+                )
+        except Exception as e:
+            log.error(
+                "%s Error subscribing to compact_response topic: %s",
+                log_id_prefix,
+                e,
+                exc_info=True,
+            )
+
     def _ensure_task_logger_flow_is_running(self) -> None:
         """
         Ensures the internal SAC flow for A2A task logging is created and running.
@@ -822,6 +870,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
                     topic = msg_data.get("topic")
                     payload_dict = msg_data.get("payload")
+
+                    # Intercept session.compact_response events and resolve
+                    # the matching correlation future instead of forwarding
+                    # to visualization streams.
+                    if (
+                        isinstance(payload_dict, dict)
+                        and payload_dict.get("event_type") == "session.compact_response"
+                    ):
+                        event_data = payload_dict.get("data", {})
+                        self.resolve_compaction_future(event_data)
+                        continue
 
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
                     event_details_for_owner = self._infer_visualization_event_details(
@@ -1488,6 +1547,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             self.log_identifier,
                         )
                         self._ensure_visualization_flow_is_running()
+
+                        # Subscribe to session compact_response events so the
+                        # gateway can receive compaction results from agents.
+                        self._subscribe_to_compact_response()
 
                         if (
                             self._visualization_processor_task is None
@@ -2165,6 +2228,54 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
             "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
         }
+
+    def register_compaction_future(self, correlation_id: str) -> asyncio.Future:
+        """Register a correlation ID and return a Future that will be resolved
+        when the corresponding session.compact_response event arrives.
+
+        Args:
+            correlation_id: Unique ID to correlate request with response.
+
+        Returns:
+            asyncio.Future that will contain the response data dict.
+        """
+        loop = self.fastapi_event_loop or asyncio.get_event_loop()
+        future = loop.create_future()
+        self._compaction_futures[correlation_id] = future
+        log.debug(
+            "%s Registered compaction future for correlation_id=%s",
+            self.log_identifier,
+            correlation_id,
+        )
+        return future
+
+    def resolve_compaction_future(self, event_data: dict) -> None:
+        """Resolve a pending compaction Future when a compact_response arrives.
+
+        Args:
+            event_data: The ``data`` dict from the session.compact_response event.
+        """
+        correlation_id = event_data.get("correlation_id")
+        if not correlation_id:
+            log.warning(
+                "%s Received compact_response without correlation_id", self.log_identifier
+            )
+            return
+
+        future = self._compaction_futures.pop(correlation_id, None)
+        if future and not future.done():
+            future.set_result(event_data)
+            log.info(
+                "%s Resolved compaction future for correlation_id=%s",
+                self.log_identifier,
+                correlation_id,
+            )
+        else:
+            log.debug(
+                "%s No pending future for correlation_id=%s (may have timed out)",
+                self.log_identifier,
+                correlation_id,
+            )
 
     def get_core_a2a_service(self) -> CoreA2AService:
         """Returns the CoreA2AService instance."""

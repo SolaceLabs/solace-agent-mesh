@@ -59,6 +59,64 @@ class SessionDeletedEvent(SamEvent):
         return super().create("session.deleted", source_component, namespace, data)
 
 
+@dataclass
+class SessionCompactRequestEvent(SamEvent):
+    """System event requesting session compaction."""
+
+    @classmethod
+    def create(
+        cls,
+        namespace: str,
+        source_component: str,
+        session_id: str,
+        user_id: str,
+        agent_id: str,
+        gateway_id: str,
+        correlation_id: str,
+        compaction_percentage: float = 0.25,
+    ) -> "SessionCompactRequestEvent":
+        """Create a session compact request event."""
+        data = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "agent_id": agent_id,
+            "gateway_id": gateway_id,
+            "correlation_id": correlation_id,
+            "compaction_percentage": compaction_percentage,
+        }
+        return super().create("session.compact_request", source_component, namespace, data)
+
+
+@dataclass
+class SessionCompactResponseEvent(SamEvent):
+    """System event with compaction result."""
+
+    @classmethod
+    def create(
+        cls,
+        namespace: str,
+        source_component: str,
+        correlation_id: str,
+        success: bool,
+        events_compacted: int = 0,
+        summary: str = "",
+        remaining_events: int = 0,
+        remaining_tokens: int = 0,
+        error_message: str | None = None,
+    ) -> "SessionCompactResponseEvent":
+        """Create a session compact response event."""
+        data = {
+            "correlation_id": correlation_id,
+            "success": success,
+            "events_compacted": events_compacted,
+            "summary": summary,
+            "remaining_events": remaining_events,
+            "remaining_tokens": remaining_tokens,
+            "error_message": error_message,
+        }
+        return super().create("session.compact_response", source_component, namespace, data)
+
+
 class SamEventService:
     """Service for publishing and subscribing to SAM system events."""
     
@@ -130,6 +188,41 @@ class SamEventService:
             user_id=user_id,
             agent_id=agent_id,
             gateway_id=gateway_id
+        )
+        return self.publish_event(event)
+
+    def publish_session_compact_request(
+        self,
+        session_id: str,
+        user_id: str,
+        agent_id: str,
+        gateway_id: str,
+        correlation_id: str,
+        compaction_percentage: float = 0.25,
+    ) -> bool:
+        """
+        Convenience method to publish session compact request event.
+
+        Args:
+            session_id: The session ID to compact
+            user_id: The user who owns the session
+            agent_id: The target agent name
+            gateway_id: The originating gateway ID
+            correlation_id: UUID to correlate request with response
+            compaction_percentage: Percentage of conversation to compact (0.1-0.9)
+
+        Returns:
+            bool: True if published successfully
+        """
+        event = SessionCompactRequestEvent.create(
+            namespace=self.namespace,
+            source_component=self.component_name,
+            session_id=session_id,
+            user_id=user_id,
+            agent_id=agent_id,
+            gateway_id=gateway_id,
+            correlation_id=correlation_id,
+            compaction_percentage=compaction_percentage,
         )
         return self.publish_event(event)
 

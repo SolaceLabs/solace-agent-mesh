@@ -2333,6 +2333,43 @@ def handle_sam_event(component, message, topic):
                     agent_id,
                     current_agent,
                 )
+        elif event_type == "session.compact_request":
+            data = payload.get("data", {})
+            session_id = data.get("session_id")
+            user_id = data.get("user_id")
+            agent_id = data.get("agent_id")
+            correlation_id = data.get("correlation_id")
+            compaction_percentage = data.get("compaction_percentage", 0.25)
+
+            if not all([session_id, user_id, agent_id, correlation_id]):
+                log.warning("Missing required fields in session.compact_request event")
+                message.call_acknowledgements()
+                return
+
+            current_agent = component.get_config("agent_name")
+
+            if agent_id == current_agent:
+                log.info(
+                    "%s Processing session.compact_request for session %s (correlation: %s)",
+                    component.log_identifier,
+                    session_id,
+                    correlation_id,
+                )
+                asyncio.create_task(
+                    handle_compact_session(
+                        component,
+                        session_id,
+                        user_id,
+                        correlation_id,
+                        compaction_percentage,
+                    )
+                )
+            else:
+                log.debug(
+                    "Session compact request for different agent: %s != %s",
+                    agent_id,
+                    current_agent,
+                )
         else:
             log.debug("Unhandled SAM event type: %s", event_type)
 
@@ -2383,3 +2420,136 @@ async def cleanup_agent_session(component, session_id: str, user_id: str):
 
     except Exception as e:
         log.error("Error cleaning up session %s: %s", session_id, e)
+
+
+async def handle_compact_session(
+    component,
+    session_id: str,
+    user_id: str,
+    correlation_id: str,
+    compaction_percentage: float,
+):
+    """Handle a session compaction request from the gateway via SAM Events.
+
+    Acquires the per-session compaction lock, performs compaction using the
+    agent's own services, and publishes a compact_response event back.
+    """
+    from ...agent.adk.runner import (
+        calculate_session_context_tokens,
+        create_compaction_event,
+    )
+    from ...agent.adk.services import _filter_session_by_latest_compaction
+    from ...common.sam_events import SessionCompactResponseEvent
+
+    agent_name = component.get_config("agent_name")
+    namespace = component.get_config("namespace")
+    log_id = f"{component.log_identifier}[COMPACT/{session_id}]"
+
+    def _publish_response(
+        success: bool,
+        events_compacted: int = 0,
+        summary: str = "",
+        remaining_events: int = 0,
+        remaining_tokens: int = 0,
+        error_message: str | None = None,
+    ):
+        """Publish a session.compact_response SAM event."""
+        event = SessionCompactResponseEvent.create(
+            namespace=namespace,
+            source_component=f"{agent_name}_agent",
+            correlation_id=correlation_id,
+            success=success,
+            events_compacted=events_compacted,
+            summary=summary,
+            remaining_events=remaining_events,
+            remaining_tokens=remaining_tokens,
+            error_message=error_message,
+        )
+        # Use the same publish path as the agent's A2A messages
+        from ...common.a2a.protocol import get_sam_events_topic
+
+        topic = get_sam_events_topic(namespace, "session", "compact_response")
+        payload = event.to_dict()
+        component.publish_a2a_message(
+            payload, topic, {"eventType": event.event_type, "eventId": event.event_id}
+        )
+
+    try:
+        # 1. Acquire per-session compaction lock
+        lock = await component.session_compaction_state.get_lock(session_id)
+        async with lock:
+            # 2. Load session via FilteringSessionService
+            adk_session = await component.session_service.get_session(
+                app_name=agent_name, user_id=user_id, session_id=session_id
+            )
+
+            if not adk_session or not adk_session.events:
+                log.warning("%s Session not found or empty", log_id)
+                _publish_response(
+                    success=False,
+                    error_message="Session not found or has no conversation history.",
+                )
+                return
+
+            # 3. Call create_compaction_event
+            events_compacted, summary = await create_compaction_event(
+                component=component,
+                session=adk_session,
+                compaction_threshold=compaction_percentage,
+                log_identifier=log_id,
+            )
+
+            if events_compacted == 0:
+                log.info("%s No events compacted (not enough turns)", log_id)
+                _publish_response(
+                    success=False,
+                    error_message="Not enough conversation turns to compact. Need at least 2 user turns.",
+                )
+                return
+
+            # 4. Reload session to get post-compaction state
+            reloaded = await component.session_service.get_session(
+                app_name=agent_name, user_id=user_id, session_id=session_id
+            )
+            reloaded = _filter_session_by_latest_compaction(
+                reloaded, log_identifier=log_id
+            )
+
+            remaining_events = (
+                len(reloaded.events) if reloaded and reloaded.events else 0
+            )
+
+            # Calculate remaining tokens (exclude compaction events)
+            remaining_non_compaction = [
+                e
+                for e in (reloaded.events or [])
+                if not (e.actions and e.actions.compaction)
+            ]
+            remaining_tokens = calculate_session_context_tokens(
+                remaining_non_compaction,
+                model=str(component.adk_agent.model),
+            )
+
+            log.info(
+                "%s Compaction complete: %d events compacted, %d remaining (%d tokens)",
+                log_id,
+                events_compacted,
+                remaining_events,
+                remaining_tokens,
+            )
+
+            # 5. Publish success response
+            _publish_response(
+                success=True,
+                events_compacted=events_compacted,
+                summary=summary[:500] if len(summary) > 500 else summary,
+                remaining_events=remaining_events,
+                remaining_tokens=remaining_tokens,
+            )
+
+    except Exception as e:
+        log.error("%s Error during compaction: %s", log_id, e, exc_info=True)
+        _publish_response(
+            success=False,
+            error_message=f"Compaction failed: {e}",
+        )

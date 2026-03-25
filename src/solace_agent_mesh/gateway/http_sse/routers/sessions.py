@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, ValidationError
@@ -14,7 +15,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_adk_session_service
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -1100,34 +1101,6 @@ class CompactSessionResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-def _get_adk_imports():
-    """Lazily import ADK internals to avoid startup failures in gateway-only deployments."""
-    from ....agent.adk.runner import calculate_session_context_tokens, create_compaction_event
-    from ....agent.adk.models.lite_llm import calculate_content_tokens
-    return calculate_content_tokens, calculate_session_context_tokens, create_compaction_event
-
-
-class _CompactionAdapter:
-    """Lightweight adapter providing what _create_compaction_event needs from a component.
-
-    adk_agent must be a BaseLlm instance (not a plain string) because
-    LlmEventSummarizer calls self._llm.model on it.
-    """
-
-    def __init__(self, session_svc, model_cfg, agent_name_val, log_identifier):
-        self.session_service = session_svc
-        self.agent_name = agent_name_val
-        self.log_identifier = log_identifier
-
-        from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
-        if isinstance(model_cfg, dict):
-            model_name = model_cfg.get("model", "")
-            extra = {k: v for k, v in model_cfg.items() if k != "model"}
-            self.adk_agent = LiteLlm(model=model_name, **extra)
-        else:
-            self.adk_agent = LiteLlm(model=str(model_cfg) if model_cfg else "")
-
-
 def _get_model_context_limit(model_name: str) -> int:
     """Get model context window limit using LiteLLM, with fallback."""
     try:
@@ -1139,50 +1112,6 @@ def _get_model_context_limit(model_name: str) -> int:
         return DEFAULT_CONTEXT_LIMIT
 
 
-async def _load_adk_session(
-    session_id: str,
-    user_id: str,
-    agent_name: Optional[str],
-    session_service: SessionService,
-    adk_session_service,
-    db: Session,
-):
-    """Load and validate a gateway session and its corresponding ADK session.
-
-    Returns (gateway_session, app_name, adk_session).
-    Raises HTTPException on validation failures.
-    When adk_session_service is None (not configured), adk_session is returned as None.
-    """
-    gateway_session = session_service.get_session_details(db, session_id, user_id)
-    if not gateway_session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-
-    app_name = agent_name or gateway_session.agent_id
-    if not app_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No agent associated with this session. Provide agent_name parameter.",
-        )
-
-    if adk_session_service is None:
-        return gateway_session, app_name, None
-
-    adk_session = await adk_session_service.get_session(
-        app_name=app_name, user_id=user_id, session_id=session_id,
-    )
-
-    # Explicit ownership assertion: the ADK backend may not enforce user-scoped
-    # access, so verify the returned session belongs to the requesting user.
-    if adk_session is not None and getattr(adk_session, "user_id", None) != user_id:
-        log.warning(
-            "ADK session %s returned for user %s but belongs to user %s — rejecting",
-            session_id, user_id, getattr(adk_session, "user_id", "<unknown>"),
-        )
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
-
-    return gateway_session, app_name, adk_session
-
-
 @router.get("/sessions/{session_id}/context-usage", response_model=ContextUsageResponse)
 async def get_session_context_usage(
     session_id: str,
@@ -1191,22 +1120,24 @@ async def get_session_context_usage(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
-    adk_session_service=Depends(get_adk_session_service),
     component=Depends(get_sac_component),
 ):
     """
     Get context window usage for a session.
 
     Returns the current token count, model context limit, and usage percentage.
-    Used by the frontend to display context usage indicators.
+    Uses the gateway's own tasks and chat_tasks tables as the source of truth
+    for token data (LLM-reported totals from completed tasks).
     """
     user_id = user.get("id")
 
     try:
-        _gateway_session, app_name, adk_session = await _load_adk_session(
-            session_id, user_id, agent_name, session_service, adk_session_service, db,
-        )
-        # Resolve the model to use for token counting:
+        # Validate session exists and belongs to user
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+        # Resolve the model to use for context limit lookup:
         # 1. Explicit model from request query param
         # 2. Model configured on the gateway component
         # 3. Hardcoded fallback constant
@@ -1214,124 +1145,23 @@ async def get_session_context_usage(
         if hasattr(component, "model_config") and isinstance(component.model_config, dict):
             component_model = component.model_config.get("model")
         resolved_default_model = component_model or DEFAULT_MODEL
-
-        if not adk_session or not adk_session.events:
-            # No ADK session found — fall through to use gateway task tables
-            # for token usage data (works for all agents regardless of session backend).
-            effective_model = model or resolved_default_model
-            has_compaction = False
-            prompt_tokens = 0
-            completion_tokens = 0
-            cached_tokens = 0
-            total_events = 0
-
-            from ..repository.models import ChatTaskModel, TaskModel
-            from sqlalchemy import desc
-
-            chat_task_count = (
-                db.query(ChatTaskModel)
-                .filter(ChatTaskModel.session_id == session_id, ChatTaskModel.user_id == user_id)
-                .count()
-            )
-            total_tasks = chat_task_count
-            total_messages = chat_task_count * 2
-
-            completed_tasks = (
-                db.query(TaskModel)
-                .filter(
-                    TaskModel.session_id == session_id,
-                    TaskModel.user_id == user_id,
-                    TaskModel.total_input_tokens.isnot(None),
-                )
-                .order_by(desc(TaskModel.start_time))
-                .all()
-            )
-
-            if completed_tasks:
-                latest = completed_tasks[0]
-                prompt_tokens = latest.total_input_tokens
-                completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
-                cached_tokens = latest.total_cached_input_tokens or 0
-
-            # currentContextTokens = prompt_tokens only (the current context window
-            # size as reported by the LLM).  completion_tokens is cumulative output
-            # across all tasks and is shown separately — it should NOT be added to
-            # the context window size or it will exceed maxInputTokens.
-            current_tokens = prompt_tokens
-            max_input_tokens = _get_model_context_limit(effective_model) if current_tokens > 0 else DEFAULT_CONTEXT_LIMIT
-            usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 and current_tokens > 0 else 0.0
-
-            return ContextUsageResponse(
-                sessionId=session_id,
-                currentContextTokens=current_tokens,
-                promptTokens=prompt_tokens,
-                completionTokens=completion_tokens,
-                cachedTokens=cached_tokens,
-                maxInputTokens=max_input_tokens,
-                usagePercentage=usage_pct,
-                model=effective_model,
-                totalEvents=total_events,
-                totalMessages=total_messages,
-                totalTasks=total_tasks,
-                hasCompaction=has_compaction,
-            )
-
         effective_model = model or resolved_default_model
 
-        # Calculate token counts per role (user=prompt/sent, model=completion/received)
-        _calculate_content_tokens, _, _ = _get_adk_imports()
-
-        # Filter ghost events (pre-compaction originals) so token counts
-        # reflect only the live conversation, matching FilteringSessionService.
-        from ....agent.adk.services import _filter_session_by_latest_compaction
-        adk_session = _filter_session_by_latest_compaction(adk_session, log_identifier=f"[CTX_USAGE/{session_id}]")
-
-        has_compaction = False
         prompt_tokens = 0
         completion_tokens = 0
-        _token_calc_warned = False
-        for event in adk_session.events:
-            if event.actions and event.actions.compaction:
-                has_compaction = True
-            else:
-                if event.content:
-                    role = getattr(event.content, "role", None)
-                    try:
-                        tokens = _calculate_content_tokens(event.content, model=effective_model)
-                    except Exception as e:
-                        if not _token_calc_warned:
-                            log.warning("Failed to calculate tokens for event in session %s: %s", session_id, e)
-                            _token_calc_warned = True
-                        else:
-                            log.debug("Failed to calculate tokens for event in session %s: %s", session_id, e)
-                        tokens = 0
-                    if role == "user":
-                        prompt_tokens += tokens
-                    else:
-                        completion_tokens += tokens
+        cached_tokens = 0
 
-        # Count messages and tasks from the gateway's chat_tasks table, which
-        # stores one record per user-turn (user message + agent response pair).
-        # This is more accurate than counting ADK events, which include tool
-        # call/result events that inflate the count.
-        from ..repository.models import ChatTaskModel
+        from ..repository.models import ChatTaskModel, TaskModel
+        from sqlalchemy import desc
+
         chat_task_count = (
             db.query(ChatTaskModel)
             .filter(ChatTaskModel.session_id == session_id, ChatTaskModel.user_id == user_id)
             .count()
         )
         total_tasks = chat_task_count
-        total_messages = chat_task_count * 2  # each chat_task = user msg + agent response
+        total_messages = chat_task_count * 2
 
-        # The ADK event-based token count only covers user/model message content.
-        # The actual context window also includes system prompt, tool definitions,
-        # and peer agent descriptions which are injected at LLM call time.
-        # Use the latest COMPLETED task's total_input_tokens (from LLM response
-        # metadata) as a more accurate measure of the current context window size.
-        from ..repository.models import TaskModel
-        from sqlalchemy import desc
-
-        # Get all completed tasks for this session to compute cumulative output tokens.
         completed_tasks = (
             db.query(TaskModel)
             .filter(
@@ -1343,23 +1173,20 @@ async def get_session_context_usage(
             .all()
         )
 
+        current_tokens = 0
+
         if completed_tasks:
             latest = completed_tasks[0]
-            # prompt_tokens = latest task's input (current context window size)
-            prompt_tokens = latest.total_input_tokens
-            # completion_tokens = cumulative output across ALL completed tasks
+            # currentContextTokens = latest task's input (current context window for progress bar)
+            current_tokens = latest.total_input_tokens
+            # promptTokens = cumulative input across ALL completed tasks
+            prompt_tokens = sum(t.total_input_tokens or 0 for t in completed_tasks)
+            # completionTokens = cumulative output across ALL completed tasks
             completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
             cached_tokens = latest.total_cached_input_tokens or 0
-        else:
-            # No completed tasks yet — keep ADK event-based token counts
-            cached_tokens = 0
 
-        # currentContextTokens = prompt_tokens only (the current context window
-        # size).  completion_tokens is cumulative output shown separately — it
-        # should NOT be added to the context window or it will exceed maxInputTokens.
-        current_tokens = prompt_tokens
-        max_input_tokens = _get_model_context_limit(effective_model)
-        usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 else 0.0
+        max_input_tokens = _get_model_context_limit(effective_model) if current_tokens > 0 else DEFAULT_CONTEXT_LIMIT
+        usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 and current_tokens > 0 else 0.0
 
         return ContextUsageResponse(
             sessionId=session_id,
@@ -1370,10 +1197,10 @@ async def get_session_context_usage(
             maxInputTokens=max_input_tokens,
             usagePercentage=usage_pct,
             model=effective_model,
-            totalEvents=len(adk_session.events),
+            totalEvents=0,
             totalMessages=total_messages,
             totalTasks=total_tasks,
-            hasCompaction=has_compaction,
+            hasCompaction=False,
         )
 
     except HTTPException:
@@ -1394,81 +1221,109 @@ async def compact_session(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
-    adk_session_service=Depends(get_adk_session_service),
     component=Depends(get_sac_component),
 ):
     """
     Manually compact a session's conversation history.
 
-    Uses the same progressive summarization logic as auto-compaction:
-    - Finds optimal cutoff at user turn boundaries
-    - Creates LLM-generated summary of older events
-    - Appends compaction event (DB remains append-only)
-    - Subsequent reads automatically filter compacted events
+    Publishes a session.compact_request SAM event to the agent, which performs
+    the actual compaction using its own services (FilteringSessionService,
+    SessionCompactionState lock, LLM summarization). The gateway waits for
+    a session.compact_response event with the results.
     """
     user_id = user.get("id")
 
     try:
-        _gateway_session, app_name, adk_session = await _load_adk_session(
-            session_id, user_id, agent_name, session_service, adk_session_service, db,
-        )
-        if not adk_session or not adk_session.events:
+        # 1. Validate session exists and belongs to user
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Session has no conversation history to compact.",
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
             )
 
-        effective_model = request.model or DEFAULT_MODEL
-        log_id = f"[MANUAL_COMPACT/{session_id}]"
-
-        _, _calculate_session_context_tokens, _create_compaction_event = _get_adk_imports()
-
-        # Source model config from the ADK session service config key on the
-        # gateway component — this mirrors the ADK agent's own model settings
-        # (credentials, endpoint, model name) rather than the gateway's model.
-        adk_cfg = component.get_config("adk_session_service") or {}
-        model_cfg = adk_cfg.get("model_config") or getattr(component, "model_config", None) or effective_model
-        adapter = _CompactionAdapter(adk_session_service, model_cfg, app_name, log_id)
-
-        events_compacted, summary = await _create_compaction_event(
-            component=adapter,
-            session=adk_session,
-            compaction_threshold=request.compaction_percentage,
-            log_identifier=log_id,
-        )
-
-        if events_compacted == 0:
+        app_name = agent_name or gateway_session.agent_id
+        if not app_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Not enough conversation turns to compact. Need at least 2 user turns.",
+                detail="No agent associated with this session. Provide agent_name parameter.",
             )
 
-        # Reload session and filter ghost events (raw DatabaseSessionService
-        # does not filter automatically like FilteringSessionService does).
-        from ....agent.adk.services import _filter_session_by_latest_compaction
-        reloaded = await adk_session_service.get_session(
-            app_name=app_name, user_id=user_id, session_id=session_id,
+        # 2. Generate correlation ID
+        correlation_id = uuid.uuid4().hex
+
+        # 3. Register the correlation ID with the component to get a Future
+        future = component.register_compaction_future(correlation_id)
+
+        # 4. Publish session.compact_request SAM event
+        published = component.sam_events.publish_session_compact_request(
+            session_id=session_id,
+            user_id=user_id,
+            agent_id=app_name,
+            gateway_id=component.gateway_id,
+            correlation_id=correlation_id,
+            compaction_percentage=request.compaction_percentage,
         )
-        reloaded = _filter_session_by_latest_compaction(reloaded, log_identifier=log_id)
 
-        remaining_events = len(reloaded.events) if reloaded and reloaded.events else 0
+        if not published:
+            component._compaction_futures.pop(correlation_id, None)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to publish compaction request.",
+            )
 
-        remaining_non_compaction = [
-            e for e in (reloaded.events or [])
-            if not (e.actions and e.actions.compaction)
-        ]
-        remaining_tokens = _calculate_session_context_tokens(remaining_non_compaction, model=effective_model)
+        # 5. Wait for the response with timeout
+        try:
+            result = await asyncio.wait_for(future, timeout=60.0)
+        except asyncio.TimeoutError:
+            component._compaction_futures.pop(correlation_id, None)
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="Compaction request timed out. The agent may be unavailable.",
+            )
 
-        log.info(
-            "%s Manual compaction complete: %d events compacted, %d remaining (%d tokens)",
-            log_id, events_compacted, remaining_events, remaining_tokens,
+        # 6. Process the response
+        if not result.get("success"):
+            error_msg = result.get("error_message", "Compaction failed")
+            # Determine appropriate status code based on error
+            if "not enough" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_msg,
+                )
+            elif "not found" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_msg,
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to compact session",
+                )
+
+        # Persist the post-compaction context window size so it survives page refresh
+        from ..repository.models import TaskModel
+        from sqlalchemy import desc
+
+        latest_task = (
+            db.query(TaskModel)
+            .filter(
+                TaskModel.session_id == session_id,
+                TaskModel.user_id == user_id,
+                TaskModel.total_input_tokens.isnot(None),
+            )
+            .order_by(desc(TaskModel.start_time))
+            .first()
         )
+        if latest_task and result.get("remaining_tokens") is not None:
+            latest_task.total_input_tokens = result["remaining_tokens"]
+            db.commit()
 
         return CompactSessionResponse(
-            eventsCompacted=events_compacted,
-            summary=summary[:500] if len(summary) > 500 else summary,
-            remainingEvents=remaining_events,
-            remainingTokens=remaining_tokens,
+            eventsCompacted=result.get("events_compacted", 0),
+            summary=result.get("summary", ""),
+            remainingEvents=result.get("remaining_events", 0),
+            remainingTokens=result.get("remaining_tokens", 0),
         )
 
     except HTTPException:
