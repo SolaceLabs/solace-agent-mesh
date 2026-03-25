@@ -70,12 +70,6 @@ export interface ConfigContextValue {
     autoTitleGenerationEnabled?: boolean;
 
     /**
-     * Whether any LLM model is configured for the organization.
-     * When false, LLM-dependent features like auto title generation will not work.
-     */
-    llmModelConfigured?: boolean;
-
-    /**
      * Whether Identity Service is configured.
      * When null, Identity Service is not configured.
      */

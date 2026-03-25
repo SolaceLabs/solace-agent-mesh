@@ -18,11 +18,10 @@ function AppLayoutContent() {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
-    const { configFeatureEnablement, llmModelConfigured } = useConfigContext();
+    const { configFeatureEnablement } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { addNotification, hasModelConfigWrite } = useChatContext();
-    const showModelWarning = modelConfigUiEnabled && !llmModelConfigured;
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
@@ -31,12 +30,13 @@ function AppLayoutContent() {
     const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
     const { data: modelConfigStatus } = useModelConfigStatus();
+    const showModelWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     useEffect(() => {
-        if (modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
+        if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
             setIsModelSetupDialogOpen(true);
         }
-    }, [modelConfigStatus, modelSetupDismissed]);
+    }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
 
     const handleModelSetupDialogChange = useCallback((open: boolean) => {
         setIsModelSetupDialogOpen(open);

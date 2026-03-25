@@ -8,6 +8,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useBooleanFlagDetails } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -22,6 +23,7 @@ import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
+
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     if (command === "create-template") {
@@ -56,9 +58,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement, llmModelConfigured } = useConfigContext();
+    const { configFeatureEnablement } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
-    const modelNotConfigured = modelConfigUiEnabled && !llmModelConfigured;
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
