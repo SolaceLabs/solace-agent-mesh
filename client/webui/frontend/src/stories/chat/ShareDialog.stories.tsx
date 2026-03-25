@@ -36,7 +36,7 @@ const sharedArgs = {
     sessionUpdatedTime: new Date().toISOString(),
     open: true,
     onOpenChange: () => {},
-    onError: (error: string) => console.error(error),
+    onError: (error: { title: string; message: string }) => console.error(error.title, error.message),
     onSuccess: (message: string) => console.log(message),
 } satisfies Partial<typeof ShareDialog extends React.ComponentType<infer P> ? P : never>;
 
