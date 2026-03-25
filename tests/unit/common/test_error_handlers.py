@@ -25,6 +25,7 @@ from solace_agent_mesh.common.error_handlers import (
     DEFAULT_BAD_REQUEST_MESSAGE,
     DEFAULT_LLM_ERROR_MESSAGE,
     INTERNAL_SERVER_ERROR_MESSAGE,
+    LITELLM_EXCEPTIONS,
     NOT_FOUND_ERROR_MESSAGE,
     PERMISSION_DENIED_ERROR_MESSAGE,
     RATE_LIMIT_ERROR_MESSAGE,
@@ -33,6 +34,7 @@ from solace_agent_mesh.common.error_handlers import (
     get_error_message,
     is_llm_exception,
     _is_context_limit_error,
+    _get_user_friendly_error_message,
 )
 
 
@@ -233,3 +235,107 @@ class TestGetErrorMessage:
         message, _ = get_error_message(exc)
         assert message != DEFAULT_BAD_REQUEST_MESSAGE
         assert message == CONTENT_POLICY_VIOLATION_MESSAGE
+
+
+class TestLitellmExceptionsTuple:
+    """Tests for the LITELLM_EXCEPTIONS tuple."""
+
+    def test_is_a_tuple(self):
+        assert isinstance(LITELLM_EXCEPTIONS, tuple)
+
+    def test_contains_all_expected_types(self):
+        expected = {
+            AuthenticationError,
+            BadRequestError,
+            BudgetExceededError,
+            ContentPolicyViolationError,
+            ContextWindowExceededError,
+            APIConnectionError,
+            InternalServerError,
+            NotFoundError,
+            PermissionDeniedError,
+            RateLimitError,
+            ServiceUnavailableError,
+            Timeout,
+        }
+        assert set(LITELLM_EXCEPTIONS) == expected
+
+    def test_all_are_exception_classes(self):
+        for exc_class in LITELLM_EXCEPTIONS:
+            assert issubclass(exc_class, BaseException)
+
+    def test_can_be_used_in_except_clause(self):
+        """Verify the tuple works as an except clause target."""
+        exc = _make_litellm_exception(AuthenticationError)
+        caught = False
+        try:
+            raise exc
+        except LITELLM_EXCEPTIONS:
+            caught = True
+        assert caught is True
+
+    def test_does_not_catch_non_litellm_exception(self):
+        """Verify the tuple does not catch unrelated exceptions."""
+        caught = False
+        try:
+            raise ValueError("not an LLM error")
+        except LITELLM_EXCEPTIONS:
+            caught = True
+        except ValueError:
+            pass
+        assert caught is False
+
+
+class TestGetUserFriendlyErrorMessage:
+    """Tests for _get_user_friendly_error_message() dispatch."""
+
+    @pytest.mark.parametrize(
+        "exc_class, expected_message",
+        [
+            (AuthenticationError, AUTHENTICATION_ERROR_MESSAGE),
+            (RateLimitError, RATE_LIMIT_ERROR_MESSAGE),
+            (ServiceUnavailableError, SERVICE_UNAVAILABLE_ERROR_MESSAGE),
+            (APIConnectionError, API_CONNECTION_ERROR_MESSAGE),
+            (Timeout, TIMEOUT_ERROR_MESSAGE),
+            (NotFoundError, NOT_FOUND_ERROR_MESSAGE),
+            (PermissionDeniedError, PERMISSION_DENIED_ERROR_MESSAGE),
+            (InternalServerError, INTERNAL_SERVER_ERROR_MESSAGE),
+            (BudgetExceededError, BUDGET_EXCEEDED_ERROR_MESSAGE),
+            (ContentPolicyViolationError, CONTENT_POLICY_VIOLATION_MESSAGE),
+        ],
+    )
+    def test_each_exception_gets_specific_message(self, exc_class, expected_message):
+        exc = _make_litellm_exception(exc_class)
+        assert _get_user_friendly_error_message(exc) == expected_message
+
+    def test_bad_request_non_context_limit(self):
+        exc = _make_litellm_exception(BadRequestError, message="some bad request")
+        assert _get_user_friendly_error_message(exc) == DEFAULT_BAD_REQUEST_MESSAGE
+
+    def test_bad_request_context_limit_returns_context_message(self):
+        exc = _make_litellm_exception(
+            BadRequestError, message="too many tokens in request"
+        )
+        assert _get_user_friendly_error_message(exc) == CONTEXT_LIMIT_ERROR_MESSAGE
+
+    def test_unknown_exception_returns_default(self):
+        assert _get_user_friendly_error_message(RuntimeError("oops")) == DEFAULT_LLM_ERROR_MESSAGE
+
+    def test_all_messages_are_actionable(self):
+        """Every error message should be actionable — contain guidance for the user."""
+        actionable_keywords = ["administrator", "rephrase", "start a new conversation"]
+        for exc_class in LITELLM_EXCEPTIONS:
+            exc = _make_litellm_exception(exc_class)
+            msg = _get_user_friendly_error_message(exc)
+            assert any(kw in msg for kw in actionable_keywords), (
+                f"{exc_class.__name__} message is not actionable: {msg}"
+            )
+
+    def test_no_message_exposes_raw_exception(self):
+        """Error messages should not include raw exception repr."""
+        for exc_class in LITELLM_EXCEPTIONS:
+            exc = _make_litellm_exception(exc_class, message="SECRET_API_KEY_12345")
+            msg = _get_user_friendly_error_message(exc)
+            assert "SECRET_API_KEY_12345" not in msg, (
+                f"{exc_class.__name__} leaks raw exception details"
+            )
