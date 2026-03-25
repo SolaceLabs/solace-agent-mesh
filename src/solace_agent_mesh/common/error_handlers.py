@@ -44,19 +44,19 @@ CONTEXT_LIMIT_ERROR_MESSAGE = (
 
 DEFAULT_BAD_REQUEST_MESSAGE = (
     "The LLM service rejected the request. "
-    "Please try rephrasing your message. If the problem persists, "
+    "Try rephrasing the message. If the problem persists, "
     "contact an administrator."
 )
 
 AUTHENTICATION_ERROR_MESSAGE = (
     "The LLM service rejected the authentication credentials. "
-    "Please contact an administrator to verify the API key or authentication configuration."
+    "Contact an administrator to verify the API key or authentication configuration."
 )
 
 RATE_LIMIT_ERROR_MESSAGE = (
     "The LLM service rate limit has been exceeded. "
     "Please wait a moment and try again. If this persists, "
-    "contact an administrator to review rate limits or upgrade the plan."
+    "contact an administrator to review rate limits or adjust the plan."
 )
 
 SERVICE_UNAVAILABLE_ERROR_MESSAGE = (
@@ -68,7 +68,7 @@ SERVICE_UNAVAILABLE_ERROR_MESSAGE = (
 API_CONNECTION_ERROR_MESSAGE = (
     "Unable to connect to the LLM service. "
     "This may be due to a network issue or incorrect endpoint configuration. "
-    "Please contact an administrator to verify the connection settings."
+    "Contact an administrator to verify the connection settings."
 )
 
 TIMEOUT_ERROR_MESSAGE = (
@@ -78,29 +78,28 @@ TIMEOUT_ERROR_MESSAGE = (
 )
 
 CONTENT_POLICY_VIOLATION_MESSAGE = (
-    "The request was blocked by the LLM provider's content safety filters. "
-    "Please rephrase your request and try again."
+    "The request was blocked by content safety filters. "
+    "Rephrase the request and try again."
 )
 
 NOT_FOUND_ERROR_MESSAGE = (
     "The configured LLM model was not found. "
-    "Please contact an administrator to verify the model name and provider configuration."
+    "Contact an administrator to verify the model name and provider configuration."
 )
 
 PERMISSION_DENIED_ERROR_MESSAGE = (
     "Access to the LLM model was denied. "
-    "Please contact an administrator to verify the API permissions and access configuration."
+    "Contact an administrator to verify the API permissions and access configuration."
 )
 
 INTERNAL_SERVER_ERROR_MESSAGE = (
     "The LLM service encountered an internal error. "
-    "This is a temporary issue on the provider's side. "
     "Please try again. If this persists, contact an administrator."
 )
 
 BUDGET_EXCEEDED_ERROR_MESSAGE = (
     "The LLM usage budget has been exceeded. "
-    "Please contact an administrator to review and adjust the budget limits."
+    "Contact an administrator to review and adjust the budget limits."
 )
 
 DEFAULT_LLM_ERROR_MESSAGE = (

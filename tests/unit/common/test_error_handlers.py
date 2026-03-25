@@ -323,7 +323,7 @@ class TestGetUserFriendlyErrorMessage:
 
     def test_all_messages_are_actionable(self):
         """Every error message should be actionable — contain guidance for the user."""
-        actionable_keywords = ["administrator", "rephrase", "start a new conversation"]
+        actionable_keywords = ["administrator", "Rephrase", "start a new conversation"]
         for exc_class in LITELLM_EXCEPTIONS:
             exc = _make_litellm_exception(exc_class)
             msg = _get_user_friendly_error_message(exc)
