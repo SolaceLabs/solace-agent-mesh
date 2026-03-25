@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -597,9 +597,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-            // Extract RAG data from task metadata
-            const allRagData: RAGSearchResult[] = [];
-
             for (const task of migratedTasks) {
                 if (task.taskMetadata?.feedback) {
                     feedbackMap[task.taskId] = {
@@ -607,12 +604,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         text: task.taskMetadata.feedback.text || "",
                     };
                 }
-
-                // Restore RAG data if present
-                if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
-                    allRagData.push(...task.taskMetadata.rag_data);
-                }
             }
+
+            // Extract RAG data from task metadata
+            const allRagData = extractRagDataFromTasks(migratedTasks);
 
             // Extract agent name from the most recent task
             // (Use the last task's agent since that's the most recent interaction)

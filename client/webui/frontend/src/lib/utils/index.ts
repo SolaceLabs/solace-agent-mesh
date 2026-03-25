@@ -6,6 +6,7 @@ export * from "./fileValidation";
 export * from "./format";
 export * from "./promptUtils";
 export * from "./taskMigration";
+export * from "./taskUtils";
 export * from "./textPreprocessor";
 export * from "./themeHtmlStyles";
 export * from "./guard";

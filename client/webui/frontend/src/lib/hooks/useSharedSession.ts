@@ -11,9 +11,10 @@ import { useSharedSessionView, useForkSharedChat } from "@/lib/api/share";
 import { downloadSharedArtifact } from "@/lib/api/share";
 import type { SharedArtifact } from "@/lib/types/share";
 import type { MessageBubble } from "@/lib/types/storage";
-import type { MessageFE, RAGSearchResult, ArtifactInfo, ArtifactPart, PartFE } from "@/lib/types";
+import type { MessageFE, ArtifactInfo, ArtifactPart, PartFE } from "@/lib/types";
 import { downloadBlob } from "@/lib/utils/download";
 import { formatTimestamp } from "@/lib/utils/format";
+import { extractRagDataFromTasks } from "@/lib/utils/taskUtils";
 
 /** Format epoch ms as YYYY/MM/DD */
 export function formatDateYMD(epochMs: number): string {
@@ -63,7 +64,7 @@ export function useSharedSession() {
                 console.error("Failed to download artifact:", err);
             }
         },
-        [shareId],
+        [shareId]
     );
 
     // Fork shared chat into user's own sessions
@@ -88,32 +89,7 @@ export function useSharedSession() {
     // Extract RAG data from all tasks
     const ragData = useMemo(() => {
         if (!session) return [];
-
-        const allRagData: RAGSearchResult[] = [];
-
-        for (const task of session.tasks) {
-            const taskId = task.workflowTaskId || task.id;
-
-            let taskMetadata = task.taskMetadata;
-            if (typeof taskMetadata === "string") {
-                try {
-                    taskMetadata = JSON.parse(taskMetadata);
-                } catch {
-                    taskMetadata = null;
-                }
-            }
-
-            if (taskMetadata && Array.isArray(taskMetadata.rag_data)) {
-                for (const ragEntry of taskMetadata.rag_data) {
-                    allRagData.push({
-                        ...ragEntry,
-                        taskId: taskId,
-                    });
-                }
-            }
-        }
-
-        return allRagData;
+        return extractRagDataFromTasks(session.tasks);
     }, [session]);
 
     // Convert SharedArtifact[] to ArtifactInfo[]
@@ -171,8 +147,7 @@ export function useSharedSession() {
                                 });
                             } else if (partObj.kind === "artifact") {
                                 const artifactData = partObj.artifact || partObj;
-                                const artifactName =
-                                    (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || "Artifact";
+                                const artifactName = (artifactData as { name?: string; filename?: string }).name || (artifactData as { name?: string; filename?: string }).filename || "Artifact";
                                 const fullArtifact = convertedArtifacts.find(a => a.filename === artifactName);
                                 parts.push({
                                     kind: "artifact",
@@ -254,7 +229,7 @@ export function useSharedSession() {
                 openSidePanelTab("files");
             }
         },
-        [openSidePanelTab],
+        [openSidePanelTab]
     );
 
     return {
