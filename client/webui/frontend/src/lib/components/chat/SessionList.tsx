@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch, GitFork, ExternalLink } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { listSharedWithMe, forkSharedChat } from "@/lib/api/share";
+import { useSharedWithMe, useForkSharedChat } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
@@ -143,9 +143,10 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
-    // Shared-with-me state
-    const [sharedWithMe, setSharedWithMe] = useState<SharedWithMeItem[]>([]);
-    const [, setIsLoadingShared] = useState(false);
+    // Shared-with-me (React Query)
+    const sharedWithMeQuery = useSharedWithMe();
+    const sharedWithMe = sharedWithMeQuery.data ?? [];
+    const forkMutation = useForkSharedChat();
     const [forkingShareId, setForkingShareId] = useState<string | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
@@ -251,31 +252,14 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
 
-    // Fetch shared-with-me chats
-    const fetchSharedWithMe = useCallback(async () => {
-        setIsLoadingShared(true);
-        try {
-            const items = await listSharedWithMe();
-            setSharedWithMe(items);
-        } catch (error) {
-            console.error("Failed to fetch shared-with-me chats:", error);
-        } finally {
-            setIsLoadingShared(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchSharedWithMe();
-    }, [fetchSharedWithMe]);
-
     const handleForkChat = useCallback(
         async (item: SharedWithMeItem) => {
             if (forkingShareId) return;
 
             setForkingShareId(item.shareId);
             try {
-                const result = await forkSharedChat(item.shareId);
-                addNotification?.(`Chat forked: "${result.session_name}"`, "success");
+                const result = await forkMutation.mutateAsync(item.shareId);
+                addNotification?.(`Chat forked: "${result.sessionName}"`, "success");
 
                 // Refresh sessions list to show the new forked session
                 fetchSessions(1, false);
@@ -288,7 +272,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 setForkingShareId(null);
             }
         },
-        [forkingShareId, addNotification, fetchSessions, handleSwitchSession, displayError]
+        [forkingShareId, addNotification, fetchSessions, handleSwitchSession, displayError, forkMutation]
     );
 
     const handleViewSharedChat = useCallback(
