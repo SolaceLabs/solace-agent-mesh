@@ -31,7 +31,7 @@ export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownload
     };
 
     return (
-        <div className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--accent-background)")} onClick={handleClick}>
+        <div className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)")} onClick={handleClick}>
             <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" readOnly={readOnly} onDownloadOverride={onDownloadOverride} />
         </div>
     );

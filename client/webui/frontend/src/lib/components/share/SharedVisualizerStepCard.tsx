@@ -9,6 +9,7 @@ import { CheckCircle, FileText, HardDrive, Link, MessageSquare, Share2, Terminal
 
 import { JSONViewer, MarkdownHTMLConverter } from "@/lib/components";
 import { ImageSearchGrid } from "@/lib/components/research";
+import { NODE_COLORS } from "@/lib/constants";
 import type { ArtifactNotificationData, LLMCallData, LLMResponseToAgentData, ToolDecisionData, ToolInvocationStartData, ToolResultData, VisualizerStep } from "@/lib/types";
 import { isString } from "@/lib/utils";
 
@@ -23,31 +24,31 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     const getStepIcon = () => {
         switch (step.type) {
             case "USER_REQUEST":
-                return <User className="mr-2 text-blue-500 dark:text-blue-400" size={18} />;
+                return <User className={`mr-2 ${NODE_COLORS.user}`} size={18} />;
             case "AGENT_RESPONSE_TEXT":
-                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "TASK_COMPLETED":
-                return <CheckCircle className="mr-2 text-green-500 dark:text-green-400" size={18} />;
+                return <CheckCircle className="mr-2 text-(--success-wMain)" size={18} />;
             case "TASK_FAILED":
-                return <XCircle className="mr-2 text-red-500 dark:text-red-400" size={18} />;
+                return <XCircle className="mr-2 text-(--error-wMain)" size={18} />;
             case "AGENT_LLM_CALL":
-                return <Zap className="mr-2 text-purple-500 dark:text-purple-400" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.group}`} size={18} />;
             case "AGENT_LLM_RESPONSE_TO_AGENT":
-                return <Zap className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <Zap className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "AGENT_LLM_RESPONSE_TOOL_DECISION": {
                 const firstDecision = step.data.toolDecision?.decisions?.[0];
                 const isPeer = firstDecision?.isPeerDelegation;
 
-                return isPeer ? <Share2 className="mr-2 text-orange-500 dark:text-orange-400" size={18} /> : <Terminal className="mr-2 text-orange-500 dark:text-orange-400" size={18} />;
+                return isPeer ? <Share2 className={`mr-2 ${NODE_COLORS.peer}`} size={18} /> : <Terminal className={`mr-2 ${NODE_COLORS.peer}`} size={18} />;
             }
             case "AGENT_TOOL_INVOCATION_START":
-                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} /> : <Terminal className="mr-2 text-cyan-500 dark:text-cyan-400" size={18} />;
+                return step.data.toolInvocationStart?.isPeerInvocation ? <Share2 className={`mr-2 ${NODE_COLORS.tool}`} size={18} /> : <Terminal className={`mr-2 ${NODE_COLORS.tool}`} size={18} />;
             case "AGENT_TOOL_EXECUTION_RESULT":
-                return <HardDrive className="mr-2 text-teal-500 dark:text-teal-400" size={18} />;
+                return <HardDrive className={`mr-2 ${NODE_COLORS.llm}`} size={18} />;
             case "AGENT_ARTIFACT_NOTIFICATION":
-                return <FileText className="mr-2 text-indigo-500 dark:text-indigo-400" size={18} />;
+                return <FileText className={`mr-2 ${NODE_COLORS.artifact}`} size={18} />;
             default:
-                return <MessageSquare className="mr-2 text-gray-500 dark:text-gray-400" size={18} />;
+                return <MessageSquare className="mr-2 text-(--secondary-text-wMain)" size={18} />;
         }
     };
 
@@ -60,14 +61,14 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     const displayTimestamp = `${formattedTimestamp}.${milliseconds}`;
 
     const renderLLMCallData = (data: LLMCallData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
             <p>
                 <strong>Model:</strong> {data.modelName}
             </p>
             <p className="mt-1">
                 <strong>Prompt Preview:</strong>
             </p>
-            <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.promptPreview}</pre>
+            <pre className="max-h-28 overflow-y-auto rounded bg-(--secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap">{data.promptPreview}</pre>
         </div>
     );
 
@@ -82,9 +83,9 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
         // If not expanded, just show a minimal summary
         if (!expanded) {
             return (
-                <div className="mt-1.5 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-1.5 flex items-center justify-between text-xs text-(--secondary-text-wMain)">
                     <span className="italic">Internal LLM response</span>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
                         Show details
                     </button>
                 </div>
@@ -93,10 +94,10 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
 
         // Expanded view
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
                 <div className="mb-1 flex items-center justify-between">
                     <strong>LLM Response Details:</strong>
-                    <button onClick={toggleExpand} className="text-xs text-blue-500 underline hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
                         Hide details
                     </button>
                 </div>
@@ -109,7 +110,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                     <p>
                         <strong>Response Preview:</strong>
                     </p>
-                    <pre className="max-h-28 overflow-y-auto rounded bg-gray-100 p-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-gray-700">{data.responsePreview}</pre>
+                    <pre className="max-h-28 overflow-y-auto rounded bg-(--secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap">{data.responsePreview}</pre>
                 </div>
                 {data.isFinalResponse !== undefined && (
                     <p className="mt-1">
@@ -121,7 +122,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     };
 
     const renderToolDecisionData = (data: ToolDecisionData) => (
-        <div className="mt-1.5 rounded-md bg-blue-50 p-2 font-mono text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+        <div className="mt-1.5 rounded-md bg-(--info-w10) p-2 font-mono text-xs text-(--info-wMain)">
             <p className="mb-2">
                 <strong>🔧 {data.isParallel ? "Parallel Tool Calls:" : "Tool Call:"}</strong>
             </p>
@@ -137,14 +138,14 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     );
 
     const renderToolInvocationStartData = (data: ToolInvocationStartData) => (
-        <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+        <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
             <p>
                 <strong>Tool:</strong> {data.toolName}
             </p>
             <p className="mt-1">
                 <strong>Arguments:</strong>
             </p>
-            <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">
+            <div className="max-h-40 overflow-y-auto rounded bg-(--secondary-w10) p-1.5">
                 <JSONViewer data={data.toolArguments} />
             </div>
         </div>
@@ -186,7 +187,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
         }
 
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
                 <p>
                     <strong>Tool:</strong> {data.toolName}
                 </p>
@@ -198,8 +199,8 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                         </p>
                         <ImageSearchGrid images={isString(parsedResult.result) ? JSON.parse(parsedResult.result).images : parsedResult.result.images} />
                         <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Show full result data</summary>
-                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                            <summary className="cursor-pointer text-xs text-(--info-wMain) hover:text-(--info-w100)">Show full result data</summary>
+                            <div className="mt-2 max-h-40 overflow-y-auto rounded bg-(--secondary-w10) p-1.5">{renderResultData(data.resultData)}</div>
                         </details>
                     </>
                 ) : (
@@ -207,7 +208,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                         <p className="mt-1">
                             <strong>Result:</strong>
                         </p>
-                        <div className="max-h-40 overflow-y-auto rounded bg-gray-100 p-1.5 dark:bg-gray-700">{renderResultData(data.resultData)}</div>
+                        <div className="max-h-40 overflow-y-auto rounded bg-(--secondary-w10) p-1.5">{renderResultData(data.resultData)}</div>
                     </>
                 )}
             </div>
@@ -217,11 +218,11 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     // Simplified artifact notification without navigation (read-only)
     const renderArtifactNotificationData = (data: ArtifactNotificationData) => {
         return (
-            <div className="mt-1.5 rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
                 <div className="flex items-center justify-between">
                     <p>
                         <strong>Artifact:</strong> {data.artifactName}
-                        {data.version !== undefined && <span className="text-gray-500 dark:text-gray-400"> (v{data.version})</span>}
+                        {data.version !== undefined && <span className="text-(--secondary-text-wMain)"> (v{data.version})</span>}
                     </p>
                 </div>
                 {data.mimeType && (
@@ -245,13 +246,13 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     const cardClasses =
         variant === "popover"
             ? `
-      p-3 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150
+      p-3 bg-transparent hover:bg-(--background-w10) transition-colors duration-150
       ${onClick ? "cursor-pointer" : ""}
     `
             : `
       mb-3 p-3 border rounded-lg shadow-sm
-      bg-white dark:bg-gray-800 hover:shadow-md transition-shadow duration-150
-      ${isHighlighted ? "border-blue-500 dark:border-blue-400 ring-2 ring-blue-500 dark:ring-blue-400" : "border-gray-200 dark:border-gray-700"}
+      bg-(--background-w10) hover:shadow-md transition-shadow duration-150
+      ${isHighlighted ? "border-(--info-wMain) ring-1 ring-(--info-wMain)" : "border-(--secondary-w20)"}
       ${onClick ? "cursor-pointer" : ""}
     `;
 
@@ -273,14 +274,14 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                     <h4 className="flex-1 truncate text-sm font-semibold" title={step.title}>
                         {step.title}
                     </h4>
-                    <span className="text-muted-foreground shrink-0 font-mono text-xs">{displayTimestamp}</span>
+                    <span className="shrink-0 font-mono text-xs text-(--secondary-text-wMain)">{displayTimestamp}</span>
                 </div>
             </div>
             {step.delegationInfo && step.delegationInfo.length > 0 && (
-                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-blue-500 bg-blue-50 p-2 text-sm dark:border-blue-400 dark:bg-gray-700/60">
+                <div className="mt-2 mb-1.5 space-y-2 rounded-r-md border-l-4 border-(--info-wMain) bg-(--info-w10) p-2 text-sm">
                     {step.delegationInfo.map(info => (
                         <div key={info.functionCallId}>
-                            <div className="flex items-center font-semibold text-blue-700 dark:text-blue-300">
+                            <div className="flex items-center font-semibold text-(--info-wMain)">
                                 <Link className="mr-2 h-4 w-4 flex-shrink-0" />
                                 <span>
                                     {getDelegationText()}
@@ -288,7 +289,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                                 </span>
                             </div>
                             {info.subTaskId && (
-                                <div className="mt-0.5 ml-[24px] text-xs text-blue-600 dark:text-blue-400">
+                                <div className="mt-0.5 ml-[24px] text-xs text-(--info-wMain)">
                                     Sub-Task:{" "}
                                     <span className="font-mono" title={info.subTaskId}>
                                         {info.subTaskId.substring(0, 15)}...
@@ -300,18 +301,18 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
                 </div>
             )}
             {step.data.text && (
-                <div className="max-h-20 overflow-y-auto pl-1 text-sm text-gray-800 dark:text-gray-100">
+                <div className="max-h-20 overflow-y-auto pl-1 text-sm text-(--primary-text-wMain)">
                     <MarkdownHTMLConverter>{step.data.text}</MarkdownHTMLConverter>
                 </div>
             )}
             {step.data.finalMessage && (
-                <div className="pl-1 text-sm text-gray-800 dark:text-gray-100">
+                <div className="pl-1 text-sm text-(--primary-text-wMain)">
                     <MarkdownHTMLConverter>{step.data.finalMessage}</MarkdownHTMLConverter>
                 </div>
             )}
-            {step.type === "TASK_COMPLETED" && !step.data.finalMessage && <div className="pl-1 text-sm text-gray-600 italic dark:text-gray-300">Task completed successfully.</div>}
+            {step.type === "TASK_COMPLETED" && !step.data.finalMessage && <div className="pl-1 text-sm text-(--secondary-text-wMain) italic">Task completed successfully.</div>}
             {step.data.errorDetails && (
-                <div className="mt-1 rounded-md bg-red-50 p-2 pl-1 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                <div className="mt-1 rounded-md bg-(--error-w10) p-2 pl-1 text-sm text-(--error-wMain)">
                     <p>
                         <strong>Error:</strong> {step.data.errorDetails.message}
                     </p>

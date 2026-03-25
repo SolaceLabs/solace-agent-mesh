@@ -53,10 +53,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
     const isStreaming = props.isStreaming;
-    const readOnly = props.readOnly || false;
-
-    // Check if this artifact is from a project (should not be deletable)
-    const isProjectArtifact = artifact?.source === "project";
+    const readOnly = props.readOnly || artifact?.source === "project" || false;
 
     // Extract version from URI if available
     const version = useMemo(() => {
@@ -349,7 +346,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
                 onInfo: handleInfoClick,
                 onDownload: props.status === "completed" ? handleDownloadClick : undefined,
                 // Hide delete button for artifacts with source="project" (they came from project files) or in readOnly mode
-                onDelete: artifact && props.status === "completed" && !isProjectArtifact && !readOnly ? handleDeleteClick : undefined,
+                onDelete: artifact && props.status === "completed" && !readOnly ? handleDeleteClick : undefined,
             };
         } else {
             // In chat context, show preview, download, and info actions
@@ -360,7 +357,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact, readOnly]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, readOnly]);
 
     // Get description from global artifacts instead of message parts
     const artifactFromGlobal = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
@@ -376,7 +373,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
 
     if (isLoading) {
         expandedContent = (
-            <div className="bg-muted flex h-25 items-center justify-center">
+            <div className="flex h-25 items-center justify-center bg-(--secondary-w10)">
                 <Spinner />
             </div>
         );

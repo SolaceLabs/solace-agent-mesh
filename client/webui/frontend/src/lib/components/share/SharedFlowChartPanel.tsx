@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Scan } from "lucide-react";
 
 import type { VisualizerStep } from "@/lib/types";
-import { Button, Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Tooltip, TooltipTrigger, TooltipContent, Switch } from "@/lib/components/ui";
+import { Button, Dialog, DialogContent, VisuallyHidden, DialogTitle, DialogDescription, Tooltip, TooltipTrigger, TooltipContent, Switch } from "@/lib/components/ui";
 import WorkflowRenderer from "../activities/FlowChart/WorkflowRenderer";
 import type { LayoutNode, Edge } from "../activities/FlowChart/utils/types";
 import { findNodeDetails, type NodeDetails } from "../activities/FlowChart/utils/nodeDetailsHelper";
@@ -152,13 +152,13 @@ const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSt
     }, []);
 
     if (!processedSteps || processedSteps.length === 0) {
-        return <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">No steps to display in flow chart.</div>;
+        return <div className="flex h-full items-center justify-center text-(--secondary-text-wMain)">No steps to display in flow chart.</div>;
     }
 
     return (
-        <div style={{ height: "100%", width: "100%" }} className="bg-card-background relative">
+        <div style={{ height: "100%", width: "100%" }} className="relative bg-(--background-w20)">
             {/* Controls bar */}
-            <div className="bg-background absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border px-4 py-2 shadow-md">
+            <div className="absolute top-4 right-4 z-50 flex items-center gap-3 rounded-sm border bg-(--background-w10) px-4 py-2 shadow-md">
                 <Button onClick={handleRecenter} variant="ghost" size="sm" tooltip="Center Workflow">
                     <Scan className="h-4 w-4" />
                 </Button>
@@ -193,6 +193,7 @@ const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSt
                     className={`w-[90vw] ${isDialogExpanded ? "!max-w-[1600px]" : "!max-w-[1200px]"} flex max-h-[85vh] flex-col p-0 transition-all duration-200`}
                     onPointerDownOutside={e => e.preventDefault()}
                     onInteractOutside={e => e.preventDefault()}
+                    showCloseButton
                 >
                     <VisuallyHidden>
                         <DialogTitle>Node Details</DialogTitle>
@@ -203,11 +204,6 @@ const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSt
                             <NodeDetailsCard nodeDetails={selectedNodeDetails} onClose={handleDialogClose} />
                         </div>
                     )}
-                    <DialogFooter className="mt-0 flex-shrink-0 border-t border-gray-200 p-4 dark:border-gray-700">
-                        <Button variant="outline" onClick={handleDialogClose}>
-                            Close
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

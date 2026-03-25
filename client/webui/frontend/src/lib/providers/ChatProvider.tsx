@@ -9,7 +9,7 @@ const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
@@ -49,35 +49,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { userInfo } = useAuthContext();
-
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
-    const [isCollaborativeSession, setIsCollaborativeSession] = useState<boolean>(false);
-    const [hasSharedEditors, setHasSharedEditors] = useState<boolean>(false);
-    const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
-    const [sessionOwnerName, setSessionOwnerName] = useState<string | null>(null);
-    const [sessionOwnerEmail, setSessionOwnerEmail] = useState<string | null>(null);
-    const currentUserIdFromAuth = useRef<string>("");
 
-    // Fetch current user info on mount (works in both dev and production mode)
-    useEffect(() => {
-        api.webui
-            .get("/api/v1/auth/me")
-            .then((data: { id?: string; email?: string }) => {
-                if (data?.email) {
-                    setCurrentUserEmail(data.email);
-                }
-                if (data?.id) {
-                    currentUserIdFromAuth.current = data.id;
-                }
-            })
-            .catch(() => {
-                // Silently fail - currentUserEmail will remain empty
-            });
-    }, []);
+    // Collaborative session detection and state
+    const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
 
     // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
@@ -237,7 +215,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     // Get the authenticated user's ID for background task monitoring
-    const authenticatedUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+    const authenticatedUserId = getCurrentUserId();
 
     const {
         backgroundTasks,
@@ -829,10 +807,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setMessages(allMessages);
             }
 
-            // Secondary collaborative session detection is no longer needed.
-            // The primary detection in switchSession uses currentUserIdFromAuth
-            // which correctly identifies the session owner vs current user.
-            // Keeping sender info in messages for UI display purposes only.
+            // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
+            // Sender info in messages is kept for UI display purposes only.
         },
         [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
     );
@@ -1839,10 +1815,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setSessionName(null);
 
             // Reset collaborative session flag - new sessions are always owned by the current user
-            setIsCollaborativeSession(false);
-            setHasSharedEditors(false);
-            setSessionOwnerName(null);
-            setSessionOwnerEmail(null);
+            resetCollaborativeState();
 
             // Clear project context when starting a new chat outside of a project
             if (activeProject && !preserveProjectContext) {
@@ -1874,7 +1847,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData, resetCollaborativeState]
     );
 
     // Wrapper that shows confirmation when task is running and background tasks are disabled
@@ -1960,40 +1933,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
 
-                // Reset shared editors flag before detection
-                setHasSharedEditors(false);
-
-                // Detect collaborative session: session owner differs from current user
-                // Use currentUserEmail from /auth/me as fallback when userInfo is not available (dev mode)
-                // Note: compare with user ID, not email (session.userId stores the user ID like "sam_dev_user")
-                const currentUserId = typeof userInfo?.username === "string" ? userInfo.username : currentUserIdFromAuth.current || null;
-                const sessionOwnerId = session?.userId;
-                if (currentUserId && sessionOwnerId && currentUserId !== sessionOwnerId) {
-                    setIsCollaborativeSession(true);
-                    // Store owner info from session response (populated by backend for editors)
-                    setSessionOwnerName(session?.ownerDisplayName || sessionOwnerId);
-                    setSessionOwnerEmail(session?.ownerEmail || sessionOwnerId);
-                    console.log(`${log_prefix} Collaborative session detected (owner: ${sessionOwnerId}, ownerName: ${session?.ownerDisplayName}, current user: ${currentUserId})`);
-                } else {
-                    setIsCollaborativeSession(false);
-                    setHasSharedEditors(false); // Reset immediately, async check below may set to true
-                    setSessionOwnerName(null);
-                    setSessionOwnerEmail(null);
-                    // Check if the owner has shared with editors (for showing collaborative UI elements)
-                    try {
-                        const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/share");
-                        const link = await getShareLinkForSession(newSessionId);
-                        if (link) {
-                            const usersResponse = await getShareUsers(link.shareId);
-                            const hasEditors = (usersResponse.users || []).some(u => u.accessLevel === "RESOURCE_EDITOR");
-                            setHasSharedEditors(hasEditors);
-                        } else {
-                            setHasSharedEditors(false);
-                        }
-                    } catch {
-                        setHasSharedEditors(false);
-                    }
-                }
+                // Detect collaborative session (owner differs from current user)
+                await detectCollaborativeSession(session, newSessionId);
 
                 // Activate or deactivate project context based on session's project
                 // Set flag to prevent handleNewSession from being triggered by this project change
@@ -2138,6 +2079,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             generateTitle,
             isTaskRunningInBackground,
             replayBufferedEvents,
+            detectCollaborativeSession,
         ]
     );
 
@@ -2693,7 +2635,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const handleSwitchToSession = (event: Event) => {
             const detail = (event as CustomEvent).detail;
             if (detail?.sessionId) {
-                console.log(`[ChatProvider] Switching to forked session: ${detail.sessionId}`);
                 handleSwitchSession(detail.sessionId);
             }
         };
@@ -2702,30 +2643,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("switch-to-session", handleSwitchToSession);
         };
     }, [handleSwitchSession]);
-
-    // Listen for share-updated events to refresh hasSharedEditors flag
-    useEffect(() => {
-        const handleShareUpdated = async (event: Event) => {
-            const detail = (event as CustomEvent).detail;
-            if (detail?.sessionId === sessionId && !isCollaborativeSession) {
-                try {
-                    const { getShareLinkForSession, getShareUsers } = await import("@/lib/api/share");
-                    const link = await getShareLinkForSession(sessionId);
-                    if (link) {
-                        const usersResponse = await getShareUsers(link.shareId);
-                        const hasEditors = (usersResponse.users || []).some(u => u.accessLevel === "RESOURCE_EDITOR");
-                        setHasSharedEditors(hasEditors);
-                    } else {
-                        setHasSharedEditors(false);
-                    }
-                } catch {
-                    // Silently fail
-                }
-            }
-        };
-        window.addEventListener("share-updated", handleShareUpdated);
-        return () => window.removeEventListener("share-updated", handleShareUpdated);
-    }, [sessionId, isCollaborativeSession]);
 
     useEffect(() => {
         const handleSessionUpdated = async (event: Event) => {
