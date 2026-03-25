@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
 import { api } from "../api";
 import { SamFeatureProvider } from "./openfeature";
@@ -18,40 +19,32 @@ interface FeatureFlagProviderProps {
 }
 
 export function FeatureFlagProvider({ children }: Readonly<FeatureFlagProviderProps>) {
-    useEffect(() => {
-        let isMounted = true;
-
-        const loadFlags = async () => {
-            try {
-                const response = await api.webui.get("/api/v1/config/features", {
-                    credentials: "include",
-                    headers: { Accept: "application/json" },
-                    fullResponse: true,
-                });
-
-                if (!isMounted) return;
-
-                if (response.ok) {
-                    const featuresData: FeatureFlagInfo[] = await response.json();
-                    const flags = Object.fromEntries(featuresData.map((f: FeatureFlagInfo) => [f.key, f.resolved]));
-                    OpenFeature.setProvider(new SamFeatureProvider(flags));
-                } else {
-                    console.warn("Features endpoint unavailable, using default flag values:", response.status);
-                    OpenFeature.setProvider(new SamFeatureProvider({}));
-                }
-            } catch (err) {
-                if (!isMounted) return;
-                console.warn("Failed to load feature flags, using default flag values:", err);
-                OpenFeature.setProvider(new SamFeatureProvider({}));
+    const { data, isError } = useQuery<FeatureFlagInfo[]>({
+        queryKey: ["config", "features"],
+        queryFn: async () => {
+            const response = await api.webui.get("/api/v1/config/features", {
+                credentials: "include",
+                headers: { Accept: "application/json" },
+                fullResponse: true,
+            });
+            if (!response.ok) {
+                throw new Error(`Features endpoint returned ${response.status}`);
             }
-        };
+            return response.json();
+        },
+        retry: 0,
+        staleTime: Infinity,
+    });
 
-        loadFlags();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    useEffect(() => {
+        if (data) {
+            const flags = Object.fromEntries(data.map(f => [f.key, f.resolved]));
+            OpenFeature.setProvider(new SamFeatureProvider(flags));
+        } else if (isError) {
+            console.warn("Failed to load feature flags, using default flag values");
+            OpenFeature.setProvider(new SamFeatureProvider({}));
+        }
+    }, [data, isError]);
 
     return <OpenFeatureProvider>{children}</OpenFeatureProvider>;
 }
