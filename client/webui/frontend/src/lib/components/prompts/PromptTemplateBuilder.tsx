@@ -164,9 +164,6 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
     };
 
     const handleSwitchToAI = () => {
-        if (!aiAssistedEnabled) {
-            return;
-        }
         setBuilderMode("ai-assisted");
         // Clear highlighted fields when switching back to AI mode
         // This ensures "Updated" badges only show after new AI interactions

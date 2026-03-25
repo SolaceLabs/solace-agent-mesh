@@ -22,7 +22,7 @@ export function ModelSetupDialog({ open, onOpenChange, hasWritePermissions }: Mo
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>{hasWritePermissions ? "Set Up Your Default LLM Models" : "No Default LLM Models Available"}</DialogTitle>
-                    <DialogDescription className="text-(--secondary-text-wMain) space-y-3 flex flex-col">
+                    <DialogDescription className="space-y-3 flex flex-col">
                         {hasWritePermissions ? (
                             <>
                                 <span>
