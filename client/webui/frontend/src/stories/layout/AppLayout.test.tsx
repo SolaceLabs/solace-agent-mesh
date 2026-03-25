@@ -4,8 +4,6 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
 import React from "react";
-import { OpenFeature } from "@openfeature/react-sdk";
-import { InMemoryProvider } from "@openfeature/web-sdk";
 
 import { StoryProvider } from "../mocks/StoryProvider";
 
@@ -32,10 +30,10 @@ vi.mock("@/lib/hooks/useLocalStorage", () => ({
 // Lazy import so all mocks are in place
 const { default: AppLayout } = await import("@/AppLayout");
 
-function renderLayout(chatContextValues = {}) {
+function renderLayout(chatContextValues = {}, featureFlags: Record<string, boolean> = {}) {
     return render(
         <MemoryRouter>
-            <StoryProvider chatContextValues={chatContextValues}>
+            <StoryProvider chatContextValues={chatContextValues} configContextValues={{ configFeatureEnablement: featureFlags }}>
                 <AppLayout />
             </StoryProvider>
         </MemoryRouter>
@@ -44,8 +42,7 @@ function renderLayout(chatContextValues = {}) {
 
 describe("AppLayout model warning banner", () => {
     describe("when model_config_ui flag is disabled", () => {
-        beforeEach(async () => {
-            await OpenFeature.setProviderAndWait(new InMemoryProvider({}));
+        beforeEach(() => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
         });
 
@@ -56,31 +53,27 @@ describe("AppLayout model warning banner", () => {
     });
 
     describe("when model_config_ui flag is enabled", () => {
-        beforeEach(async () => {
-            await OpenFeature.setProviderAndWait(new InMemoryProvider({ model_config_ui: { variants: { on: true, off: false }, defaultVariant: "on", disabled: false } }));
-        });
-
         test("does not show warning when models are configured", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
-            renderLayout();
+            renderLayout({}, { model_config_ui: true });
             expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
         });
 
         test("does not show warning when status is still loading", () => {
             mockModelConfigStatus.mockReturnValue({ data: undefined });
-            renderLayout();
+            renderLayout({}, { model_config_ui: true });
             expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
         });
 
         test("shows warning when models not configured", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
-            renderLayout();
+            renderLayout({}, { model_config_ui: true });
             expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
         });
 
         test("shows Go to Models button when user has write permission", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
-            renderLayout({ hasModelConfigWrite: true });
+            renderLayout({ hasModelConfigWrite: true }, { model_config_ui: true });
             // Banner and dialog may both show a "Go to Models" button
             const buttons = screen.getAllByRole("button", { name: /Go to Models/i });
             expect(buttons.length).toBeGreaterThanOrEqual(1);
@@ -89,7 +82,7 @@ describe("AppLayout model warning banner", () => {
 
         test("shows contact admin text when user lacks write permission", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
-            renderLayout({ hasModelConfigWrite: false });
+            renderLayout({ hasModelConfigWrite: false }, { model_config_ui: true });
             expect(screen.getByText(/Contact your administrator/)).toBeInTheDocument();
             expect(screen.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         });

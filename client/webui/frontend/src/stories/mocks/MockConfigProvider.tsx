@@ -1,8 +1,6 @@
 import { ConfigContext, type ConfigContextValue } from "@/lib/contexts/ConfigContext";
 import { api } from "@/lib/api";
-import React, { useMemo, useRef } from "react";
-import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
-import { SamFeatureProvider } from "@/lib/providers/openfeature";
+import React, { useMemo } from "react";
 
 // Default mock values for ConfigContext
 const defaultMockConfigContext: ConfigContextValue = {
@@ -40,18 +38,7 @@ export const MockConfigProvider: React.FC<MockConfigProviderProps> = ({ children
         [mockValues]
     );
 
-    const featureFlags = contextValue.configFeatureEnablement;
-    const prevFlagsRef = useRef<Record<string, boolean> | undefined>(undefined);
-    if (featureFlags !== undefined && featureFlags !== prevFlagsRef.current) {
-        OpenFeature.setProvider(new SamFeatureProvider(featureFlags));
-        prevFlagsRef.current = featureFlags;
-    }
-
     api.configure(contextValue.webuiServerUrl, contextValue.platformServerUrl);
 
-    return (
-        <ConfigContext.Provider value={contextValue}>
-            <OpenFeatureProvider>{children}</OpenFeatureProvider>
-        </ConfigContext.Provider>
-    );
+    return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

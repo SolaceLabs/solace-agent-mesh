@@ -1,6 +1,5 @@
 import React from "react";
-import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
-import { InMemoryProvider } from "@openfeature/web-sdk";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
@@ -12,9 +11,6 @@ import { MockProjectProvider } from "./MockProjectProvider";
 import type { ProjectContextValue } from "@/lib/types/projects";
 import { MockTextSelectionProvider } from "./MockTextSelectionProvider";
 import { MockAudioSettingsProvider } from "./MockAudioSettingsProvider";
-
-// Initialize OpenFeature with an in-memory provider for tests
-OpenFeature.setProvider(new InMemoryProvider({}));
 
 interface RouterValues {
     initialPath?: string;
@@ -62,9 +58,11 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     taskContextValues = {},
     configContextValues = {},
 }) => {
+    const featureFlags = configContextValues.configFeatureEnablement ?? {};
+
     return (
         <QueryProvider>
-            <OpenFeatureProvider>
+            <OpenFeatureTestProvider flagValueMap={featureFlags}>
                 <ThemeProvider>
                     <MockConfigProvider mockValues={configContextValues}>
                         <MockAuthProvider mockValues={authContextValues}>
@@ -82,7 +80,7 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
                         </MockAuthProvider>
                     </MockConfigProvider>
                 </ThemeProvider>
-            </OpenFeatureProvider>
+            </OpenFeatureTestProvider>
         </QueryProvider>
     );
 };
