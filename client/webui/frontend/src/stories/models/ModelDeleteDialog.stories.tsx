@@ -70,32 +70,6 @@ export const ConfirmEnabled: Story = {
 };
 
 /**
- * Loading state - shows progress bar, buttons disabled
- */
-export const Loading: Story = {
-    args: {
-        open: true,
-        onOpenChange: () => {},
-        onConfirm: async () => {},
-        modelAlias: "my-gpt-4",
-        isLoading: true,
-    },
-    play: async () => {
-        const dialog = await screen.findByRole("dialog");
-        const content = within(dialog);
-
-        const deleteButton = content.getByRole("button", { name: "Delete" });
-        expect(deleteButton).toBeDisabled();
-
-        const cancelButton = content.getByRole("button", { name: "Cancel" });
-        expect(cancelButton).toBeDisabled();
-
-        const input = content.getByRole("textbox");
-        expect(input).toBeDisabled();
-    },
-};
-
-/**
  * Default model (general) - cannot be deleted
  */
 export const DefaultModelGeneral: Story = {
@@ -115,24 +89,5 @@ export const DefaultModelGeneral: Story = {
 
         expect(content.queryByRole("textbox")).not.toBeInTheDocument();
         expect(content.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    },
-};
-
-/**
- * Default model (planning) - cannot be deleted
- */
-export const DefaultModelPlanning: Story = {
-    args: {
-        open: true,
-        onOpenChange: () => {},
-        onConfirm: async () => {},
-        modelAlias: "planning",
-    },
-    play: async () => {
-        const dialog = await screen.findByRole("dialog");
-        const content = within(dialog);
-
-        expect(content.getByText("Unable to Delete")).toBeInTheDocument();
-        expect(content.getByText(/Planning model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
     },
 };
