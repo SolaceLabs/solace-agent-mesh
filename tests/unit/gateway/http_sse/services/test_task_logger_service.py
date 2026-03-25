@@ -41,9 +41,9 @@ class TestShouldLogEvent:
     
     def test_should_log_event_default(self, service):
         """Test default behavior logs all events."""
-        result = service._should_log_event(Mock())
+        result = service._should_log_event("some/topic", Mock())
         assert result is True
-    
+
     def test_should_not_log_status_when_disabled(self):
         """Test status events are not logged when disabled."""
         service = TaskLoggerService(None, {"log_status_updates": False})
@@ -65,9 +65,9 @@ class TestShouldLogEvent:
         service = TaskLoggerService(None, {"log_artifact_events": False})
         mock_event = Mock(spec=TaskArtifactUpdateEvent)
         
-        result = service._should_log_event(mock_event)
+        result = service._should_log_event("some/topic", mock_event)
         assert result is False
-    
+
     def test_should_log_artifact_when_enabled(self):
         """Test artifact events are logged when enabled."""
         from a2a.types import TaskArtifactUpdateEvent
@@ -75,7 +75,7 @@ class TestShouldLogEvent:
         service = TaskLoggerService(None, {"log_artifact_events": True})
         mock_event = Mock(spec=TaskArtifactUpdateEvent)
         
-        result = service._should_log_event(mock_event)
+        result = service._should_log_event("some/topic", mock_event)
         assert result is True
 
 
