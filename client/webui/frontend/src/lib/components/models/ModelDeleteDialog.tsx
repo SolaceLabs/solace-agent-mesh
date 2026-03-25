@@ -63,11 +63,11 @@ const ConfirmDeleteDialog: React.FC<{
 }> = ({ open, onOpenChange, onConfirm, isLoading }) => {
     const [confirmText, setConfirmText] = useState("");
 
-    const handleOpenChange = (nextOpen: boolean) => {
-        if (!nextOpen) {
+    const handleOpenChange = (isOpen: boolean) => {
+        if (!isOpen) {
             setConfirmText("");
         }
-        onOpenChange(nextOpen);
+        onOpenChange(isOpen);
     };
 
     return (
