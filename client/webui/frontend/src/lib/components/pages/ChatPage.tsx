@@ -5,7 +5,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useThemeContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -40,7 +40,6 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
-    const { currentTheme } = useThemeContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
     const location = useLocation();
     const navigate = useNavigate();
