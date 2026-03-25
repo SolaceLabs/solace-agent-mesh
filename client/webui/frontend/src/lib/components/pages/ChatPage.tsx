@@ -16,6 +16,7 @@ import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -69,6 +70,7 @@ export function ChatPage() {
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const [isForkingChat, setIsForkingChat] = useState(false);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     // Share notification data: each entry represents a share action (user added at a specific time)
     const [shareNotifications, setShareNotifications] = useState<
         Array<
@@ -485,7 +487,7 @@ export function ChatPage() {
                                                 Continue in New Chat
                                             </Button>,
                                         ]
-                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} />]),
+                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
                               ]
                             : undefined
                     }
@@ -579,6 +581,7 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
+            {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </div>
     );
 }
