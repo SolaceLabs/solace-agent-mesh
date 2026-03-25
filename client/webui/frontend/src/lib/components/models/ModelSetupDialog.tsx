@@ -22,25 +22,22 @@ export function ModelSetupDialog({ open, onOpenChange, hasWritePermissions }: Mo
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>{hasWritePermissions ? "Set Up Your Default LLM Models" : "No Default LLM Models Available"}</DialogTitle>
-                    <DialogDescription className="space-y-3 flex flex-col">
+                    <DialogDescription className="flex flex-col space-y-3">
                         {hasWritePermissions ? (
                             <>
                                 <span>
-                                    Setting up your default General and Planning models unlocks powerful AI-enabled features like chatting with AI, agent creation and other helpful AI
-                                    capabilities. Some features may not work as intended without a configured model.
+                                    Setting up your default General and Planning models unlocks powerful AI-enabled features like chatting with AI, agent creation and other helpful AI capabilities. Some features may not work as intended without a
+                                    configured model.
                                 </span>
-                                <span className="flex items-center gap-1.5 inline">
+                                <span className="flex inline items-center gap-1.5">
                                     Set up the models now to get the best experience, or explore first and set up models later from the
-                                    <Bot className="inline size-4 shrink-0 mx-1" />
+                                    <Bot className="mx-1 inline size-4 shrink-0" />
                                     <strong>Agent Mesh</strong> area.
                                 </span>
                             </>
                         ) : (
                             <>
-                                <span>
-                                    This platform offers powerful AI-enabled features like chatting with AI, agent creation and other helpful AI capabilities. Some features may not work
-                                    as intended without configured models.
-                                </span>
+                                <span>This platform offers powerful AI-enabled features like chatting with AI, agent creation and other helpful AI capabilities. Some features may not work as intended without configured models.</span>
                                 <span>
                                     <strong>Contact an administrator</strong> to set up models for your agent mesh, or continue exploring the available features.
                                 </span>

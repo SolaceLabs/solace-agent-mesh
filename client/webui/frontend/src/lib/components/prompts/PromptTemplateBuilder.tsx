@@ -186,7 +186,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                                   </Button>,
                               ]
                             : [
-                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} disabled={!aiAssistedEnabled}  variant="ghost" size="sm">
+                                  <Button data-testid="buildWithAIButton" key="build-with-ai" onClick={handleSwitchToAI} disabled={!aiAssistedEnabled} variant="ghost" size="sm">
                                       <Sparkles className="mr-1 h-3 w-3" />
                                       {isEditing ? "Edit with AI" : "Build with AI"}
                                   </Button>,

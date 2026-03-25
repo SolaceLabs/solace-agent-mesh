@@ -24,7 +24,6 @@ import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTex
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
-
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
     if (command === "create-template") {
         if (!conversationContext) {
@@ -388,7 +387,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]);
+    const isSubmittingEnabled = useMemo(
+        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0),
+        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]
+    );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -858,7 +860,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // For configured items, use their configured filename
                 // For non-configured items, compute what their default filename would be
                 let tempFilename = "snippet.txt";
-                pendingPastedTextItems.forEach((item) => {
+                pendingPastedTextItems.forEach(item => {
                     if (item.id === selectedPendingPasteId) {
                         // Skip the currently selected item - we don't want to warn about itself
                         return;

@@ -42,7 +42,6 @@ describe("empty config", () => {
         expect(result.edges[0].source).toBe("__start__");
         expect(result.edges[0].target).toBe("__end__");
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -130,13 +129,7 @@ describe("switch node", () => {
         default: "zero",
     } as unknown as WorkflowNodeConfig;
 
-    const nodes = [
-        switchNode,
-        agentNode("pos", ["router"]),
-        agentNode("neg", ["router"]),
-        agentNode("zero", ["router"]),
-        agentNode("done", ["pos", "neg", "zero"]),
-    ];
+    const nodes = [switchNode, agentNode("pos", ["router"]), agentNode("neg", ["router"]), agentNode("zero", ["router"]), agentNode("done", ["pos", "neg", "zero"])];
 
     test("switch node has correct width", () => {
         const result = processWorkflowConfig(makeConfig(nodes));

@@ -38,12 +38,15 @@ function AppLayoutContent() {
         }
     }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
 
-    const handleModelSetupDialogChange = useCallback((open: boolean) => {
-        setIsModelSetupDialogOpen(open);
-        if (!open) {
-            setModelSetupDismissed(true);
-        }
-    }, [setModelSetupDismissed]);
+    const handleModelSetupDialogChange = useCallback(
+        (open: boolean) => {
+            setIsModelSetupDialogOpen(open);
+            if (!open) {
+                setModelSetupDismissed(true);
+            }
+        },
+        [setModelSetupDismissed]
+    );
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {

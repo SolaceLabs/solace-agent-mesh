@@ -123,7 +123,6 @@ describe("session change useEffect", () => {
             expect(input).toHaveTextContent("keep me");
         });
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -176,7 +175,6 @@ describe("focus-chat-input event listener", () => {
             { timeout: 300 }
         );
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -272,7 +270,6 @@ describe("snip-to-chat event", () => {
             expect(badges).toHaveLength(1);
         });
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -323,7 +320,6 @@ describe("pending prompt useEffect", () => {
             expect(screen.getByText("Insert G1")).toBeInTheDocument();
         });
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -432,7 +428,6 @@ describe("paste handling", () => {
             expect(screen.getByText("pasted.png")).toBeInTheDocument();
         });
     });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -485,7 +480,6 @@ describe("location state promptText useEffect", () => {
             });
         });
     });
-
 });
 
 // ---------------------------------------------------------------------------

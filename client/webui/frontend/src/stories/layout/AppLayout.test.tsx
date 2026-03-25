@@ -57,9 +57,7 @@ describe("AppLayout model warning banner", () => {
 
     describe("when model_config_ui flag is enabled", () => {
         beforeEach(async () => {
-            await OpenFeature.setProviderAndWait(
-                new InMemoryProvider({ "model_config_ui": { variants: { on: true, off: false }, defaultVariant: "on", disabled: false } })
-            );
+            await OpenFeature.setProviderAndWait(new InMemoryProvider({ model_config_ui: { variants: { on: true, off: false }, defaultVariant: "on", disabled: false } }));
         });
 
         test("does not show warning when models are configured", () => {

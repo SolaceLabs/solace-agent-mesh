@@ -134,14 +134,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
 
     let promptListContent: React.ReactNode;
     if (filteredPrompts.length === 0 && searchQuery) {
-        promptListContent = (
-            <EmptyState
-                title="No Prompts Match Your Filter"
-                subtitle="Try adjusting your filter terms."
-                variant="notFound"
-                buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]}
-            />
-        );
+        promptListContent = <EmptyState title="No Prompts Match Your Filter" subtitle="Try adjusting your filter terms." variant="notFound" buttons={[{ text: "Clear Filter", variant: "default", onClick: () => setSearchQuery("") }]} />;
     } else if (isLibraryEmpty) {
         promptListContent = <EmptyState title="No Prompts Found" subtitle="Create prompts to support reusable text structures for chat interactions." variant="noImage" buttons={createButtons} />;
     } else {
