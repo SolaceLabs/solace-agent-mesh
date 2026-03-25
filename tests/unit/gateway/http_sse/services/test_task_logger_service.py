@@ -446,25 +446,25 @@ class TestParseA2AEvent:
             }
         }
         
-        result = service._parse_a2a_event(payload)
-        
+        result = service._parse_a2a_event("some/topic", payload)
+
         from a2a.types import A2ARequest
         assert isinstance(result, A2ARequest)
     
     def test_parse_invalid_payload_returns_none(self, service):
         """Test that invalid payloads return None."""
         payload = {"invalid": "data"}
-        
-        result = service._parse_a2a_event(payload)
-        
+
+        result = service._parse_a2a_event("some/topic", payload)
+
         assert result is None
     
     def test_parse_malformed_payload_returns_none(self, service):
         """Test that malformed payloads return None."""
         payload = {"method": "invalid", "params": "not_a_dict"}
-        
-        result = service._parse_a2a_event(payload)
-        
+
+        result = service._parse_a2a_event("some/topic", payload)
+
         assert result is None
 
 
