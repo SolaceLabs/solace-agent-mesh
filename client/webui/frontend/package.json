@@ -68,9 +68,6 @@
     },
     "dependencies": {
         "@hookform/resolvers": "^5.2.2",
-        "@openfeature/core": "^1.9.2",
-        "@openfeature/react-sdk": "^1.2.1",
-        "@openfeature/web-sdk": "^1.7.3",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-avatar": "^1.1.10",
         "@radix-ui/react-dialog": "^1.1.14",
@@ -112,6 +109,9 @@
         "zod": "^4.1.12"
     },
     "peerDependencies": {
+        "@openfeature/core": "^1.9.2",
+        "@openfeature/react-sdk": "^1.2.1",
+        "@openfeature/web-sdk": "^1.7.3",
         "@types/react": "19.0.0",
         "@types/react-dom": "19.0.0",
         "react": "19.0.0",
@@ -120,6 +120,9 @@
     },
     "devDependencies": {
         "@a2a-js/sdk": "^0.3.2",
+        "@openfeature/core": "^1.9.2",
+        "@openfeature/react-sdk": "^1.2.1",
+        "@openfeature/web-sdk": "^1.7.3",
         "@eslint/js": "^9.25.0",
         "@storybook/addon-vitest": "^10.1.10",
         "@storybook/react": "^10.1.8",
