@@ -31,7 +31,7 @@ def _resolve_tool_config(tool_config: dict | None, log_identifier: str, required
     if not config:
         log.warning(f"{log_identifier} Tool-specific configuration (tool_config) is empty.")
     for key in (required_keys or []):
-        if not config.get(key):
+        if config.get(key) is None:
             raise ValueError(f"'{key}' configuration is missing in tool_config.")
     return config
 

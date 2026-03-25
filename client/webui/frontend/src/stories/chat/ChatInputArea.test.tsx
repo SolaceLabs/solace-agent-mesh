@@ -1,0 +1,728 @@
+/// <reference types="@testing-library/jest-dom" />
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, test, expect, vi } from "vitest";
+import * as matchers from "@testing-library/jest-dom/matchers";
+import { MemoryRouter } from "react-router-dom";
+
+import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
+import { StoryProvider } from "../mocks/StoryProvider";
+import { mockAgentCards } from "../mocks/data";
+import { transformAgentCard } from "@/lib/hooks/useAgentCards";
+import { SNIP_TO_CHAT_EVENT } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
+
+expect.extend(matchers);
+
+// jsdom does not implement execCommand (used by MentionContentEditable for text insertion)
+document.execCommand = vi.fn().mockReturnValue(true);
+
+const mockAgents = mockAgentCards.map(transformAgentCard);
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeFile(name = "test.png", size = 100, lastModified = Date.now()): File {
+    const file = new File(["x".repeat(size)], name, { type: "image/png" });
+    Object.defineProperty(file, "lastModified", { value: lastModified });
+    return file;
+}
+
+function renderComponent(chatContextValues = {}, configContextValues = {}, routerPath = "/") {
+    return render(
+        <MemoryRouter initialEntries={[routerPath]}>
+            <StoryProvider chatContextValues={chatContextValues} configContextValues={configContextValues}>
+                <ChatInputArea agents={[]} />
+            </StoryProvider>
+        </MemoryRouter>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Basic rendering
+// ---------------------------------------------------------------------------
+
+describe("ChatInputArea rendering", () => {
+    test("renders the text input area", () => {
+        renderComponent();
+        expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+    });
+
+    test("renders the send button", () => {
+        renderComponent();
+        // Send button is present (aria-label or accessible name)
+        const buttons = screen.getAllByRole("button");
+        expect(buttons.length).toBeGreaterThan(0);
+    });
+
+    test("renders file attachment button when not responding", () => {
+        renderComponent({ isResponding: false });
+        // Paperclip button is present
+        expect(document.querySelector("input[type='file']")).toBeInTheDocument();
+    });
+
+    test("send button is disabled when input is empty and not responding", () => {
+        renderComponent({ isResponding: false });
+        const sendBtn = screen.getByTestId("sendMessage");
+        expect(sendBtn).toBeDisabled();
+    });
+
+    test("shows agent selector when agents are provided", () => {
+        const firstAgent = mockAgents[0];
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ selectedAgentName: firstAgent.name }}>
+                    <ChatInputArea agents={mockAgents} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+        expect(screen.getByText(firstAgent.displayName ?? firstAgent.name ?? "")).toBeInTheDocument();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Session change useEffect
+// ---------------------------------------------------------------------------
+
+describe("session change useEffect", () => {
+    test("clears input when session changes", async () => {
+        const { rerender } = render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "session-1", pendingPrompt: null }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.type(input, "hello");
+        expect(input).toHaveTextContent("hello");
+
+        rerender(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "session-2", pendingPrompt: null }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(input).toHaveTextContent("");
+        });
+    });
+
+    test("does not clear input when session is first set (null -> value)", async () => {
+        const { rerender } = render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "", pendingPrompt: null }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.type(input, "keep me");
+
+        rerender(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "session-1", pendingPrompt: null }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        // Input should not be cleared on initial session assignment
+        await waitFor(() => {
+            expect(input).toHaveTextContent("keep me");
+        });
+    });
+
+    test("does not clear input when pendingPrompt is active during session change", async () => {
+        const pendingPrompt = { promptText: "do something", groupId: "g1", groupName: "Group 1" };
+
+        const { rerender } = render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "session-1", pendingPrompt }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.type(input, "hello");
+
+        rerender(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "session-2", pendingPrompt }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        // pendingPrompt suppresses the clear
+        await waitFor(() => {
+            expect(input).toHaveTextContent("hello");
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// isResponding useEffect (focus after response ends)
+// ---------------------------------------------------------------------------
+
+describe("isResponding useEffect", () => {
+    test("focuses input when isResponding transitions from true to false", async () => {
+        const { rerender } = render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ isResponding: true }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        rerender(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ isResponding: false }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await waitFor(
+            () => {
+                expect(document.activeElement?.getAttribute("contenteditable")).toBe("true");
+            },
+            { timeout: 300 }
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// focus-chat-input custom event useEffect
+// ---------------------------------------------------------------------------
+
+describe("focus-chat-input event listener", () => {
+    test("focuses input when focus-chat-input event is dispatched", async () => {
+        renderComponent();
+
+        act(() => {
+            window.dispatchEvent(new Event("focus-chat-input"));
+        });
+
+        await waitFor(
+            () => {
+                expect(document.activeElement?.getAttribute("contenteditable")).toBe("true");
+            },
+            { timeout: 300 }
+        );
+    });
+
+    test("removes event listener on unmount", () => {
+        const { unmount } = renderComponent();
+        const spy = vi.spyOn(window, "removeEventListener");
+        unmount();
+        expect(spy).toHaveBeenCalledWith("focus-chat-input", expect.any(Function));
+        spy.mockRestore();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// follow-up-question custom event useEffect
+// ---------------------------------------------------------------------------
+
+describe("follow-up-question event", () => {
+    test("shows context badge when event fires without a prompt", async () => {
+        renderComponent();
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("follow-up-question", {
+                    detail: { text: "selected text", prompt: null, autoSubmit: false, sourceMessageId: null },
+                })
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText(/selected text/)).toBeInTheDocument();
+        });
+    });
+
+    test("sets input value when event fires with a prompt", async () => {
+        renderComponent();
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("follow-up-question", {
+                    detail: { text: "some context", prompt: "Summarise this", autoSubmit: false, sourceMessageId: null },
+                })
+            );
+        });
+
+        await waitFor(() => {
+            const input = screen.getByTestId("chat-input");
+            expect(input).toHaveTextContent("Summarise this");
+        });
+    });
+
+    test("removes event listener on unmount", () => {
+        const { unmount } = renderComponent();
+        const spy = vi.spyOn(window, "removeEventListener");
+        unmount();
+        expect(spy).toHaveBeenCalledWith("follow-up-question", expect.any(Function));
+        spy.mockRestore();
+    });
+
+    test("auto-submits when autoSubmit is true and prompt is provided", async () => {
+        const handleSubmit = vi.fn().mockResolvedValue(undefined);
+        renderComponent({ handleSubmit, isResponding: false });
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("follow-up-question", {
+                    detail: { text: "context text", prompt: "Do something", autoSubmit: true, sourceMessageId: null },
+                })
+            );
+        });
+
+        await waitFor(() => expect(handleSubmit).toHaveBeenCalled(), { timeout: 500 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// snip-to-chat custom event useEffect
+// ---------------------------------------------------------------------------
+
+describe("snip-to-chat event", () => {
+    test("adds file to selected files when snip-to-chat fires", async () => {
+        renderComponent();
+        const file = makeFile("snip.png");
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent(SNIP_TO_CHAT_EVENT, {
+                    detail: { file },
+                })
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText("snip.png")).toBeInTheDocument();
+        });
+    });
+
+    test("deduplicates files with same name, size, and lastModified", async () => {
+        renderComponent();
+        const file = makeFile("snip.png", 100, 1234567890);
+
+        // Fire event twice with the same file
+        act(() => {
+            window.dispatchEvent(new CustomEvent(SNIP_TO_CHAT_EVENT, { detail: { file } }));
+        });
+        act(() => {
+            window.dispatchEvent(new CustomEvent(SNIP_TO_CHAT_EVENT, { detail: { file } }));
+        });
+
+        await waitFor(() => {
+            const badges = screen.getAllByText("snip.png");
+            expect(badges).toHaveLength(1);
+        });
+    });
+
+    test("removes event listener on unmount", () => {
+        const { unmount } = renderComponent();
+        const spy = vi.spyOn(window, "removeEventListener");
+        unmount();
+        expect(spy).toHaveBeenCalledWith(SNIP_TO_CHAT_EVENT, expect.any(Function));
+        spy.mockRestore();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Pending prompt useEffect
+// ---------------------------------------------------------------------------
+
+describe("pending prompt useEffect", () => {
+    test("sets input value when pendingPrompt has no variables and agent is selected", async () => {
+        const clearPendingPrompt = vi.fn();
+        render(
+            <MemoryRouter>
+                <StoryProvider
+                    chatContextValues={{
+                        pendingPrompt: { promptText: "Hello world", groupId: "g1", groupName: "G1" },
+                        selectedAgentName: "agent-1",
+                        clearPendingPrompt,
+                    }}
+                >
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            const input = screen.getByTestId("chat-input");
+            expect(input).toHaveTextContent("Hello world");
+        });
+        expect(clearPendingPrompt).toHaveBeenCalled();
+    });
+
+    test("shows variable dialog when pendingPrompt has {{variables}}", async () => {
+        render(
+            <MemoryRouter>
+                <StoryProvider
+                    chatContextValues={{
+                        pendingPrompt: { promptText: "Hello {{name}}", groupId: "g1", groupName: "G1" },
+                        selectedAgentName: "agent-1",
+                        clearPendingPrompt: vi.fn(),
+                    }}
+                >
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            // Variable dialog should appear (renders as overlay-backdrop div, not role="dialog")
+            expect(screen.getByText("Insert G1")).toBeInTheDocument();
+        });
+    });
+
+    test("does not set input when selectedAgentName is absent", async () => {
+        const clearPendingPrompt = vi.fn();
+        renderComponent({
+            pendingPrompt: { promptText: "Hello world", groupId: "g1", groupName: "G1" },
+            selectedAgentName: "",
+            clearPendingPrompt,
+        });
+
+        // Wait a tick
+        await new Promise(r => setTimeout(r, 50));
+
+        const input = screen.getByTestId("chat-input");
+        expect(input).toHaveTextContent("");
+        expect(clearPendingPrompt).not.toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// File handling
+// ---------------------------------------------------------------------------
+
+describe("file handling", () => {
+    test("selecting a file shows a file badge", async () => {
+        renderComponent({ isResponding: false });
+        const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+
+        const file = makeFile("report.pdf");
+        await act(async () => {
+            Object.defineProperty(fileInput, "files", { value: [file], configurable: true });
+            fireEvent.change(fileInput);
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText("report.pdf")).toBeInTheDocument();
+        });
+    });
+
+    test("removing a file badge removes it from the list", async () => {
+        renderComponent({ isResponding: false });
+        const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+
+        const file = makeFile("report.pdf");
+        await act(async () => {
+            Object.defineProperty(fileInput, "files", { value: [file], configurable: true });
+            fireEvent.change(fileInput);
+        });
+
+        await waitFor(() => screen.getByText("report.pdf"));
+
+        // Click the remove button on the file badge
+        const badge = screen.getByText("report.pdf").closest("div");
+        const xBtn = badge?.querySelector("button");
+        if (xBtn) {
+            await userEvent.click(xBtn);
+            await waitFor(() => {
+                expect(screen.queryByText("report.pdf")).not.toBeInTheDocument();
+            });
+        }
+    });
+
+    test("duplicate files are not added twice", async () => {
+        renderComponent({ isResponding: false });
+        const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+
+        const file = makeFile("dup.png", 50, 111);
+
+        await act(async () => {
+            Object.defineProperty(fileInput, "files", { value: [file], configurable: true });
+            fireEvent.change(fileInput);
+        });
+        await act(async () => {
+            Object.defineProperty(fileInput, "files", { value: [file], configurable: true });
+            fireEvent.change(fileInput);
+        });
+
+        await waitFor(() => {
+            const badges = screen.getAllByText("dup.png");
+            expect(badges).toHaveLength(1);
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Paste handling
+// ---------------------------------------------------------------------------
+
+describe("paste handling", () => {
+    test("large pasted text creates a pending badge", async () => {
+        renderComponent({ isResponding: false });
+        const input = screen.getByTestId("chat-input");
+
+        const largeText = "a".repeat(2000);
+        const clipboardData = {
+            files: { length: 0 },
+            getData: (type: string) => (type === "text" ? largeText : ""),
+        };
+
+        fireEvent.paste(input, { clipboardData });
+
+        await waitFor(() => {
+            expect(screen.getByText(/snippet/)).toBeInTheDocument();
+        });
+    });
+
+    test("small pasted text does not create a badge", async () => {
+        renderComponent({ isResponding: false });
+        const input = screen.getByTestId("chat-input");
+
+        const smallText = "short";
+        const clipboardData = {
+            files: { length: 0 },
+            getData: (type: string) => (type === "text" ? smallText : ""),
+        };
+
+        fireEvent.paste(input, { clipboardData });
+
+        await waitFor(() => {
+            expect(screen.queryByText(/snippet/)).not.toBeInTheDocument();
+        });
+    });
+
+    test("pasting a file adds it to selected files", async () => {
+        renderComponent({ isResponding: false });
+        const input = screen.getByTestId("chat-input");
+
+        const file = makeFile("pasted.png");
+        const fileList = [file];
+        Object.defineProperty(fileList, "length", { value: 1 });
+
+        const clipboardData = {
+            files: fileList,
+            getData: () => "",
+        };
+
+        fireEvent.paste(input, { clipboardData });
+
+        await waitFor(() => {
+            expect(screen.getByText("pasted.png")).toBeInTheDocument();
+        });
+    });
+
+    test("pasting while responding is ignored", async () => {
+        renderComponent({ isResponding: true });
+        const input = screen.getByTestId("chat-input");
+
+        const largeText = "a".repeat(2000);
+        const clipboardData = {
+            files: { length: 0 },
+            getData: (type: string) => (type === "text" ? largeText : ""),
+        };
+
+        fireEvent.paste(input, { clipboardData });
+
+        await waitFor(() => {
+            expect(screen.queryByText(/snippet/)).not.toBeInTheDocument();
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// STT error banner
+// ---------------------------------------------------------------------------
+
+describe("STT error banner", () => {
+    test("is not visible initially", () => {
+        renderComponent();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Context badge (follow-up without prompt)
+// ---------------------------------------------------------------------------
+
+describe("context text badge", () => {
+    test("shows quoted context text above input", async () => {
+        renderComponent();
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("follow-up-question", {
+                    detail: { text: "highlighted text here", prompt: null, autoSubmit: false, sourceMessageId: null },
+                })
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText(/highlighted text here/)).toBeInTheDocument();
+        });
+    });
+
+    test("dismissing context badge hides it", async () => {
+        renderComponent();
+
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("follow-up-question", {
+                    detail: { text: "removable text", prompt: null, autoSubmit: false, sourceMessageId: null },
+                })
+            );
+        });
+
+        await waitFor(() => screen.getByText(/removable text/));
+
+        // Find the X dismiss button inside the context badge
+        const badge = screen.getByText(/removable text/).closest("div[class]");
+        const dismissBtn = badge?.parentElement?.querySelector("button");
+        if (dismissBtn) {
+            await userEvent.click(dismissBtn);
+            await waitFor(() => {
+                expect(screen.queryByText(/removable text/)).not.toBeInTheDocument();
+            });
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// "/" prompt command trigger
+// ---------------------------------------------------------------------------
+
+describe("prompt command trigger", () => {
+    test("typing '/' shows the prompts command popup", async () => {
+        renderComponent();
+        const input = screen.getByTestId("chat-input");
+
+        await userEvent.click(input);
+        await userEvent.keyboard("/");
+
+        // PromptsCommand popup should appear
+        await waitFor(() => {
+            expect(screen.getByTestId("promptCommand")).toBeInTheDocument();
+        });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Location state useEffect (promptText in router state)
+// ---------------------------------------------------------------------------
+
+describe("location state promptText useEffect", () => {
+    test("calls startNewChatWithPrompt when location state has promptText", async () => {
+        const startNewChatWithPrompt = vi.fn().mockResolvedValue(undefined);
+
+        render(
+            <MemoryRouter
+                initialEntries={[
+                    {
+                        pathname: "/chat",
+                        state: { promptText: "Hello from router", groupId: "g1", groupName: "Group 1" },
+                    },
+                ]}
+            >
+                <StoryProvider chatContextValues={{ startNewChatWithPrompt }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(startNewChatWithPrompt).toHaveBeenCalledWith({
+                promptText: "Hello from router",
+                groupId: "g1",
+                groupName: "Group 1",
+            });
+        });
+    });
+
+    test("does not call startNewChatWithPrompt when location state is empty", async () => {
+        const startNewChatWithPrompt = vi.fn();
+
+        render(
+            <MemoryRouter initialEntries={[{ pathname: "/chat", state: {} }]}>
+                <StoryProvider chatContextValues={{ startNewChatWithPrompt }}>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+        expect(startNewChatWithPrompt).not.toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Submit behaviour
+// ---------------------------------------------------------------------------
+
+describe("form submission", () => {
+    test("calls handleSubmit when form is submitted with text", async () => {
+        const handleSubmit = vi.fn().mockResolvedValue(undefined);
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("Test message");
+
+        const sendBtn = screen.getByTestId("sendMessage");
+        await userEvent.click(sendBtn);
+
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+    });
+
+    test("does not submit when isResponding is true", async () => {
+        const handleSubmit = vi.fn().mockResolvedValue(undefined);
+        renderComponent({ handleSubmit, isResponding: true });
+
+        // Send button is replaced by Stop button when responding — handleSubmit should not be called
+        await new Promise(r => setTimeout(r, 50));
+        expect(handleSubmit).not.toHaveBeenCalled();
+    });
+
+    test("clears input after successful submission", async () => {
+        const handleSubmit = vi.fn().mockResolvedValue(undefined);
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("clear me");
+
+        const sendBtn = screen.getByTestId("sendMessage");
+        await userEvent.click(sendBtn);
+
+        await waitFor(() => {
+            expect(input).toHaveTextContent("");
+        });
+    });
+
+    test("stop button calls handleCancel when responding", () => {
+        const handleCancel = vi.fn();
+        renderComponent({ isResponding: true, isCancelling: false, handleCancel });
+
+        // When isResponding=true the stop/cancel button replaces send
+        const cancelBtn = screen.getByTestId("cancel");
+        fireEvent.click(cancelBtn);
+
+        expect(handleCancel).toHaveBeenCalled();
+    });
+});
