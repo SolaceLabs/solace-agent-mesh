@@ -328,10 +328,10 @@ async def get_app_config(
                     model_provider_config = component.get_config("model_provider", [])
                     
                     llm_model = None
-                    if isinstance(model_config, dict):
-                        llm_model = model_config.get("model")
-                    elif isinstance(model_provider_config, list) and len(model_provider_config) > 0:
+                    if isinstance(model_provider_config, list) and len(model_provider_config) > 0:
                         llm_model = model_provider_config[0]
+                    elif isinstance(model_config, dict):
+                        llm_model = model_config.get("model")
                     
                     if llm_model:
                         feature_enablement["promptAIAssisted"] = True
