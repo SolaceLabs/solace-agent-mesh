@@ -7,6 +7,14 @@ log:
   log_file_level: DEBUG # Changed from INFO to DEBUG to capture ADK INFO logs
   log_file: orchestrator_example.log
 
+management_server:
+  enabled: true
+  port: 8080
+  observability:
+    enabled: true
+    metric_prefix: sam_dev_local
+    path: /metrics
+
 # Shared SAM config
 !include ../shared_config.yaml
 
