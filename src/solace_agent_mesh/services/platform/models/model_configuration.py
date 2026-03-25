@@ -42,7 +42,7 @@ class ModelConfiguration(Base):
     )
 
     id = Column(OptimizedUUID, primary_key=True, default=generate_uuidv7)
-    alias = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["ALIAS_MAX_LENGTH"]), nullable=False)
+    alias = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["ALIAS_MAX_LENGTH"]), nullable=False, unique=True)
     provider = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["PROVIDER_MAX_LENGTH"]), nullable=False)
     model_name = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["MODEL_NAME_MAX_LENGTH"]), nullable=False)
     api_base = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["API_BASE_MAX_LENGTH"]), nullable=True)
