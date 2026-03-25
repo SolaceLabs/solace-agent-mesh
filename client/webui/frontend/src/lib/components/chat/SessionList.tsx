@@ -5,7 +5,7 @@ import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, P
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useSharedWithMe, useForkSharedChat } from "@/lib/api/share";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
@@ -104,6 +104,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -611,15 +612,17 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                         <FolderInput size={16} className="mr-2" />
                                                         Move to Project
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleShareClick(session);
-                                                        }}
-                                                    >
-                                                        <Share2 size={16} className="mr-2" />
-                                                        Share
-                                                    </DropdownMenuItem>
+                                                    {chatSharingEnabled && (
+                                                        <DropdownMenuItem
+                                                            onClick={e => {
+                                                                e.stopPropagation();
+                                                                handleShareClick(session);
+                                                            }}
+                                                        >
+                                                            <Share2 size={16} className="mr-2" />
+                                                            Share
+                                                        </DropdownMenuItem>
+                                                    )}
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         onClick={e => {
@@ -658,7 +661,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 )}
 
                 {/* Shared with me section */}
-                {sharedWithMe.length > 0 && (
+                {chatSharingEnabled && sharedWithMe.length > 0 && (
                     <div className="mt-6 border-t pt-4 pr-4">
                         <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
                             <UserSearch size={14} />

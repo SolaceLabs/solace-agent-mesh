@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { useChatContext, useSessionStorage } from "@/lib/hooks";
+import { useChatContext, useSessionStorage, useIsChatSharingEnabled } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
 import { SharedChatsList } from "@/lib/components/chat/SharedChatsList";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
@@ -63,6 +63,7 @@ export const CollapsibleNavigationSidebar = ({
 }: CollapsibleNavigationSidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
     const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
@@ -305,7 +306,7 @@ export const CollapsibleNavigationSidebar = ({
                     })}
                 </div>
                 {/* Shared with me section - renders nothing if no shared chats */}
-                <SharedChatsList maxItems={5} />
+                {chatSharingEnabled && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}

@@ -5,7 +5,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -41,6 +41,7 @@ export function ChatPage() {
     const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const location = useLocation();
     const navigate = useNavigate();
     const {
@@ -470,7 +471,7 @@ export function ChatPage() {
                         ) : null
                     }
                     buttons={
-                        sessionId
+                        sessionId && chatSharingEnabled
                             ? [
                                   // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
                                   ...(isCollaborativeSession && collaborativeUsers.length > 0
