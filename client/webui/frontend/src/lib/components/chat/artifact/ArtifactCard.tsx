@@ -31,7 +31,13 @@ export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownload
     };
 
     return (
-        <div className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)")} onClick={handleClick}>
+        <div
+            className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)")}
+            onClick={handleClick}
+            onKeyDown={e => e.key === "Enter" && handleClick(e as unknown as MouseEvent)}
+            role={!isPreview ? "button" : undefined}
+            tabIndex={!isPreview ? 0 : undefined}
+        >
             <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" readOnly={readOnly} onDownloadOverride={onDownloadOverride} />
         </div>
     );

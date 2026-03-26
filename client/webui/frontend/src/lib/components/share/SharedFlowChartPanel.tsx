@@ -180,6 +180,7 @@ const SharedFlowChartPanel: React.FC<SharedFlowChartPanelProps> = ({ processedSt
                         padding: "40px",
                     }}
                     onClick={handlePaneClick}
+                    role="presentation"
                 >
                     <div ref={contentRef} style={{ width: "fit-content" }}>
                         <WorkflowRenderer processedSteps={processedSteps} agentNameMap={agentNameDisplayNameMap} selectedStepId={highlightedStepId} onNodeClick={handleNodeClick} onEdgeClick={handleEdgeClick} showDetail={showDetail} />

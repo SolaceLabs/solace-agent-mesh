@@ -267,7 +267,7 @@ const SharedVisualizerStepCard = ({ step, isHighlighted, onClick, variant = "lis
     };
 
     return (
-        <div className={cardClasses} style={indentationStyle} onClick={onClick}>
+        <div className={cardClasses} style={indentationStyle} onClick={onClick} onKeyDown={onClick ? e => e.key === "Enter" && onClick() : undefined} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}>
             <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
                 <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
