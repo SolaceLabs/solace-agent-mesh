@@ -6,7 +6,7 @@ import { Loader2, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatTimestamp, cn } from "@/lib/utils";
+import { formatRelativeTime, cn } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -69,7 +69,11 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={cn("truncate transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>{animatedName}</span>;
+    return (
+        <span title={animatedName} className={cn("truncate text-sm font-bold text-(--primary-text-wMain) transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>
+            {animatedName}
+        </span>
+    );
 };
 
 export const RecentChatsPage: React.FC = () => {
@@ -390,7 +394,7 @@ export const RecentChatsPage: React.FC = () => {
                 {filteredSessions.length > 0 && (
                     <div className="flex flex-col gap-2">
                         {filteredSessions.map(session => (
-                            <div key={session.id} className="group relative rounded-lg border p-4 transition-colors hover:bg-(--primary-w10)">
+                            <div key={session.id} className="group relative h-[75px] rounded-lg border p-4 transition-colors hover:bg-(--primary-w10)">
                                 {editingSessionId === session.id ? (
                                     <div className="flex items-center gap-2">
                                         <input
@@ -416,9 +420,9 @@ export const RecentChatsPage: React.FC = () => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex min-h-[100px] cursor-pointer flex-col gap-2" onClick={() => handleSessionClick(session)}>
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                    <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
+                                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                            <div className="flex items-center gap-2">
                                                 <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
                                                 {session.hasRunningBackgroundTask && (
                                                     <Tooltip>
@@ -429,6 +433,10 @@ export const RecentChatsPage: React.FC = () => {
                                                     </Tooltip>
                                                 )}
                                             </div>
+                                            <span className="text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</span>
+                                        </div>
+                                        <div className="flex flex-shrink-0 items-center gap-2">
+                                            {session.projectName && <ProjectBadge text={session.projectName} />}
                                             <SessionActionMenu
                                                 session={session}
                                                 onRename={handleEditClick}
@@ -437,13 +445,8 @@ export const RecentChatsPage: React.FC = () => {
                                                 onDelete={handleDeleteClick}
                                                 onGoToProject={handleGoToProject}
                                                 isRegeneratingTitle={regeneratingTitleForSession === session.id}
-                                                triggerClassName="opacity-0 transition-opacity group-hover:opacity-100"
+                                                triggerClassName=""
                                             />
-                                        </div>
-
-                                        <div className="flex items-center justify-between text-xs text-(--secondary-text-wMain)">
-                                            <span>{formatTimestamp(session.updatedTime)}</span>
-                                            {session.projectName && <ProjectBadge text={session.projectName} />}
                                         </div>
                                     </div>
                                 )}
