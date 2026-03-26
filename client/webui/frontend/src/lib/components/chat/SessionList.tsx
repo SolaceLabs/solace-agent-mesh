@@ -254,11 +254,12 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
 
     const handleViewSharedChat = useCallback(
         (item: SharedWithMeItem) => {
-            // For editors with session_id, navigate directly to the chat page
+            // For editors with session_id, switch to the session directly
             if (item.accessLevel === "RESOURCE_EDITOR" && item.sessionId) {
                 handleSwitchSession(item.sessionId);
             } else {
-                navigate(`/shared-chat/${item.shareId}`);
+                // Open shared chat view in the same window but preserve session panel state via router state
+                navigate(`/shared-chat/${item.shareId}`, { state: { openSessionsPanel: true } });
             }
         },
         [navigate, handleSwitchSession]
@@ -270,9 +271,9 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (sessionId: string) => {
-        if (editingSessionId !== sessionId) {
-            await handleSwitchSession(sessionId);
+    const handleSessionClick = async (clickedSessionId: string) => {
+        if (editingSessionId !== clickedSessionId) {
+            await handleSwitchSession(clickedSessionId);
         }
     };
 

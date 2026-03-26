@@ -65,6 +65,7 @@ export function ChatPage() {
         sessionOwnerName,
         sessionOwnerEmail,
         handleSwitchSession,
+        handleNewSession,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -410,15 +411,27 @@ export function ChatPage() {
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
-    // Handle opening sessions panel from navigation state
+    // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
-        const state = location.state as { openSessionsPanel?: boolean } | null;
-        if (state?.openSessionsPanel) {
+        const state = location.state as {
+            openSessionsPanel?: boolean;
+            switchToSession?: string;
+            newChat?: boolean;
+        } | null;
+        if (!state) return;
+
+        if (state.openSessionsPanel) {
             setIsSessionSidePanelCollapsed(false);
-            // Clear the state to prevent reopening on browser back button
-            navigate(location.pathname, { replace: true, state: {} });
         }
-    }, [location.state, location.pathname, navigate]);
+        if (state.switchToSession) {
+            handleSwitchSession(state.switchToSession);
+        } else if (state.newChat) {
+            handleNewSession();
+        }
+
+        // Clear the state to prevent re-triggering on browser back button
+        navigate(location.pathname, { replace: true, state: {} });
+    }, [location.state, location.pathname, navigate, handleSwitchSession, handleNewSession]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {

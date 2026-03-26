@@ -27,13 +27,17 @@ interface SharedChatProviderProps {
     onOpenSidePanelTab?: (tab: string) => void;
     /** Callback when ChatMessage wants to set the task ID in the side panel (for workflow view) */
     onSetTaskIdInSidePanel?: (taskId: string | null) => void;
+    /** Callback when user wants to switch to a regular chat session (from session panel) */
+    onSwitchSession?: (sessionId: string) => void;
+    /** Callback when user wants to start a new chat (from session panel) */
+    onNewSession?: () => void;
 }
 
 /**
  * A minimal ChatContext provider for shared/read-only sessions.
  * Provides read-only access to artifacts and disables all write operations.
  */
-export function SharedChatProvider({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId, onOpenSidePanelTab, onSetTaskIdInSidePanel }: SharedChatProviderProps) {
+export function SharedChatProvider({ children, artifacts: initialArtifacts, ragData = [], sessionId = "", shareId, onOpenSidePanelTab, onSetTaskIdInSidePanel, onSwitchSession, onNewSession }: SharedChatProviderProps) {
     // State for artifacts and preview
     // Mark all artifacts as needing embed resolution so ArtifactMessage will fetch content
     const [artifacts, setArtifactsState] = useState<ArtifactInfo[]>(() => initialArtifacts.map(a => ({ ...a, needsEmbedResolution: true })));
@@ -245,10 +249,14 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             setSessionName: () => {},
             setMessages: () => {},
             setTaskIdInSidePanel,
-            handleNewSession: async () => {},
+            handleNewSession: async () => {
+                onNewSession?.();
+            },
             startNewChatWithPrompt: () => {},
             clearPendingPrompt: () => {},
-            handleSwitchSession: async () => {},
+            handleSwitchSession: async (newSessionId: string) => {
+                onSwitchSession?.(newSessionId);
+            },
             handleSubmit: async () => {},
             handleCancel: () => {},
             addNotification: () => {},
