@@ -5,7 +5,7 @@ import { Trash2, Pencil, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, L
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
-import type { Project, Session } from "@/lib/types";
+import type { Session } from "@/lib/types";
 import { formatTimestamp, cn } from "@/lib/utils";
 import { ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
@@ -88,11 +88,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
     return <span className={cn("truncate transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>{animatedName}</span>;
 };
 
-interface RecentChatsPageProps {
-    projects?: Project[];
-}
-
-export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] }) => {
+export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, currentTaskId } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
@@ -330,10 +326,6 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
         navigate("/chat");
     };
 
-    const formatSessionDate = (dateString: string) => {
-        return formatTimestamp(dateString);
-    };
-
     // Get unique project names from sessions, sorted alphabetically
     const projectNames = useMemo(() => {
         const uniqueProjectNames = new Set<string>();
@@ -370,9 +362,9 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
     // Get the project ID for the selected project name (for search filtering)
     const selectedProjectId = useMemo(() => {
         if (selectedProject === "all") return null;
-        const project = projects.find(p => p.name === selectedProject);
-        return project?.id || null;
-    }, [selectedProject, projects]);
+        const sessionWithProject = sessions.find(s => s.projectName === selectedProject);
+        return sessionWithProject?.projectId || null;
+    }, [selectedProject, sessions]);
 
     // Feature flag gate: redirect to /chat if newNavigation is not enabled
     if (!configFeatureEnablement?.newNavigation) {
@@ -383,7 +375,7 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
         <div className="flex h-full flex-col">
             <Header title="Recent Chats" />
 
-            <div className="flex h-full flex-col gap-6 overflow-y-auto px-8 py-6">
+            <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
                 {/* Search and Filter Bar */}
                 <div className="flex items-center gap-4">
                     <div className="flex-1">
@@ -517,7 +509,7 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
                                         </div>
 
                                         <div className="flex items-center justify-between text-xs text-(--secondary-text-wMain)">
-                                            <span>{formatSessionDate(session.updatedTime)}</span>
+                                            <span>{formatTimestamp(session.updatedTime)}</span>
                                             {session.projectName && <ProjectBadge text={session.projectName} />}
                                         </div>
                                     </div>
