@@ -33,7 +33,8 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const { activeProject } = useProjectContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { autoTitleGenerationEnabled, configFeatureEnablement } = useConfigContext();
+    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const location = useLocation();
     const navigate = useNavigate();
     const {
@@ -86,8 +87,9 @@ export function ChatPage() {
     }, [currentTaskId, taskMapVersion]);
 
     const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
+        if (useNewNav) return PANEL_SIZES_CLOSED;
         return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
-    }, [isSessionSidePanelCollapsed]);
+    }, [isSessionSidePanelCollapsed, useNewNav]);
 
     const handleSidepanelToggle = useCallback(
         (collapsed: boolean) => {
@@ -216,13 +218,14 @@ export function ChatPage() {
 
     // Handle opening sessions panel from navigation state
     useEffect(() => {
+        if (useNewNav) return;
         const state = location.state as { openSessionsPanel?: boolean } | null;
         if (state?.openSessionsPanel) {
             setIsSessionSidePanelCollapsed(false);
             // Clear the state to prevent reopening on browser back button
             navigate(location.pathname, { replace: true, state: {} });
         }
-    }, [location.state, location.pathname, navigate]);
+    }, [location.state, location.pathname, navigate, useNewNav]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
@@ -243,10 +246,12 @@ export function ChatPage() {
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
-                <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
-            </div>
-            <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+            {!useNewNav && (
+                <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+                    <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
+                </div>
+            )}
+            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
                         <div className="flex items-center gap-3">
@@ -263,7 +268,9 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        isSessionSidePanelCollapsed ? (
+                        useNewNav ? (
+                            <ChatSessionDialog />
+                        ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
                                 <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
@@ -277,7 +284,7 @@ export function ChatPage() {
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
