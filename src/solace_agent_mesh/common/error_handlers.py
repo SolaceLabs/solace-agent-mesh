@@ -55,13 +55,13 @@ AUTHENTICATION_ERROR_MESSAGE = (
 
 RATE_LIMIT_ERROR_MESSAGE = (
     "The LLM service rate limit has been exceeded. "
-    "Please wait a moment and try again. If this persists, "
+    "Wait a moment and try again. If this persists, "
     "contact an administrator to review rate limits or adjust the plan."
 )
 
 SERVICE_UNAVAILABLE_ERROR_MESSAGE = (
     "The LLM service is temporarily unavailable. "
-    "Please try again in a few minutes. If the problem persists, "
+    "Try again in a few minutes. If the problem persists, "
     "contact an administrator to check the service status."
 )
 
@@ -74,7 +74,7 @@ API_CONNECTION_ERROR_MESSAGE = (
 TIMEOUT_ERROR_MESSAGE = (
     "The request to the LLM service timed out. "
     "This may be due to high load or a complex request. "
-    "Please try again. If this persists, contact an administrator."
+    "Try again. If this persists, contact an administrator."
 )
 
 CONTENT_POLICY_VIOLATION_MESSAGE = (
@@ -94,7 +94,7 @@ PERMISSION_DENIED_ERROR_MESSAGE = (
 
 INTERNAL_SERVER_ERROR_MESSAGE = (
     "The LLM service encountered an internal error. "
-    "Please try again. If this persists, contact an administrator."
+    "Try again. If this persists, contact an administrator."
 )
 
 BUDGET_EXCEEDED_ERROR_MESSAGE = (
