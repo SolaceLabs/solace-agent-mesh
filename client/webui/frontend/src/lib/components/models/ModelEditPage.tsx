@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
@@ -7,10 +7,9 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig, testModelConnection } from "@/lib/api/models/service";
+import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
-import type { TestConnectionResponse } from "@/lib/api/models/service";
 
 export const ModelEditPage = () => {
     const navigate = useNavigate();
@@ -25,13 +24,6 @@ export const ModelEditPage = () => {
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
     const fetchedRef = useRef<Set<string>>(new Set()); // Track what we've already fetched
-
-    // Test connection state
-    const [isTestingConnection, setIsTestingConnection] = useState(false);
-    const [testConnectionResult, setTestConnectionResult] = useState<TestConnectionResponse | null>(null);
-
-    // Ref to get current form data from ModelEdit without triggering form submission
-    const getFormDataRef = useRef<(() => ModelFormData) | null>(null);
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
@@ -110,37 +102,6 @@ export const ModelEditPage = () => {
         }
     };
 
-    const handleTestConnection = useCallback(async () => {
-        if (!getFormDataRef.current) return;
-
-        setIsTestingConnection(true);
-        setTestConnectionResult(null);
-
-        try {
-            const formData = getFormDataRef.current();
-            const payload = buildModelPayload({ ...formData });
-
-            const testPayload = {
-                provider: payload.provider,
-                modelName: payload.modelName,
-                apiBase: payload.apiBase || undefined,
-                authType: payload.authType,
-                authConfig: payload.authConfig,
-                modelParams: payload.modelParams,
-                // For editing, include alias so backend can use stored credentials as fallback
-                ...(!isNew && modelToEdit ? { alias: modelToEdit.alias } : {}),
-            };
-
-            const result = await testModelConnection(testPayload);
-            setTestConnectionResult(result);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "An unknown error occurred while testing the connection.";
-            setTestConnectionResult({ success: false, message });
-        } finally {
-            setIsTestingConnection(false);
-        }
-    }, [isNew, modelToEdit]);
-
     const handleCancel = () => {
         navigate("/agents?tab=models");
     };
@@ -169,19 +130,7 @@ export const ModelEditPage = () => {
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
 
-                <ModelEdit
-                    isNew={isNew}
-                    modelToEdit={modelToEdit}
-                    onSave={handleSave}
-                    onValidityChange={setIsFormValid}
-                    modelsByProvider={modelsByProvider}
-                    availableProviders={ALL_PROVIDERS}
-                    onTestConnection={handleTestConnection}
-                    isTestingConnection={isTestingConnection}
-                    testConnectionResult={testConnectionResult}
-                    onDismissTestResult={() => setTestConnectionResult(null)}
-                    getFormDataRef={getFormDataRef}
-                />
+                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} onValidityChange={setIsFormValid} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
 
             <Footer>

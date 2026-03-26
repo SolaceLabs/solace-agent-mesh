@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
 import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
-import type { TestConnectionResponse } from "@/lib/api/models/service";
 import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
@@ -36,28 +35,9 @@ interface ModelEditProps {
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
     availableProviders?: ModelProvider[];
     onProviderChange?: (provider: string) => Promise<void>;
-    onTestConnection?: () => void;
-    isTestingConnection?: boolean;
-    testConnectionResult?: TestConnectionResponse | null;
-    onDismissTestResult?: () => void;
-    getFormDataRef?: React.RefObject<(() => ModelFormData) | null>;
 }
 
-export const ModelEdit = ({
-    isNew,
-    modelToEdit,
-    onSave,
-    onValidityChange,
-    onDirtyStateChange,
-    modelsByProvider = {},
-    availableProviders = [],
-    onProviderChange,
-    onTestConnection,
-    isTestingConnection,
-    testConnectionResult,
-    onDismissTestResult,
-    getFormDataRef,
-}: ModelEditProps) => {
+export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
@@ -126,18 +106,6 @@ export const ModelEdit = ({
     // For editing: enable if provider and auth type are set (cached models available)
     // For creating: also need credentials to be filled in (to fetch models)
     const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
-
-    // Expose getValues to parent via ref so test connection can read form data without submitting
-    useEffect(() => {
-        if (getFormDataRef && "current" in getFormDataRef) {
-            getFormDataRef.current = () => getValues() as ModelFormData;
-        }
-        return () => {
-            if (getFormDataRef && "current" in getFormDataRef) {
-                getFormDataRef.current = null;
-            }
-        };
-    }, [getFormDataRef, getValues]);
 
     useEffect(() => {
         onDirtyStateChange?.(isDirty);
@@ -587,15 +555,7 @@ export const ModelEdit = ({
                                 </details>
 
                                 {/* Test Connection */}
-                                {onTestConnection && (
-                                    <TestConnectionSection
-                                        onTestConnection={onTestConnection}
-                                        isTestingConnection={isTestingConnection}
-                                        testConnectionResult={testConnectionResult}
-                                        onDismissTestResult={onDismissTestResult}
-                                        disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)}
-                                    />
-                                )}
+                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelAlias={modelToEdit?.alias} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
                             </>
                         )}
                     </PageSection>
