@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
 import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
+import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
@@ -53,7 +54,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const hasInitializedFromModelRef = useRef(false);
     const lastFetchedProviderRef = useRef<string | null>(null);
     const lastFetchedApiKeyRef = useRef<string | null>(null);
-
     const {
         register,
         control,
@@ -74,6 +74,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const selectedAuthType = watch("authType");
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
+    const selectedModelName = watch("modelName");
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -552,6 +553,9 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                         </div>
                                     </div>
                                 </details>
+
+                                {/* Test Connection */}
+                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelAlias={modelToEdit?.alias} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
                             </>
                         )}
                     </PageSection>

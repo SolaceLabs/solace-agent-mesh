@@ -28,6 +28,55 @@ interface VisualizerStepCardProps {
     variant?: "list" | "popover";
 }
 
+const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    const toggleExpand = (e: MouseEvent) => {
+        e.stopPropagation();
+        setExpanded(!expanded);
+    };
+
+    // If not expanded, just show a minimal summary
+    if (!expanded) {
+        return (
+            <div className="mt-1.5 flex items-center justify-between text-xs text-(--secondary-text-wMain)">
+                <span className="italic">Internal LLM response</span>
+                <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
+                    Show details
+                </button>
+            </div>
+        );
+    }
+
+    // Expanded view
+    return (
+        <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
+            <div className="mb-1 flex items-center justify-between">
+                <strong>LLM Response Details:</strong>
+                <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
+                    Hide details
+                </button>
+            </div>
+            {data.modelName && (
+                <p>
+                    <strong>Model:</strong> {data.modelName}
+                </p>
+            )}
+            <div className="mt-1">
+                <p>
+                    <strong>Response Preview:</strong>
+                </p>
+                <pre className="max-h-28 overflow-y-auto rounded bg-(--secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap">{data.responsePreview}</pre>
+            </div>
+            {data.isFinalResponse !== undefined && (
+                <p className="mt-1">
+                    <strong>Final Response:</strong> {data.isFinalResponse ? "Yes" : "No"}
+                </p>
+            )}
+        </div>
+    );
+};
+
 const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
     const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
@@ -93,55 +142,6 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
             <pre className="max-h-28 overflow-y-auto rounded bg-(--secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap">{data.promptPreview}</pre>
         </div>
     );
-
-    const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
-        const [expanded, setExpanded] = useState(false);
-
-        const toggleExpand = (e: MouseEvent) => {
-            e.stopPropagation();
-            setExpanded(!expanded);
-        };
-
-        // If not expanded, just show a minimal summary
-        if (!expanded) {
-            return (
-                <div className="mt-1.5 flex items-center justify-between text-xs text-(--secondary-text-wMain)">
-                    <span className="italic">Internal LLM response</span>
-                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
-                        Show details
-                    </button>
-                </div>
-            );
-        }
-
-        // Expanded view
-        return (
-            <div className="mt-1.5 rounded-md bg-(--background-w10) p-2 text-xs text-(--primary-text-wMain)">
-                <div className="mb-1 flex items-center justify-between">
-                    <strong>LLM Response Details:</strong>
-                    <button onClick={toggleExpand} className="text-xs text-(--info-wMain) underline hover:text-(--info-w100)">
-                        Hide details
-                    </button>
-                </div>
-                {data.modelName && (
-                    <p>
-                        <strong>Model:</strong> {data.modelName}
-                    </p>
-                )}
-                <div className="mt-1">
-                    <p>
-                        <strong>Response Preview:</strong>
-                    </p>
-                    <pre className="max-h-28 overflow-y-auto rounded bg-(--secondary-w10) p-1.5 font-mono text-xs break-all whitespace-pre-wrap">{data.responsePreview}</pre>
-                </div>
-                {data.isFinalResponse !== undefined && (
-                    <p className="mt-1">
-                        <strong>Final Response:</strong> {data.isFinalResponse ? "Yes" : "No"}
-                    </p>
-                )}
-            </div>
-        );
-    };
 
     const renderToolDecisionData = (data: ToolDecisionData) => (
         <div className="mt-1.5 rounded-md bg-(--info-w10) p-2 font-mono text-xs text-(--info-wMain)">
@@ -421,7 +421,23 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     };
 
     return (
-        <div className={cardClasses} style={indentationStyle} onClick={onClick}>
+        <div
+            className={cardClasses}
+            style={indentationStyle}
+            onClick={onClick}
+            onKeyDown={
+                onClick
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onClick();
+                          }
+                      }
+                    : undefined
+            }
+            role={onClick ? "button" : undefined}
+            tabIndex={onClick ? 0 : undefined}
+        >
             <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
                 <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
