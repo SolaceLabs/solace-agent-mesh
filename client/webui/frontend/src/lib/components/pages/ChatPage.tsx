@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { PanelLeftIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel } from "@/lib/components/chat";
+import type { CollaborativeUser } from "@/lib/types/collaboration";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
+import { useShareLink, useShareUsers } from "@/lib/api/share";
+import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ShareButton } from "@/lib/components/share/ShareButton";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -32,8 +38,10 @@ const PANEL_SIZES_OPEN = {
 };
 
 export function ChatPage() {
+    const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const location = useLocation();
     const navigate = useNavigate();
     const {
@@ -52,10 +60,59 @@ export function ChatPage() {
         closeSessionDeleteModal,
         confirmSessionDelete,
         currentTaskId,
+        isCollaborativeSession,
+        currentUserEmail,
+        sessionOwnerName,
+        sessionOwnerEmail,
+        handleSwitchSession,
+        handleNewSession,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [isForkingChat, setIsForkingChat] = useState(false);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    // Share notification data: each entry represents a share action (user added at a specific time)
+    const [shareNotifications, setShareNotifications] = useState<
+        Array<
+            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
+            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" }
+        >
+    >([]);
+    const [sharedEditorUsers, setSharedEditorUsers] = useState<CollaborativeUser[]>([]);
+
+    // Listen for share-updated events from ShareDialog to invalidate React Query cache
+    useEffect(() => {
+        const handleShareUpdated = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId === sessionId) {
+                queryClient.invalidateQueries({ queryKey: ["shares"] });
+            }
+        };
+        window.addEventListener("share-updated", handleShareUpdated);
+        return () => window.removeEventListener("share-updated", handleShareUpdated);
+    }, [sessionId, queryClient]);
+
+    // Fork collaborative chat into user's own session
+    const handleForkCollaborativeChat = useCallback(async () => {
+        if (!sessionId || isForkingChat) return;
+        setIsForkingChat(true);
+        try {
+            // Use the sessions API to create a copy
+            const response = await api.webui.post(`/api/v1/sessions/${sessionId}/fork`);
+            const newSessionId = response?.sessionId || response?.session_id || response?.data?.sessionId || response?.data?.session_id;
+            if (newSessionId) {
+                // Refresh the session list to show the new forked session
+                window.dispatchEvent(new CustomEvent("new-chat-session"));
+                handleSwitchSession(newSessionId);
+                navigate("/chat");
+            }
+        } catch (error) {
+            console.error("Failed to fork chat:", error);
+        } finally {
+            setIsForkingChat(false);
+        }
+    }, [sessionId, isForkingChat, handleSwitchSession, navigate]);
 
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
@@ -66,6 +123,86 @@ export function ChatPage() {
     // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    // Fetch share link and users for current session via React Query (owner's view only)
+    const shareLinkQuery = useShareLink(!isCollaborativeSession ? sessionId : "");
+    const shareLink = shareLinkQuery.data ?? null;
+    const shareUsersQuery = useShareUsers(shareLink?.shareId);
+    const shareUsers = useMemo(() => shareUsersQuery.data?.users ?? [], [shareUsersQuery.data?.users]);
+
+    // Rebuild share notifications and editor users when share data changes
+    useEffect(() => {
+        if (isCollaborativeSession || !sessionId) {
+            setShareNotifications([]);
+            setSharedEditorUsers([]);
+            return;
+        }
+
+        if (shareUsers.length === 0) {
+            setShareNotifications([]);
+            setSharedEditorUsers([]);
+            return;
+        }
+
+        type ShareNotif =
+            | { variant: "shared-with-users"; names: string[]; timestamp: number; accessLevel: "viewer" | "editor" }
+            | { variant: "role-changed"; names: string[]; timestamp: number; fromAccessLevel: "viewer" | "editor"; toAccessLevel: "viewer" | "editor" };
+
+        const toDisplayName = (email: string) => {
+            const emailName = email.split("@")[0] || email;
+            return emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        };
+
+        const origGroupKey = (ts: number, level: string) => `orig:${ts}:${level}`;
+        const origGroupMap = new Map<string, ShareNotif & { variant: "shared-with-users" }>();
+        const changeGroupKey = (ts: number, from: string, to: string) => `change:${ts}:${from}:${to}`;
+        const changeGroupMap = new Map<string, ShareNotif & { variant: "role-changed" }>();
+
+        for (const user of shareUsers) {
+            const displayName = toDisplayName(user.userEmail);
+
+            if (user.originalAccessLevel && user.originalAddedAt) {
+                const origLevel = user.originalAccessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const oKey = origGroupKey(user.originalAddedAt, user.originalAccessLevel);
+                if (!origGroupMap.has(oKey)) {
+                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.originalAddedAt, names: [], accessLevel: origLevel });
+                }
+                origGroupMap.get(oKey)!.names.push(displayName);
+
+                const newLevel = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const cKey = changeGroupKey(user.addedAt, user.originalAccessLevel, user.accessLevel);
+                if (!changeGroupMap.has(cKey)) {
+                    changeGroupMap.set(cKey, { variant: "role-changed", timestamp: user.addedAt, names: [], fromAccessLevel: origLevel, toAccessLevel: newLevel });
+                }
+                changeGroupMap.get(cKey)!.names.push(displayName);
+            } else {
+                const level = user.accessLevel === "RESOURCE_EDITOR" ? ("editor" as const) : ("viewer" as const);
+                const oKey = origGroupKey(user.addedAt, user.accessLevel);
+                if (!origGroupMap.has(oKey)) {
+                    origGroupMap.set(oKey, { variant: "shared-with-users", timestamp: user.addedAt, names: [], accessLevel: level });
+                }
+                origGroupMap.get(oKey)!.names.push(displayName);
+            }
+        }
+
+        const notifications: ShareNotif[] = [...Array.from(origGroupMap.values()), ...Array.from(changeGroupMap.values())].sort((a, b) => a.timestamp - b.timestamp);
+        setShareNotifications(notifications);
+
+        const editorUsers: CollaborativeUser[] = shareUsers
+            .filter(u => u.accessLevel === "RESOURCE_EDITOR")
+            .map(u => {
+                const emailName = u.userEmail.split("@")[0] || u.userEmail;
+                const name = emailName.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+                return {
+                    id: u.userEmail.toLowerCase(),
+                    name,
+                    email: u.userEmail,
+                    role: "collaborator" as const,
+                    isOnline: true,
+                };
+            });
+        setSharedEditorUsers(editorUsers);
+    }, [sessionId, isCollaborativeSession, shareUsers]);
 
     // When a new task starts, remember which session it belongs to
     // Don't rely on currentTaskId changes during session switches
@@ -184,6 +321,66 @@ export function ChatPage() {
         };
     }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
+    // Build collaborative users list from message sender info for presence avatars
+    const collaborativeUsers = useMemo<CollaborativeUser[]>(() => {
+        if (!isCollaborativeSession) return [];
+        const userMap = new Map<string, CollaborativeUser>();
+
+        // Always include the session owner (from backend-provided info)
+        // This ensures the owner appears even if their old messages don't have senderEmail
+        if (sessionOwnerEmail) {
+            userMap.set(sessionOwnerEmail.toLowerCase(), {
+                id: sessionOwnerEmail.toLowerCase(),
+                name: sessionOwnerName || sessionOwnerEmail,
+                email: sessionOwnerEmail,
+                role: "collaborator",
+                isOnline: true,
+            });
+        }
+
+        // Add users from message sender info (may update owner entry with better name)
+        for (const msg of messages) {
+            if (msg.isUser && msg.senderEmail && !userMap.has(msg.senderEmail.toLowerCase())) {
+                userMap.set(msg.senderEmail.toLowerCase(), {
+                    id: msg.senderEmail.toLowerCase(),
+                    name: msg.senderDisplayName || msg.senderEmail,
+                    email: msg.senderEmail,
+                    role: "collaborator",
+                    isOnline: true,
+                });
+            }
+        }
+        return Array.from(userMap.values());
+    }, [isCollaborativeSession, messages, sessionOwnerEmail, sessionOwnerName]);
+
+    // Compute where each share notification should be inserted in the message list.
+    // Each notification goes AFTER the last message whose createdTime <= notification.timestamp.
+    const shareNotificationInsertions = useMemo(() => {
+        if (shareNotifications.length === 0 || isCollaborativeSession || messages.length === 0) {
+            return [];
+        }
+
+        return shareNotifications.map(notification => {
+            // Find the last message with createdTime <= notification.timestamp
+            let insertAfterIndex = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (msg.createdTime && msg.createdTime <= notification.timestamp) {
+                    insertAfterIndex = i;
+                    break;
+                }
+            }
+            // If no message has createdTime <= notification.timestamp, place after last message
+            if (insertAfterIndex === -1) {
+                insertAfterIndex = messages.length - 1;
+            }
+            return {
+                ...notification,
+                insertAfterIndex,
+            };
+        });
+    }, [shareNotifications, isCollaborativeSession, messages]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -214,15 +411,27 @@ export function ChatPage() {
         };
     }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
 
-    // Handle opening sessions panel from navigation state
+    // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
-        const state = location.state as { openSessionsPanel?: boolean } | null;
-        if (state?.openSessionsPanel) {
+        const state = location.state as {
+            openSessionsPanel?: boolean;
+            switchToSession?: string;
+            newChat?: boolean;
+        } | null;
+        if (!state) return;
+
+        if (state.openSessionsPanel) {
             setIsSessionSidePanelCollapsed(false);
-            // Clear the state to prevent reopening on browser back button
-            navigate(location.pathname, { replace: true, state: {} });
         }
-    }, [location.state, location.pathname, navigate]);
+        if (state.switchToSession) {
+            handleSwitchSession(state.switchToSession);
+        } else if (state.newChat) {
+            handleNewSession();
+        }
+
+        // Clear the state to prevent re-triggering on browser back button
+        navigate(location.pathname, { replace: true, state: {} });
+    }, [location.state, location.pathname, navigate, handleSwitchSession, handleNewSession]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
@@ -274,6 +483,27 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
+                    buttons={
+                        sessionId && chatSharingEnabled
+                            ? [
+                                  // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
+                                  ...(isCollaborativeSession && collaborativeUsers.length > 0
+                                      ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
+                                      : sharedEditorUsers.length > 0
+                                        ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
+                                        : []),
+                                  // For editors: show "Continue in New Chat" (fork) button instead of Share
+                                  ...(isCollaborativeSession
+                                      ? [
+                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
+                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                Continue in New Chat
+                                            </Button>,
+                                        ]
+                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                              ]
+                            : undefined
+                    }
                 />
             </div>
             <div className="flex min-h-0 flex-1">
@@ -285,18 +515,52 @@ export function ChatPage() {
                                     {isLoadingSession ? (
                                         <div className="flex h-full items-center justify-center">
                                             <Spinner size="medium" variant="primary">
-                                                <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
+                                                <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
                                             </Spinner>
                                         </div>
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                {/* Show share notification for editor at the start */}
+                                                {isCollaborativeSession && messages.length > 0 && (
+                                                    <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={Date.now()} />
+                                                )}
                                                 {messages.map((message, index) => {
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                    return <ChatMessage message={message} key={messageKey} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />;
+
+                                                    // Check if any share notifications should appear AFTER this message
+                                                    const notificationsAfterThis = shareNotificationInsertions.filter(n => n.insertAfterIndex === index);
+
+                                                    return (
+                                                        <div key={messageKey}>
+                                                            {/* ChatMessage handles collaborative attribution internally */}
+                                                            <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                            {/* Render share notifications that belong after this message */}
+                                                            {notificationsAfterThis.map((notification, nIdx) =>
+                                                                notification.variant === "role-changed" ? (
+                                                                    <ShareNotificationMessage
+                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
+                                                                        variant="role-changed"
+                                                                        sharedWith={notification.names}
+                                                                        fromAccessLevel={notification.fromAccessLevel}
+                                                                        toAccessLevel={notification.toAccessLevel}
+                                                                        timestamp={notification.timestamp}
+                                                                    />
+                                                                ) : (
+                                                                    <ShareNotificationMessage
+                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
+                                                                        variant="shared-with-users"
+                                                                        sharedWith={notification.names}
+                                                                        accessLevel={notification.accessLevel}
+                                                                        timestamp={notification.timestamp}
+                                                                    />
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    );
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
@@ -330,6 +594,7 @@ export function ChatPage() {
                 </div>
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
+            {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </div>
     );
 }

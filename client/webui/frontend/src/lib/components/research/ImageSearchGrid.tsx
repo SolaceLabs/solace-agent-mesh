@@ -59,18 +59,25 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
     const selectedImage = selectedImageIndex !== null ? images[selectedImageIndex] : null;
 
     const handleDialogKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Escape") { handleCloseModal(); return; }
+        if (e.key === "Escape") {
+            handleCloseModal();
+            return;
+        }
         if (e.key !== "Tab") return;
-        const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-            'button, [href], [tabindex]:not([tabindex="-1"])'
-        );
+        const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])');
         if (!focusable || focusable.length === 0) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
         if (e.shiftKey) {
-            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+            if (document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            }
         } else {
-            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+            if (document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
         }
     };
 
@@ -93,7 +100,12 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
                                 key={image.imageUrl}
                                 className="group relative aspect-video cursor-pointer overflow-hidden rounded-lg border border-(--secondary-w20) bg-(--secondary-w10) transition-all hover:border-(--primary-wMain)"
                                 onClick={() => !hasError && handleImageClick(index)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!hasError) handleImageClick(index); } }}
+                                onKeyDown={e => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        if (!hasError) handleImageClick(index);
+                                    }
+                                }}
                                 role="button"
                                 tabIndex={0}
                             >
@@ -126,7 +138,16 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
 
             {/* Image Modal with Navigation */}
             {selectedImage && selectedImageIndex !== null && (
-                <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label={selectedImage?.title || "Image viewer"} onClick={handleCloseModal} onKeyDown={handleDialogKeyDown} tabIndex={-1}>
+                <div
+                    ref={dialogRef}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={selectedImage?.title || "Image viewer"}
+                    onClick={handleCloseModal}
+                    onKeyDown={handleDialogKeyDown}
+                    tabIndex={-1}
+                >
                     {/* Previous button */}
                     {selectedImageIndex > 0 && (
                         <button onClick={handlePrevious} className="absolute left-4 z-10 text-(--darkSurface-text) transition-colors hover:text-(--secondary-w40)" aria-label="Previous image">

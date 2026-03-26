@@ -73,7 +73,12 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                         isConfigured ? "border-(--info-w10) hover:border-(--info-wMain)" : "hover:border-(--primary-w20)"
                     }`}
                     onClick={onClick}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+                    onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onClick();
+                        }
+                    }}
                     role="button"
                     tabIndex={0}
                 >

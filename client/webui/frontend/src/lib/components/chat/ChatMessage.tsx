@@ -30,6 +30,34 @@ import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { CompactionNotification, type CompactionNotificationData } from "./CompactionNotification";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
+import { MessageAttribution } from "./MessageAttribution";
+
+/**
+ * Returns true if a user message is from another user (not the current viewer).
+ * Compares the sender email in the message with the current user's email.
+ */
+function isOtherUserMessage(message: MessageFE, currentUserEmail: string): boolean {
+    if (!message.isUser) return false;
+    if (!message.senderEmail) return false;
+    // If we have the current user's email, compare it
+    if (currentUserEmail) {
+        return message.senderEmail.toLowerCase() !== currentUserEmail.toLowerCase();
+    }
+    // Fallback: if no current user email available, can't determine
+    return false;
+}
+
+/**
+ * Derives a stable user index from an email string for consistent avatar colors.
+ * Uses a simple hash to map emails to color indices.
+ */
+function getUserIndexFromEmail(email: string): number {
+    if (!email) return 0;
+    return email
+        .toLowerCase()
+        .split("")
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+}
 
 const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio"];
 
@@ -80,10 +108,10 @@ const MessageActions: React.FC<{
                     {shouldShowFeedback && (
                         <div className="flex items-center">
                             <Button tooltip="Like" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("up")} disabled={!!submittedFeedbackType}>
-                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-(--brand-wMain) text-(--brand-wMain) !opacity-100" : ""}`} />
+                                <ThumbsUp className={`h-4 w-4 ${submittedFeedbackType === "up" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] !opacity-100" : ""}`} />
                             </Button>
                             <Button tooltip="Dislike" variant="ghost" size="sm" className={`${submittedFeedbackType ? "!opacity-100" : ""}`} onClick={() => handleThumbClick("down")} disabled={!!submittedFeedbackType}>
-                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-(--brand-wMain) text-(--brand-wMain) opacity-100" : ""}`} />
+                                <ThumbsDown className={`h-4 w-4 ${submittedFeedbackType === "down" ? "fill-[var(--color-brand-wMain)] text-[var(--color-brand-wMain)] opacity-100" : ""}`} />
                             </Button>
                         </div>
                     )}
@@ -137,7 +165,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
     React.useEffect(() => {
         if (!highlightedText || !contentRef.current) return;
 
-        const highlightStyle = "background-color: color-mix(in srgb, var(--brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
+        const highlightStyle = "background-color: color-mix(in srgb, var(--color-brand-wMain) 30%, transparent); color: inherit; transition: background-color 0.5s ease-out;";
         const highlightMarks: HTMLElement[] = [];
 
         // Normalize text for matching (collapse whitespace, handle line breaks)
@@ -509,7 +537,7 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
             const friendlyErrorMessage = getUserFriendlyErrorMessage(displayText);
             return (
                 <div className="flex items-center">
-                    <AlertCircle className="mr-2 self-start text-(--error-wMain)" />
+                    <AlertCircle className="mr-2 self-start text-[var(--color-error-wMain)]" />
                     <MarkdownHTMLConverter>{friendlyErrorMessage}</MarkdownHTMLConverter>
                 </div>
             );
@@ -560,10 +588,10 @@ const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; cla
     return <div className={`mt-1 space-y-1 ${message.isUser ? "ml-auto" : "mr-auto"} ${className}`}>{children}</div>;
 });
 
-const getUploadedFiles = (message: MessageFE) => {
+const getUploadedFiles = (message: MessageFE, alignRight: boolean = true) => {
     if (message.uploadedFiles && message.uploadedFiles.length > 0) {
         return (
-            <MessageWrapper message={message} className="flex flex-wrap justify-end gap-2">
+            <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
                 {message.uploadedFiles.map((file, fileIdx) => (
                     <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
                 ))}
@@ -607,7 +635,7 @@ const getChatBubble = (
     reportContentOverride?: string,
     highlightedText?: string | null
 ): React.ReactNode => {
-    const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData, currentUserEmail } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -684,7 +712,11 @@ const getChatBubble = (
         return null;
     }
 
-    const variant = message.isUser ? "sent" : "received";
+    // In collaborative sessions, other users' messages use the "other-user" variant
+    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
+    const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
+    // For alignment: current user's messages are right-aligned, other users' and agent messages are left-aligned
+    const isRightAligned = message.isUser && !isOtherUser;
     const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
@@ -757,7 +789,7 @@ const getChatBubble = (
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">
                     <button
-                        className={`flex max-w-fit items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm ${message.contextQuoteSourceId ? "cursor-pointer transition-colors hover:bg-(--secondary-w10)" : "cursor-default"}`}
+                        className={`bg-muted/50 flex max-w-fit items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm ${message.contextQuoteSourceId ? "hover:bg-muted cursor-pointer transition-colors" : "cursor-default"}`}
                         onClick={() => {
                             if (message.contextQuoteSourceId) {
                                 // Dispatch event to scroll to and highlight the quoted text in the source message
@@ -771,8 +803,8 @@ const getChatBubble = (
                         disabled={!message.contextQuoteSourceId}
                         title={message.contextQuoteSourceId ? "Click to scroll to original message" : undefined}
                     >
-                        <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
-                        <span className="truncate text-(--secondary-text-wMain) italic">"{message.contextQuote}"</span>
+                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
+                        <span className="text-muted-foreground truncate italic">"{message.contextQuote}"</span>
                     </button>
                 </div>
             )}
@@ -788,7 +820,7 @@ const getChatBubble = (
                         // If this is the last part and it's empty, still render actions if needed
                         if (isLastPart && (showWorkflowButton || showFeedbackActions)) {
                             return (
-                                <div key={`part-${index}`} className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
+                                <div key={`part-${index}`} className={`flex ${isRightAligned ? "justify-end pr-4" : "justify-start pl-4"}`}>
                                     <MessageActions
                                         message={message}
                                         showWorkflowButton={!!showWorkflowButton}
@@ -831,7 +863,7 @@ const getChatBubble = (
 
             {/* Show actions after artifacts if the last part is an artifact */}
             {lastPartKind === "artifact" || lastPartKind === "file" ? (
-                <div className={`flex ${message.isUser ? "justify-end pr-4" : "justify-start pl-4"}`}>
+                <div className={`flex ${isRightAligned ? "justify-end pr-4" : "justify-start pl-4"}`}>
                     <MessageActions
                         message={message}
                         showWorkflowButton={!!showWorkflowButton}
@@ -843,8 +875,8 @@ const getChatBubble = (
                 </div>
             ) : null}
 
-            {/* Show hover buttons below bubble for user messages */}
-            {message.isUser && (
+            {/* Show hover buttons below bubble for current user's messages only */}
+            {message.isUser && !isOtherUserMessage(message, currentUserEmail) && (
                 <div className="flex justify-end">
                     <MessageHoverButtons message={message} />
                 </div>
@@ -854,7 +886,11 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
+
+    // Determine if this is another user's message (for uploaded files alignment)
+    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
+    const isRightAligned = message.isUser && !isOtherUser;
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
@@ -1005,117 +1041,152 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         }
     };
 
+    // Resolve agent display name for collaborative sessions
+    const agentDisplayName = (() => {
+        if (!isCollaborativeSession || message.isUser) return undefined;
+        const { selectedAgentName } = chatContext;
+        if (selectedAgentName && agentNameDisplayNameMap[selectedAgentName]) {
+            return agentNameDisplayNameMap[selectedAgentName];
+        }
+        if (selectedAgentName) {
+            return selectedAgentName;
+        }
+        return undefined;
+    })();
+
+    // Determine if attribution is shown (for ml-10 margin on content)
+    // Attribution shows for: other-user messages (any session) + agent messages (collaborative or shared-with-editors)
+    const showAgentAttribution = (isCollaborativeSession || hasSharedEditors) && !message.isUser && !message.isStatusBubble;
+    const hasAttribution = (message.isUser && isOtherUser) || showAgentAttribution;
+
     return (
-        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "rounded-lg bg-(--primary-w10) ring-2 ring-(--primary-wMain)" : ""}`}>
-            {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
-            {isDeepResearchComplete &&
-                hasRagSources &&
-                isLastWithTaskId &&
-                (() => {
-                    // Filter to only show fetched sources (not snippets)
-                    const allSources = taskRagData.flatMap(r => r.sources);
-                    const fetchedSources = allSources.filter(source => {
-                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                        return wasFetched;
-                    });
+        <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
+            {/* Show attribution for collaborative sessions and forked sessions with other users' messages */}
+            {(() => {
+                if (message.isUser && isOtherUserMessage(message, currentUserEmail)) {
+                    // Show attribution for other users' messages (collaborative or forked sessions)
+                    const displayName = message.senderDisplayName || message.senderEmail || "User";
+                    const userIndex = getUserIndexFromEmail(message.senderEmail || "");
+                    return <MessageAttribution type="user" name={displayName} userIndex={userIndex} timestamp={message.createdTime} />;
+                }
+                if (showAgentAttribution) {
+                    // Show agent attribution in collaborative sessions or sessions shared with editors
+                    const agentLabel = agentDisplayName || "AI Assistant";
+                    return <MessageAttribution type="agent" name={agentLabel} timestamp={message.createdTime} />;
+                }
+                return null;
+            })()}
+            <div className={hasAttribution ? "ml-10" : ""}>
+                {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
+                {isDeepResearchComplete &&
+                    hasRagSources &&
+                    isLastWithTaskId &&
+                    (() => {
+                        // Filter to only show fetched sources (not snippets)
+                        const allSources = taskRagData.flatMap(r => r.sources);
+                        const fetchedSources = allSources.filter(source => {
+                            const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
+                            return wasFetched;
+                        });
 
-                    return (
-                        <div className="mb-4">
-                            <InlineResearchProgress
-                                progress={{
-                                    type: "deep_research_progress",
-                                    phase: "writing",
-                                    status_text: "Research complete",
-                                    progress_percentage: 100,
-                                    current_iteration: 0,
-                                    total_iterations: 0,
-                                    sources_found: fetchedSources.length,
-                                    current_query: "",
-                                    fetching_urls: [],
-                                    elapsed_seconds: 0,
-                                    max_runtime_seconds: 0,
-                                }}
-                                isComplete={true}
-                                ragData={taskRagData}
-                            />
-                        </div>
-                    );
-                })()}
-            {getChatBubble(
-                message,
-                chatContext,
-                isLastWithTaskId,
-                isStreaming,
-                // Show sources element for deep research, web search, and document search (in message actions area)
-                !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
-                    ? (() => {
-                          const allSources = taskRagData.flatMap(r => r.sources);
-
-                          // For deep research: filter to only show fetched sources (not snippets)
-                          // For web search: show all sources including images (images with source links will be shown)
-                          const sourcesToShow = isDeepResearchComplete
-                              ? allSources.filter(source => {
-                                    const sourceType = source.sourceType || "web";
-                                    // For images in deep research: include if they have a source link
-                                    if (sourceType === "image") {
-                                        return source.sourceUrl || source.metadata?.link;
-                                    }
-                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                                    return wasFetched;
-                                })
-                              : allSources.filter(source => {
-                                    const sourceType = source.sourceType || "web";
-                                    // For images in web search: include if they have a source link
-                                    if (sourceType === "image") {
-                                        return source.sourceUrl || source.metadata?.link;
-                                    }
-                                    return true;
-                                });
-
-                          // Only render if we have sources
-                          if (sourcesToShow.length === 0) return null;
-
-                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
-                      })()
-                    : undefined,
-                // Pass deep research report info if available
-                isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined,
-                // Callback to capture report content for TTS/copy
-                setReportContent,
-                // Pass report content to MessageActions for TTS/copy
-                reportContent || undefined,
-                // Pass highlighted text for scroll-to-source feature
-                highlightedText
-            )}
-
-            {/* Render images separately at the end for web search */}
-            {!message.isUser &&
-                isWebSearchComplete &&
-                hasRagSources &&
-                (() => {
-                    const allSources = taskRagData.flatMap(r => r.sources);
-                    const imageResults = allSources
-                        .filter(source => {
-                            const sourceType = source.sourceType || "web";
-                            return sourceType === "image" && source.metadata?.imageUrl;
-                        })
-                        .map(source => ({
-                            imageUrl: source.metadata!.imageUrl,
-                            title: source.metadata?.title || source.filename,
-                            link: source.sourceUrl || source.metadata?.link || source.metadata!.imageUrl,
-                        }));
-
-                    if (imageResults.length > 0) {
                         return (
-                            <div className="mt-4">
-                                <ImageSearchGrid images={imageResults} />
+                            <div className="mb-4">
+                                <InlineResearchProgress
+                                    progress={{
+                                        type: "deep_research_progress",
+                                        phase: "writing",
+                                        status_text: "Research complete",
+                                        progress_percentage: 100,
+                                        current_iteration: 0,
+                                        total_iterations: 0,
+                                        sources_found: fetchedSources.length,
+                                        current_query: "",
+                                        fetching_urls: [],
+                                        elapsed_seconds: 0,
+                                        max_runtime_seconds: 0,
+                                    }}
+                                    isComplete={true}
+                                    ragData={taskRagData}
+                                />
                             </div>
                         );
-                    }
-                    return null;
-                })()}
+                    })()}
+                {getChatBubble(
+                    message,
+                    chatContext,
+                    isLastWithTaskId,
+                    isStreaming,
+                    // Show sources element for deep research, web search, and document search (in message actions area)
+                    !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
+                        ? (() => {
+                              const allSources = taskRagData.flatMap(r => r.sources);
 
-            {getUploadedFiles(message)}
+                              // For deep research: filter to only show fetched sources (not snippets)
+                              // For web search: show all sources including images (images with source links will be shown)
+                              const sourcesToShow = isDeepResearchComplete
+                                  ? allSources.filter(source => {
+                                        const sourceType = source.sourceType || "web";
+                                        // For images in deep research: include if they have a source link
+                                        if (sourceType === "image") {
+                                            return source.sourceUrl || source.metadata?.link;
+                                        }
+                                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
+                                        return wasFetched;
+                                    })
+                                  : allSources.filter(source => {
+                                        const sourceType = source.sourceType || "web";
+                                        // For images in web search: include if they have a source link
+                                        if (sourceType === "image") {
+                                            return source.sourceUrl || source.metadata?.link;
+                                        }
+                                        return true;
+                                    });
+
+                              // Only render if we have sources
+                              if (sourcesToShow.length === 0) return null;
+
+                              return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
+                          })()
+                        : undefined,
+                    // Pass deep research report info if available
+                    isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined,
+                    // Callback to capture report content for TTS/copy
+                    setReportContent,
+                    // Pass report content to MessageActions for TTS/copy
+                    reportContent || undefined,
+                    // Pass highlighted text for scroll-to-source feature
+                    highlightedText
+                )}
+
+                {/* Render images separately at the end for web search */}
+                {!message.isUser &&
+                    isWebSearchComplete &&
+                    hasRagSources &&
+                    (() => {
+                        const allSources = taskRagData.flatMap(r => r.sources);
+                        const imageResults = allSources
+                            .filter(source => {
+                                const sourceType = source.sourceType || "web";
+                                return sourceType === "image" && source.metadata?.imageUrl;
+                            })
+                            .map(source => ({
+                                imageUrl: source.metadata!.imageUrl,
+                                title: source.metadata?.title || source.filename,
+                                link: source.sourceUrl || source.metadata?.link || source.metadata!.imageUrl,
+                            }));
+
+                        if (imageResults.length > 0) {
+                            return (
+                                <div className="mt-4">
+                                    <ImageSearchGrid images={imageResults} />
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
+
+                {getUploadedFiles(message, isRightAligned)}
+            </div>
         </div>
     );
 };

@@ -99,7 +99,16 @@ export function Sources({ ragMetadata, isDeepResearch = false, onDeepResearchCli
             tabIndex={onDeepResearchClick ? 0 : undefined}
             aria-label={isDeepResearch ? "View deep research sources" : "View web search sources"}
             onClick={onDeepResearchClick}
-            onKeyDown={onDeepResearchClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDeepResearchClick(); } } : undefined}
+            onKeyDown={
+                onDeepResearchClick
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onDeepResearchClick();
+                          }
+                      }
+                    : undefined
+            }
         >
             <StackedFavicons sources={webSources} end={3} size={16} />
             <span className="text-sm text-(--secondary-text-wMain)">

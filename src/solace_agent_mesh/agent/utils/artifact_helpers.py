@@ -124,8 +124,6 @@ def sanitize_to_filename(
         'research_deep_learning_report.md'
         >>> sanitize_to_filename("A very long research question about many topics", max_length=20)
         'a_very_long_research'
-        >>> sanitize_to_filename("2026年美國與伊朗戰爭", suffix="_report.md")
-        '2026_report.md'
     """
     import re
     
@@ -135,7 +133,7 @@ def sanitize_to_filename(
     # Convert to lowercase and remove non-ASCII/non-word characters except spaces and hyphens.
     # The re.ASCII flag ensures \w only matches [a-zA-Z0-9_], preventing Unicode
     # characters (e.g., Chinese, Japanese, Arabic) from being included in the filename.
-    # This is critical because S3 metadata only supports ASCII values.
+    # This is critical because S3 metadata only supports ASCII values (DATAGO-130045).
     safe_name = re.sub(r'[^\w\s-]', '', text.lower(), flags=re.ASCII)
     
     # Replace spaces and hyphens with the replacement character

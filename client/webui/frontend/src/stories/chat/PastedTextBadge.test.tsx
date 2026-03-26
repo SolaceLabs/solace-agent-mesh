@@ -26,28 +26,12 @@ describe("PastedTextBadge", () => {
 
 describe("PendingPastedTextBadge", () => {
     test("shows default filename label when not configured", () => {
-        render(
-            <PendingPastedTextBadge
-                content="some text"
-                onClick={vi.fn()}
-                onRemove={vi.fn()}
-                isConfigured={false}
-                defaultFilename="snippet.txt"
-            />
-        );
+        render(<PendingPastedTextBadge content="some text" onClick={vi.fn()} onRemove={vi.fn()} isConfigured={false} defaultFilename="snippet.txt" />);
         expect(screen.getByText("snippet.txt")).toBeInTheDocument();
     });
 
     test("shows configured filename with blue badge when isConfigured is true", () => {
-        render(
-            <PendingPastedTextBadge
-                content="some text"
-                onClick={vi.fn()}
-                onRemove={vi.fn()}
-                isConfigured={true}
-                filename="report.txt"
-            />
-        );
+        render(<PendingPastedTextBadge content="some text" onClick={vi.fn()} onRemove={vi.fn()} isConfigured={true} filename="report.txt" />);
         expect(screen.getByText("report.txt")).toBeInTheDocument();
     });
 });

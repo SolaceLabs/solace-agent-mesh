@@ -15,7 +15,6 @@ vi.mock("@/lib/utils/recentMentions", () => ({
     getRecentMentions: vi.fn().mockReturnValue([]),
 }));
 
-
 const mockPerson: Person = {
     id: "person-1",
     displayName: "Alice Smith",
@@ -50,18 +49,15 @@ function renderMentions(props: Partial<React.ComponentProps<typeof MentionsComma
         return (
             <>
                 <div ref={textAreaRef} />
-                <MentionsCommand
-                    onClose={vi.fn()}
-                    onPersonSelect={vi.fn()}
-                    searchQuery=""
-                    isOpen={true}
-                    {...props}
-                    textAreaRef={textAreaRef}
-                />
+                <MentionsCommand onClose={vi.fn()} onPersonSelect={vi.fn()} searchQuery="" isOpen={true} {...props} textAreaRef={textAreaRef} />
             </>
         );
     };
-    return render(<MemoryRouter><Wrapper /></MemoryRouter>);
+    return render(
+        <MemoryRouter>
+            <Wrapper />
+        </MemoryRouter>
+    );
 }
 
 describe("MentionsCommand", () => {

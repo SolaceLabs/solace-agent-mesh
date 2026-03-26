@@ -89,7 +89,19 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
     };
 
     return (
-        <div className="h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg bg-(--background-w10) sm:w-[380px]" onClick={onToggleExpand} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleExpand(); } }} role="button" tabIndex={0} aria-expanded={isExpanded}>
+        <div
+            className="h-[400px] w-full flex-shrink-0 cursor-pointer rounded-lg bg-(--background-w10) sm:w-[380px]"
+            onClick={onToggleExpand}
+            onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onToggleExpand();
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-expanded={isExpanded}
+        >
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
                 <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>

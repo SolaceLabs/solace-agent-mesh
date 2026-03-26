@@ -421,7 +421,23 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
     };
 
     return (
-        <div className={cardClasses} style={indentationStyle} onClick={onClick} onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined} role={onClick ? "button" : undefined} tabIndex={onClick ? 0 : undefined}>
+        <div
+            className={cardClasses}
+            style={indentationStyle}
+            onClick={onClick}
+            onKeyDown={
+                onClick
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onClick();
+                          }
+                      }
+                    : undefined
+            }
+            role={onClick ? "button" : undefined}
+            tabIndex={onClick ? 0 : undefined}
+        >
             <div className="mb-1.5 flex w-full items-center gap-1">
                 {getStepIcon()}
                 <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">

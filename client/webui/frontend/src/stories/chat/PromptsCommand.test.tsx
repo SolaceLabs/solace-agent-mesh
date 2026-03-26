@@ -48,13 +48,7 @@ function renderPrompts(props: Partial<React.ComponentProps<typeof PromptsCommand
     const textAreaRef = React.createRef<HTMLDivElement>();
     return render(
         <MemoryRouter>
-            <PromptsCommand
-                isOpen={true}
-                onClose={vi.fn()}
-                onPromptSelect={vi.fn()}
-                textAreaRef={textAreaRef}
-                {...props}
-            />
+            <PromptsCommand isOpen={true} onClose={vi.fn()} onPromptSelect={vi.fn()} textAreaRef={textAreaRef} {...props} />
         </MemoryRouter>
     );
 }

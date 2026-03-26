@@ -20,14 +20,7 @@ const mockPerson: Person = {
 
 function renderEditable(props: Partial<React.ComponentProps<typeof MentionContentEditable>> = {}) {
     const onChange = vi.fn();
-    render(
-        <MentionContentEditable
-            value=""
-            onChange={onChange}
-            placeholder="Type here..."
-            {...props}
-        />
-    );
+    render(<MentionContentEditable value="" onChange={onChange} placeholder="Type here..." {...props} />);
     return { onChange };
 }
 
@@ -64,13 +57,7 @@ describe("MentionContentEditable mention chip rendering", () => {
     test("renders a mention chip for internal @[Name](id) format", async () => {
         const mentionMap = new Map<string, Person>([["person-1", mockPerson]]);
         await act(async () => {
-            render(
-                <MentionContentEditable
-                    value="Hello @[Alice Smith](person-1) how are you?"
-                    onChange={vi.fn()}
-                    mentionMap={mentionMap}
-                />
-            );
+            render(<MentionContentEditable value="Hello @[Alice Smith](person-1) how are you?" onChange={vi.fn()} mentionMap={mentionMap} />);
         });
         const input = screen.getByTestId("chat-input");
         const chip = input.querySelector(".mention-chip");
@@ -80,13 +67,7 @@ describe("MentionContentEditable mention chip rendering", () => {
 
     test("renders fallback @Name when person not in mentionMap", async () => {
         await act(async () => {
-            render(
-                <MentionContentEditable
-                    value="Hey @[Bob Jones](unknown-id) there"
-                    onChange={vi.fn()}
-                    mentionMap={new Map()}
-                />
-            );
+            render(<MentionContentEditable value="Hey @[Bob Jones](unknown-id) there" onChange={vi.fn()} mentionMap={new Map()} />);
         });
         const input = screen.getByTestId("chat-input");
         const chip = input.querySelector(".mention-chip");
@@ -97,13 +78,7 @@ describe("MentionContentEditable mention chip rendering", () => {
     test("mention chip has data-internal attribute with original format", async () => {
         const mentionMap = new Map<string, Person>([["person-1", mockPerson]]);
         await act(async () => {
-            render(
-                <MentionContentEditable
-                    value="@[Alice Smith](person-1)"
-                    onChange={vi.fn()}
-                    mentionMap={mentionMap}
-                />
-            );
+            render(<MentionContentEditable value="@[Alice Smith](person-1)" onChange={vi.fn()} mentionMap={mentionMap} />);
         });
         const input = screen.getByTestId("chat-input");
         const chip = input.querySelector(".mention-chip");

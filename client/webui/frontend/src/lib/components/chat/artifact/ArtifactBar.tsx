@@ -188,7 +188,16 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 }
             }}
             onClick={isDeleted ? undefined : handleBarClick}
-            onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleBarClick(); } } : undefined}
+            onKeyDown={
+                isClickable
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handleBarClick();
+                          }
+                      }
+                    : undefined
+            }
             role={isClickable ? "button" : undefined}
             tabIndex={isClickable ? 0 : undefined}
         >

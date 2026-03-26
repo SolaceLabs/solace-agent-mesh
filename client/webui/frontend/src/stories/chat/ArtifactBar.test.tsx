@@ -33,13 +33,7 @@ describe("ArtifactBar primaryLabel logic", () => {
 describe("ArtifactBar keyboard accessibility", () => {
     test("pressing Enter on a completed+previewable bar calls onPreview", () => {
         const onPreview = vi.fn();
-        render(
-            <ArtifactBar
-                filename="report.pdf"
-                status="completed"
-                actions={{ onPreview }}
-            />
-        );
+        render(<ArtifactBar filename="report.pdf" status="completed" actions={{ onPreview }} />);
         const bar = screen.getByRole("button");
         fireEvent.keyDown(bar, { key: "Enter" });
         expect(onPreview).toHaveBeenCalledTimes(1);
@@ -47,13 +41,7 @@ describe("ArtifactBar keyboard accessibility", () => {
 
     test("pressing Space on a completed+previewable bar calls onPreview", () => {
         const onPreview = vi.fn();
-        render(
-            <ArtifactBar
-                filename="report.pdf"
-                status="completed"
-                actions={{ onPreview }}
-            />
-        );
+        render(<ArtifactBar filename="report.pdf" status="completed" actions={{ onPreview }} />);
         const bar = screen.getByRole("button");
         fireEvent.keyDown(bar, { key: " " });
         expect(onPreview).toHaveBeenCalledTimes(1);
@@ -66,14 +54,7 @@ describe("ArtifactBar keyboard accessibility", () => {
 
     test("deleted completed bar has no role=button", () => {
         const onPreview = vi.fn();
-        render(
-            <ArtifactBar
-                filename="report.pdf"
-                status="completed"
-                actions={{ onPreview }}
-                isDeleted
-            />
-        );
+        render(<ArtifactBar filename="report.pdf" status="completed" actions={{ onPreview }} isDeleted />);
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 });
