@@ -10,6 +10,7 @@ import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
 import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
+
 import {
     Button,
     DropdownMenu,
@@ -665,7 +666,12 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <div className="mt-6 border-t pt-4 pr-4">
                         <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
                             <UserSearch size={14} />
-                            Shared with me
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="cursor-default">Shared with me</span>
+                                </TooltipTrigger>
+                                <TooltipContent>Experimental Feature</TooltipContent>
+                            </Tooltip>
                         </div>
                         <ul>
                             {sharedWithMe.map(item => {

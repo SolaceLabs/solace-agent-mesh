@@ -16,6 +16,7 @@ import { Spinner } from "../ui/spinner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { UserTypeahead } from "../common/UserTypeahead";
+import { LifecycleBadge } from "../ui/lifecycleBadge";
 import { Input } from "../ui/input";
 import { useShareLink, useShareUsers, useCreateShareLink, useDeleteShareLink, useAddShareUsers, useDeleteShareUsers, useUpdateShareSnapshot } from "../../api/share";
 import { copyToClipboard, copyDeferredToClipboard } from "../../utils/clipboard";
@@ -409,10 +410,11 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[818px]">
-                <DialogHeader>
+                <DialogHeader className="flex flex-row items-start justify-between gap-4">
                     <DialogTitle className="mb-4 text-xl">
                         <span className="font-bold">Manage Access:</span> <span className="font-normal">{sessionTitle}</span>
                     </DialogTitle>
+                    <LifecycleBadge className="mt-1">EXPERIMENTAL</LifecycleBadge>
                 </DialogHeader>
 
                 <div className="flex-1 space-y-6 overflow-y-auto">

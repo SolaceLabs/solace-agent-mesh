@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type MouseEvent } from "react";
+
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { Share2 } from "lucide-react";
@@ -34,7 +35,7 @@ interface SharedChatsListProps {
 
 interface SharedChatItemProps {
     item: SharedWithMeItem;
-    onClick: () => void;
+    onClick: (e: MouseEvent) => void;
 }
 
 function SharedChatItem({ item, onClick }: SharedChatItemProps) {
@@ -97,14 +98,19 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
             <div className="my-4 border-t border-(--color-secondary-w70)" />
             <div className="mb-2 flex items-center gap-2 pr-4 pl-6">
                 <Share2 className="h-4 w-4 text-(--color-secondary-wMain)" />
-                <span className="text-sm font-bold text-(--color-primary-text-w10)">Shared with Me</span>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="cursor-default text-sm font-bold text-(--color-primary-text-w10)">Shared with Me</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Experimental Feature</TooltipContent>
+                </Tooltip>
             </div>
             <div>
                 {sharedChats.map(item => {
                     const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
-                    const handleClick = () => {
+                    const handleClick = (e: MouseEvent) => {
+                        e.stopPropagation();
                         if (isEditor && item.sessionId) {
-                            // Use switchSession to load the session in ChatProvider, then navigate to /chat
                             handleSwitchSession(item.sessionId);
                             navigate("/chat");
                         } else {

@@ -98,7 +98,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chats";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/shared-chat")) return "chats";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
