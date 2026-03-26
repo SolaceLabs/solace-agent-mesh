@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
 import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
+import type { TestConnectionResponse } from "@/lib/api/models/service";
+import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
@@ -34,9 +36,28 @@ interface ModelEditProps {
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
     availableProviders?: ModelProvider[];
     onProviderChange?: (provider: string) => Promise<void>;
+    onTestConnection?: () => void;
+    isTestingConnection?: boolean;
+    testConnectionResult?: TestConnectionResponse | null;
+    onDismissTestResult?: () => void;
+    getFormDataRef?: React.RefObject<(() => ModelFormData) | null>;
 }
 
-export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
+export const ModelEdit = ({
+    isNew,
+    modelToEdit,
+    onSave,
+    onValidityChange,
+    onDirtyStateChange,
+    modelsByProvider = {},
+    availableProviders = [],
+    onProviderChange,
+    onTestConnection,
+    isTestingConnection,
+    testConnectionResult,
+    onDismissTestResult,
+    getFormDataRef,
+}: ModelEditProps) => {
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
@@ -53,7 +74,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const hasInitializedFromModelRef = useRef(false);
     const lastFetchedProviderRef = useRef<string | null>(null);
     const lastFetchedApiKeyRef = useRef<string | null>(null);
-
     const {
         register,
         control,
@@ -74,6 +94,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const selectedAuthType = watch("authType");
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
+    const selectedModelName = watch("modelName");
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -105,6 +126,18 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     // For editing: enable if provider and auth type are set (cached models available)
     // For creating: also need credentials to be filled in (to fetch models)
     const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
+
+    // Expose getValues to parent via ref so test connection can read form data without submitting
+    useEffect(() => {
+        if (getFormDataRef && "current" in getFormDataRef) {
+            getFormDataRef.current = () => getValues() as ModelFormData;
+        }
+        return () => {
+            if (getFormDataRef && "current" in getFormDataRef) {
+                getFormDataRef.current = null;
+            }
+        };
+    }, [getFormDataRef, getValues]);
 
     useEffect(() => {
         onDirtyStateChange?.(isDirty);
@@ -552,6 +585,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                         </div>
                                     </div>
                                 </details>
+
+                                {/* Test Connection */}
+                                {onTestConnection && (
+                                    <TestConnectionSection
+                                        onTestConnection={onTestConnection}
+                                        isTestingConnection={isTestingConnection}
+                                        testConnectionResult={testConnectionResult}
+                                        onDismissTestResult={onDismissTestResult}
+                                        disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)}
+                                    />
+                                )}
                             </>
                         )}
                     </PageSection>
