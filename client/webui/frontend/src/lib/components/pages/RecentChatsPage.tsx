@@ -6,7 +6,7 @@ import { Loader2, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, cn } from "@/lib/utils";
+import { formatRelativeTime, formatTimestamp, cn } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -433,7 +433,9 @@ export const RecentChatsPage: React.FC = () => {
                                                     </Tooltip>
                                                 )}
                                             </div>
-                                            <span className="text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</span>
+                                            <span className="text-xs font-normal text-(--secondary-text-wMain)" title={formatTimestamp(session.updatedTime)}>
+                                                Last message {formatRelativeTime(session.updatedTime)}
+                                            </span>
                                         </div>
                                         <div className="flex flex-shrink-0 items-center gap-2">
                                             {session.projectName && <ProjectBadge text={session.projectName} />}
