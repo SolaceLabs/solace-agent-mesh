@@ -305,6 +305,941 @@ async def _publish_peer_tool_result_notification(
         )
 
 
+async def _verify_request_authentication(
+    component: "SamAgentComponent",
+    message: SolaceMessage,
+    method: str,
+    a2a_request: A2ARequest,
+    namespace: str,
+    jsonrpc_request_id: str,
+) -> dict | None:
+    """
+    Verify user authentication via the enterprise trust manager.
+
+    Returns verified user identity claims on success, None if trust manager
+    is not enabled or no verification was needed. Raises on auth failure after
+    sending an error response and ACKing the message.
+
+    Args:
+        component: The SamAgentComponent instance.
+        message: The incoming Solace message.
+        method: The A2A request method.
+        a2a_request: The parsed A2A request.
+        namespace: The agent namespace.
+        jsonrpc_request_id: The JSON-RPC request ID.
+
+    Returns:
+        Verified user identity dict, or None.
+
+    Raises:
+        _AuthenticationFailedExit: Sentinel to signal the caller to return early.
+    """
+    if not (hasattr(component, "trust_manager") and component.trust_manager):
+        return None
+
+    # Determine task_id for verification
+    if method == "tasks/cancel":
+        verification_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
+    elif method in ["message/send", "message/stream"]:
+        verification_task_id = str(a2a.get_request_id(a2a_request))
+    else:
+        verification_task_id = None
+
+    if not verification_task_id:
+        return None
+
+    try:
+        # Enterprise handles all verification logic
+        verified_user_identity = (
+            component.trust_manager.verify_request_authentication(
+                message=message,
+                task_id=verification_task_id,
+                namespace=namespace,
+                jsonrpc_request_id=jsonrpc_request_id,
+            )
+        )
+
+        if verified_user_identity:
+            log.info(
+                "%s Successfully authenticated user '%s' for task %s",
+                component.log_identifier,
+                verified_user_identity.get("user_id"),
+                verification_task_id,
+            )
+
+        return verified_user_identity
+
+    except Exception as e:
+        # Authentication failed - enterprise provides error details
+        log.error(
+            "%s Authentication failed for task %s: %s",
+            component.log_identifier,
+            verification_task_id,
+            e,
+        )
+
+        # Build error response using enterprise exception data if available
+        error_data = {
+            "reason": "authentication_failed",
+            "task_id": verification_task_id,
+        }
+        if hasattr(e, "create_error_response_data"):
+            error_data = e.create_error_response_data()
+
+        error_response = a2a.create_invalid_request_error_response(
+            message="Authentication failed",
+            request_id=jsonrpc_request_id,
+            data=error_data,
+        )
+
+        # Determine reply topic
+        reply_topic = message.get_user_properties().get("replyTo")
+        if not reply_topic:
+            client_id = message.get_user_properties().get(
+                "clientId", "default_client"
+            )
+            reply_topic = a2a.get_client_response_topic(
+                namespace, client_id
+            )
+
+        component.publish_a2a_message(
+            payload=error_response.model_dump(exclude_none=True),
+            topic=reply_topic,
+        )
+
+        try:
+            message.call_acknowledgements()
+            log.debug(
+                "%s ACKed message with failed authentication",
+                component.log_identifier,
+            )
+        except Exception as ack_e:
+            log.error(
+                "%s Failed to ACK message after authentication failure: %s",
+                component.log_identifier,
+                ack_e,
+            )
+        raise _AuthenticationFailedExit()
+
+
+class _AuthenticationFailedExit(Exception):
+    """Sentinel exception to signal early return after authentication failure."""
+    pass
+
+
+def _handle_cancel_task_request(
+    component: "SamAgentComponent",
+    message: SolaceMessage,
+    a2a_request: A2ARequest,
+) -> None:
+    """
+    Handle a tasks/cancel A2A request.
+
+    Sends cancellation signal to the active task and propagates cancellation
+    to all peer sub-tasks. If the task is paused with no peers, schedules
+    immediate finalization.
+
+    Args:
+        component: The SamAgentComponent instance.
+        message: The incoming Solace message.
+        a2a_request: The parsed A2A request.
+    """
+    logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
+    log.info(
+        "%s Received CancelTaskRequest for Task ID: %s.",
+        component.log_identifier,
+        logical_task_id,
+    )
+    task_context = None
+    with component.active_tasks_lock:
+        task_context = component.active_tasks.get(logical_task_id)
+
+    if task_context:
+        task_context.cancel()
+        log.info(
+            "%s Sent cancellation signal to ADK task %s.",
+            component.log_identifier,
+            logical_task_id,
+        )
+
+        peer_sub_tasks = task_context.active_peer_sub_tasks.copy()
+        if peer_sub_tasks:
+            for sub_task_id, sub_task_info in peer_sub_tasks.items():
+                target_peer_agent_name = sub_task_info.get("peer_agent_name")
+                peer_task_id_to_cancel = sub_task_info.get("peer_task_id")
+
+                if not peer_task_id_to_cancel:
+                    log.warning(
+                        "%s Cannot cancel peer sub-task %s for main task %s because the peer's taskId is not yet known.",
+                        component.log_identifier,
+                        sub_task_id,
+                        logical_task_id,
+                    )
+                    continue
+
+                if peer_task_id_to_cancel and target_peer_agent_name:
+                    log.info(
+                        "%s Attempting to cancel peer sub-task %s (Peer Task ID: %s) for agent %s (main task %s).",
+                        component.log_identifier,
+                        sub_task_id,
+                        peer_task_id_to_cancel,
+                        target_peer_agent_name,
+                        logical_task_id,
+                    )
+                    try:
+                        peer_cancel_request = a2a.create_cancel_task_request(
+                            task_id=peer_task_id_to_cancel
+                        )
+                        peer_cancel_user_props = {
+                            "clientId": component.agent_name
+                        }
+                        component.publish_a2a_message(
+                            payload=peer_cancel_request.model_dump(
+                                exclude_none=True
+                            ),
+                            topic=component._get_agent_request_topic(
+                                target_peer_agent_name
+                            ),
+                            user_properties=peer_cancel_user_props,
+                        )
+                        log.info(
+                            "%s Sent CancelTaskRequest to peer %s for its task %s.",
+                            component.log_identifier,
+                            target_peer_agent_name,
+                            peer_task_id_to_cancel,
+                        )
+                    except Exception as e_peer_cancel:
+                        log.error(
+                            "%s Failed to send CancelTaskRequest to peer %s for task %s: %s",
+                            component.log_identifier,
+                            target_peer_agent_name,
+                            peer_task_id_to_cancel,
+                            e_peer_cancel,
+                        )
+                else:
+                    log.warning(
+                        "%s Peer info for main task %s incomplete, cannot cancel peer task. Info: %s",
+                        component.log_identifier,
+                        logical_task_id,
+                        sub_task_info,
+                    )
+        else:
+            # No peer sub-tasks - check if task is paused and needs immediate finalization
+            if task_context.get_is_paused():
+                log.info(
+                    "%s Task %s is paused with no peer sub-tasks. Scheduling immediate finalization.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    task_context.set_paused(False)
+
+                    asyncio.run_coroutine_threadsafe(
+                        component.finalize_task_with_cleanup(
+                            task_context.a2a_context,
+                            is_paused=False,
+                            exception=TaskCancelledError(
+                                f"Task {logical_task_id} cancelled while paused."
+                            ),
+                        ),
+                        loop,
+                    )
+                else:
+                    log.error(
+                        "%s Cannot finalize cancelled paused task %s - event loop not available.",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
+    else:
+        log.info(
+            "%s No active task found for cancellation (ID: %s) or task already completed. Ignoring signal.",
+            component.log_identifier,
+            logical_task_id,
+        )
+    try:
+        message.call_acknowledgements()
+        log.debug(
+            "%s ACKed CancelTaskRequest for Task ID: %s.",
+            component.log_identifier,
+            logical_task_id,
+        )
+    except Exception as ack_e:
+        log.error(
+            "%s Failed to ACK CancelTaskRequest for Task ID %s: %s",
+            component.log_identifier,
+            logical_task_id,
+            ack_e,
+        )
+
+
+async def _resolve_or_create_session(
+    component: "SamAgentComponent",
+    agent_name: str,
+    user_id: str,
+    effective_session_id: str,
+    task_metadata: dict,
+    logical_task_id: str,
+):
+    """
+    Resolve an existing ADK session or create a new one, handling fork cloning.
+
+    Tries to get an existing session first. If none exists, checks for fork
+    metadata and clones the source session if applicable. Otherwise creates
+    a fresh session.
+
+    Args:
+        component: The SamAgentComponent instance.
+        agent_name: The agent name for session lookup.
+        user_id: The user ID for session lookup.
+        effective_session_id: The session ID to resolve or create.
+        task_metadata: The task metadata dict (may contain fork info).
+        logical_task_id: The task ID for logging.
+
+    Returns:
+        The resolved or newly created ADK session.
+    """
+    adk_session_for_run = await component.session_service.get_session(
+        app_name=agent_name, user_id=user_id, session_id=effective_session_id
+    )
+    if adk_session_for_run is None:
+        # Check if this is a forked session that needs history cloned
+        fork_source_session_id = task_metadata.get("fork_source_session_id")
+        fork_source_user_id = task_metadata.get("fork_source_user_id")
+
+        if fork_source_session_id and fork_source_user_id:
+            # Try to clone the source session's conversation history
+            log.info(
+                "%s Forked session detected - cloning ADK session from '%s' (user '%s') to '%s' (user '%s').",
+                component.log_identifier,
+                fork_source_session_id, fork_source_user_id,
+                effective_session_id, user_id,
+            )
+            try:
+                from ...agent.adk.services import clone_adk_session
+                cloned_session = await clone_adk_session(
+                    session_service=component.session_service,
+                    app_name=agent_name,
+                    source_user_id=fork_source_user_id,
+                    source_session_id=fork_source_session_id,
+                    target_user_id=user_id,
+                    target_session_id=effective_session_id,
+                    log_identifier=f"{component.log_identifier}[Fork:{logical_task_id}]",
+                )
+                if cloned_session:
+                    adk_session_for_run = cloned_session
+                    log.info(
+                        "%s Successfully cloned ADK session for forked session '%s'.",
+                        component.log_identifier,
+                        effective_session_id,
+                    )
+                else:
+                    try:
+                        adk_session_for_run = await component.session_service.create_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    except Exception:
+                        adk_session_for_run = await component.session_service.get_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    log.warning(
+                        "%s Fork clone returned None - created empty session '%s'.",
+                        component.log_identifier,
+                        effective_session_id,
+                    )
+            except Exception as clone_err:
+                log.warning(
+                    "%s Fork clone error: %s - cleaning up and creating empty session '%s'.",
+                    component.log_identifier, clone_err, effective_session_id,
+                )
+                # Clean up partially-cloned session before creating a fresh one
+                try:
+                    await component.session_service.delete_session(
+                        app_name=agent_name,
+                        user_id=user_id,
+                        session_id=effective_session_id,
+                    )
+                except Exception:
+                    pass  # Session may not exist yet
+                # Create fresh session; handle race with concurrent first-message
+                try:
+                    adk_session_for_run = await component.session_service.create_session(
+                        app_name=agent_name,
+                        user_id=user_id,
+                        session_id=effective_session_id,
+                    )
+                except Exception:
+                    # Another concurrent message may have already created it
+                    adk_session_for_run = await component.session_service.get_session(
+                        app_name=agent_name,
+                        user_id=user_id,
+                        session_id=effective_session_id,
+                    )
+        else:
+            # Normal new session (not a fork)
+            try:
+                adk_session_for_run = await component.session_service.create_session(
+                    app_name=agent_name,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                )
+            except Exception:
+                # Another concurrent message may have already created it
+                adk_session_for_run = await component.session_service.get_session(
+                    app_name=agent_name,
+                    user_id=user_id,
+                    session_id=effective_session_id,
+                )
+            log.info(
+                "%s Created new ADK session '%s' for task '%s'.",
+                component.log_identifier,
+                effective_session_id,
+                logical_task_id,
+            )
+
+    else:
+        log.info(
+            "%s Reusing existing ADK session '%s' for task '%s'.",
+            component.log_identifier,
+            effective_session_id,
+            logical_task_id,
+        )
+
+    return adk_session_for_run
+
+
+async def _copy_history_for_run_based_session(
+    component: "SamAgentComponent",
+    agent_name: str,
+    user_id: str,
+    original_session_id: str,
+    effective_session_id: str,
+    logical_task_id: str,
+) -> None:
+    """
+    Copy conversation history from the original session to a run-based session.
+
+    For RUN_BASED session behavior, creates a temporary session and copies
+    all history events from the original persistent session into it.
+
+    Args:
+        component: The SamAgentComponent instance.
+        agent_name: The agent name for session operations.
+        user_id: The user ID for session operations.
+        original_session_id: The original persistent session ID to copy from.
+        effective_session_id: The run-based session ID to copy into.
+        logical_task_id: The task ID for logging.
+    """
+    try:
+        from ...agent.adk.services import append_event_with_retry
+
+        original_adk_session_data = (
+            await component.session_service.get_session(
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=original_session_id,
+            )
+        )
+        if original_adk_session_data and hasattr(
+            original_adk_session_data, "history"
+        ):
+            original_history_events = original_adk_session_data.history
+            if original_history_events:
+                log.debug(
+                    "%s Copying %d events from original session '%s' to run-based session '%s'.",
+                    component.log_identifier,
+                    len(original_history_events),
+                    original_session_id,
+                    effective_session_id,
+                )
+                run_based_adk_session_for_copy = (
+                    await component.session_service.create_session(
+                        app_name=agent_name,
+                        user_id=user_id,
+                        session_id=effective_session_id,
+                    )
+                )
+                for event_to_copy in original_history_events:
+                    # Use retry helper to handle stale session race conditions
+                    await append_event_with_retry(
+                        session_service=component.session_service,
+                        session=run_based_adk_session_for_copy,
+                        event=event_to_copy,
+                        app_name=agent_name,
+                        user_id=user_id,
+                        session_id=effective_session_id,
+                        log_identifier=f"{component.log_identifier}[RunBasedCopy:{logical_task_id}]",
+                    )
+                    # Re-fetch session after each append to keep it fresh for the next iteration
+                    run_based_adk_session_for_copy = (
+                        await component.session_service.get_session(
+                            app_name=agent_name,
+                            user_id=user_id,
+                            session_id=effective_session_id,
+                        )
+                    )
+            else:
+                log.debug(
+                    "%s No history to copy from original session '%s' for run-based task '%s'.",
+                    component.log_identifier,
+                    original_session_id,
+                    logical_task_id,
+                )
+        else:
+            log.debug(
+                "%s Original session '%s' not found or has no history, cannot copy for run-based task '%s'.",
+                component.log_identifier,
+                original_session_id,
+                logical_task_id,
+            )
+    except Exception as e_copy:
+        log.error(
+            "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
+            component.log_identifier,
+            effective_session_id,
+            logical_task_id,
+            e_copy,
+        )
+
+
+async def _prepare_adk_content_with_artifacts(
+    component: "SamAgentComponent",
+    a2a_message,
+    user_id: str,
+    effective_session_id: str,
+    agent_name: str,
+    logical_task_id: str,
+):
+    """
+    Enrich the A2A message with artifact context and translate to ADK content.
+
+    If the message was invoked with artifacts, generates a metadata summary
+    and prepends it to the task description. Then translates the final
+    A2A message to ADK content format.
+
+    Args:
+        component: The SamAgentComponent instance.
+        a2a_message: The A2A message to process.
+        user_id: The user ID for artifact lookup.
+        effective_session_id: The session ID for artifact lookup.
+        agent_name: The agent name for artifact lookup.
+        logical_task_id: The task ID for logging.
+
+    Returns:
+        The translated ADK content.
+    """
+    a2a_message_for_adk = a2a_message
+    invoked_artifacts = (
+        a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
+        if a2a_message_for_adk.metadata
+        else []
+    )
+
+    if invoked_artifacts:
+        log.info(
+            "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
+            component.log_identifier,
+            logical_task_id,
+            len(invoked_artifacts),
+        )
+        header_text = (
+            "The user has provided the following artifacts as context for your task. "
+            "Use the information contained within their metadata to complete your objective."
+        )
+        artifact_summary = await generate_artifact_metadata_summary(
+            component=component,
+            artifact_identifiers=invoked_artifacts,
+            user_id=user_id,
+            session_id=effective_session_id,
+            app_name=agent_name,
+            header_text=header_text,
+        )
+
+        task_description = get_text_from_message(a2a_message_for_adk)
+        final_prompt = f"{task_description}\n\n{artifact_summary}"
+
+        a2a_message_for_adk = a2a.update_message_parts(
+            message=a2a_message_for_adk,
+            new_parts=[a2a.create_text_part(text=final_prompt)],
+        )
+        log.debug(
+            "%s Generated new prompt for task %s with artifact context.",
+            component.log_identifier,
+            logical_task_id,
+        )
+
+    adk_content = await translate_a2a_to_adk_content(
+        a2a_message=a2a_message_for_adk,
+        component=component,
+        user_id=user_id,
+        session_id=effective_session_id,
+    )
+
+    return adk_content
+
+
+def _send_error_response_and_nack(
+    component: "SamAgentComponent",
+    message: SolaceMessage,
+    error_response,
+    reply_topic_from_peer: str | None,
+    namespace: str,
+    client_id: str,
+    nack_reason: str,
+    exception: Exception,
+) -> None:
+    """
+    Send an error response to the client and NACK the original message.
+
+    Common error handling pattern used by all except blocks in handle_a2a_request.
+
+    Args:
+        component: The SamAgentComponent instance.
+        message: The original Solace message to NACK.
+        error_response: The error response object to publish.
+        reply_topic_from_peer: The peer's reply topic, or None.
+        namespace: The agent namespace.
+        client_id: The client ID for topic resolution.
+        nack_reason: Human-readable reason for the NACK (for logging).
+        exception: The original exception for error handling.
+    """
+    target_topic = reply_topic_from_peer or (
+        get_client_response_topic(namespace, client_id) if client_id else None
+    )
+    if target_topic:
+        component.publish_a2a_message(
+            error_response.model_dump(exclude_none=True),
+            target_topic,
+        )
+
+    try:
+        message.call_negative_acknowledgements()
+        log.warning(
+            "%s NACKed original A2A request due to %s.",
+            component.log_identifier,
+            nack_reason,
+        )
+    except Exception as nack_e:
+        log.error(
+            "%s Failed to NACK message after %s: %s",
+            component.log_identifier,
+            nack_reason,
+            nack_e,
+        )
+
+    component.handle_error(exception, Event(EventType.MESSAGE, message))
+
+
+async def _handle_send_message_request(
+    component: "SamAgentComponent",
+    message: SolaceMessage,
+    a2a_request: A2ARequest,
+    method: str,
+    jsonrpc_request_id: str,
+    client_id: str,
+    namespace: str,
+    status_topic_from_peer: str | None,
+    reply_topic_from_peer: str | None,
+    a2a_user_config: dict,
+    call_depth: int,
+    verified_user_identity: dict | None,
+) -> None:
+    """
+    Handle a message/send or message/stream A2A request.
+
+    Extracts message properties, resolves or creates sessions, builds the
+    A2A context, creates task execution context, prepares ADK content,
+    and starts the ADK runner.
+
+    Args:
+        component: The SamAgentComponent instance.
+        message: The incoming Solace message.
+        a2a_request: The parsed A2A request.
+        method: The A2A request method ("message/send" or "message/stream").
+        jsonrpc_request_id: The JSON-RPC request ID.
+        client_id: The client ID.
+        namespace: The agent namespace.
+        status_topic_from_peer: The peer's status topic.
+        reply_topic_from_peer: The peer's reply topic.
+        a2a_user_config: The user config from message properties.
+        call_depth: The current call depth.
+        verified_user_identity: The verified user identity, or None.
+    """
+    a2a_message = a2a.get_message_from_send_request(a2a_request)
+    if not a2a_message:
+        raise ValueError("Could not extract message from SendMessageRequest")
+
+    # The gateway/client is the source of truth for the task ID.
+    # The agent adopts the ID from the JSON-RPC request envelope.
+    logical_task_id = str(a2a.get_request_id(a2a_request))
+
+    try:
+        from solace_agent_mesh_enterprise.auth.input_required import (
+            a2a_auth_message_handler,
+        )
+
+        try:
+            message_handled = await a2a_auth_message_handler(
+                component, a2a_message, logical_task_id
+            )
+            if message_handled:
+                message.call_acknowledgements()
+                log.debug(
+                    "%s ACKed message handled by input-required auth handler.",
+                    component.log_identifier,
+                )
+                return None
+        except Exception as auth_import_err:
+            log.error(
+                "%s Error in input-required auth handler: %s",
+                component.log_identifier,
+                auth_import_err,
+            )
+            message.call_acknowledgements()
+            return None
+
+    except ImportError:
+        pass
+
+    # The session id is now contextId on the message
+    original_session_id = a2a_message.context_id
+    message_id = a2a_message.message_id
+    task_metadata = a2a_message.metadata or {}
+    system_purpose = task_metadata.get("system_purpose")
+    response_format = task_metadata.get("response_format")
+    session_behavior_from_meta = task_metadata.get("sessionBehavior")
+    if session_behavior_from_meta:
+        session_behavior = str(session_behavior_from_meta).upper()
+        if session_behavior not in ["PERSISTENT", "RUN_BASED"]:
+            log.warning(
+                "%s Invalid 'sessionBehavior' in task metadata: '%s'. Using component default: '%s'.",
+                component.log_identifier,
+                session_behavior,
+                component.default_session_behavior,
+            )
+            session_behavior = component.default_session_behavior
+        else:
+            log.info(
+                "%s Using 'sessionBehavior' from task metadata: '%s'.",
+                component.log_identifier,
+                session_behavior,
+            )
+    else:
+        session_behavior = component.default_session_behavior
+        log.debug(
+            "%s No 'sessionBehavior' in task metadata. Using component default: '%s'.",
+            component.log_identifier,
+            session_behavior,
+        )
+    user_id = message.get_user_properties().get("userId", "default_user")
+    agent_name = component.get_config("agent_name")
+    is_streaming_request = method == "message/stream"
+    host_supports_streaming = component.get_config("supports_streaming", False)
+    if is_streaming_request and not host_supports_streaming:
+        raise ValueError(
+            "Host does not support streaming (tasks/sendSubscribe) requests."
+        )
+    effective_session_id = original_session_id
+    is_run_based_session = False
+    temporary_run_session_id_for_cleanup = None
+
+    session_id_from_data = None
+    if a2a_message and a2a_message.parts:
+        for part in a2a_message.parts:
+            if isinstance(part, DataPart) and "session_id" in part.data:
+                session_id_from_data = part.data["session_id"]
+                log.info(
+                    f"Extracted session_id '{session_id_from_data}' from DataPart."
+                )
+                break
+
+    if session_id_from_data:
+        original_session_id = session_id_from_data
+
+    if session_behavior == "RUN_BASED":
+        is_run_based_session = True
+        effective_session_id = f"{original_session_id}:{logical_task_id}:run"
+        temporary_run_session_id_for_cleanup = effective_session_id
+        log.info(
+            "%s Session behavior is RUN_BASED. OriginalID='%s', EffectiveID for this run='%s', TaskID='%s'.",
+            component.log_identifier,
+            original_session_id,
+            effective_session_id,
+            logical_task_id,
+        )
+    else:
+        is_run_based_session = False
+        effective_session_id = original_session_id
+        temporary_run_session_id_for_cleanup = None
+        log.info(
+            "%s Session behavior is PERSISTENT. EffectiveID='%s' for TaskID='%s'.",
+            component.log_identifier,
+            effective_session_id,
+            logical_task_id,
+        )
+
+    await _resolve_or_create_session(
+        component, agent_name, user_id, effective_session_id,
+        task_metadata, logical_task_id,
+    )
+
+    if is_run_based_session:
+        await _copy_history_for_run_based_session(
+            component, agent_name, user_id, original_session_id,
+            effective_session_id, logical_task_id,
+        )
+
+    a2a_context = {
+        "jsonrpc_request_id": jsonrpc_request_id,
+        "logical_task_id": logical_task_id,
+        "contextId": original_session_id,
+        "messageId": message_id,
+        "session_id": original_session_id,  # Keep for now for compatibility
+        "user_id": user_id,
+        "client_id": client_id,
+        "is_streaming": is_streaming_request,
+        "statusTopic": status_topic_from_peer,
+        "replyToTopic": reply_topic_from_peer,
+        "a2a_user_config": a2a_user_config,
+        "effective_session_id": effective_session_id,
+        "is_run_based_session": is_run_based_session,
+        "temporary_run_session_id_for_cleanup": temporary_run_session_id_for_cleanup,
+        "agent_name_for_session": (
+            agent_name if is_run_based_session else None
+        ),
+        "user_id_for_session": user_id if is_run_based_session else None,
+        "system_purpose": system_purpose,
+        "response_format": response_format,
+        "host_agent_name": agent_name,
+        "call_depth": call_depth,
+        "original_message_metadata": task_metadata,  # Store original message metadata for tools
+    }
+
+    # Store verified user identity claims in a2a_context (not the raw token)
+    if verified_user_identity:
+        a2a_context["verified_user_identity"] = verified_user_identity
+        log.debug(
+            "%s Stored verified user identity in a2a_context for task %s",
+            component.log_identifier,
+            logical_task_id,
+        )
+    if trace_logger.isEnabledFor(logging.DEBUG):
+        trace_logger.debug(
+            "%s A2A Context (shared service model): %s",
+            component.log_identifier,
+            a2a_context,
+        )
+    else:
+        log.debug(
+            "%s A2A Context prepared for task %s",
+            component.log_identifier,
+            a2a_context.get("logical_task_id", "unknown"),
+        )
+
+    # Create and store the execution context for this task
+    task_context = TaskExecutionContext(
+        task_id=logical_task_id, a2a_context=a2a_context
+    )
+
+    # Store the original Solace message in TaskExecutionContext instead of a2a_context
+    # This avoids serialization issues when a2a_context is stored in ADK session state
+    task_context.set_original_solace_message(message)
+
+    # Store auth token for peer delegation using generic security storage
+    if hasattr(component, "trust_manager") and component.trust_manager:
+        auth_token = message.get_user_properties().get("authToken")
+        if auth_token:
+            task_context.set_security_data("auth_token", auth_token)
+            log.debug(
+                "%s Stored authentication token in TaskExecutionContext security storage for task %s",
+                component.log_identifier,
+                logical_task_id,
+            )
+
+    with component.active_tasks_lock:
+        component.active_tasks[logical_task_id] = task_context
+    log.info(
+        "%s Created and stored new TaskExecutionContext for task %s.",
+        component.log_identifier,
+        logical_task_id,
+    )
+
+    adk_content = await _prepare_adk_content_with_artifacts(
+        component, a2a_message, user_id, effective_session_id,
+        agent_name, logical_task_id,
+    )
+
+    adk_session = await component.session_service.get_session(
+        app_name=agent_name, user_id=user_id, session_id=effective_session_id
+    )
+    if adk_session is None:
+        log.info(
+            "%s ADK session '%s' not found in component.session_service, creating new one.",
+            component.log_identifier,
+            effective_session_id,
+        )
+        adk_session = await component.session_service.create_session(
+            app_name=agent_name,
+            user_id=user_id,
+            session_id=effective_session_id,
+        )
+    else:
+        log.info(
+            "%s Reusing existing ADK session '%s' from component.session_service.",
+            component.log_identifier,
+            effective_session_id,
+        )
+
+    # Always use SSE streaming mode for the ADK runner.
+    # This ensures that real-time callbacks (e.g., for fenced artifact
+    # progress) can function correctly for all task types. The component's
+    # internal logic uses the 'is_run_based_session' flag to differentiate
+    # between aggregating a final response and streaming partial updates.
+    streaming_mode = StreamingMode.SSE
+
+    max_llm_calls_per_task = component.get_config("max_llm_calls_per_task", 20)
+    log.debug(
+        "%s Using max_llm_calls_per_task: %s",
+        component.log_identifier,
+        max_llm_calls_per_task,
+    )
+
+    run_config = RunConfig(
+        streaming_mode=streaming_mode, max_llm_calls=max_llm_calls_per_task
+    )
+    log.info(
+        "%s Setting ADK RunConfig streaming_mode to: %s, max_llm_calls to: %s",
+        component.log_identifier,
+        streaming_mode,
+        max_llm_calls_per_task,
+    )
+
+    log.info(
+        "%s Starting ADK runner task for request %s (Task ID: %s)",
+        component.log_identifier,
+        jsonrpc_request_id,
+        logical_task_id,
+    )
+
+    await run_adk_async_task_thread_wrapper(
+        component,
+        adk_session,
+        adk_content,
+        run_config,
+        a2a_context,
+    )
+
+    log.info(
+        "%s ADK task execution awaited for Task ID %s.",
+        component.log_identifier,
+        logical_task_id,
+    )
+
+
 async def handle_a2a_request(component, message: SolaceMessage):
     """
     Handles an incoming A2A request message.
@@ -361,87 +1296,13 @@ async def handle_a2a_request(component, message: SolaceMessage):
         method = a2a.get_request_method(a2a_request)
 
         # Enterprise feature: Verify user authentication if trust manager enabled
-        verified_user_identity = None
-        if hasattr(component, "trust_manager") and component.trust_manager:
-            # Determine task_id for verification
-            if method == "tasks/cancel":
-                verification_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
-            elif method in ["message/send", "message/stream"]:
-                verification_task_id = str(a2a.get_request_id(a2a_request))
-            else:
-                verification_task_id = None
-
-            if verification_task_id:
-                try:
-                    # Enterprise handles all verification logic
-                    verified_user_identity = (
-                        component.trust_manager.verify_request_authentication(
-                            message=message,
-                            task_id=verification_task_id,
-                            namespace=namespace,
-                            jsonrpc_request_id=jsonrpc_request_id,
-                        )
-                    )
-
-                    if verified_user_identity:
-                        log.info(
-                            "%s Successfully authenticated user '%s' for task %s",
-                            component.log_identifier,
-                            verified_user_identity.get("user_id"),
-                            verification_task_id,
-                        )
-
-                except Exception as e:
-                    # Authentication failed - enterprise provides error details
-                    log.error(
-                        "%s Authentication failed for task %s: %s",
-                        component.log_identifier,
-                        verification_task_id,
-                        e,
-                    )
-
-                    # Build error response using enterprise exception data if available
-                    error_data = {
-                        "reason": "authentication_failed",
-                        "task_id": verification_task_id,
-                    }
-                    if hasattr(e, "create_error_response_data"):
-                        error_data = e.create_error_response_data()
-
-                    error_response = a2a.create_invalid_request_error_response(
-                        message="Authentication failed",
-                        request_id=jsonrpc_request_id,
-                        data=error_data,
-                    )
-
-                    # Determine reply topic
-                    reply_topic = message.get_user_properties().get("replyTo")
-                    if not reply_topic:
-                        client_id = message.get_user_properties().get(
-                            "clientId", "default_client"
-                        )
-                        reply_topic = a2a.get_client_response_topic(
-                            namespace, client_id
-                        )
-
-                    component.publish_a2a_message(
-                        payload=error_response.model_dump(exclude_none=True),
-                        topic=reply_topic,
-                    )
-
-                    try:
-                        message.call_acknowledgements()
-                        log.debug(
-                            "%s ACKed message with failed authentication",
-                            component.log_identifier,
-                        )
-                    except Exception as ack_e:
-                        log.error(
-                            "%s Failed to ACK message after authentication failure: %s",
-                            component.log_identifier,
-                            ack_e,
-                        )
-                    return None
+        try:
+            verified_user_identity = await _verify_request_authentication(
+                component, message, method, a2a_request,
+                namespace, jsonrpc_request_id,
+            )
+        except _AuthenticationFailedExit:
+            return None
 
         # Check for structured invocation mode
         if method in ["message/send", "message/stream"]:
@@ -500,617 +1361,23 @@ async def handle_a2a_request(component, message: SolaceMessage):
                 return
 
         if method == "tasks/cancel":
-            logical_task_id = a2a.get_task_id_from_cancel_request(a2a_request)
-            log.info(
-                "%s Received CancelTaskRequest for Task ID: %s.",
-                component.log_identifier,
-                logical_task_id,
-            )
-            task_context = None
-            with component.active_tasks_lock:
-                task_context = component.active_tasks.get(logical_task_id)
-
-            if task_context:
-                task_context.cancel()
-                log.info(
-                    "%s Sent cancellation signal to ADK task %s.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-
-                peer_sub_tasks = task_context.active_peer_sub_tasks.copy()
-                if peer_sub_tasks:
-                    for sub_task_id, sub_task_info in peer_sub_tasks.items():
-                        target_peer_agent_name = sub_task_info.get("peer_agent_name")
-                        peer_task_id_to_cancel = sub_task_info.get("peer_task_id")
-
-                        if not peer_task_id_to_cancel:
-                            log.warning(
-                                "%s Cannot cancel peer sub-task %s for main task %s because the peer's taskId is not yet known.",
-                                component.log_identifier,
-                                sub_task_id,
-                                logical_task_id,
-                            )
-                            continue
-
-                        if peer_task_id_to_cancel and target_peer_agent_name:
-                            log.info(
-                                "%s Attempting to cancel peer sub-task %s (Peer Task ID: %s) for agent %s (main task %s).",
-                                component.log_identifier,
-                                sub_task_id,
-                                peer_task_id_to_cancel,
-                                target_peer_agent_name,
-                                logical_task_id,
-                            )
-                            try:
-                                peer_cancel_request = a2a.create_cancel_task_request(
-                                    task_id=peer_task_id_to_cancel
-                                )
-                                peer_cancel_user_props = {
-                                    "clientId": component.agent_name
-                                }
-                                component.publish_a2a_message(
-                                    payload=peer_cancel_request.model_dump(
-                                        exclude_none=True
-                                    ),
-                                    topic=component._get_agent_request_topic(
-                                        target_peer_agent_name
-                                    ),
-                                    user_properties=peer_cancel_user_props,
-                                )
-                                log.info(
-                                    "%s Sent CancelTaskRequest to peer %s for its task %s.",
-                                    component.log_identifier,
-                                    target_peer_agent_name,
-                                    peer_task_id_to_cancel,
-                                )
-                            except Exception as e_peer_cancel:
-                                log.error(
-                                    "%s Failed to send CancelTaskRequest to peer %s for task %s: %s",
-                                    component.log_identifier,
-                                    target_peer_agent_name,
-                                    peer_task_id_to_cancel,
-                                    e_peer_cancel,
-                                )
-                        else:
-                            log.warning(
-                                "%s Peer info for main task %s incomplete, cannot cancel peer task. Info: %s",
-                                component.log_identifier,
-                                logical_task_id,
-                                sub_task_info,
-                            )
-                else:
-                    # No peer sub-tasks - check if task is paused and needs immediate finalization
-                    if task_context.get_is_paused():
-                        log.info(
-                            "%s Task %s is paused with no peer sub-tasks. Scheduling immediate finalization.",
-                            component.log_identifier,
-                            logical_task_id,
-                        )
-                        loop = component.get_async_loop()
-                        if loop and loop.is_running():
-                            task_context.set_paused(False)
-
-                            asyncio.run_coroutine_threadsafe(
-                                component.finalize_task_with_cleanup(
-                                    task_context.a2a_context,
-                                    is_paused=False,
-                                    exception=TaskCancelledError(
-                                        f"Task {logical_task_id} cancelled while paused."
-                                    ),
-                                ),
-                                loop,
-                            )
-                        else:
-                            log.error(
-                                "%s Cannot finalize cancelled paused task %s - event loop not available.",
-                                component.log_identifier,
-                                logical_task_id,
-                            )
-            else:
-                log.info(
-                    "%s No active task found for cancellation (ID: %s) or task already completed. Ignoring signal.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-            try:
-                message.call_acknowledgements()
-                log.debug(
-                    "%s ACKed CancelTaskRequest for Task ID: %s.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-            except Exception as ack_e:
-                log.error(
-                    "%s Failed to ACK CancelTaskRequest for Task ID %s: %s",
-                    component.log_identifier,
-                    logical_task_id,
-                    ack_e,
-                )
+            _handle_cancel_task_request(component, message, a2a_request)
             return None
         elif method in ["message/send", "message/stream"]:
-            a2a_message = a2a.get_message_from_send_request(a2a_request)
-            if not a2a_message:
-                raise ValueError("Could not extract message from SendMessageRequest")
-
-            # The gateway/client is the source of truth for the task ID.
-            # The agent adopts the ID from the JSON-RPC request envelope.
-            logical_task_id = str(a2a.get_request_id(a2a_request))
-
-            try:
-                from solace_agent_mesh_enterprise.auth.input_required import (
-                    a2a_auth_message_handler,
-                )
-
-                try:
-                    message_handled = await a2a_auth_message_handler(
-                        component, a2a_message, logical_task_id
-                    )
-                    if message_handled:
-                        message.call_acknowledgements()
-                        log.debug(
-                            "%s ACKed message handled by input-required auth handler.",
-                            component.log_identifier,
-                        )
-                        return None
-                except Exception as auth_import_err:
-                    log.error(
-                        "%s Error in input-required auth handler: %s",
-                        component.log_identifier,
-                        auth_import_err,
-                    )
-                    message.call_acknowledgements()
-                    return None
-
-            except ImportError:
-                pass
-
-            # The session id is now contextId on the message
-            original_session_id = a2a_message.context_id
-            message_id = a2a_message.message_id
-            task_metadata = a2a_message.metadata or {}
-            system_purpose = task_metadata.get("system_purpose")
-            response_format = task_metadata.get("response_format")
-            session_behavior_from_meta = task_metadata.get("sessionBehavior")
-            if session_behavior_from_meta:
-                session_behavior = str(session_behavior_from_meta).upper()
-                if session_behavior not in ["PERSISTENT", "RUN_BASED"]:
-                    log.warning(
-                        "%s Invalid 'sessionBehavior' in task metadata: '%s'. Using component default: '%s'.",
-                        component.log_identifier,
-                        session_behavior,
-                        component.default_session_behavior,
-                    )
-                    session_behavior = component.default_session_behavior
-                else:
-                    log.info(
-                        "%s Using 'sessionBehavior' from task metadata: '%s'.",
-                        component.log_identifier,
-                        session_behavior,
-                    )
-            else:
-                session_behavior = component.default_session_behavior
-                log.debug(
-                    "%s No 'sessionBehavior' in task metadata. Using component default: '%s'.",
-                    component.log_identifier,
-                    session_behavior,
-                )
-            user_id = message.get_user_properties().get("userId", "default_user")
-            agent_name = component.get_config("agent_name")
-            is_streaming_request = method == "message/stream"
-            host_supports_streaming = component.get_config("supports_streaming", False)
-            if is_streaming_request and not host_supports_streaming:
-                raise ValueError(
-                    "Host does not support streaming (tasks/sendSubscribe) requests."
-                )
-            effective_session_id = original_session_id
-            is_run_based_session = False
-            temporary_run_session_id_for_cleanup = None
-
-            session_id_from_data = None
-            if a2a_message and a2a_message.parts:
-                for part in a2a_message.parts:
-                    if isinstance(part, DataPart) and "session_id" in part.data:
-                        session_id_from_data = part.data["session_id"]
-                        log.info(
-                            f"Extracted session_id '{session_id_from_data}' from DataPart."
-                        )
-                        break
-
-            if session_id_from_data:
-                original_session_id = session_id_from_data
-
-            if session_behavior == "RUN_BASED":
-                is_run_based_session = True
-                effective_session_id = f"{original_session_id}:{logical_task_id}:run"
-                temporary_run_session_id_for_cleanup = effective_session_id
-                log.info(
-                    "%s Session behavior is RUN_BASED. OriginalID='%s', EffectiveID for this run='%s', TaskID='%s'.",
-                    component.log_identifier,
-                    original_session_id,
-                    effective_session_id,
-                    logical_task_id,
-                )
-            else:
-                is_run_based_session = False
-                effective_session_id = original_session_id
-                temporary_run_session_id_for_cleanup = None
-                log.info(
-                    "%s Session behavior is PERSISTENT. EffectiveID='%s' for TaskID='%s'.",
-                    component.log_identifier,
-                    effective_session_id,
-                    logical_task_id,
-                )
-
-            adk_session_for_run = await component.session_service.get_session(
-                app_name=agent_name, user_id=user_id, session_id=effective_session_id
-            )
-            if adk_session_for_run is None:
-                # Check if this is a forked session that needs history cloned
-                fork_source_session_id = task_metadata.get("fork_source_session_id")
-                fork_source_user_id = task_metadata.get("fork_source_user_id")
-                
-                if fork_source_session_id and fork_source_user_id:
-                    # Try to clone the source session's conversation history
-                    log.info(
-                        "%s Forked session detected - cloning ADK session from '%s' (user '%s') to '%s' (user '%s').",
-                        component.log_identifier,
-                        fork_source_session_id, fork_source_user_id,
-                        effective_session_id, user_id,
-                    )
-                    try:
-                        from ...agent.adk.services import clone_adk_session
-                        cloned_session = await clone_adk_session(
-                            session_service=component.session_service,
-                            app_name=agent_name,
-                            source_user_id=fork_source_user_id,
-                            source_session_id=fork_source_session_id,
-                            target_user_id=user_id,
-                            target_session_id=effective_session_id,
-                            log_identifier=f"{component.log_identifier}[Fork:{logical_task_id}]",
-                        )
-                        if cloned_session:
-                            adk_session_for_run = cloned_session
-                            log.info(
-                                "%s Successfully cloned ADK session for forked session '%s'.",
-                                component.log_identifier,
-                                effective_session_id,
-                            )
-                        else:
-                            try:
-                                adk_session_for_run = await component.session_service.create_session(
-                                    app_name=agent_name,
-                                    user_id=user_id,
-                                    session_id=effective_session_id,
-                                )
-                            except Exception:
-                                adk_session_for_run = await component.session_service.get_session(
-                                    app_name=agent_name,
-                                    user_id=user_id,
-                                    session_id=effective_session_id,
-                                )
-                            log.warning(
-                                "%s Fork clone returned None - created empty session '%s'.",
-                                component.log_identifier,
-                                effective_session_id,
-                            )
-                    except Exception as clone_err:
-                        log.warning(
-                            "%s Fork clone error: %s - cleaning up and creating empty session '%s'.",
-                            component.log_identifier, clone_err, effective_session_id,
-                        )
-                        # Clean up partially-cloned session before creating a fresh one
-                        try:
-                            await component.session_service.delete_session(
-                                app_name=agent_name,
-                                user_id=user_id,
-                                session_id=effective_session_id,
-                            )
-                        except Exception:
-                            pass  # Session may not exist yet
-                        # Create fresh session; handle race with concurrent first-message
-                        try:
-                            adk_session_for_run = await component.session_service.create_session(
-                                app_name=agent_name,
-                                user_id=user_id,
-                                session_id=effective_session_id,
-                            )
-                        except Exception:
-                            # Another concurrent message may have already created it
-                            adk_session_for_run = await component.session_service.get_session(
-                                app_name=agent_name,
-                                user_id=user_id,
-                                session_id=effective_session_id,
-                            )
-                else:
-                    # Normal new session (not a fork)
-                    try:
-                        adk_session_for_run = await component.session_service.create_session(
-                            app_name=agent_name,
-                            user_id=user_id,
-                            session_id=effective_session_id,
-                        )
-                    except Exception:
-                        # Another concurrent message may have already created it
-                        adk_session_for_run = await component.session_service.get_session(
-                            app_name=agent_name,
-                            user_id=user_id,
-                            session_id=effective_session_id,
-                        )
-                    log.info(
-                        "%s Created new ADK session '%s' for task '%s'.",
-                        component.log_identifier,
-                        effective_session_id,
-                        logical_task_id,
-                    )
-
-            else:
-                log.info(
-                    "%s Reusing existing ADK session '%s' for task '%s'.",
-                    component.log_identifier,
-                    effective_session_id,
-                    logical_task_id,
-                )
-
-            if is_run_based_session:
-                try:
-                    from ...agent.adk.services import append_event_with_retry
-
-                    original_adk_session_data = (
-                        await component.session_service.get_session(
-                            app_name=agent_name,
-                            user_id=user_id,
-                            session_id=original_session_id,
-                        )
-                    )
-                    if original_adk_session_data and hasattr(
-                        original_adk_session_data, "history"
-                    ):
-                        original_history_events = original_adk_session_data.history
-                        if original_history_events:
-                            log.debug(
-                                "%s Copying %d events from original session '%s' to run-based session '%s'.",
-                                component.log_identifier,
-                                len(original_history_events),
-                                original_session_id,
-                                effective_session_id,
-                            )
-                            run_based_adk_session_for_copy = (
-                                await component.session_service.create_session(
-                                    app_name=agent_name,
-                                    user_id=user_id,
-                                    session_id=effective_session_id,
-                                )
-                            )
-                            for event_to_copy in original_history_events:
-                                # Use retry helper to handle stale session race conditions
-                                await append_event_with_retry(
-                                    session_service=component.session_service,
-                                    session=run_based_adk_session_for_copy,
-                                    event=event_to_copy,
-                                    app_name=agent_name,
-                                    user_id=user_id,
-                                    session_id=effective_session_id,
-                                    log_identifier=f"{component.log_identifier}[RunBasedCopy:{logical_task_id}]",
-                                )
-                                # Re-fetch session after each append to keep it fresh for the next iteration
-                                run_based_adk_session_for_copy = (
-                                    await component.session_service.get_session(
-                                        app_name=agent_name,
-                                        user_id=user_id,
-                                        session_id=effective_session_id,
-                                    )
-                                )
-                        else:
-                            log.debug(
-                                "%s No history to copy from original session '%s' for run-based task '%s'.",
-                                component.log_identifier,
-                                original_session_id,
-                                logical_task_id,
-                            )
-                    else:
-                        log.debug(
-                            "%s Original session '%s' not found or has no history, cannot copy for run-based task '%s'.",
-                            component.log_identifier,
-                            original_session_id,
-                            logical_task_id,
-                        )
-                except Exception as e_copy:
-                    log.error(
-                        "%s Error copying history for run-based session '%s' (task '%s'): %s. Proceeding with empty session.",
-                        component.log_identifier,
-                        effective_session_id,
-                        logical_task_id,
-                        e_copy,
-                    )
-            a2a_context = {
-                "jsonrpc_request_id": jsonrpc_request_id,
-                "logical_task_id": logical_task_id,
-                "contextId": original_session_id,
-                "messageId": message_id,
-                "session_id": original_session_id,  # Keep for now for compatibility
-                "user_id": user_id,
-                "client_id": client_id,
-                "is_streaming": is_streaming_request,
-                "statusTopic": status_topic_from_peer,
-                "replyToTopic": reply_topic_from_peer,
-                "a2a_user_config": a2a_user_config,
-                "effective_session_id": effective_session_id,
-                "is_run_based_session": is_run_based_session,
-                "temporary_run_session_id_for_cleanup": temporary_run_session_id_for_cleanup,
-                "agent_name_for_session": (
-                    agent_name if is_run_based_session else None
-                ),
-                "user_id_for_session": user_id if is_run_based_session else None,
-                "system_purpose": system_purpose,
-                "response_format": response_format,
-                "host_agent_name": agent_name,
-                "call_depth": call_depth,
-                "original_message_metadata": task_metadata,  # Store original message metadata for tools
-            }
-
-            # Store verified user identity claims in a2a_context (not the raw token)
-            if verified_user_identity:
-                a2a_context["verified_user_identity"] = verified_user_identity
-                log.debug(
-                    "%s Stored verified user identity in a2a_context for task %s",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-            if trace_logger.isEnabledFor(logging.DEBUG):
-                trace_logger.debug(
-                    "%s A2A Context (shared service model): %s",
-                    component.log_identifier,
-                    a2a_context,
-                )
-            else:
-                log.debug(
-                    "%s A2A Context prepared for task %s",
-                    component.log_identifier,
-                    a2a_context.get("logical_task_id", "unknown"),
-                )
-
-            # Create and store the execution context for this task
-            task_context = TaskExecutionContext(
-                task_id=logical_task_id, a2a_context=a2a_context
-            )
-
-            # Store the original Solace message in TaskExecutionContext instead of a2a_context
-            # This avoids serialization issues when a2a_context is stored in ADK session state
-            task_context.set_original_solace_message(message)
-
-            # Store auth token for peer delegation using generic security storage
-            if hasattr(component, "trust_manager") and component.trust_manager:
-                auth_token = message.get_user_properties().get("authToken")
-                if auth_token:
-                    task_context.set_security_data("auth_token", auth_token)
-                    log.debug(
-                        "%s Stored authentication token in TaskExecutionContext security storage for task %s",
-                        component.log_identifier,
-                        logical_task_id,
-                    )
-
-            with component.active_tasks_lock:
-                component.active_tasks[logical_task_id] = task_context
-            log.info(
-                "%s Created and stored new TaskExecutionContext for task %s.",
-                component.log_identifier,
-                logical_task_id,
-            )
-
-            a2a_message_for_adk = a2a_message
-            invoked_artifacts = (
-                a2a_message_for_adk.metadata.get("invoked_with_artifacts", [])
-                if a2a_message_for_adk.metadata
-                else []
-            )
-
-            if invoked_artifacts:
-                log.info(
-                    "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
-                    component.log_identifier,
-                    logical_task_id,
-                    len(invoked_artifacts),
-                )
-                header_text = (
-                    "The user has provided the following artifacts as context for your task. "
-                    "Use the information contained within their metadata to complete your objective."
-                )
-                artifact_summary = await generate_artifact_metadata_summary(
-                    component=component,
-                    artifact_identifiers=invoked_artifacts,
-                    user_id=user_id,
-                    session_id=effective_session_id,
-                    app_name=agent_name,
-                    header_text=header_text,
-                )
-
-                task_description = get_text_from_message(a2a_message_for_adk)
-                final_prompt = f"{task_description}\n\n{artifact_summary}"
-
-                a2a_message_for_adk = a2a.update_message_parts(
-                    message=a2a_message_for_adk,
-                    new_parts=[a2a.create_text_part(text=final_prompt)],
-                )
-                log.debug(
-                    "%s Generated new prompt for task %s with artifact context.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-
-            adk_content = await translate_a2a_to_adk_content(
-                a2a_message=a2a_message_for_adk,
+            await _handle_send_message_request(
                 component=component,
-                user_id=user_id,
-                session_id=effective_session_id,
+                message=message,
+                a2a_request=a2a_request,
+                method=method,
+                jsonrpc_request_id=jsonrpc_request_id,
+                client_id=client_id,
+                namespace=namespace,
+                status_topic_from_peer=status_topic_from_peer,
+                reply_topic_from_peer=reply_topic_from_peer,
+                a2a_user_config=a2a_user_config,
+                call_depth=call_depth,
+                verified_user_identity=verified_user_identity,
             )
-
-            adk_session = await component.session_service.get_session(
-                app_name=agent_name, user_id=user_id, session_id=effective_session_id
-            )
-            if adk_session is None:
-                log.info(
-                    "%s ADK session '%s' not found in component.session_service, creating new one.",
-                    component.log_identifier,
-                    effective_session_id,
-                )
-                adk_session = await component.session_service.create_session(
-                    app_name=agent_name,
-                    user_id=user_id,
-                    session_id=effective_session_id,
-                )
-            else:
-                log.info(
-                    "%s Reusing existing ADK session '%s' from component.session_service.",
-                    component.log_identifier,
-                    effective_session_id,
-                )
-
-            # Always use SSE streaming mode for the ADK runner.
-            # This ensures that real-time callbacks (e.g., for fenced artifact
-            # progress) can function correctly for all task types. The component's
-            # internal logic uses the 'is_run_based_session' flag to differentiate
-            # between aggregating a final response and streaming partial updates.
-            streaming_mode = StreamingMode.SSE
-
-            max_llm_calls_per_task = component.get_config("max_llm_calls_per_task", 20)
-            log.debug(
-                "%s Using max_llm_calls_per_task: %s",
-                component.log_identifier,
-                max_llm_calls_per_task,
-            )
-
-            run_config = RunConfig(
-                streaming_mode=streaming_mode, max_llm_calls=max_llm_calls_per_task
-            )
-            log.info(
-                "%s Setting ADK RunConfig streaming_mode to: %s, max_llm_calls to: %s",
-                component.log_identifier,
-                streaming_mode,
-                max_llm_calls_per_task,
-            )
-
-            log.info(
-                "%s Starting ADK runner task for request %s (Task ID: %s)",
-                component.log_identifier,
-                jsonrpc_request_id,
-                logical_task_id,
-            )
-
-            await run_adk_async_task_thread_wrapper(
-                component,
-                adk_session,
-                adk_content,
-                run_config,
-                a2a_context,
-            )
-
-            log.info(
-                "%s ADK task execution awaited for Task ID %s.",
-                component.log_identifier,
-                logical_task_id,
-            )
-
         else:
             log.warning(
                 "%s Received unhandled A2A request type: %s. Acknowledging.",
@@ -1138,30 +1405,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
         error_response = a2a.create_internal_error_response(
             message=str(e), request_id=jsonrpc_request_id, data=error_data
         )
-
-        target_topic = reply_topic_from_peer or (
-            get_client_response_topic(namespace, client_id) if client_id else None
+        _send_error_response_and_nack(
+            component, message, error_response,
+            reply_topic_from_peer, namespace, client_id,
+            "parsing/validation/start error", e,
         )
-        if target_topic:
-            component.publish_a2a_message(
-                error_response.model_dump(exclude_none=True),
-                target_topic,
-            )
-
-        try:
-            message.call_negative_acknowledgements()
-            log.warning(
-                "%s NACKed original A2A request due to parsing/validation/start error.",
-                component.log_identifier,
-            )
-        except Exception as nack_e:
-            log.error(
-                "%s Failed to NACK message after pre-start error: %s",
-                component.log_identifier,
-                nack_e,
-            )
-
-        component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
     except LITELLM_EXCEPTIONS as e:
@@ -1187,29 +1435,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
             request_id=jsonrpc_request_id,
             data={"taskId": logical_task_id},
         )
-        target_topic = reply_topic_from_peer or (
-            get_client_response_topic(namespace, client_id) if client_id else None
+        _send_error_response_and_nack(
+            component, message, error_response,
+            reply_topic_from_peer, namespace, client_id,
+            "LLM error", e,
         )
-        if target_topic:
-            component.publish_a2a_message(
-                error_response.model_dump(exclude_none=True),
-                target_topic,
-            )
-
-        try:
-            message.call_negative_acknowledgements()
-            log.warning(
-                "%s NACKed original A2A request due to LLM error.",
-                component.log_identifier,
-            )
-        except Exception as nack_e:
-            log.error(
-                "%s Failed to NACK message after LLM error: %s",
-                component.log_identifier,
-                nack_e,
-            )
-
-        component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
     except OperationalError as e:
@@ -1236,30 +1466,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
             request_id=jsonrpc_request_id,
             data={"taskId": logical_task_id} if logical_task_id else None,
         )
-
-        target_topic = reply_topic_from_peer or (
-            get_client_response_topic(namespace, client_id) if client_id else None
+        _send_error_response_and_nack(
+            component, message, error_response,
+            reply_topic_from_peer, namespace, client_id,
+            "database error", e,
         )
-        if target_topic:
-            component.publish_a2a_message(
-                error_response.model_dump(exclude_none=True),
-                target_topic,
-            )
-
-        try:
-            message.call_negative_acknowledgements()
-            log.warning(
-                "%s NACKed A2A request due to database error.",
-                component.log_identifier,
-            )
-        except Exception as nack_e:
-            log.error(
-                "%s Failed to NACK message after database error: %s",
-                component.log_identifier,
-                nack_e,
-            )
-
-        component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
     except Exception as e:
@@ -1274,29 +1485,11 @@ async def handle_a2a_request(component, message: SolaceMessage):
             request_id=jsonrpc_request_id,
             data={"taskId": logical_task_id},
         )
-        target_topic = reply_topic_from_peer or (
-            get_client_response_topic(namespace, client_id) if client_id else None
+        _send_error_response_and_nack(
+            component, message, error_response,
+            reply_topic_from_peer, namespace, client_id,
+            "unexpected error", e,
         )
-        if target_topic:
-            component.publish_a2a_message(
-                error_response.model_dump(exclude_none=True),
-                target_topic,
-            )
-
-        try:
-            message.call_negative_acknowledgements()
-            log.warning(
-                "%s NACKed original A2A request due to unexpected error.",
-                component.log_identifier,
-            )
-        except Exception as nack_e:
-            log.error(
-                "%s Failed to NACK message after unexpected error: %s",
-                component.log_identifier,
-                nack_e,
-            )
-
-        component.handle_error(e, Event(EventType.MESSAGE, message))
         return None
 
 
