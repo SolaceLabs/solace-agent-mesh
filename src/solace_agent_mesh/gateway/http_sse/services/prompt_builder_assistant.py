@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 from google.adk.models import BaseLlm
 from sqlalchemy.orm import Session
 
+from ....common.error_handlers import get_error_message, is_llm_exception
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +23,7 @@ class PromptBuilderResponse(BaseModel):
     template_updates: Dict[str, Any] = Field(default_factory=dict)
     confidence: float = Field(ge=0.0, le=1.0)
     ready_to_save: bool = False
+    is_error: bool = False
 
 
 class PromptBuilderAssistant:
@@ -174,10 +177,15 @@ REMEMBER:
             )
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
+            if is_llm_exception(e):
+                error_message, _ = get_error_message(e)
+            else:
+                error_message = "I encountered an error. Could you please rephrase that?"
             return PromptBuilderResponse(
-                message="I encountered an error. Could you please rephrase that?",
+                message=error_message,
                 confidence=0.0,
-                ready_to_save=False
+                ready_to_save=False,
+                is_error=True,
             )
     
     async def _llm_response(
@@ -291,11 +299,19 @@ REMEMBER:
             
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
-            # Fallback response with helpful guidance
+            if is_llm_exception(e):
+                error_message, _ = get_error_message(e)
+            else:
+                error_message = (
+                    "I'm having trouble processing that. Could you describe what "
+                    "you'd like this template to do? For example, what task are you "
+                    "trying to automate or what information changes each time?"
+                )
             return PromptBuilderResponse(
-                message="I'm having trouble processing that. Could you describe what you'd like this template to do? For example, what task are you trying to automate or what information changes each time?",
-                confidence=0.3,
-                ready_to_save=False
+                message=error_message,
+                confidence=0.0,
+                ready_to_save=False,
+                is_error=True,
             )
     
     def get_initial_greeting(self) -> PromptBuilderResponse:

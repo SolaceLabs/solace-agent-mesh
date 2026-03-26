@@ -1088,14 +1088,18 @@ async def prompt_builder_chat(
             message=response.message,
             template_updates=response.template_updates,
             confidence=response.confidence,
-            ready_to_save=response.ready_to_save
+            ready_to_save=response.ready_to_save,
+            is_error=response.is_error,
         )
-        
+
     except Exception as e:
         log.error(f"Error in prompt builder chat: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process chat message"
+        return PromptBuilderChatResponse(
+            message=(
+                "An unexpected error occurred while processing your request. "
+                "Please try again. If the problem persists, contact an administrator."
+            ),
+            is_error=True,
         )
 
 

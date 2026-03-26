@@ -178,6 +178,10 @@ class PromptBuilderChatResponse(BaseModel):
         False,
         description="Whether template is ready to save"
     )
+    is_error: bool = Field(
+        False,
+        description="Whether this response is an error message"
+    )
 
 
 # Export/Import Models
