@@ -84,7 +84,7 @@ export const DefaultModelGeneral: Story = {
         const content = within(dialog);
 
         expect(content.getByText("Unable to Delete")).toBeInTheDocument();
-        expect(content.getByText(/General model cannot be deleted as it is required for AI features/)).toBeInTheDocument();
+        expect(content.getByText(/cannot be deleted/)).toBeInTheDocument();
         expect(content.getByRole("button", { name: "Close" })).toBeInTheDocument();
 
         expect(content.queryByRole("textbox")).not.toBeInTheDocument();

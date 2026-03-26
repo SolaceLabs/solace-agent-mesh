@@ -7,6 +7,8 @@ import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
+import { useChatContext } from "@/lib/hooks";
+import { getErrorMessage } from "@/lib/utils/api";
 import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS, getDisplayModelName } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
@@ -16,6 +18,7 @@ export const ModelDetailsPage = () => {
     const { alias: modelAlias } = useParams<{ alias: string }>();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading } = useModelConfigs();
     const deleteModel = useDeleteModel();
+    const { addNotification } = useChatContext();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const modelToView = useMemo(() => {
@@ -145,8 +148,12 @@ export const ModelDetailsPage = () => {
                     open={deleteDialogOpen}
                     onOpenChange={setDeleteDialogOpen}
                     onConfirm={async () => {
-                        await deleteModel.mutateAsync(modelToView.alias);
-                        navigate("/agents?tab=models");
+                        try {
+                            await deleteModel.mutateAsync(modelToView.alias);
+                            navigate("/agents?tab=models");
+                        } catch (error) {
+                            addNotification(getErrorMessage(error, "Failed to delete model"), "warning");
+                        }
                     }}
                     isLoading={deleteModel.isPending}
                     modelAlias={modelToView.alias}
