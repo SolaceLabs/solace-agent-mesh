@@ -247,7 +247,7 @@ export const processTaskForVisualization = (
     }
 
     // 2. Sort all collected events by timestamp
-    const sortedEvents = combinedEvents.sort((a, b) => new Date(getEventTimestamp(a)).getTime() - new Date(getEventTimestamp(b)).getTime());
+    const sortedEvents = combinedEvents.toSorted((a, b) => new Date(getEventTimestamp(a)).getTime() - new Date(getEventTimestamp(b)).getTime());
 
     const visualizerSteps: VisualizerStep[] = [];
     let lastStatusText: string | undefined = undefined;
@@ -261,7 +261,6 @@ export const processTaskForVisualization = (
     // State for duration calculation
     const subTaskToFunctionCallIdMap = new Map<string, string>();
     const functionCallIdToDelegationInfoMap = new Map<string, DelegationInfo>();
-    const activeFunctionCallIdByTask = new Map<string, string>();
     const processedWorkflowEvents = new Set<string>();
 
     const flushAggregatedTextStep = (currentEventOwningTaskId?: string) => {
@@ -279,7 +278,7 @@ export const processTaskForVisualization = (
             }
 
             const nestingLevelForFlush = taskNestingLevels.get(owningTaskIdForFlush) ?? 0;
-            const functionCallIdForStep = subTaskToFunctionCallIdMap.get(owningTaskIdForFlush) || activeFunctionCallIdByTask.get(owningTaskIdForFlush);
+            const functionCallIdForStep = subTaskToFunctionCallIdMap.get(owningTaskIdForFlush);
 
             const taskForFlush = allMonitoredTasks[owningTaskIdForFlush];
             const parentTaskIdForFlush = getParentTaskIdFromTaskObject(taskForFlush);
@@ -296,7 +295,7 @@ export const processTaskForVisualization = (
                 isSubTaskStep: nestingLevelForFlush > 0,
                 nestingLevel: nestingLevelForFlush,
                 owningTaskId: owningTaskIdForFlush,
-                parentTaskId: parentTaskIdForFlush || undefined,
+                parentTaskId: parentTaskIdForFlush ?? undefined,
                 functionCallId: functionCallIdForStep,
             });
             lastFlushedAgentResponseText = textToFlush;
@@ -333,17 +332,10 @@ export const processTaskForVisualization = (
 
         // Determine functionCallId for the step
         let functionCallIdForStep: string | undefined;
-        // const metadataFunctionCallId = (payload?.result?.status?.message?.metadata as any)?.function_call_id;
 
         if (currentEventNestingLevel > 0) {
             functionCallIdForStep = subTaskToFunctionCallIdMap.get(currentEventOwningTaskId);
-        } else {
-            functionCallIdForStep = activeFunctionCallIdByTask.get(currentEventOwningTaskId);
         }
-
-        // if (metadataFunctionCallId) {
-        //     functionCallIdForStep = metadataFunctionCallId;
-        // }
 
         // Handle sub-task creation requests to establish the mapping early
         if (event.direction === "request" && currentEventNestingLevel > 0) {
@@ -437,7 +429,7 @@ export const processTaskForVisualization = (
                     isSubTaskStep: true,
                     nestingLevel: currentEventNestingLevel,
                     owningTaskId: currentEventOwningTaskId,
-                    parentTaskId: parentTaskId || undefined,
+                    parentTaskId: parentTaskId ?? undefined,
                 };
                 visualizerSteps.push(stepData);
                 return;
@@ -458,8 +450,8 @@ export const processTaskForVisualization = (
                 const textParts = params.message.parts.filter((p: any) => p.kind === "text" && p.text);
                 // Filter out gateway timestamp parts (they appear like "Request received by gateway at: 2025-12-19T22:46:16.994017+00:00")
                 // The gateway prepends this as the first part, so we can skip parts that match this pattern
-                const gatewayTimestampPattern = /^Request received by gateway at:/;
-                const filteredParts = textParts.filter((p: any) => !gatewayTimestampPattern.test(p.text.trim()));
+                const isGatewayTimestamp = (text: string) => text.trim().startsWith("Request received by gateway at:");
+                const filteredParts = textParts.filter((p: any) => !isGatewayTimestamp(p.text));
                 if (filteredParts.length > 0) {
                     // Join remaining text parts
                     userText = filteredParts.map((p: any) => p.text).join("\n");
@@ -468,7 +460,7 @@ export const processTaskForVisualization = (
                     const lastPart = textParts[textParts.length - 1].text;
                     // Try to extract text after the timestamp line
                     const lines = lastPart.split("\n");
-                    const nonGatewayLines = lines.filter((line: string) => !gatewayTimestampPattern.test(line.trim()));
+                    const nonGatewayLines = lines.filter((line: string) => !isGatewayTimestamp(line));
                     userText = nonGatewayLines.length > 0 ? nonGatewayLines.join("\n") : lastPart;
                 }
             }
@@ -555,13 +547,13 @@ export const processTaskForVisualization = (
                                     isSubTaskStep: currentEventNestingLevel > 0,
                                     nestingLevel: currentEventNestingLevel,
                                     owningTaskId: currentEventOwningTaskId,
-                                    parentTaskId: parentTaskId || undefined,
+                                    parentTaskId: parentTaskId ?? undefined,
                                     functionCallId: functionCallIdForStep,
                                 });
                                 break;
                             }
                             case "workflow_node_execution_start": {
-                                const dedupKey = `node_start:${currentEventOwningTaskId}:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index || 0}`;
+                                const dedupKey = `node_start:${currentEventOwningTaskId}:${signalData.sub_task_id || signalData.node_id}:${signalData.iteration_index ?? 0}`;
                                 if (processedWorkflowEvents.has(dedupKey)) break;
                                 processedWorkflowEvents.add(dedupKey);
 
@@ -719,7 +711,7 @@ export const processTaskForVisualization = (
 
                                     // Check if this LLM call is following tool results
                                     // Tool results can be: role="tool", role="function", or parts with function_response
-                                    const toolResultContents = llmData.contents.filter((c: any) => c.role === "tool" || c.role === "function" || (c.parts && c.parts.some((p: any) => p.function_response)));
+                                    const toolResultContents = llmData.contents.filter((c: any) => c.role === "tool" || c.role === "function" || c.parts?.some((p: any) => p.function_response));
                                     const hasToolResults = toolResultContents.length > 0;
 
                                     if (hasToolResults && lastRole !== "user") {
@@ -785,7 +777,7 @@ export const processTaskForVisualization = (
                                     } else {
                                         // Regular LLM call - find the last user message
                                         const lastUserContent = [...llmData.contents].reverse().find((c: any) => c.role === "user");
-                                        if (lastUserContent && lastUserContent.parts) {
+                                        if (lastUserContent?.parts) {
                                             promptText = lastUserContent.parts
                                                 .map((p: any) => p.text || "") // Handle cases where text might be null/undefined
                                                 .join("\n")
@@ -831,12 +823,11 @@ export const processTaskForVisualization = (
                                 if (functionCallParts && functionCallParts.length > 0) {
                                     flushAggregatedTextStep(currentEventOwningTaskId);
                                     lastFlushedAgentResponseText = null;
-                                    activeFunctionCallIdByTask.delete(currentEventOwningTaskId);
 
                                     const decisions: ToolDecision[] = functionCallParts.map(p => ({
                                         functionCallId: p.function_call.id,
                                         toolName: p.function_call.name,
-                                        toolArguments: p.function_call.args || {},
+                                        toolArguments: p.function_call.args ?? {},
                                         isPeerDelegation: p.function_call.name?.startsWith("peer_") || p.function_call.name?.startsWith("workflow_"),
                                     }));
                                     const toolDecisionData: ToolDecisionData = { decisions, isParallel: decisions.length > 1 };
@@ -1091,7 +1082,7 @@ export const processTaskForVisualization = (
                                 }
 
                                 // Check if this has a function_call_id (from fenced blocks with _notify_artifact_save)
-                                const isSyntheticToolCall = signalData.function_call_id && signalData.function_call_id.startsWith("host-notify-");
+                                const isSyntheticToolCall = signalData.function_call_id?.startsWith("host-notify-");
 
                                 if (isSyntheticToolCall) {
                                     // Queue this artifact - will be created when we see the _notify_artifact_save tool result
@@ -1168,7 +1159,7 @@ export const processTaskForVisualization = (
             if (artifactData.parts && artifactData.parts.length > 0) {
                 const firstPart = artifactData.parts[0];
                 if (firstPart.kind === "file") {
-                    mimeType = (firstPart as FilePart).file.mimeType || undefined;
+                    mimeType = (firstPart as FilePart).file.mimeType ?? undefined;
                 } else if (firstPart.metadata?.mime_type) {
                     mimeType = firstPart.metadata.mime_type as string;
                 }
@@ -1176,7 +1167,7 @@ export const processTaskForVisualization = (
             const artifactNotification: ArtifactNotificationData = {
                 artifactName: artifactName,
                 version: typeof artifactData.metadata?.version === "number" ? artifactData.metadata.version : undefined,
-                description: artifactData.description || undefined,
+                description: artifactData.description ?? undefined,
                 mimeType,
             };
             visualizerSteps.push({
@@ -1391,16 +1382,15 @@ export const processTaskForVisualization = (
         agentInstancesByName.get(agentMetrics.agentName)!.push(agentMetrics);
     });
 
+    const getFirstTimestamp = (metrics: AgentPerformanceMetrics): number => {
+        const allTimestamps = [...metrics.llmCalls.map(c => new Date(c.timestamp).getTime()), ...metrics.toolCalls.map(c => new Date(c.timestamp).getTime())];
+        return allTimestamps.length > 0 ? Math.min(...allTimestamps) : Infinity;
+    };
+
     agentInstancesByName.forEach(instances => {
         if (instances.length > 1) {
             // Sort instances by their first activity time to ensure consistent naming
-            instances.sort((a, b) => {
-                const getFirstTimestamp = (metrics: AgentPerformanceMetrics): number => {
-                    const allTimestamps = [...metrics.llmCalls.map(c => new Date(c.timestamp).getTime()), ...metrics.toolCalls.map(c => new Date(c.timestamp).getTime())];
-                    return allTimestamps.length > 0 ? Math.min(...allTimestamps) : Infinity;
-                };
-                return getFirstTimestamp(a) - getFirstTimestamp(b);
-            });
+            instances.sort((a, b) => getFirstTimestamp(a) - getFirstTimestamp(b));
 
             // Assign numbered display names
             instances.forEach((instance, index) => {

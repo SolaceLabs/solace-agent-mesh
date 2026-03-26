@@ -835,7 +835,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         return (
                             <PendingPastedTextBadge
                                 key={item.id}
-                                id={item.id}
                                 content={item.content}
                                 onClick={() => handlePendingPasteClick(item.id)}
                                 onRemove={() => handleRemovePendingPaste(item.id)}

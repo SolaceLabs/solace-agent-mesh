@@ -28,7 +28,7 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview 
     };
 
     return (
-        <div className={`${isPreview ? "" : "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)"}`} onClick={handleClick}>
+        <div className={`${isPreview ? "" : "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)"}`} onClick={handleClick} onKeyDown={!isPreview ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPreviewArtifact(artifact); } } : undefined} role={!isPreview ? "button" : undefined} tabIndex={!isPreview ? 0 : undefined}>
             <ArtifactMessage status="completed" name={artifact.filename} fileAttachment={fileAttachment} context="list" />
         </div>
     );

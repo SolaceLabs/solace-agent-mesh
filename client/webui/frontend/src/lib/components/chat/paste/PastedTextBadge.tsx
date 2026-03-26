@@ -5,7 +5,6 @@ import { FileText, XIcon } from "lucide-react";
 import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 interface PastedTextBadgeProps {
-    id: string;
     index: number;
     textPreview: string;
     onClick: () => void;
@@ -39,7 +38,6 @@ export const PastedTextBadge: React.FC<PastedTextBadgeProps> = ({ index, textPre
 };
 
 export interface PendingPastedTextBadgeProps {
-    id: string;
     content: string;
     onClick: () => void;
     onRemove: () => void;
@@ -75,6 +73,9 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                         isConfigured ? "border-(--info-w10) hover:border-(--info-wMain)" : "hover:border-(--primary-w20)"
                     }`}
                     onClick={onClick}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+                    role="button"
+                    tabIndex={0}
                 >
                     {/* Close button */}
                     <Button
@@ -94,7 +95,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                     {/* Text preview */}
                     <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
                         {previewLines.map((line, index) => (
-                            <div key={index} className="truncate">
+                            <div key={`${index}-${line}`} className="truncate">
                                 {line || "\u00A0"}
                             </div>
                         ))}
@@ -109,7 +110,7 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                                 <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-(--info-wMain)" />
                             </span>
                         ) : (
-                            <span className="inline-block max-w-[170px] truncate rounded bg-(--secondary-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--secondary-text-wMain)">{defaultFilename || "snippet.txt"}</span>
+                            <span className="inline-block max-w-[170px] truncate rounded bg-(--secondary-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--secondary-text-wMain)">{defaultFilename ?? "snippet.txt"}</span>
                         )}
                     </div>
                 </div>

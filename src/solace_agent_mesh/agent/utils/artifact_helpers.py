@@ -5,7 +5,6 @@ Helper functions for artifact management, including metadata handling and schema
 import asyncio
 import logging
 import base64
-import binascii
 import json
 import csv
 import io
@@ -14,7 +13,7 @@ import os
 import yaml
 import traceback
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, List, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
@@ -179,7 +178,7 @@ def format_artifact_uri(
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -934,7 +933,7 @@ def decode_and_get_bytes(
                 log_identifier,
                 mime_type,
             )
-        except (binascii.Error, ValueError) as decode_error:
+        except ValueError as decode_error:
             log.warning(
                 "%s Failed to base64 decode content for mimeType '%s'. Treating as text/plain. Error: %s",
                 log_identifier,
@@ -1322,7 +1321,7 @@ async def load_artifact_content_or_metadata(
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
@@ -1516,14 +1515,12 @@ async def load_artifact_content_or_metadata(
                     # Try multiple encodings with fallback for Windows-exported files
                     # Common case: CSV files exported from Excel on Windows use CP1252
                     content_str = None
-                    used_encoding = None
                     encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
                     decode_errors = []
-                    
+
                     for enc in encodings_to_try:
                         try:
                             content_str = data_bytes.decode(enc, errors=error_handling)
-                            used_encoding = enc
                             if enc != encoding:
                                 log.info(
                                     "%s Successfully decoded text artifact '%s' v%d using fallback encoding '%s' (primary '%s' failed)",

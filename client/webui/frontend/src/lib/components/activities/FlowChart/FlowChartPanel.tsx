@@ -19,7 +19,6 @@ const refetchedAgents = new Set<string>();
 interface FlowChartPanelProps {
     processedSteps: VisualizerStep[];
     isRightPanelVisible?: boolean;
-    isSidePanelTransitioning?: boolean;
 }
 
 const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {

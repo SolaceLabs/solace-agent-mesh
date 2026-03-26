@@ -1351,7 +1351,7 @@ class ProjectService:
                 if not indexing_enabled:
                     self.logger.debug("Indexing disabled for import, skipping post-processing")
                 else:
-                    self.logger.info(f"Indexing enabled - post-processing imported files")
+                    self.logger.info("Indexing enabled - post-processing imported files")
 
                     # Classify imported files by type
                     needs_conversion = []  # PDF, DOCX, PPTX
