@@ -38,6 +38,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from litellm.exceptions import BadRequestError
+import litellm as _litellm_module
 from litellm import (
     ChatCompletionAssistantMessage,
     ChatCompletionAssistantToolCall,
@@ -57,6 +58,10 @@ from litellm import (
     completion,
     token_counter,
 )
+
+# Disable litellm's aiohttp transport to prevent memory leaks.
+_litellm_module.disable_aiohttp_transport = True
+
 from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 
