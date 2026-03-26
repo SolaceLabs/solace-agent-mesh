@@ -104,6 +104,33 @@ export async function deleteModel(alias: string): Promise<void> {
     await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
 }
 
+export interface TestConnectionRequest {
+    alias?: string;
+    provider?: string;
+    modelName?: string;
+    apiBase?: string;
+    authType: string;
+    authConfig: Record<string, unknown>;
+    modelParams: Record<string, unknown>;
+}
+
+export interface TestConnectionResponse {
+    success: boolean;
+    message: string;
+}
+
+/**
+ * Test a model configuration connection.
+ *
+ * Two modes:
+ * 1. New configuration: Provide provider, model_name, and credentials
+ * 2. Existing model: Provide alias to use stored credentials as fallback
+ */
+export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
+    const response = await api.platform.post("/api/v1/platform/models/test", data);
+    return response.data;
+}
+
 /**
  * Check if default LLM models are configured.
  */

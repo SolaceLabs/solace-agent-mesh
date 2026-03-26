@@ -83,6 +83,20 @@ const loadingHandlers = [
 ];
 
 /**
+ * Mock handler for test connection success
+ */
+const testConnectionSuccessHandler = http.post("*/api/v1/platform/models/test", () => {
+    return HttpResponse.json({ data: { success: true, message: "Connection successful. Model responded with: OK" } });
+});
+
+/**
+ * Mock handler for test connection failure
+ */
+const testConnectionFailureHandler = http.post("*/api/v1/platform/models/test", () => {
+    return HttpResponse.json({ data: { success: false, message: "Authentication failed: Invalid API key provided" } });
+});
+
+/**
  * Mock handlers for error state when fetching model for edit
  */
 const notFoundHandlers = [
@@ -361,5 +375,96 @@ export const CreateCustomProviderModel: Story = {
         expect(apiBaseInput).toBeTruthy();
 
         await userEvent.type(apiBaseInput, "https://my-api.example.com");
+    },
+};
+
+/**
+ * Story: Test connection succeeds on an existing model
+ * Clicks Test Connection and verifies the success banner appears
+ */
+export const TestConnectionSuccess: Story = {
+    parameters: {
+        msw: { handlers: [...editModelHandlers, testConnectionSuccessHandler] },
+        routerValues: {
+            initialPath: "/models/anthropic-model/edit",
+            routePath: "/models/:alias/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Wait for model to load
+        await canvas.findAllByText("Edit anthropic-model");
+
+        // The Test Connection button should be present and enabled (provider + auth + model are set)
+        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        expect(testButton).toBeInTheDocument();
+        expect(testButton).not.toBeDisabled();
+
+        // Click Test Connection
+        await userEvent.click(testButton);
+
+        // Verify success banner appears
+        const banner = await canvas.findByText(/Connection successful/i);
+        expect(banner).toBeInTheDocument();
+    },
+};
+
+/**
+ * Story: Test connection fails on an existing model
+ * Clicks Test Connection and verifies the error banner appears
+ */
+export const TestConnectionFailure: Story = {
+    parameters: {
+        msw: { handlers: [...editModelHandlers, testConnectionFailureHandler] },
+        routerValues: {
+            initialPath: "/models/anthropic-model/edit",
+            routePath: "/models/:alias/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Wait for model to load
+        await canvas.findAllByText("Edit anthropic-model");
+
+        // Click Test Connection
+        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        await userEvent.click(testButton);
+
+        // Verify error banner appears
+        const banner = await canvas.findByText(/Authentication failed/i);
+        expect(banner).toBeInTheDocument();
+    },
+};
+
+/**
+ * Story: Test Connection button is disabled when required fields are missing
+ * In create mode without provider/auth/model configured
+ */
+export const TestConnectionButtonDisabled: Story = {
+    parameters: {
+        msw: { handlers: createNewModelHandlers },
+        routerValues: {
+            initialPath: "/models/new/edit",
+            routePath: "/models/new/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // In create mode, Test Connection button should not be visible yet
+        // (it only appears after provider selection reveals the full form)
+        await canvas.findAllByText("Create Model");
+
+        // Select a provider to make the button appear
+        const providerComboboxes = await canvas.findAllByRole("combobox");
+        await userEvent.click(providerComboboxes[0]);
+        const anthropicOption = await screen.findByText("Anthropic");
+        await userEvent.click(anthropicOption);
+
+        // Test Connection button should now be visible but disabled (no auth or model yet)
+        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        expect(testButton).toBeDisabled();
     },
 };
