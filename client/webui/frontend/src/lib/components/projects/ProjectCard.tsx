@@ -81,7 +81,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <Tooltip open={isTruncated ? undefined : false}>
                             <TooltipTrigger asChild>
-                                <CardTitle ref={titleRef} className="max-w-[250px] min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
+                                <CardTitle ref={titleRef} className="min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
                                     {project.name}
                                 </CardTitle>
                             </TooltipTrigger>
