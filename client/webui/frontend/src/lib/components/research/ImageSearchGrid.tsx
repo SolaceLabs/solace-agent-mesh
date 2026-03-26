@@ -15,6 +15,13 @@ interface ImageSearchGridProps {
 const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 6 }) => {
     const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
     const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+    const dialogRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (selectedImageIndex !== null) {
+            dialogRef.current?.focus();
+        }
+    }, [selectedImageIndex]);
 
     if (!images || images.length === 0) {
         return null;
@@ -50,14 +57,6 @@ const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 
     };
 
     const selectedImage = selectedImageIndex !== null ? images[selectedImageIndex] : null;
-
-    const dialogRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (selectedImageIndex !== null) {
-            dialogRef.current?.focus();
-        }
-    }, [selectedImageIndex]);
 
     const handleDialogKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Escape") { handleCloseModal(); return; }
