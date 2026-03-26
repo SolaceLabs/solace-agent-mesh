@@ -22,6 +22,7 @@ const llmResponseStep = {
         llmResponseToAgent: {
             modelName: "gpt-4o",
             responsePreview: "I will generate the report now.",
+            response: "I will generate the report now.",
             isFinalResponse: false,
         },
     },
