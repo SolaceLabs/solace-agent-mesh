@@ -6,7 +6,7 @@ import { Trash2, Pencil, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, L
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, cn } from "@/lib/utils";
 import { ProjectBadge, SessionSearch } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -85,7 +85,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={`truncate transition-opacity duration-300 ${isSelected ? "font-semibold" : ""} ${animationClass}`}>{animatedName}</span>;
+    return <span className={cn("truncate transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>{animatedName}</span>;
 };
 
 interface RecentChatsPageProps {
@@ -385,8 +385,8 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
 
             <div className="flex h-full flex-col gap-6 overflow-y-auto px-8 py-6">
                 {/* Search and Filter Bar */}
-                <div className="flex flex-col gap-4">
-                    <div className="max-w-2xl">
+                <div className="flex items-center gap-4">
+                    <div className="flex-1">
                         <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
                     </div>
 
@@ -412,7 +412,7 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
 
                 {/* Sessions Grid */}
                 {filteredSessions.length > 0 && (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="flex flex-col gap-2">
                         {filteredSessions.map(session => (
                             <div key={session.id} className="group relative rounded-lg border p-4 transition-colors hover:bg-(--primary-w10)">
                                 {editingSessionId === session.id ? (
@@ -490,7 +490,7 @@ export const RecentChatsPage: React.FC<RecentChatsPageProps> = ({ projects = [] 
                                                         }}
                                                         disabled={regeneratingTitleForSession === session.id}
                                                     >
-                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
+                                                        <Sparkles size={16} className={cn("mr-2", regeneratingTitleForSession === session.id && "animate-pulse")} />
                                                         Rename with AI
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
