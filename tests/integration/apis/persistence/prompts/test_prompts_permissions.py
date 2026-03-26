@@ -324,9 +324,11 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should raise 403
-        with db_session_factory() as db_session:
-            with pytest.raises(HTTPException) as exc_info:
-                check_permission(db_session, group_id, "charlie", "write")
+        with (
+            db_session_factory() as db_session,
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            check_permission(db_session, group_id, "charlie", "write")
 
         assert exc_info.value.status_code == 403
 
@@ -415,9 +417,11 @@ class TestCheckPermission:
             conn.commit()
 
         # Act & Assert: Should raise 403
-        with db_session_factory() as db_session:
-            with pytest.raises(HTTPException) as exc_info:
-                check_permission(db_session, group_id, "charlie", "delete")
+        with (
+            db_session_factory() as db_session,
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            check_permission(db_session, group_id, "charlie", "delete")
 
         assert exc_info.value.status_code == 403
 
@@ -436,9 +440,11 @@ class TestCheckPermission:
         )
 
         # Act & Assert: Should raise 404 for dave (no access)
-        with db_session_factory() as db_session:
-            with pytest.raises(HTTPException) as exc_info:
-                check_permission(db_session, group_id, "dave", "read")
+        with (
+            db_session_factory() as db_session,
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            check_permission(db_session, group_id, "dave", "read")
 
         assert exc_info.value.status_code == 404
 

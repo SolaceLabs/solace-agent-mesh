@@ -243,7 +243,11 @@ class TestProjectRepositoryAccessibleProjects:
                 resource_type=resource_type,
             )
             if user_email == "secondary_user":
-                return ["acc-multi-shared-1", "acc-multi-shared-2", "acc-multi-shared-3"]
+                return [
+                    "acc-multi-shared-1",
+                    "acc-multi-shared-2",
+                    "acc-multi-shared-3",
+                ]
             return result
 
         with patch.object(
@@ -322,7 +326,9 @@ class TestProjectRepositoryUpdate:
 
         # Act: Update project
         update_data = {"name": "New Name", "description": "New Description"}
-        response = api_client.put("/api/v1/projects/update-modify-proj", json=update_data)
+        response = api_client.put(
+            "/api/v1/projects/update-modify-proj", json=update_data
+        )
 
         # Assert: Response is correct
         assert response.status_code == 200
@@ -335,7 +341,9 @@ class TestProjectRepositoryUpdate:
             metadata = sa.MetaData()
             metadata.reflect(bind=conn)
             projects_table = metadata.tables["projects"]
-            query = sa.select(projects_table).where(projects_table.c.id == "update-modify-proj")
+            query = sa.select(projects_table).where(
+                projects_table.c.id == "update-modify-proj"
+            )
             db_project = conn.execute(query).first()
 
             assert db_project.name == "New Name"
@@ -347,7 +355,9 @@ class TestProjectRepositoryUpdate:
         """Test PUT /api/v1/projects/{id} returns 404 when project doesn't exist."""
         # Act: Try to update non-existent project
         update_data = {"name": "New Name"}
-        response = api_client.put("/api/v1/projects/update-nonexistent", json=update_data)
+        response = api_client.put(
+            "/api/v1/projects/update-nonexistent", json=update_data
+        )
 
         # Assert
         assert response.status_code == 404
