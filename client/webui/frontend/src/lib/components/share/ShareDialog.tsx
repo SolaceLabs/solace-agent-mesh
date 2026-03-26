@@ -170,13 +170,6 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
         sessionDetailQuery.refetch();
     }, [open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Show public link section when share link data loads
-    useEffect(() => {
-        if (shareLinkQuery.data) {
-            setShowPublicLink(true);
-        }
-    }, [shareLinkQuery.data]);
-
     const handleAddRow = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
         prepend({ id: newId, email: null, accessLevel: "read-only" });
