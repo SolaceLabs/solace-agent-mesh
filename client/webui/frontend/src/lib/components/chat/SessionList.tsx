@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { Check, X, MessageCircle, Loader2 } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -64,24 +64,8 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
     return <span className={`truncate transition-opacity duration-300 ${isSelected ? "font-semibold" : ""} ${animationClass}`}>{animatedName}</span>;
 };
 import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/lib/components/ui";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu } from "@/lib/components/chat";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 export interface PaginatedSessionsResponse {
     data: Session[];
@@ -514,67 +498,15 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                 </Button>
                                             </>
                                         ) : (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-                                                        <MoreHorizontal size={16} />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48">
-                                                    {session.projectId && (
-                                                        <>
-                                                            <DropdownMenuItem
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    handleGoToProject(session);
-                                                                }}
-                                                            >
-                                                                <PanelsTopLeft size={16} className="mr-2" />
-                                                                Go to Project
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                        </>
-                                                    )}
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleEditClick(session);
-                                                        }}
-                                                    >
-                                                        <Pencil size={16} className="mr-2" />
-                                                        Rename
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleRenameWithAI(session);
-                                                        }}
-                                                        disabled={regeneratingTitleForSession === session.id}
-                                                    >
-                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
-                                                        Rename with AI
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleMoveClick(session);
-                                                        }}
-                                                    >
-                                                        <FolderInput size={16} className="mr-2" />
-                                                        Move to Project
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleDeleteClick(session);
-                                                        }}
-                                                    >
-                                                        <Trash2 size={16} className="mr-2" />
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <SessionActionMenu
+                                                session={session}
+                                                onRename={handleEditClick}
+                                                onRenameWithAI={handleRenameWithAI}
+                                                onMove={handleMoveClick}
+                                                onDelete={handleDeleteClick}
+                                                onGoToProject={handleGoToProject}
+                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                            />
                                         )}
                                     </div>
                                 </div>
