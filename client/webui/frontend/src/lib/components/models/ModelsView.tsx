@@ -1,14 +1,15 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ellipsis } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
+import { useChatContext } from "@/lib/hooks";
 
 import { useModelConfigs } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
-import { PROVIDER_DISPLAY_NAMES } from "./common";
+import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -23,8 +24,41 @@ const EMPTY_STATE_DESCRIPTION =
 
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const { addNotification } = useChatContext();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
     const [currentPage, setCurrentPage] = useState<number>(1);
+    const [highlightedModelAlias, setHighlightedModelAlias] = useState<string | null>(null);
+    const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+
+    // Check if we're coming back from creating a new model
+    const locationState = location.state as { highlightModelAlias?: string } | null;
+    useEffect(() => {
+        if (locationState?.highlightModelAlias) {
+            setHighlightedModelAlias(locationState.highlightModelAlias);
+            addNotification("Model Added", "success");
+
+            // Clear the location state to prevent re-triggering on refresh
+            navigate(location.pathname + location.search, { replace: true });
+
+            // Auto-fade highlight after 4 seconds
+            const highlightTimer = setTimeout(() => {
+                setHighlightedModelAlias(null);
+            }, 4000);
+
+            return () => {
+                clearTimeout(highlightTimer);
+            };
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locationState?.highlightModelAlias]);
+
+    // Scroll highlighted row into view
+    useEffect(() => {
+        if (highlightedRowRef.current) {
+            highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, [highlightedModelAlias]);
 
     const modelConfigsError = modelConfigsErrorObj ? (modelConfigsErrorObj instanceof Error ? modelConfigsErrorObj.message : "Failed to load models") : null;
 
@@ -42,6 +76,14 @@ export const ModelsView: React.FC = () => {
         navigate(`/models/${model.alias}`);
     };
 
+    const handleCreateModel = () => {
+        navigate("/models/new/edit");
+    };
+
+    const handleEditModel = (model: ModelConfig) => {
+        navigate(`/models/${model.alias}/edit`);
+    };
+
     const getRowMenuActions = (model: ModelConfig): MenuAction[] => [
         {
             id: "open-details",
@@ -51,8 +93,7 @@ export const ModelsView: React.FC = () => {
         {
             id: "edit",
             label: "Edit",
-            onClick: () => {},
-            disabled: true,
+            onClick: () => handleEditModel(model),
         },
         {
             id: "delete",
@@ -96,15 +137,19 @@ export const ModelsView: React.FC = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {currentModels.map(model => (
-                                        <TableRow key={model.id} className="hover:bg-(--secondary-w10)">
+                                        <TableRow
+                                            key={model.id}
+                                            ref={highlightedModelAlias === model.alias ? highlightedRowRef : null}
+                                            className={`transition-colors duration-500 ${highlightedModelAlias === model.alias ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
+                                        >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>
-                                                    {model.alias}
+                                                    {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
-                                                {model.alias === "general" && <Badge>Default</Badge>}
+                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && <Badge>Default</Badge>}
                                             </TableCell>
-                                            <TableCell>{model.modelName}</TableCell>
+                                            <TableCell>{getDisplayModelName(model.modelName)}</TableCell>
                                             <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
                                             <TableCell className="pr-4 text-right">
                                                 <Popover>
@@ -124,7 +169,7 @@ export const ModelsView: React.FC = () => {
                             </Table>
                         </div>
                     ) : (
-                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} />
+                        <OnboardingView title={EMPTY_STATE_TITLE} description={EMPTY_STATE_DESCRIPTION} learnMoreText={MODELS_LEARN_MORE_TEXT} learnMoreHref={MODELS_URL} actionButton={{ text: "Add Model", onClick: handleCreateModel }} />
                     )}
                 </div>
 

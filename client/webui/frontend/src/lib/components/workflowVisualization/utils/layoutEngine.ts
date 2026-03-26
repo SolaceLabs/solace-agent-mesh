@@ -315,14 +315,19 @@ function createLayoutNode(procNode: ProcessedNode, nodeMap: Map<string, Processe
     const isWorkflowRef = config.type === "workflow" || (config.type === "agent" && !!config.agent_name && knownWorkflows.has(config.agent_name));
 
     // Get the workflow name from either workflow_name or agent_name
-    const workflowName = config.type === "workflow" ? config.workflow_name : isWorkflowRef ? config.agent_name : undefined;
+    let workflowName: string | undefined;
+    if (config.type === "workflow") {
+        workflowName = config.workflow_name;
+    } else if (isWorkflowRef) {
+        workflowName = config.agent_name;
+    }
 
     const baseNode: LayoutNode = {
         id: procNode.id,
         type: getVisualNodeType(config.type, isWorkflowRef),
         data: {
             label: config.id,
-            agentName: config.agent_name || config.workflow_name,
+            agentName: config.agent_name ?? config.workflow_name,
             workflowName: workflowName,
             originalConfig: config,
         },
@@ -352,7 +357,7 @@ function createLayoutNode(procNode: ProcessedNode, nodeMap: Map<string, Processe
             baseNode.branches = createSwitchBranches(config);
 
             // Calculate switch node height based on number of cases
-            const numCases = (config.cases?.length || 0) + (config.default ? 1 : 0);
+            const numCases = (config.cases?.length ?? 0) + (config.default ? 1 : 0);
             const switchHeaderHeight = 44; // Header row height (SwitchNode.tsx line 29: px-4 py-3)
             const caseRowHeight = 28; // Height per case row (max of h-5 badge 20px or text with py-1 = 28px)
             const caseRowGap = 6; // Gap between rows (SwitchNode.tsx line 42: gap-1.5)
@@ -552,7 +557,7 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
     let currentY = 0;
     for (const level of sortedLevels) {
         levelYPositions.set(level, currentY);
-        const levelHeight = levelHeights.get(level) || 0;
+        const levelHeight = levelHeights.get(level) ?? 0;
         // Use extra spacing if this level follows a switch node
         const spacing = levelsAfterSwitch.has(level + 1) ? SPACING.VERTICAL_BRANCH : SPACING.VERTICAL;
         currentY += levelHeight + spacing;
@@ -568,8 +573,8 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
     const startNode = nodeById.get("__start__");
     if (startNode) {
         const startLevel = startNode.level ?? -1;
-        const levelY = levelYPositions.get(startLevel) || 0;
-        const levelHeight = levelHeights.get(startLevel) || startNode.height;
+        const levelY = levelYPositions.get(startLevel) ?? 0;
+        const levelHeight = levelHeights.get(startLevel) ?? startNode.height;
         startNode.x = Math.max(firstLevelWidth, startNode.width) / 2 - startNode.width / 2;
         startNode.y = levelY + (levelHeight - startNode.height) / 2;
     }
@@ -577,8 +582,8 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
     // Position first level of regular nodes
     let currentX = 0;
     for (const node of firstLevelNodes) {
-        const levelY = levelYPositions.get(firstRegularLevel) || 0;
-        const levelHeight = levelHeights.get(firstRegularLevel) || node.height;
+        const levelY = levelYPositions.get(firstRegularLevel) ?? 0;
+        const levelHeight = levelHeights.get(firstRegularLevel) ?? node.height;
         node.x = currentX;
         node.y = levelY + (levelHeight - node.height) / 2;
         currentX += node.width + SPACING.HORIZONTAL;
@@ -595,8 +600,8 @@ function calculatePositions(nodes: LayoutNode[], nodeMap: Map<string, ProcessedN
         if (level <= firstRegularLevel) continue; // Already positioned
 
         const nodesAtLevel = levelMap.get(level)!;
-        const levelY = levelYPositions.get(level) || 0;
-        const levelHeight = levelHeights.get(level) || 0;
+        const levelY = levelYPositions.get(level) ?? 0;
+        const levelHeight = levelHeights.get(level) ?? 0;
 
         // Sort nodes at this level by barycenter (average x position of parents)
         // This ensures nodes in the same branch are co-located
