@@ -12,5 +12,6 @@ export { RecentChatsList } from "./RecentChatsList";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
+export { SessionActionMenu } from "./SessionActionMenu";
 export * from "./file";
 export * from "./selection";
