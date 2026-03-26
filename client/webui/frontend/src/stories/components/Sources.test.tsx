@@ -64,3 +64,45 @@ describe("Sources", () => {
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 });
+
+describe("Sources source type branches", () => {
+    test("document source type renders as a source", () => {
+        const docSource: RAGSource = {
+            citationId: "d1",
+            sourceType: "document",
+            filename: "report.pdf",
+            contentPreview: "doc content",
+            relevanceScore: 0.9,
+            metadata: {},
+        };
+        render(<Sources ragMetadata={{ sources: [docSource] }} />);
+        expect(screen.getByText("1 source")).toBeInTheDocument();
+    });
+
+    test("image source type renders as a source", () => {
+        const imgSource: RAGSource = {
+            citationId: "i1",
+            sourceType: "image",
+            sourceUrl: "https://example.com/img-page",
+            contentPreview: "image content",
+            relevanceScore: 0.8,
+            metadata: { title: "An image page" },
+        };
+        render(<Sources ragMetadata={{ sources: [imgSource] }} />);
+        expect(screen.getByText("1 source")).toBeInTheDocument();
+    });
+
+    test("duplicate web sources are deduplicated", () => {
+        const dup1: RAGSource = {
+            citationId: "w1",
+            sourceType: "web",
+            sourceUrl: "https://example.com/same",
+            contentPreview: "text",
+            relevanceScore: 0.9,
+            metadata: { title: "Same Page" },
+        };
+        const dup2: RAGSource = { ...dup1, citationId: "w2" };
+        render(<Sources ragMetadata={{ sources: [dup1, dup2] }} />);
+        expect(screen.getByText("1 source")).toBeInTheDocument();
+    });
+});

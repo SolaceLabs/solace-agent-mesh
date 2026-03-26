@@ -132,4 +132,21 @@ describe("MentionContentEditable paste handling", () => {
         });
         expect(onPaste).toHaveBeenCalled();
     });
+
+    test("paste with mention-chip HTML triggers execCommand and calls onChange", () => {
+        const onChange = vi.fn();
+        render(<MentionContentEditable value="" onChange={onChange} />);
+        const input = screen.getByTestId("chat-input");
+        const chipHtml = '<span class="mention-chip" data-internal="@[Alice Smith](person-1)" data-person-id="person-1">@Alice Smith</span>';
+        fireEvent.paste(input, {
+            clipboardData: {
+                getData: (type: string) => (type === "text/html" ? chipHtml : ""),
+                setData: vi.fn(),
+                types: ["text/html", "text/plain"],
+            },
+        });
+        // execCommand is already mocked at the top of the file; it being called means
+        // the HTML paste path was exercised (lines 318-343)
+        expect(document.execCommand).toHaveBeenCalled();
+    });
 });

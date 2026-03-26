@@ -15,6 +15,7 @@ vi.mock("@/lib/utils/recentMentions", () => ({
     getRecentMentions: vi.fn().mockReturnValue([]),
 }));
 
+
 const mockPerson: Person = {
     id: "person-1",
     displayName: "Alice Smith",
@@ -132,5 +133,15 @@ describe("MentionsCommand", () => {
         await screen.findByText("Alice Smith");
         fireEvent.keyDown(window, { key: "Enter" });
         await waitFor(() => expect(onPersonSelect).toHaveBeenCalledWith(mockPerson));
+    });
+
+    test("hovering a search result does not throw (mouseEnter handler)", async () => {
+        mockFetch.mockResolvedValue(makeFetchResponse({ data: [mockPerson] }));
+        renderMentions({ searchQuery: "alice" });
+        const nameEl = await screen.findByText("Alice Smith");
+        const btn = nameEl.closest("button")!;
+        fireEvent.mouseEnter(btn);
+        // No crash and the item is still present
+        expect(btn).toBeInTheDocument();
     });
 });
