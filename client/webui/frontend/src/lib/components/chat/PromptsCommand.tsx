@@ -243,7 +243,7 @@ export const PromptsCommand: React.FC<PromptsCommandProps> = ({ isOpen, onClose,
     return (
         <>
             {/* Backdrop */}
-            <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" role="presentation" onClick={onClose} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }} />
+            <div ref={backdropRef} className="fixed inset-0 z-40 bg-black/20" role="presentation" onClick={onClose} />
 
             <div data-testid="promptCommand" className="fixed top-1/3 left-1/2 z-50 w-full max-w-[672px] -translate-x-1/2 px-4">
                 <div ref={popoverRef} className="flex flex-col rounded-md border bg-(--background-w10) shadow-lg" style={{ maxHeight: "60vh" }}>

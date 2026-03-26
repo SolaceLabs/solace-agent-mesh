@@ -73,7 +73,7 @@ export const NavigationHeader: React.FC<NavigationHeaderProps> = ({ onClick }) =
     const shouldShowCustomLogo = logoUrl && !imageError;
 
     return (
-        <div className="flex h-[80px] min-h-[80px] cursor-pointer items-center justify-center border-b" onClick={onClick} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }} role="button" tabIndex={0}>
+        <div className="flex h-[80px] min-h-[80px] cursor-pointer items-center justify-center border-b" onClick={() => onClick?.()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }} role="button" tabIndex={0}>
             {shouldShowCustomLogo ? (
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden">
                     <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" onError={() => setImageError(true)} />

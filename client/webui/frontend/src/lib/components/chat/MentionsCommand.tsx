@@ -191,7 +191,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
     return (
         <>
             {/* Backdrop */}
-            <div ref={backdropRef} className="fixed inset-0 z-40 bg-transparent" role="presentation" onClick={onClose} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }} />
+            <div ref={backdropRef} className="fixed inset-0 z-40 bg-transparent" role="presentation" onClick={onClose} />
 
             <div
                 className="fixed z-50 w-[400px]"
