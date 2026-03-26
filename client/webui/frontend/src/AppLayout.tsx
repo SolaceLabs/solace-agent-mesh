@@ -103,7 +103,7 @@ function AppLayoutContent() {
 
     const getActiveItem = () => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chat";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/recent-chats")) return "chat";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/prompts")) return "prompts";
