@@ -7,7 +7,7 @@ Extracted from tests/unit/repository/test_project_user_repository.py
 
 import pytest
 
-from src.solace_agent_mesh.gateway.http_sse.repository.entities.project_user import (
+from solace_agent_mesh.gateway.http_sse.repository.entities.project_user import (
     ProjectUser,
 )
 

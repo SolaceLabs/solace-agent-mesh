@@ -30,20 +30,20 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that GET /api/v1/projects returns only owned projects when user has no shared access."""
         # Arrange: Seed owned projects for sam_dev_user
         gateway_adapter.seed_project(
-            project_id="owned-1",
+            project_id="acc-owned-no-share-1",
             name="Owned Project 1",
             user_id="sam_dev_user",
             description="Description for Owned Project 1",
         )
         gateway_adapter.seed_project(
-            project_id="owned-2",
+            project_id="acc-owned-no-share-2",
             name="Owned Project 2",
             user_id="sam_dev_user",
             description="Description for Owned Project 2",
         )
         # Seed another user's project (should not be returned)
         gateway_adapter.seed_project(
-            project_id="other-1",
+            project_id="acc-owned-no-share-other",
             name="Other User Project",
             user_id="other_user@example.com",
         )
@@ -58,9 +58,9 @@ class TestProjectRepositoryAccessibleProjects:
         project_ids = [p["id"] for p in projects]
 
         assert len(projects) == 2
-        assert "owned-1" in project_ids
-        assert "owned-2" in project_ids
-        assert "other-1" not in project_ids
+        assert "acc-owned-no-share-1" in project_ids
+        assert "acc-owned-no-share-2" in project_ids
+        assert "acc-owned-no-share-other" not in project_ids
 
     def test_get_accessible_projects_returns_only_owned_when_empty_shared_list(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -68,13 +68,13 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that GET /api/v1/projects returns only owned projects when shared list is empty."""
         # Arrange: Seed owned project
         gateway_adapter.seed_project(
-            project_id="owned-1",
+            project_id="acc-empty-shared-owned",
             name="Owned Project",
             user_id="sam_dev_user",
         )
         # Seed another user's project
         gateway_adapter.seed_project(
-            project_id="other-1",
+            project_id="acc-empty-shared-other",
             name="Other Project",
             user_id="other_user@example.com",
         )
@@ -88,7 +88,7 @@ class TestProjectRepositoryAccessibleProjects:
         projects = data["projects"]
 
         assert len(projects) == 1
-        assert projects[0]["id"] == "owned-1"
+        assert projects[0]["id"] == "acc-empty-shared-owned"
 
     def test_get_accessible_projects_includes_shared_projects(
         self,
@@ -99,13 +99,13 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that get_accessible_projects includes both owned and shared projects."""
         # Arrange: sam_dev_user owns one project
         gateway_adapter.seed_project(
-            project_id="owned-1",
+            project_id="acc-shared-inc-owned",
             name="Owned Project",
             user_id="sam_dev_user",
         )
         # Another user owns a project that will be shared
         gateway_adapter.seed_project(
-            project_id="shared-1",
+            project_id="acc-shared-inc-shared",
             name="Shared Project",
             user_id="other_user@example.com",
         )
@@ -122,8 +122,8 @@ class TestProjectRepositoryAccessibleProjects:
                 resource_type=resource_type,
             )
             if user_email == "secondary_user":
-                # Secondary user has access to shared-1
-                return ["shared-1"]
+                # Secondary user has access to acc-shared-inc-shared
+                return ["acc-shared-inc-shared"]
             return result
 
         with patch.object(
@@ -140,7 +140,7 @@ class TestProjectRepositoryAccessibleProjects:
             projects = data["projects"]
             project_ids = [p["id"] for p in projects]
 
-            assert "shared-1" in project_ids
+            assert "acc-shared-inc-shared" in project_ids
 
     def test_get_accessible_projects_excludes_deleted_projects(
         self,
@@ -151,13 +151,13 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that GET /api/v1/projects filters out soft-deleted projects."""
         # Arrange: Create active project
         gateway_adapter.seed_project(
-            project_id="active-1",
+            project_id="acc-excl-del-active",
             name="Active Project",
             user_id="sam_dev_user",
         )
         # Create project and soft-delete it
         gateway_adapter.seed_project(
-            project_id="deleted-1",
+            project_id="acc-excl-del-deleted",
             name="Deleted Project",
             user_id="sam_dev_user",
         )
@@ -169,7 +169,7 @@ class TestProjectRepositoryAccessibleProjects:
             projects_table = metadata.tables["projects"]
             update_query = (
                 sa.update(projects_table)
-                .where(projects_table.c.id == "deleted-1")
+                .where(projects_table.c.id == "acc-excl-del-deleted")
                 .values(deleted_at=1234567890000, deleted_by="sam_dev_user")
             )
             conn.execute(update_query)
@@ -185,8 +185,8 @@ class TestProjectRepositoryAccessibleProjects:
         project_ids = [p["id"] for p in projects]
 
         assert len(projects) == 1
-        assert "active-1" in project_ids
-        assert "deleted-1" not in project_ids
+        assert "acc-excl-del-active" in project_ids
+        assert "acc-excl-del-deleted" not in project_ids
 
     def test_get_accessible_projects_handles_empty_result(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -194,7 +194,7 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that GET /api/v1/projects returns empty list when user has no projects."""
         # Arrange: Seed projects for a different user only
         gateway_adapter.seed_project(
-            project_id="other-1",
+            project_id="acc-empty-other",
             name="Other User Project",
             user_id="other_user@example.com",
         )
@@ -217,17 +217,17 @@ class TestProjectRepositoryAccessibleProjects:
         """Test that get_accessible_projects handles multiple shared project IDs."""
         # Arrange: Seed multiple projects owned by different users
         gateway_adapter.seed_project(
-            project_id="shared-1",
+            project_id="acc-multi-shared-1",
             name="Shared 1",
             user_id="owner1@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="shared-2",
+            project_id="acc-multi-shared-2",
             name="Shared 2",
             user_id="owner2@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="shared-3",
+            project_id="acc-multi-shared-3",
             name="Shared 3",
             user_id="owner3@example.com",
         )
@@ -243,7 +243,7 @@ class TestProjectRepositoryAccessibleProjects:
                 resource_type=resource_type,
             )
             if user_email == "secondary_user":
-                return ["shared-1", "shared-2", "shared-3"]
+                return ["acc-multi-shared-1", "acc-multi-shared-2", "acc-multi-shared-3"]
             return result
 
         with patch.object(
@@ -261,9 +261,9 @@ class TestProjectRepositoryAccessibleProjects:
             project_ids = [p["id"] for p in projects]
 
             assert len(projects) == 3
-            assert "shared-1" in project_ids
-            assert "shared-2" in project_ids
-            assert "shared-3" in project_ids
+            assert "acc-multi-shared-1" in project_ids
+            assert "acc-multi-shared-2" in project_ids
+            assert "acc-multi-shared-3" in project_ids
 
 
 class TestProjectRepositoryGetById:
@@ -275,19 +275,19 @@ class TestProjectRepositoryGetById:
         """Test GET /api/v1/projects/{id} returns project when it exists."""
         # Arrange: Seed project
         gateway_adapter.seed_project(
-            project_id="proj-1",
+            project_id="getbyid-found-proj",
             name="Test Project",
             user_id="sam_dev_user",
             description="Test description",
         )
 
         # Act: Get project by ID
-        response = api_client.get("/api/v1/projects/proj-1")
+        response = api_client.get("/api/v1/projects/getbyid-found-proj")
 
         # Assert
         assert response.status_code == 200
         project = response.json()
-        assert project["id"] == "proj-1"
+        assert project["id"] == "getbyid-found-proj"
         assert project["name"] == "Test Project"
         assert project["description"] == "Test description"
 
@@ -296,7 +296,7 @@ class TestProjectRepositoryGetById:
     ):
         """Test GET /api/v1/projects/{id} returns 404 when project doesn't exist."""
         # Act: Try to get non-existent project
-        response = api_client.get("/api/v1/projects/nonexistent-id")
+        response = api_client.get("/api/v1/projects/getbyid-nonexistent")
 
         # Assert
         assert response.status_code == 404
@@ -314,7 +314,7 @@ class TestProjectRepositoryUpdate:
         """Test PUT /api/v1/projects/{id} updates project fields in database."""
         # Arrange: Seed project
         gateway_adapter.seed_project(
-            project_id="proj-1",
+            project_id="update-modify-proj",
             name="Old Name",
             user_id="sam_dev_user",
             description="Old Description",
@@ -322,7 +322,7 @@ class TestProjectRepositoryUpdate:
 
         # Act: Update project
         update_data = {"name": "New Name", "description": "New Description"}
-        response = api_client.put("/api/v1/projects/proj-1", json=update_data)
+        response = api_client.put("/api/v1/projects/update-modify-proj", json=update_data)
 
         # Assert: Response is correct
         assert response.status_code == 200
@@ -335,7 +335,7 @@ class TestProjectRepositoryUpdate:
             metadata = sa.MetaData()
             metadata.reflect(bind=conn)
             projects_table = metadata.tables["projects"]
-            query = sa.select(projects_table).where(projects_table.c.id == "proj-1")
+            query = sa.select(projects_table).where(projects_table.c.id == "update-modify-proj")
             db_project = conn.execute(query).first()
 
             assert db_project.name == "New Name"
@@ -347,7 +347,7 @@ class TestProjectRepositoryUpdate:
         """Test PUT /api/v1/projects/{id} returns 404 when project doesn't exist."""
         # Act: Try to update non-existent project
         update_data = {"name": "New Name"}
-        response = api_client.put("/api/v1/projects/nonexistent-id", json=update_data)
+        response = api_client.put("/api/v1/projects/update-nonexistent", json=update_data)
 
         # Assert
         assert response.status_code == 404
@@ -365,19 +365,19 @@ class TestProjectRepositoryDelete:
         """Test DELETE /api/v1/projects/{id} removes project from database."""
         # Arrange: Seed project
         gateway_adapter.seed_project(
-            project_id="proj-to-delete",
+            project_id="delete-remove-proj",
             name="Project To Delete",
             user_id="sam_dev_user",
         )
 
         # Act: Delete project
-        response = api_client.delete("/api/v1/projects/proj-to-delete")
+        response = api_client.delete("/api/v1/projects/delete-remove-proj")
 
         # Assert: Response is 204 No Content
         assert response.status_code == 204
 
         # Assert: Project no longer accessible via API
-        get_response = api_client.get("/api/v1/projects/proj-to-delete")
+        get_response = api_client.get("/api/v1/projects/delete-remove-proj")
         assert get_response.status_code == 404
 
         # Assert: Project is soft-deleted in database (not hard deleted)
@@ -387,21 +387,20 @@ class TestProjectRepositoryDelete:
             projects_table = metadata.tables["projects"]
             # Query including deleted projects
             query = sa.select(projects_table).where(
-                projects_table.c.id == "proj-to-delete"
+                projects_table.c.id == "delete-remove-proj"
             )
             db_project = conn.execute(query).first()
 
-            # Verify soft delete (deleted_at should be set)
-            if db_project:
-                assert db_project.deleted_at is not None
-                assert db_project.deleted_by == "sam_dev_user"
+            assert db_project is not None
+            assert db_project.deleted_at is not None
+            assert db_project.deleted_by == "sam_dev_user"
 
     def test_delete_returns_not_found_when_project_doesnt_exist(
         self, api_client: TestClient
     ):
         """Test DELETE /api/v1/projects/{id} returns 404 when project doesn't exist."""
         # Act: Try to delete non-existent project
-        response = api_client.delete("/api/v1/projects/nonexistent-id")
+        response = api_client.delete("/api/v1/projects/delete-nonexistent")
 
         # Assert
         assert response.status_code == 404
@@ -415,13 +414,13 @@ class TestProjectRepositoryDelete:
         """Test that soft delete marks project with deleted_at timestamp."""
         # Arrange: Seed project
         gateway_adapter.seed_project(
-            project_id="proj-soft-delete",
+            project_id="delete-soft-mark-proj",
             name="Project To Soft Delete",
             user_id="sam_dev_user",
         )
 
         # Act: Soft delete via API
-        response = api_client.delete("/api/v1/projects/proj-soft-delete")
+        response = api_client.delete("/api/v1/projects/delete-soft-mark-proj")
 
         # Assert: API returns success
         assert response.status_code == 204
@@ -432,7 +431,7 @@ class TestProjectRepositoryDelete:
             metadata.reflect(bind=conn)
             projects_table = metadata.tables["projects"]
             query = sa.select(projects_table).where(
-                projects_table.c.id == "proj-soft-delete"
+                projects_table.c.id == "delete-soft-mark-proj"
             )
             db_project = conn.execute(query).first()
 
@@ -444,14 +443,14 @@ class TestProjectRepositoryDelete:
         list_response = api_client.get("/api/v1/projects")
         projects = list_response.json()["projects"]
         project_ids = [p["id"] for p in projects]
-        assert "proj-soft-delete" not in project_ids
+        assert "delete-soft-mark-proj" not in project_ids
 
     def test_soft_delete_returns_not_found_when_project_doesnt_exist(
         self, api_client: TestClient
     ):
         """Test that soft delete returns 404 when project doesn't exist."""
         # Act: Try to soft delete non-existent project
-        response = api_client.delete("/api/v1/projects/nonexistent-id")
+        response = api_client.delete("/api/v1/projects/delete-soft-nonexistent")
 
         # Assert
         assert response.status_code == 404
@@ -469,17 +468,17 @@ class TestProjectRepositoryGetAll:
         """Test that GET /api/v1/projects returns only the current user's non-deleted (accessible) projects by default."""
         # Arrange: Seed multiple projects for different users
         gateway_adapter.seed_project(
-            project_id="proj-1",
+            project_id="getall-user1-proj",
             name="Project 1",
             user_id="user1@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="proj-2",
+            project_id="getall-user2-proj",
             name="Project 2",
             user_id="user2@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="proj-3",
+            project_id="getall-sam-proj",
             name="Project 3",
             user_id="sam_dev_user",
         )
@@ -494,9 +493,9 @@ class TestProjectRepositoryGetAll:
 
         # Verify sam_dev_user's project is present
         project_ids = [p["id"] for p in projects]
-        assert "proj-3" in project_ids
+        assert "getall-sam-proj" in project_ids
 
-        # Note: Other projects (proj-1, proj-2) won't be visible unless sharing is configured
+        # Note: Other projects (getall-user1-proj, getall-user2-proj) won't be visible unless sharing is configured
         # This test verifies the query works and filters correctly
 
 
@@ -509,12 +508,12 @@ class TestProjectRepositoryFiltered:
         """Test filtering projects by user_id returns correct results."""
         # Arrange: Seed projects for different users
         gateway_adapter.seed_project(
-            project_id="user1-proj",
+            project_id="filtered-user1-proj",
             name="User 1 Project",
             user_id="user1@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="sam-proj",
+            project_id="filtered-sam-proj",
             name="Sam Project",
             user_id="sam_dev_user",
         )
@@ -528,9 +527,9 @@ class TestProjectRepositoryFiltered:
         projects = data["projects"]
         project_ids = [p["id"] for p in projects]
 
-        assert "sam-proj" in project_ids
-        # user1-proj should not be visible without sharing
-        assert "user1-proj" not in project_ids
+        assert "filtered-sam-proj" in project_ids
+        # filtered-user1-proj should not be visible without sharing
+        assert "filtered-user1-proj" not in project_ids
 
     def test_get_filtered_projects_without_user_filter_returns_own_projects(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
@@ -538,12 +537,12 @@ class TestProjectRepositoryFiltered:
         """Test that GET /api/v1/projects returns user's own projects by default."""
         # Arrange: Seed projects for multiple users
         gateway_adapter.seed_project(
-            project_id="proj-1",
+            project_id="filtered-nofilter-user1",
             name="Project 1",
             user_id="user1@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="proj-2",
+            project_id="filtered-nofilter-sam",
             name="Project 2",
             user_id="sam_dev_user",
         )
@@ -556,6 +555,6 @@ class TestProjectRepositoryFiltered:
         data = response.json()
         projects = data["projects"]
 
-        # At least one project should exist (proj-2)
+        # At least one project should exist (filtered-nofilter-sam)
         project_ids = [p["id"] for p in projects]
-        assert "proj-2" in project_ids
+        assert "filtered-nofilter-sam" in project_ids

@@ -8,6 +8,9 @@ which used mocked DB sessions.
 The entity business logic tests (TestProjectUserEntity) remain in unit tests as they test
 pure logic without database operations.
 
+NOTE: These tests use ProjectUserRepository directly (not via API) to test repository-level
+SQL queries and DB interactions. API-level tests exist in test_projects_repository_queries.py.
+
 All tests in this file run against both SQLite and PostgreSQL via pytest parametrization.
 Docker must be running for PostgreSQL tests (testcontainers handles container lifecycle).
 """
@@ -106,7 +109,7 @@ class TestGetProjectUsers:
             # Add two users
             conn.execute(
                 sa.insert(project_users_table).values(
-                    id="pu-1",
+                    id="pu-get-users-1",
                     project_id=project_id,
                     user_id="user-1",
                     role="OWNER",
@@ -116,7 +119,7 @@ class TestGetProjectUsers:
             )
             conn.execute(
                 sa.insert(project_users_table).values(
-                    id="pu-2",
+                    id="pu-get-users-2",
                     project_id=project_id,
                     user_id="user-2",
                     role="EDITOR",
@@ -191,7 +194,7 @@ class TestGetUserProjectAccess:
 
             conn.execute(
                 sa.insert(project_users_table).values(
-                    id="pu-1",
+                    id="pu-user-access-1",
                     project_id=project_id,
                     user_id="user-456",
                     role="EDITOR",
@@ -470,12 +473,12 @@ class TestGetUserProjectsAccess:
         """Test that get_user_projects_access returns all projects user can access."""
         # Arrange: Create multiple projects
         gateway_adapter.seed_project(
-            project_id="proj-1",
+            project_id="proj-user-access-1",
             name="Project 1",
             user_id="owner@example.com",
         )
         gateway_adapter.seed_project(
-            project_id="proj-2",
+            project_id="proj-user-access-2",
             name="Project 2",
             user_id="owner@example.com",
         )
@@ -489,8 +492,8 @@ class TestGetUserProjectsAccess:
 
             conn.execute(
                 sa.insert(project_users_table).values(
-                    id="pu-multi-1",
-                    project_id="proj-1",
+                    id="pu-user-projects-1",
+                    project_id="proj-user-access-1",
                     user_id="user-123",
                     role="OWNER",
                     added_at=now,
@@ -499,8 +502,8 @@ class TestGetUserProjectsAccess:
             )
             conn.execute(
                 sa.insert(project_users_table).values(
-                    id="pu-multi-2",
-                    project_id="proj-2",
+                    id="pu-user-projects-2",
+                    project_id="proj-user-access-2",
                     user_id="user-123",
                     role="VIEWER",
                     added_at=now,
@@ -517,5 +520,5 @@ class TestGetUserProjectsAccess:
         # Assert
         assert len(result) == 2
         project_ids = [pu.project_id for pu in result]
-        assert "proj-1" in project_ids
-        assert "proj-2" in project_ids
+        assert "proj-user-access-1" in project_ids
+        assert "proj-user-access-2" in project_ids
