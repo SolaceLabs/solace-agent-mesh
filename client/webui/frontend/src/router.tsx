@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
 import { ModelDetailsPage } from "./lib/components/models";
 import AppLayout from "./AppLayout";
@@ -18,6 +18,10 @@ export const createRouter = () => {
                 {
                     path: "chat",
                     element: <ChatPage />,
+                },
+                {
+                    path: "recent-chats",
+                    element: <RecentChatsPage />,
                 },
                 {
                     path: "projects",
