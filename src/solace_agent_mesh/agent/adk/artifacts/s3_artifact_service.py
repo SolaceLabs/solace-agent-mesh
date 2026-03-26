@@ -134,6 +134,16 @@ class S3ArtifactService(BaseArtifactService):
         """Normalizes Unicode characters in a filename to their standard form."""
         return unicodedata.normalize("NFKC", filename)
 
+    @staticmethod
+    def _sanitize_metadata_value(value: str) -> str:
+        """Ensures a metadata value contains only ASCII characters.
+
+        S3 metadata values must be ASCII-only. This method encodes non-ASCII
+        characters as their Unicode escape sequences (e.g., '年' -> '\\u5e74')
+        to preserve the information while remaining ASCII-safe.
+        """
+        return value.encode("ascii", errors="backslashreplace").decode("ascii")
+
     @override
     async def save_artifact(
         self,
@@ -174,9 +184,9 @@ class S3ArtifactService(BaseArtifactService):
                     Body=artifact.inline_data.data,
                     ContentType=artifact.inline_data.mime_type,
                     Metadata={
-                        "original_filename": filename,
-                        "user_id": user_id,
-                        "session_id": session_id,
+                        "original_filename": self._sanitize_metadata_value(filename),
+                        "user_id": self._sanitize_metadata_value(user_id),
+                        "session_id": self._sanitize_metadata_value(session_id),
                         "version": str(version),
                     },
                 )
