@@ -1,5 +1,4 @@
 /// <reference types="@testing-library/jest-dom" />
-import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, test, expect, vi } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
