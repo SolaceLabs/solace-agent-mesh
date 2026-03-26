@@ -195,13 +195,13 @@ const MentionContentEditable = React.forwardRef<HTMLDivElement, MentionContentEd
                     if (currentOffset + mentionLength > offset) {
                         // Cursor is within this mention (not at the end)
                         // Position after the mention span
-                        targetNode = el.nextSibling || el.parentNode;
-                        targetOffset = 0;
-
-                        // If no next sibling, we need to position after this element
                         if (!el.nextSibling) {
+                            // No next sibling, position after this element in the parent
                             targetNode = el.parentNode;
                             targetOffset = Array.from(el.parentNode?.childNodes || []).indexOf(el) + 1;
+                        } else {
+                            targetNode = el.nextSibling;
+                            targetOffset = 0;
                         }
                         break;
                     }
