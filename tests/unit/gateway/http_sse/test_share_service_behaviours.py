@@ -11,45 +11,46 @@ Focus areas:
 """
 
 import json
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 
 from solace_agent_mesh.gateway.http_sse.repository.entities.share import (
-    ShareLink,
     SharedLinkUser,
+    ShareLink,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def make_share_link(**overrides) -> ShareLink:
-    defaults = dict(
-        share_id="share-abc",
-        session_id="session-1",
-        user_id="owner-uid",
-        title="Test Session",
-        is_public=True,
-        require_authentication=True,
-        allowed_domains=None,
-        created_time=1000000,
-        updated_time=1000000,
-        deleted_at=None,
-    )
+    defaults = {
+        "share_id": "share-abc",
+        "session_id": "session-1",
+        "user_id": "owner-uid",
+        "title": "Test Session",
+        "is_public": True,
+        "require_authentication": True,
+        "allowed_domains": None,
+        "created_time": 1000000,
+        "updated_time": 1000000,
+        "deleted_at": None,
+    }
     defaults.update(overrides)
     return ShareLink(**defaults)
 
 
 def make_shared_user(**overrides) -> SharedLinkUser:
-    defaults = dict(
-        id="slu-1",
-        share_id="share-abc",
-        user_email="viewer@example.com",
-        access_level="RESOURCE_VIEWER",
-        added_at=2000000,
-        added_by_user_id="owner-uid",
-    )
+    defaults = {
+        "id": "slu-1",
+        "share_id": "share-abc",
+        "user_email": "viewer@example.com",
+        "access_level": "RESOURCE_VIEWER",
+        "added_at": 2000000,
+        "added_by_user_id": "owner-uid",
+    }
     defaults.update(overrides)
     return SharedLinkUser(**defaults)
 
@@ -63,7 +64,9 @@ def _make_service():
     return service
 
 
-def _make_chat_task(task_id="t1", session_id="session-1", user_id="owner-uid", metadata=None):
+def _make_chat_task(
+    task_id="t1", session_id="session-1", user_id="owner-uid", metadata=None
+):
     """Return a mock chat task with the minimum attributes the service reads."""
     task = MagicMock()
     task.id = task_id
@@ -73,20 +76,23 @@ def _make_chat_task(task_id="t1", session_id="session-1", user_id="owner-uid", m
     task.created_time = 1500000
     task.message_bubbles = json.dumps([{"role": "user", "content": "hello"}])
     task.task_metadata = json.dumps(metadata) if metadata else None
-    task.model_dump = MagicMock(return_value={
-        "id": task_id,
-        "session_id": session_id,
-        "user_id": user_id,
-        "created_time": 1500000,
-        "message_bubbles": task.message_bubbles,
-        "task_metadata": task.task_metadata,
-    })
+    task.model_dump = MagicMock(
+        return_value={
+            "id": task_id,
+            "session_id": session_id,
+            "user_id": user_id,
+            "created_time": 1500000,
+            "message_bubbles": task.message_bubbles,
+            "task_metadata": task.task_metadata,
+        }
+    )
     return task
 
 
 # ---------------------------------------------------------------------------
 # fork_shared_chat
 # ---------------------------------------------------------------------------
+
 
 class TestForkSharedChat:
     """Forking creates a new session with copies of the original messages."""
@@ -112,12 +118,15 @@ class TestForkSharedChat:
     async def test_owner_can_fork_their_own_share(self):
         service, mock_task_repo, mock_session_svc = self._setup_forkable_service()
 
-        with patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
-            return_value=mock_task_repo,
-        ), patch(
-            "solace_agent_mesh.gateway.http_sse.services.session_service.SessionService",
-            return_value=mock_session_svc,
+        with (
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.session_service.SessionService",
+                return_value=mock_session_svc,
+            ),
         ):
             result = await service.fork_shared_chat(
                 MagicMock(), "share-abc", user_id="owner-uid"
@@ -132,16 +141,21 @@ class TestForkSharedChat:
             shared_emails=["viewer@example.com"]
         )
 
-        with patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
-            return_value=mock_task_repo,
-        ), patch(
-            "solace_agent_mesh.gateway.http_sse.services.session_service.SessionService",
-            return_value=mock_session_svc,
+        with (
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
+                return_value=mock_task_repo,
+            ),
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.session_service.SessionService",
+                return_value=mock_session_svc,
+            ),
         ):
             result = await service.fork_shared_chat(
-                MagicMock(), "share-abc",
-                user_id="viewer-uid", user_email="viewer@example.com",
+                MagicMock(),
+                "share-abc",
+                user_id="viewer-uid",
+                user_email="viewer@example.com",
             )
 
         assert result.session_id == "new-session-id"
@@ -154,14 +168,18 @@ class TestForkSharedChat:
 
         with pytest.raises(PermissionError):
             await service.fork_shared_chat(
-                MagicMock(), "share-abc",
-                user_id="stranger-uid", user_email="stranger@example.com",
+                MagicMock(),
+                "share-abc",
+                user_id="stranger-uid",
+                user_email="stranger@example.com",
             )
 
     @pytest.mark.asyncio
     async def test_deleted_share_cannot_be_forked(self):
         service = _make_service()
-        service.repository.find_by_share_id.return_value = make_share_link(deleted_at=999)
+        service.repository.find_by_share_id.return_value = make_share_link(
+            deleted_at=999
+        )
 
         with pytest.raises(ValueError, match="not found"):
             await service.fork_shared_chat(MagicMock(), "share-abc", user_id="anyone")
@@ -175,14 +193,16 @@ class TestForkSharedChat:
         mock_task_repo = MagicMock()
         mock_task_repo.find_by_session.return_value = []  # no messages
 
-        with patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
-            return_value=mock_task_repo,
+        with (
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository",
+                return_value=mock_task_repo,
+            ),
+            pytest.raises(ValueError, match="No messages"),
         ):
-            with pytest.raises(ValueError, match="No messages"):
-                await service.fork_shared_chat(
-                    MagicMock(), "share-abc", user_id="owner-uid"
-                )
+            await service.fork_shared_chat(
+                MagicMock(), "share-abc", user_id="owner-uid"
+            )
 
     @pytest.mark.asyncio
     async def test_fork_is_awaitable(self):
@@ -190,7 +210,9 @@ class TestForkSharedChat:
         import inspect
 
         service = _make_service()
-        service.repository.find_by_share_id.return_value = make_share_link(deleted_at=999)
+        service.repository.find_by_share_id.return_value = make_share_link(
+            deleted_at=999
+        )
 
         coro = service.fork_shared_chat(MagicMock(), "share-abc", user_id="x")
         assert inspect.isawaitable(coro)
@@ -202,6 +224,7 @@ class TestForkSharedChat:
 # ---------------------------------------------------------------------------
 # list_shared_with_me
 # ---------------------------------------------------------------------------
+
 
 class TestListSharedWithMe:
     """Returns chats where the user appears in the shared_link_users table."""
@@ -227,7 +250,9 @@ class TestListSharedWithMe:
             },
         ]
 
-        result = service.list_shared_with_me(MagicMock(), "user@co.com", base_url="https://app")
+        result = service.list_shared_with_me(
+            MagicMock(), "user@co.com", base_url="https://app"
+        )
 
         assert len(result) == 2
         assert result[0].share_id == "s1"
@@ -250,6 +275,7 @@ class TestListSharedWithMe:
 # ---------------------------------------------------------------------------
 # list_user_share_links
 # ---------------------------------------------------------------------------
+
 
 class TestListUserShareLinks:
     """Returns the caller's own share links with message counts."""
@@ -291,14 +317,21 @@ class TestListUserShareLinks:
 
         # Both queries should receive the search term
         _, kwargs = service.repository.find_by_user.call_args
-        assert kwargs.get("search") == "hello" or service.repository.find_by_user.call_args[0][3] == "hello"
+        assert (
+            kwargs.get("search") == "hello"
+            or service.repository.find_by_user.call_args[0][3] == "hello"
+        )
         _, kwargs2 = service.repository.count_by_user.call_args
-        assert kwargs2.get("search") == "hello" or service.repository.count_by_user.call_args[0][2] == "hello"
+        assert (
+            kwargs2.get("search") == "hello"
+            or service.repository.count_by_user.call_args[0][2] == "hello"
+        )
 
 
 # ---------------------------------------------------------------------------
 # update_snapshot
 # ---------------------------------------------------------------------------
+
 
 class TestUpdateSnapshot:
     """Snapshot refresh controls which messages a viewer sees."""
@@ -311,35 +344,57 @@ class TestUpdateSnapshot:
         mock_db = MagicMock()
 
         new_time = service.update_snapshot(
-            mock_db, "share-abc", user_id="viewer-uid",
+            mock_db,
+            "share-abc",
+            user_id="viewer-uid",
             caller_email="viewer@example.com",
         )
 
         assert isinstance(new_time, int)
         assert new_time > 0
-        mock_db.commit.assert_called_once()
+        # Verify repository was called to update the snapshot time
+        service.repository.update_user_snapshot_time.assert_called_once()
+        call_args = service.repository.update_user_snapshot_time.call_args
+        # Args: (db, share_id, user_email, new_time)
+        assert call_args[0][1] == "share-abc"  # share_id
+        assert call_args[0][2] == "viewer@example.com"  # user_email
+        assert isinstance(call_args[0][3], int)  # new_time
 
     def test_owner_can_refresh_another_users_snapshot(self):
         service = _make_service()
-        service.repository.find_by_share_id.return_value = make_share_link(user_id="owner-uid")
+        service.repository.find_by_share_id.return_value = make_share_link(
+            user_id="owner-uid"
+        )
         service.repository.update_user_snapshot_time.return_value = True
         mock_db = MagicMock()
 
         new_time = service.update_snapshot(
-            mock_db, "share-abc", user_id="owner-uid",
+            mock_db,
+            "share-abc",
+            user_id="owner-uid",
             target_email="viewer@example.com",
         )
 
         assert isinstance(new_time, int)
-        mock_db.commit.assert_called_once()
+        # Verify repository was called to update the target user's snapshot
+        service.repository.update_user_snapshot_time.assert_called_once()
+        call_args = service.repository.update_user_snapshot_time.call_args
+        # Args: (db, share_id, user_email, new_time)
+        assert call_args[0][1] == "share-abc"  # share_id
+        assert call_args[0][2] == "viewer@example.com"  # target_email
+        assert isinstance(call_args[0][3], int)  # new_time
 
     def test_non_owner_cannot_update_another_users_snapshot(self):
         service = _make_service()
-        service.repository.find_by_share_id.return_value = make_share_link(user_id="real-owner")
+        service.repository.find_by_share_id.return_value = make_share_link(
+            user_id="real-owner"
+        )
 
         with pytest.raises(PermissionError, match="Only the owner"):
             service.update_snapshot(
-                MagicMock(), "share-abc", user_id="not-owner",
+                MagicMock(),
+                "share-abc",
+                user_id="not-owner",
                 target_email="victim@example.com",
             )
 
@@ -349,7 +404,9 @@ class TestUpdateSnapshot:
 
         with pytest.raises(PermissionError, match="Email required"):
             service.update_snapshot(
-                MagicMock(), "share-abc", user_id="viewer-uid",
+                MagicMock(),
+                "share-abc",
+                user_id="viewer-uid",
                 caller_email=None,
             )
 
@@ -359,18 +416,24 @@ class TestUpdateSnapshot:
 
         with pytest.raises(ValueError, match="not found"):
             service.update_snapshot(
-                MagicMock(), "share-abc", user_id="anyone",
+                MagicMock(),
+                "share-abc",
+                user_id="anyone",
             )
 
     def test_nonexistent_share_user_raises_value_error(self):
         service = _make_service()
         service.repository.find_by_share_id.return_value = make_share_link()
-        service.repository.update_user_snapshot_time.return_value = False  # user not found
+        service.repository.update_user_snapshot_time.return_value = (
+            False  # user not found
+        )
         service.repository.check_user_has_access.return_value = True
 
         with pytest.raises(ValueError, match="Share user not found"):
             service.update_snapshot(
-                MagicMock(), "share-abc", user_id="viewer-uid",
+                MagicMock(),
+                "share-abc",
+                user_id="viewer-uid",
                 caller_email="nobody@example.com",
             )
 
@@ -378,6 +441,7 @@ class TestUpdateSnapshot:
 # ---------------------------------------------------------------------------
 # get_shared_session_view — viewer sees tasks filtered by snapshot_time
 # ---------------------------------------------------------------------------
+
 
 class TestSharedSessionViewSnapshotFiltering:
     """Viewers see only messages up to their snapshot time; editors see all."""
@@ -391,7 +455,9 @@ class TestSharedSessionViewSnapshotFiltering:
             # Make user_id match the owner
             pass
         else:
-            service.repository.find_share_user_emails.return_value = ["viewer@example.com"]
+            service.repository.find_share_user_emails.return_value = [
+                "viewer@example.com"
+            ]
 
         service.repository.find_share_user_by_email.return_value = shared_user
         service.component.get_shared_artifact_service.return_value = None
@@ -406,23 +472,35 @@ class TestSharedSessionViewSnapshotFiltering:
         late_task.created_time = 3000
 
         viewer = make_shared_user(
-            access_level="RESOURCE_VIEWER", added_at=2000  # snapshot = 2000
+            access_level="RESOURCE_VIEWER",
+            added_at=2000,  # snapshot = 2000
         )
         service, link, tasks = self._setup_view_service(
-            tasks=[early_task, late_task], shared_user=viewer,
+            tasks=[early_task, late_task],
+            shared_user=viewer,
         )
 
-        with patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository"
-        ) as MockTaskRepo, patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.SessionRepository"
-        ) as MockSessionRepo:
-            MockTaskRepo.return_value.find_by_session.return_value = [early_task, late_task]
-            MockSessionRepo.return_value.find_user_session.return_value = MagicMock(project_id=None)
+        with (
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository"
+            ) as MockTaskRepo,
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.SessionRepository"
+            ) as MockSessionRepo,
+        ):
+            MockTaskRepo.return_value.find_by_session.return_value = [
+                early_task,
+                late_task,
+            ]
+            MockSessionRepo.return_value.find_user_session.return_value = MagicMock(
+                project_id=None
+            )
 
             result = await service.get_shared_session_view(
-                MagicMock(), "share-abc",
-                user_id="viewer-uid", user_email="viewer@example.com",
+                MagicMock(),
+                "share-abc",
+                user_id="viewer-uid",
+                user_email="viewer@example.com",
             )
 
         # Only the early task should survive the snapshot filter
@@ -435,7 +513,8 @@ class TestSharedSessionViewSnapshotFiltering:
         editor_task = _make_chat_task(task_id="t-editor", user_id="editor-uid")
 
         editor_user = make_shared_user(
-            access_level="RESOURCE_EDITOR", user_email="editor@example.com",
+            access_level="RESOURCE_EDITOR",
+            user_email="editor@example.com",
         )
         service = _make_service()
         service.repository.find_by_share_id.return_value = make_share_link()
@@ -443,20 +522,28 @@ class TestSharedSessionViewSnapshotFiltering:
         service.repository.find_share_user_by_email.return_value = editor_user
         service.component.get_shared_artifact_service.return_value = None
 
-        with patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository"
-        ) as MockTaskRepo, patch(
-            "solace_agent_mesh.gateway.http_sse.services.share_service.SessionRepository"
-        ) as MockSessionRepo:
+        with (
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.ChatTaskRepository"
+            ) as MockTaskRepo,
+            patch(
+                "solace_agent_mesh.gateway.http_sse.services.share_service.SessionRepository"
+            ) as MockSessionRepo,
+        ):
             # find_by_session_all_users should be called for editors
             MockTaskRepo.return_value.find_by_session_all_users.return_value = [
-                owner_task, editor_task,
+                owner_task,
+                editor_task,
             ]
-            MockSessionRepo.return_value.find_user_session.return_value = MagicMock(project_id=None)
+            MockSessionRepo.return_value.find_user_session.return_value = MagicMock(
+                project_id=None
+            )
 
             result = await service.get_shared_session_view(
-                MagicMock(), "share-abc",
-                user_id="editor-uid", user_email="editor@example.com",
+                MagicMock(),
+                "share-abc",
+                user_id="editor-uid",
+                user_email="editor@example.com",
             )
 
         # Editor sees both tasks, no snapshot filtering
@@ -469,6 +556,7 @@ class TestSharedSessionViewSnapshotFiltering:
 # tasks.py fork metadata cache
 # ---------------------------------------------------------------------------
 
+
 class TestForkMetadataCache:
     """
     _submit_task injects fork_source metadata for forked sessions
@@ -478,7 +566,9 @@ class TestForkMetadataCache:
     def test_cache_prevents_repeated_db_queries(self):
         """After the first lookup, subsequent calls for the same session should
         hit the cache and not open a new DB connection."""
-        from solace_agent_mesh.gateway.http_sse.routers.tasks import _fork_metadata_cache
+        from solace_agent_mesh.gateway.http_sse.routers.tasks import (
+            _fork_metadata_cache,
+        )
 
         test_session = "session-cache-test"
 
@@ -501,7 +591,9 @@ class TestForkMetadataCache:
     def test_non_forked_session_caches_none(self):
         """A session without fork metadata should be cached as None so
         subsequent calls skip the DB entirely."""
-        from solace_agent_mesh.gateway.http_sse.routers.tasks import _fork_metadata_cache
+        from solace_agent_mesh.gateway.http_sse.routers.tasks import (
+            _fork_metadata_cache,
+        )
 
         test_session = "session-not-forked"
         _fork_metadata_cache[test_session] = None
@@ -515,7 +607,9 @@ class TestForkMetadataCache:
     def test_cache_miss_triggers_lookup(self):
         """When a session is not in the cache, the code should attempt a DB lookup.
         We verify this by checking that the session key gets added to the cache."""
-        from solace_agent_mesh.gateway.http_sse.routers.tasks import _fork_metadata_cache
+        from solace_agent_mesh.gateway.http_sse.routers.tasks import (
+            _fork_metadata_cache,
+        )
 
         test_session = "session-new-lookup"
         # Ensure it's not in cache
