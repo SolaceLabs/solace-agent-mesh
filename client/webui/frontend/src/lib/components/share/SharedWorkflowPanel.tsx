@@ -39,7 +39,7 @@ function convertToA2AEvent(event: SharedTaskEvent): A2AEventSSEPayload {
  * Convert shared task events to TaskFE format for visualization
  */
 function convertToTaskFE(taskId: string, taskData: SharedTaskEvents): TaskFE {
-    const events = taskData.events.map(convertToA2AEvent);
+    const events = (taskData.events || []).map(convertToA2AEvent);
 
     return {
         taskId,
@@ -72,7 +72,7 @@ function findRootTaskId(taskEvents: Record<string, SharedTaskEvents>): string | 
 
     // Look for a task that has a request event from "User"
     for (const [taskId, taskData] of Object.entries(taskEvents)) {
-        const hasUserRequest = taskData.events.some(event => event.direction === "request" && event.sourceEntity === "User");
+        const hasUserRequest = (taskData.events || []).some(event => event.direction === "request" && event.sourceEntity === "User");
         if (hasUserRequest) {
             return taskId;
         }

@@ -150,7 +150,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
         if (!open) return;
 
         setIsNewlyCreatedLink(false);
-        setShowPublicLink(defaultShowPublicLink || !!shareLinkQuery.data);
+        setShowPublicLink(defaultShowPublicLink);
         setFooterLinkCopied(false);
         setPublicLinkCopied(false);
         setCreatingLink(false);

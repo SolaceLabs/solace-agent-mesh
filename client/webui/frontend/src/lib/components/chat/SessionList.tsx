@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch, GitFork, ExternalLink } from "lucide-react";
+import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { useSharedWithMe, useForkSharedChat } from "@/lib/api/share";
+import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
@@ -148,8 +148,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     // Shared-with-me (React Query)
     const sharedWithMeQuery = useSharedWithMe();
     const sharedWithMe = sharedWithMeQuery.data ?? [];
-    const forkMutation = useForkSharedChat();
-    const [forkingShareId, setForkingShareId] = useState<string | null>(null);
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -253,29 +251,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             fetchSessions(currentPage + 1, true);
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
-
-    const handleForkChat = useCallback(
-        async (item: SharedWithMeItem) => {
-            if (forkingShareId) return;
-
-            setForkingShareId(item.shareId);
-            try {
-                const result = await forkMutation.mutateAsync(item.shareId);
-                addNotification?.(`Chat forked: "${result.sessionName}"`, "success");
-
-                // Refresh sessions list to show the new forked session
-                fetchSessions(1, false);
-
-                // Switch to the new session
-                await handleSwitchSession(result.sessionId);
-            } catch (error) {
-                displayError({ title: "Failed to Fork Chat", error: getErrorMessage(error, "An unknown error occurred while forking the chat.") });
-            } finally {
-                setForkingShareId(null);
-            }
-        },
-        [forkingShareId, addNotification, fetchSessions, handleSwitchSession, displayError, forkMutation]
-    );
 
     const handleViewSharedChat = useCallback(
         (item: SharedWithMeItem) => {
@@ -513,6 +488,40 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto">
+                {/* Shared with me section */}
+                {chatSharingEnabled && sharedWithMe.length > 0 && (
+                    <div className="border-b pr-4 pb-4">
+                        <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
+                            <UserSearch size={14} />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="cursor-default">Shared with me</span>
+                                </TooltipTrigger>
+                                <TooltipContent>Experimental Feature</TooltipContent>
+                            </Tooltip>
+                        </div>
+                        <ul>
+                            {sharedWithMe.map(item => {
+                                const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
+                                return (
+                                    <li key={item.shareId} className="group my-2">
+                                        <button onClick={() => handleViewSharedChat(item)} className="hover:bg-muted/50 flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-left">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate font-semibold">{item.title}</span>
+                                                    {isEditor && <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">Editor</span>}
+                                                </div>
+                                                <span className="text-muted-foreground truncate text-xs">
+                                                    from {item.ownerEmail} • {formatTimestamp(new Date(item.sharedAt).toISOString())}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
                 {filteredSessions.length > 0 && (
                     <ul>
                         {filteredSessions.map(session => (
@@ -658,80 +667,6 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 {hasMore && (
                     <div ref={loadMoreRef} className="flex justify-center py-4">
                         {isLoading && <Spinner size="small" variant="muted" />}
-                    </div>
-                )}
-
-                {/* Shared with me section */}
-                {chatSharingEnabled && sharedWithMe.length > 0 && (
-                    <div className="mt-6 border-t pt-4 pr-4">
-                        <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
-                            <UserSearch size={14} />
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="cursor-default">Shared with me</span>
-                                </TooltipTrigger>
-                                <TooltipContent>Experimental Feature</TooltipContent>
-                            </Tooltip>
-                        </div>
-                        <ul>
-                            {sharedWithMe.map(item => {
-                                const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
-                                return (
-                                    <li key={item.shareId} className="group my-2">
-                                        <div className="hover:bg-muted/50 flex items-center gap-2 rounded-sm px-2 py-2">
-                                            <button onClick={() => handleViewSharedChat(item)} className="min-w-0 flex-1 cursor-pointer text-left">
-                                                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="truncate font-semibold">{item.title}</span>
-                                                        {isEditor && <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">Editor</span>}
-                                                    </div>
-                                                    <span className="text-muted-foreground truncate text-xs">
-                                                        from {item.ownerEmail} • {formatTimestamp(String(item.sharedAt))}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                            <div className="flex flex-shrink-0 items-center gap-1">
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-8 w-8 p-0"
-                                                            onClick={e => {
-                                                                e.stopPropagation();
-                                                                handleViewSharedChat(item);
-                                                            }}
-                                                        >
-                                                            <ExternalLink size={16} />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>{isEditor ? "Edit shared chat" : "View shared chat"}</TooltipContent>
-                                                </Tooltip>
-                                                {!isEditor && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-8 w-8 p-0"
-                                                                disabled={forkingShareId === item.shareId}
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    handleForkChat(item);
-                                                                }}
-                                                            >
-                                                                {forkingShareId === item.shareId ? <Loader2 size={16} className="animate-spin" /> : <GitFork size={16} />}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>Fork to my chats</TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </li>
-                                );
-                            })}
-                        </ul>
                     </div>
                 )}
             </div>
