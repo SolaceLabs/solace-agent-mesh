@@ -6,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, 
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { useChatContext } from "@/lib/hooks";
 
-import { useModelConfigs } from "@/lib/api/models";
+import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
+import { ModelDeleteDialog } from "./ModelDeleteDialog";
 import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
@@ -27,7 +28,9 @@ export const ModelsView: React.FC = () => {
     const location = useLocation();
     const { addNotification } = useChatContext();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading, error: modelConfigsErrorObj } = useModelConfigs();
+    const deleteModel = useDeleteModel();
     const [currentPage, setCurrentPage] = useState<number>(1);
+    const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
     const [highlightedModelAlias, setHighlightedModelAlias] = useState<string | null>(null);
     const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
@@ -98,8 +101,7 @@ export const ModelsView: React.FC = () => {
         {
             id: "delete",
             label: "Delete",
-            onClick: () => {},
-            disabled: true,
+            onClick: () => setModelToDelete(model),
             divider: true,
         },
     ];
@@ -176,6 +178,21 @@ export const ModelsView: React.FC = () => {
                 {/* Pagination */}
                 <PaginationControls totalPages={totalPages} currentPage={effectiveCurrentPage} onPageChange={setCurrentPage} />
             </div>
+
+            {modelToDelete && (
+                <ModelDeleteDialog
+                    open={!!modelToDelete}
+                    onOpenChange={open => {
+                        if (!open) setModelToDelete(null);
+                    }}
+                    onConfirm={async () => {
+                        await deleteModel.mutateAsync(modelToDelete.alias);
+                        setModelToDelete(null);
+                    }}
+                    isLoading={deleteModel.isPending}
+                    modelAlias={modelToDelete.alias}
+                />
+            )}
         </div>
     );
 };
