@@ -1,7 +1,6 @@
-import type { MouseEvent } from "react";
+import React from "react";
 
 import type { ArtifactInfo } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { ArtifactMessage } from "../file/ArtifactMessage";
 import { useChatContext } from "@/lib/hooks";
 
@@ -12,7 +11,7 @@ interface ArtifactCardProps {
     onDownloadOverride?: () => Promise<void>;
 }
 
-export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownloadOverride }: ArtifactCardProps) => {
+export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, isPreview, readOnly = false, onDownloadOverride }) => {
     const { setPreviewArtifact } = useChatContext();
 
     // Create a FileAttachment from the ArtifactInfo
@@ -23,7 +22,7 @@ export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownload
         uri: artifact.uri,
     };
 
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: React.MouseEvent) => {
         if (!isPreview) {
             e.stopPropagation();
             setPreviewArtifact(artifact);
@@ -32,9 +31,18 @@ export const ArtifactCard = ({ artifact, isPreview, readOnly = false, onDownload
 
     return (
         <div
-            className={cn(!isPreview && "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)")}
+            className={`${isPreview ? "" : "cursor-pointer transition-all duration-150 hover:bg-(--background-w20)"}`}
             onClick={handleClick}
-            onKeyDown={e => e.key === "Enter" && handleClick(e as unknown as MouseEvent)}
+            onKeyDown={
+                !isPreview
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setPreviewArtifact(artifact);
+                          }
+                      }
+                    : undefined
+            }
             role={!isPreview ? "button" : undefined}
             tabIndex={!isPreview ? 0 : undefined}
         >
