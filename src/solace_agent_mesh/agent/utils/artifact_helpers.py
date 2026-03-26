@@ -126,8 +126,11 @@ def sanitize_to_filename(
     if not text:
         return f"unnamed{suffix}"
     
-    # Convert to lowercase and remove non-word characters except spaces and hyphens
-    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
+    # Convert to lowercase and remove non-ASCII/non-word characters except spaces and hyphens.
+    # The re.ASCII flag ensures \w only matches [a-zA-Z0-9_], preventing Unicode
+    # characters (e.g., Chinese, Japanese, Arabic) from being included in the filename.
+    # This is critical because S3 metadata only supports ASCII values (DATAGO-130045).
+    safe_name = re.sub(r'[^\w\s-]', '', text.lower(), flags=re.ASCII)
     
     # Replace spaces and hyphens with the replacement character
     safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
