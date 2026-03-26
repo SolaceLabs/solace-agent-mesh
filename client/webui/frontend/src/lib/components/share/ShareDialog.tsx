@@ -522,14 +522,12 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                         ) : (
                             <>
                                 {/* Owner row (current user) - always shown first */}
-                                {ownerEmail && (
-                                    <div className="bg-muted/10 flex items-center gap-4 border-b px-4 py-3">
-                                        <div className="min-w-0 flex-1 text-sm">{ownerEmail}</div>
-                                        <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
-                                        <div className="text-muted-foreground w-full shrink-0 text-sm sm:w-[200px]">Owner</div>
-                                        <div className="w-8 shrink-0" /> {/* Space for alignment */}
-                                    </div>
-                                )}
+                                <div className="bg-muted/10 flex items-center gap-4 border-b px-4 py-3">
+                                    <div className="min-w-0 flex-1 text-sm">{ownerEmail || "You"}</div>
+                                    <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
+                                    <div className="text-muted-foreground w-full shrink-0 text-sm sm:w-[200px]">Owner</div>
+                                    <div className="w-8 shrink-0" /> {/* Space for alignment */}
+                                </div>
                                 {displayedViewers.map(user => {
                                     const formattedDate = formatDateYMD(user.addedAt);
 
