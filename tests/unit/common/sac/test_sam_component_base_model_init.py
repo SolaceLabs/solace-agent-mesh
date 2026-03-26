@@ -130,6 +130,49 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
         assert isinstance(model, LiteLlm)
         assert model.status == "initializing"
 
+    def test_initialize_model_lazy_mode_with_string_config(self):
+        """In lazy mode with string config, LiteLlm should be created with model=string."""
+        component = self._make_component(
+            model_config="gpt-4", model_provider=["dynamic-provider"], lazy=True
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        # With a real model name, configure_model sets status to "ready"
+        assert model._model_config.get("model") == "gpt-4"
+
+    def test_initialize_model_lazy_mode_with_dict_config(self):
+        """In lazy mode with dict config, LiteLlm should unpack the dict."""
+        component = self._make_component(
+            model_config={"model": "gpt-4", "timeout": 300},
+            model_provider=["dynamic-provider"],
+            lazy=True,
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        # Dict config should be unpacked, preserving extra settings
+        assert model._model_config["timeout"] == 300
+        assert model._model_config.get("model") == "gpt-4"
+
+    def test_initialize_model_lazy_mode_dict_preserves_model_name(self):
+        """In lazy mode with dict config, the model name should be preserved."""
+        component = self._make_component(
+            model_config={"model": "claude-3-opus"},
+            model_provider=["dynamic-provider"],
+            lazy=True,
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        assert model._model_config.get("model") == "claude-3-opus"
+
+    def test_initialize_model_lazy_mode_no_config_starts_initializing(self):
+        """In lazy mode with no model config, LiteLlm starts in 'initializing' state."""
+        component = self._make_component(
+            model_config=None, model_provider=["dynamic-provider"], lazy=True
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        assert model.status == "initializing"
+
     def test_get_lite_llm_model_returns_cached_instance(self):
         """get_lite_llm_model should return the same instance on repeated calls."""
         component = self._make_component(model_config="gpt-4")
