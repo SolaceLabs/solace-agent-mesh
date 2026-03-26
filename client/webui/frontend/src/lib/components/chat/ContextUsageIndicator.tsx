@@ -294,9 +294,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             <div className="flex items-center gap-2">
                                 <div className="w-28 space-y-1">
                                     <Progress value={pct} className="h-1.5" />
-                                    <div className={`text-center font-mono text-[10px] ${colorClass}`}>
-                                        {formattedCurrent}/{formattedLimit}
-                                    </div>
+                                    <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
                                 {(shouldShowCompressButton || isCompacting) && (
                                     <div
