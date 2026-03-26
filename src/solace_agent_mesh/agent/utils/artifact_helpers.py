@@ -94,15 +94,19 @@ def sanitize_to_filename(
     replacement_char: str = "_"
 ) -> str:
     """
-    Sanitizes arbitrary text into a safe filename.
+    Sanitizes arbitrary text into a safe, ASCII-only filename.
     
     Converts text (like a research question or title) into a filesystem-safe
     filename by:
     1. Converting to lowercase
-    2. Removing non-word characters (except spaces and hyphens)
+    2. Removing non-ASCII and non-word characters (except spaces and hyphens)
     3. Replacing spaces and hyphens with the replacement character
     4. Limiting length to max_length
     5. Optionally appending a suffix
+    
+    Note: Uses re.ASCII flag so that \\w only matches [a-zA-Z0-9_], ensuring
+    the resulting filename contains only ASCII characters. This is required
+    because S3 metadata (which stores the filename) only supports ASCII values.
     
     Args:
         text: The text to convert into a filename (e.g., research question, title)
@@ -111,7 +115,7 @@ def sanitize_to_filename(
         replacement_char: Character to replace spaces/hyphens with. Default: "_"
     
     Returns:
-        A sanitized filename string safe for filesystem use.
+        A sanitized, ASCII-only filename string safe for filesystem and cloud storage use.
     
     Examples:
         >>> sanitize_to_filename("What is AI?")
