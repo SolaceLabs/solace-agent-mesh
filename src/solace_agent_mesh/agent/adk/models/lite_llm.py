@@ -1150,9 +1150,12 @@ class LiteLlm(BaseLlm):
                     completion_args["extra_body"] = extra_body
 
                 # Anthropic requires temperature=1 when thinking is enabled
-                if is_native_anthropic:
+                # Apply for both native Anthropic and proxies running Claude models
+                model_lower = model_name.lower()
+                is_claude_model = is_native_anthropic or "claude" in model_lower
+                if is_claude_model:
                     if "temperature" in completion_args:
-                        logger.info("Overriding temperature to 1 (required for Anthropic thinking mode)")
+                        logger.info("Overriding temperature to 1 (required for Claude thinking mode)")
                     completion_args["temperature"] = 1
                 logger.debug(
                     "Thinking tokens enabled with budget: %d (native_anthropic=%s)",
@@ -1176,7 +1179,29 @@ class LiteLlm(BaseLlm):
             aggregated_llm_response_with_tool_call = None
             usage_metadata = None
             fallback_index = 0
-            async for part in await self.llm_client.acompletion(**completion_args):
+
+            # Try with thinking params first; if the model doesn't support them,
+            # catch the error and retry without thinking
+            try:
+                stream_response = await self.llm_client.acompletion(**completion_args)
+            except Exception as thinking_err:
+                err_msg = str(thinking_err).lower()
+                if self._thinking_config and ("thinking" in err_msg or "unsupported" in err_msg or "unexpected keyword" in err_msg):
+                    logger.warning(
+                        "Model does not support thinking tokens, retrying without: %s",
+                        str(thinking_err)[:200],
+                    )
+                    # Remove thinking params and retry
+                    completion_args.pop("thinking", None)
+                    if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
+                        completion_args["extra_body"].pop("thinking", None)
+                        if not completion_args["extra_body"]:
+                            completion_args.pop("extra_body", None)
+                    stream_response = await self.llm_client.acompletion(**completion_args)
+                else:
+                    raise
+
+            async for part in stream_response:
                 for chunk, finish_reason in _model_response_to_chunk(part):
                     if isinstance(chunk, FunctionChunk):
                         index = chunk.index or fallback_index
@@ -1323,7 +1348,23 @@ class LiteLlm(BaseLlm):
                 yield aggregated_llm_response_with_tool_call
 
         else:
-            response = await self.llm_client.acompletion(**completion_args)
+            try:
+                response = await self.llm_client.acompletion(**completion_args)
+            except Exception as thinking_err:
+                err_msg = str(thinking_err).lower()
+                if self._thinking_config and ("thinking" in err_msg or "unsupported" in err_msg or "unexpected keyword" in err_msg):
+                    logger.warning(
+                        "Model does not support thinking tokens (non-streaming), retrying without: %s",
+                        str(thinking_err)[:200],
+                    )
+                    completion_args.pop("thinking", None)
+                    if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
+                        completion_args["extra_body"].pop("thinking", None)
+                        if not completion_args["extra_body"]:
+                            completion_args.pop("extra_body", None)
+                    response = await self.llm_client.acompletion(**completion_args)
+                else:
+                    raise
             yield _model_response_to_generate_content_response(response)
 
     @staticmethod
