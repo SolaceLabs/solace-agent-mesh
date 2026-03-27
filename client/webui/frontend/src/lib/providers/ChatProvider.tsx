@@ -1261,8 +1261,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     bytesTransferred: bytes_transferred,
                                                 };
                                                 agentMessage.parts.push(newPart);
-                                                // Add progress update for new artifact creation
-                                                agentMessage.progressUpdates = [...(agentMessage.progressUpdates || []), { type: "artifact" as const, text: `Creating ${filename}`, timestamp: Date.now() }];
                                             }
                                         } else if (status === "completed") {
                                             const fileAttachment: FileAttachment = {
