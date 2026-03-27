@@ -16,8 +16,10 @@ Element.prototype.scrollIntoView = vi.fn();
 // API spies
 // ---------------------------------------------------------------------------
 
-const mockGet = vi.spyOn(api.webui, "get" as never);
-const mockPost = vi.spyOn(api.webui, "post" as never);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockGet = vi.spyOn(api.webui, "get" as any);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockPost = vi.spyOn(api.webui, "post" as any);
 
 // ---------------------------------------------------------------------------
 // Helpers
