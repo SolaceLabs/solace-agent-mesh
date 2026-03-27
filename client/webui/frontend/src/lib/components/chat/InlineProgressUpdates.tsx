@@ -74,8 +74,17 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
         );
     }
 
+    // CSS keyframes for slide-in animation (injected once)
+    const slideInStyle = `
+        @keyframes progressSlideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    `;
+
     return (
         <div className="mb-3 ml-[9px] pl-5">
+            <style>{slideInStyle}</style>
             {/* Collapse header when task is complete */}
             {!isActive && (
                 <div className="mb-1">
@@ -112,7 +121,13 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
 
                     return (
                         <React.Fragment key={`${update.timestamp}-${index}`}>
-                            <div className="relative py-3">
+                            <div
+                                className="relative py-3"
+                                style={{
+                                    animation: "progressSlideIn 0.3s ease-out both",
+                                    animationDelay: `${Math.min(index * 50, 200)}ms`,
+                                }}
+                            >
                                 {/* Dot or spinner indicator */}
                                 {isActiveStep ? (
                                     <Loader2 className="absolute top-[13px] left-[-20px] z-10 h-[16px] w-[16px] animate-spin text-(--primary-wMain)" />
