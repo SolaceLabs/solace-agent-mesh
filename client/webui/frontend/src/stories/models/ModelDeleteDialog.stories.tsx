@@ -27,6 +27,7 @@ export const Default: Story = {
         open: true,
         onOpenChange: () => {},
         onConfirm: async () => {},
+        modelId: "model-123",
         modelAlias: "my-gpt-4",
         isLoading: false,
     },
@@ -54,6 +55,7 @@ export const ConfirmEnabled: Story = {
         open: true,
         onOpenChange: () => {},
         onConfirm: async () => {},
+        modelId: "model-456",
         modelAlias: "my-gpt-4",
         isLoading: false,
     },
@@ -77,6 +79,7 @@ export const DefaultModelGeneral: Story = {
         open: true,
         onOpenChange: () => {},
         onConfirm: async () => {},
+        modelId: "general-model-id",
         modelAlias: "general",
     },
     play: async () => {
