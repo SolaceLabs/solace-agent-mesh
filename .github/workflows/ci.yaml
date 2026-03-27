@@ -45,6 +45,7 @@ jobs:
   # ----------------------------------------------------
   test-and-sonarqube:
     name: Test and SonarQube
+    if: ${{ github.event_name != 'pull_request' || !contains(github.head_ref, 'release-please') }}
     uses: ./.github/workflows/test-and-sonarqube.yml
     with:
       min-python-version: "3.10"
@@ -67,6 +68,9 @@ jobs:
       commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       docker_push: ${{ steps.set_build_params.outputs.docker_push }}
+      candidate_docker_push: ${{ steps.set_build_params.outputs.candidate_docker_push }}
+      should_push_image: ${{ steps.set_build_params.outputs.should_push_image }}
+      is_release_please_pr: ${{ steps.set_build_params.outputs.is_release_please_pr }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -106,12 +110,33 @@ jobs:
         id: set_build_params
         run: |
           docker_push=false
-          # Only update manifest for default branch pushes
-          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          candidate_docker_push=false
+          is_release_please_pr=false
+
+          # Detect release-please PRs and publish candidate images for RC/security checks.
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == *"release-please"* ]]; then
+            is_release_please_pr=true
+            candidate_docker_push=true
+          fi
+
+          # Only update release manifest for default branch pushes.
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
             docker_push=true
           fi
-          echo "Will Push Images: ${docker_push}"
+
+          should_push_image=false
+          if [[ "${docker_push}" == "true" || "${candidate_docker_push}" == "true" ]]; then
+            should_push_image=true
+          fi
+
+          echo "Will Push Images: ${should_push_image}"
+          echo "Main branch push: ${docker_push}"
+          echo "Release-please PR candidate push: ${candidate_docker_push}"
+          echo "Is release-please PR: ${is_release_please_pr}"
           echo "docker_push=${docker_push}" >> $GITHUB_OUTPUT
+          echo "candidate_docker_push=${candidate_docker_push}" >> $GITHUB_OUTPUT
+          echo "should_push_image=${should_push_image}" >> $GITHUB_OUTPUT
+          echo "is_release_please_pr=${is_release_please_pr}" >> $GITHUB_OUTPUT
           echo "Always building multiplatform for all scenarios"
 
   # ----------------------------------------------------
@@ -201,9 +226,9 @@ jobs:
           file: Dockerfile
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
-          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          push: ${{ fromJSON(needs.prepare-metadata.outputs.should_push_image) }}
           cache-from: ${{ steps.cache_list.outputs.cache_from }}
-          load: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          load: ${{ !fromJSON(needs.prepare-metadata.outputs.should_push_image) }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
           sbom: false
@@ -211,7 +236,7 @@ jobs:
             INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
 
       - name: Run Prisma Cloud Scan on Local Image
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ github.event_name == 'pull_request' && !contains(github.head_ref, 'release-please') }}
         id: prisma_scan
         continue-on-error: true
         uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
@@ -224,7 +249,7 @@ jobs:
           pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
           twistcli_publish: "true"
           vulnerability_grace_period_days: "7"
-          skip_image_pull: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          skip_image_pull: "true"
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
@@ -232,7 +257,7 @@ jobs:
   merge-manifest:
     name: Create Multi-Platform Manifest
     needs: [prepare-metadata, build-platform]
-    if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+    if: ${{ fromJSON(needs.prepare-metadata.outputs.should_push_image) }}
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
@@ -250,6 +275,8 @@ jobs:
 
       - name: Determine Image Name and Tags
         id: image_tags
+        env:
+          DOCKER_PUSH: ${{ needs.prepare-metadata.outputs.docker_push }}
         run: |
           # Reconstruct image name based on registry type
           image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
@@ -262,11 +289,11 @@ jobs:
 
           tags="${image_name}:${version}-${short_sha}"
 
-          if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          if [[ "${DOCKER_PUSH}" == "true" ]]; then
             tags="${tags},${image_name}:${version}"
             tags="${tags},${image_name}:${release_tag}"
+            tags="${tags},${image_name}:${release_tag}-${short_sha}"
           fi
-          tags="${tags},${image_name}:${release_tag}-${short_sha}"
 
 
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
@@ -274,7 +301,6 @@ jobs:
           echo "Created tags: ${tags}"
 
       - name: Create and Push Multi-Platform Manifest
-        if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
         run: |
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
@@ -380,3 +406,155 @@ jobs:
               console.error('Failed to trigger RC workflow:', error.message);
               throw error;
             }
+
+  # ----------------------------------------------------
+  # Release-Please PR security checks (Prisma + Sonar hotspots)
+  # ----------------------------------------------------
+  release-pr-security-checks:
+    name: Release PR Security Checks
+    needs: [prepare-metadata, merge-manifest]
+    if: ${{ github.event_name == 'pull_request' && fromJSON(needs.prepare-metadata.outputs.is_release_please_pr) }}
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
+    with:
+      prisma_check: true
+      sonarqube_hotspot_check: true
+      fossa_check: false
+    secrets:
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ format('{0}/solace-agent-mesh:{1}-{2}', secrets.SAM_AWS_ECR_REGISTRY, needs.prepare-metadata.outputs.version, needs.prepare-metadata.outputs.short_sha) }}
+      PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+      PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+
+  # ----------------------------------------------------
+  # Release-Please PR RC verification gate
+  # ----------------------------------------------------
+  verify-release-pr-rc:
+    name: Verify RC Status
+    needs: [prepare-metadata, merge-manifest]
+    if: ${{ github.event_name == 'pull_request' && fromJSON(needs.prepare-metadata.outputs.is_release_please_pr) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Wait for RC status check to complete
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const commitSha = '${{ needs.prepare-metadata.outputs.commit_hash }}';
+            const statusContext = 'RC / Integration Tests (Community)';
+            const maxAttempts = 75;
+            const delayMs = 60000;
+
+            const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner,
+                repo,
+                ref: commitSha,
+                per_page: 100,
+              });
+
+              const rcStatuses = statuses.filter(status => status.context === statusContext);
+              const rcStatus = rcStatuses.length > 0 ? rcStatuses[0] : null;
+
+              if (!rcStatus) {
+                core.info(`Attempt ${attempt}/${maxAttempts}: RC status not available yet for ${commitSha}`);
+              } else {
+                core.info(`Attempt ${attempt}/${maxAttempts}: RC status is '${rcStatus.state}'`);
+                if (rcStatus.state === 'success') {
+                  core.info(`RC verification passed for ${commitSha}`);
+                  return;
+                }
+                if (rcStatus.state === 'failure' || rcStatus.state === 'error') {
+                  core.setFailed(`RC status check failed: ${rcStatus.description || 'No description provided'}`);
+                  return;
+                }
+              }
+
+              if (attempt < maxAttempts) {
+                await sleep(delayMs);
+              }
+            }
+
+            core.setFailed(`Timed out waiting for "${statusContext}" on commit ${commitSha}.`);
+
+  # ----------------------------------------------------
+  # Unified required status check for branch protection
+  # ----------------------------------------------------
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs:
+      - fossa_scan
+      - test-and-sonarqube
+      - prepare-metadata
+      - build-platform
+      - merge-manifest
+      - release-pr-security-checks
+      - verify-release-pr-rc
+    if: always()
+    steps:
+      - name: Evaluate required checks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IS_RELEASE_PLEASE_PR: ${{ needs.prepare-metadata.outputs.is_release_please_pr }}
+          FOSSA_SCAN_RESULT: ${{ needs.fossa_scan.result }}
+          TEST_AND_SONAR_RESULT: ${{ needs.test-and-sonarqube.result }}
+          PREPARE_METADATA_RESULT: ${{ needs.prepare-metadata.result }}
+          BUILD_PLATFORM_RESULT: ${{ needs.build-platform.result }}
+          MERGE_MANIFEST_RESULT: ${{ needs.merge-manifest.result }}
+          RELEASE_PR_SECURITY_RESULT: ${{ needs.release-pr-security-checks.result }}
+          RELEASE_PR_RC_RESULT: ${{ needs.verify-release-pr-rc.result }}
+        run: |
+          set -euo pipefail
+
+          require_result() {
+            local check_name="$1"
+            local result="$2"
+            shift 2
+            local allowed=("$@")
+
+            for allowed_result in "${allowed[@]}"; do
+              if [[ "$result" == "$allowed_result" ]]; then
+                echo "✅ ${check_name}: ${result}"
+                return 0
+              fi
+            done
+
+            echo "::error::${check_name} is '${result}' (expected: ${allowed[*]})"
+            exit 1
+          }
+
+          echo "Event: ${EVENT_NAME}"
+          echo "Release-please PR: ${IS_RELEASE_PLEASE_PR}"
+
+          require_result "Prepare Build Metadata" "${PREPARE_METADATA_RESULT}" success
+          require_result "Build Platform Matrix" "${BUILD_PLATFORM_RESULT}" success
+          require_result "FOSSA Scan" "${FOSSA_SCAN_RESULT}" success skipped
+
+          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
+            require_result "Test and SonarQube" "${TEST_AND_SONAR_RESULT}" success
+            require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" success
+            echo "All required checks passed for push event."
+            exit 0
+          fi
+
+          if [[ "${IS_RELEASE_PLEASE_PR}" == "true" ]]; then
+            require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" success
+            require_result "Release PR Security Checks" "${RELEASE_PR_SECURITY_RESULT}" success
+            require_result "Verify RC Status" "${RELEASE_PR_RC_RESULT}" success
+            echo "All required checks passed for release-please PR."
+            exit 0
+          fi
+
+          require_result "Test and SonarQube" "${TEST_AND_SONAR_RESULT}" success
+          require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" skipped success
+          echo "All required checks passed for standard PR."

@@ -1,0 +1,136 @@
+name: Promote ECR Image to DockerHub
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Released semantic version (for example: 1.18.19)"
+        required: true
+        type: string
+      short_sha:
+        description: "Short commit SHA used in the CI ECR image tag"
+        required: true
+        type: string
+      push_latest:
+        description: "Whether to also publish latest tag"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+      SAM_AWS_ACCESS_KEY_ID:
+        required: true
+      SAM_AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_DEFAULT_REGION:
+        required: true
+      SAM_AWS_ECR_REGISTRY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released semantic version (for example: 1.18.19)"
+        required: true
+        type: string
+      short_sha:
+        description: "Short commit SHA used in the CI ECR image tag"
+        required: true
+        type: string
+      push_latest:
+        description: "Whether to also publish latest tag"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote prebuilt image to DockerHub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Promote release image
+        env:
+          VERSION: ${{ inputs.version }}
+          SHORT_SHA: ${{ inputs.short_sha }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+          ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+        run: |
+          set -euo pipefail
+
+          SOURCE_IMAGE="${ECR_REGISTRY}/solace-agent-mesh:${VERSION}-${SHORT_SHA}"
+          TARGET_IMAGE="solace/solace-agent-mesh"
+
+          echo "Inspecting source image: ${SOURCE_IMAGE}"
+          docker buildx imagetools inspect "${SOURCE_IMAGE}" > /dev/null
+
+          TAG_ARGS=(--tag "${TARGET_IMAGE}:${VERSION}")
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            TAG_ARGS+=(--tag "${TARGET_IMAGE}:latest")
+          fi
+
+          echo "Promoting ${SOURCE_IMAGE} to DockerHub tags:"
+          echo " - ${TARGET_IMAGE}:${VERSION}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            echo " - ${TARGET_IMAGE}:latest"
+          fi
+          docker buildx imagetools create "${TAG_ARGS[@]}" "${SOURCE_IMAGE}"
+
+      - name: Verify DockerHub tags
+        env:
+          VERSION: ${{ inputs.version }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          set -euo pipefail
+
+          verify_tag() {
+            local tag="$1"
+            local url="https://hub.docker.com/v2/repositories/solace/solace-agent-mesh/tags/${tag}"
+            local max_retries=5
+            local retry_delay=8
+
+            for i in $(seq 1 "$max_retries"); do
+              http_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              if [[ "$http_code" == "200" ]]; then
+                echo "Verified DockerHub tag exists: ${tag}"
+                return 0
+              fi
+
+              if [[ "$i" -lt "$max_retries" ]]; then
+                echo "Tag ${tag} not visible yet (attempt ${i}/${max_retries}); waiting ${retry_delay}s"
+                sleep "$retry_delay"
+                retry_delay=$((retry_delay * 2))
+              fi
+            done
+
+            echo "Failed to verify DockerHub tag: ${tag}"
+            return 1
+          }
+
+          verify_tag "${VERSION}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            verify_tag "latest"
+          fi

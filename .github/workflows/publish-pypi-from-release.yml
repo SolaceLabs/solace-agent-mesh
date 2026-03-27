@@ -1,0 +1,60 @@
+name: Publish Release Assets to PyPI
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Release tag to pull artifacts from"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to pull artifacts from"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish downloaded release artifacts
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          mkdir -p release-artifacts
+          gh release download "$RELEASE_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "*.whl" \
+            --pattern "*.tar.gz" \
+            --dir release-artifacts \
+            --clobber
+
+          shopt -s nullglob
+          artifacts=(release-artifacts/*.whl release-artifacts/*.tar.gz)
+          if (( ${#artifacts[@]} == 0 )); then
+            echo "No release artifacts were found in release $RELEASE_TAG"
+            exit 1
+          fi
+
+          echo "Downloaded ${#artifacts[@]} release artifact(s)."
+          ls -la release-artifacts
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
+        with:
+          packages-dir: release-artifacts/
+          verbose: true
+
+      - name: Create summary
+        run: |
+          echo "## Release Artifacts Published to PyPI" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Release Tag:** ${{ inputs.release_tag }}" >> "$GITHUB_STEP_SUMMARY"
