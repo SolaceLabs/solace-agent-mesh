@@ -218,19 +218,32 @@ async def process_thinking_content_callback(
     """
     log_identifier = "[Callback:ProcessThinkingContent]"
 
-    if not llm_response.custom_metadata:
-        return None
-
     a2a_context = callback_context.state.get("a2a_context")
     if not a2a_context:
         return None
 
-    is_thinking = llm_response.custom_metadata.get("is_thinking_content", False)
-    thinking_text_full = llm_response.custom_metadata.get("thinking_content")
-
     # Track thinking phase state in session to detect transitions
     session = get_session_from_callback_context(callback_context)
     thinking_phase_key = "thinking_phase_active"
+
+    # Check for phase transition BEFORE the metadata guard so that
+    # chunks with no custom_metadata (text after thinking) still close
+    # the thinking phase.
+    if not llm_response.custom_metadata:
+        if session.state.get(thinking_phase_key):
+            session.state[thinking_phase_key] = False
+            thinking_complete = ThinkingContentData(
+                content="",
+                is_complete=True,
+            )
+            await _publish_data_part_status_update(
+                host_component, a2a_context, thinking_complete
+            )
+            log.debug("%s Thinking phase completed (no metadata), sent is_complete signal", log_identifier)
+        return None
+
+    is_thinking = llm_response.custom_metadata.get("is_thinking_content", False)
+    thinking_text_full = llm_response.custom_metadata.get("thinking_content")
 
     if is_thinking and llm_response.content and llm_response.content.parts:
         # Streaming thinking chunk — publish each text part as a signal

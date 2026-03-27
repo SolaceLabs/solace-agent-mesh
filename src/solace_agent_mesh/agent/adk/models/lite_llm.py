@@ -1150,9 +1150,10 @@ class LiteLlm(BaseLlm):
                     completion_args["extra_body"] = extra_body
 
                 # Anthropic requires temperature=1 when thinking is enabled
-                if "temperature" in completion_args:
-                    logger.info("Overriding temperature to 1 (required for thinking mode)")
-                completion_args["temperature"] = 1
+                if is_native_anthropic:
+                    if "temperature" in completion_args:
+                        logger.info("Overriding temperature to 1 (required for Anthropic thinking mode)")
+                    completion_args["temperature"] = 1
                 logger.debug(
                     "Thinking tokens enabled with budget: %d (native_anthropic=%s)",
                     thinking_budget,

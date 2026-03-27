@@ -1,7 +1,5 @@
 """Unit tests for _should_include_data_part_in_final_output data part filtering."""
 
-from unittest.mock import patch
-
 from a2a.types import DataPart
 
 from solace_agent_mesh.gateway.base.component import BaseGatewayComponent
@@ -13,12 +11,36 @@ def _make_data_part(data_type, metadata=None):
     return DataPart(data=data, metadata=metadata)
 
 
+class _ConcreteGatewayComponent(BaseGatewayComponent):
+    """Minimal concrete subclass for testing non-abstract methods."""
+
+    def _extract_initial_claims(self, *a, **kw):
+        pass
+
+    def _send_error_to_external(self, *a, **kw):
+        pass
+
+    def _send_final_response_to_external(self, *a, **kw):
+        pass
+
+    def _send_update_to_external(self, *a, **kw):
+        pass
+
+    def _start_listener(self, *a, **kw):
+        pass
+
+    def _stop_listener(self, *a, **kw):
+        pass
+
+    def _translate_external_input(self, *a, **kw):
+        pass
+
+
 def _make_component(supports_inline=True):
-    """Create a BaseGatewayComponent instance with mocked init."""
-    with patch.object(BaseGatewayComponent, "__init__", lambda self, *a, **kw: None):
-        comp = BaseGatewayComponent()
-        comp.supports_inline_artifact_resolution = supports_inline
-        return comp
+    """Create a concrete BaseGatewayComponent instance with bypassed init."""
+    comp = _ConcreteGatewayComponent.__new__(_ConcreteGatewayComponent)
+    comp.supports_inline_artifact_resolution = supports_inline
+    return comp
 
 
 class TestShouldIncludeDataPartInFinalOutput:

@@ -39,22 +39,6 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
         }
     }, [isActive, updates.length]);
 
-    // Inject CSS keyframes once
-    useEffect(() => {
-        const styleId = "progress-slide-in-keyframes";
-        if (!document.getElementById(styleId)) {
-            const style = document.createElement("style");
-            style.id = styleId;
-            style.textContent = `
-                @keyframes progressSlideIn {
-                    from { opacity: 0; transform: translateY(-8px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    }, []);
-
     if (!updates || updates.length === 0) {
         return null;
     }
@@ -65,7 +49,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
     const shouldCollapseList = deduped.length > COLLAPSE_THRESHOLD;
     const visibleIndices = shouldCollapseList && !isListExpanded ? [0, ...Array.from({ length: 2 }, (_, i) => deduped.length - 2 + i)] : deduped.map((_, i) => i);
     const visibleUpdates = visibleIndices.map(i => deduped[i]);
-    const hiddenCount = shouldCollapseList && !isListExpanded ? deduped.length - visibleUpdates.length : 0;
+    const hiddenCount = shouldCollapseList && !isListExpanded ? Math.max(0, deduped.length - visibleUpdates.length) : 0;
 
     const toggleThinking = (dedupedIndex: number) => {
         setExpandedThinkingIds(prev => {
@@ -111,8 +95,8 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                         className="absolute left-[-12px] z-0 w-[2px] rounded-full opacity-30"
                         style={{
                             top: "21px",
-                            /* End line at the top of the last dot, not through it */
-                            bottom: isActive ? "28px" : "21px",
+                            /* End line just touching the top of the last dot/spinner */
+                            bottom: isActive ? "33px" : "21px",
                             backgroundColor: "currentColor",
                         }}
                     />

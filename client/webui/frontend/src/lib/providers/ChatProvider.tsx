@@ -97,7 +97,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
-    const statusHistoryRef = useRef<string[]>([]);
     const sseEventSequenceRef = useRef<number>(0);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
@@ -931,6 +930,38 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return;
             }
 
+            // Helper: append a progress update to the last AI message for the given task,
+            // or create a new AI message if none exists. Reduces duplication across
+            // agent_progress_update and tool_invocation_start cases.
+            const appendProgressUpdate = (update: ProgressUpdate, extraFields?: Partial<(typeof messages)[number]>) => {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                        newMessages[newMessages.length - 1] = {
+                            ...lastMsg,
+                            progressUpdates: [...(lastMsg.progressUpdates || []), update],
+                            ...extraFields,
+                        };
+                    } else {
+                        newMessages.push({
+                            role: "agent",
+                            parts: [],
+                            taskId: currentTaskIdFromResult,
+                            isUser: false,
+                            isComplete: false,
+                            progressUpdates: [update],
+                            metadata: {
+                                messageId: `msg-${v4()}`,
+                                lastProcessedEventSequence: currentEventSequence,
+                            },
+                            ...extraFields,
+                        });
+                    }
+                    return newMessages;
+                });
+            };
+
             // Process data parts first to extract status text
             if (messageToProcess?.parts) {
                 const dataParts = messageToProcess.parts.filter(p => p.kind === "data") as DataPart[];
@@ -1022,15 +1053,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                 case "agent_progress_update": {
                                     const statusText = String(data?.status_text ?? "Processing...");
                                     latestStatusText.current = statusText;
-                                    // Accumulate status history for inline progress display
-                                    statusHistoryRef.current = [...statusHistoryRef.current, statusText];
 
-                                    // Auto-close any open thinking block and push progress update in a single pass
                                     const progressUpdate: ProgressUpdate = {
                                         type: "status",
                                         text: statusText,
                                         timestamp: Date.now(),
                                     };
+
+                                    // Auto-close any open thinking block and push progress update in a single pass
                                     setMessages(prev => {
                                         const newMessages = [...prev];
                                         const lastMsg = newMessages[newMessages.length - 1];
@@ -1048,7 +1078,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 isThinkingComplete = true;
                                             }
 
-                                            // Append progress update
                                             updatedProgressUpdates = [...updatedProgressUpdates, progressUpdate];
 
                                             newMessages[newMessages.length - 1] = {
@@ -1057,7 +1086,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 isThinkingComplete,
                                             };
                                         } else {
-                                            // Create a new AI message bubble for progress updates
                                             newMessages.push({
                                                 role: "agent",
                                                 parts: [],
@@ -1334,21 +1362,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         progressText = `Using ${formatToolName(toolName)}`;
                                     }
 
-                                    const toolProgressUpdate: ProgressUpdate = {
+                                    appendProgressUpdate({
                                         type: progressType,
                                         text: progressText,
                                         timestamp: Date.now(),
-                                    };
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        const lastMsg = newMessages[newMessages.length - 1];
-                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
-                                            newMessages[newMessages.length - 1] = {
-                                                ...lastMsg,
-                                                progressUpdates: [...(lastMsg.progressUpdates || []), toolProgressUpdate],
-                                            };
-                                        }
-                                        return newMessages;
                                     });
                                     break;
                                 }
@@ -1687,7 +1704,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Add a new status bubble if the task is not over
                 if (isFinalEvent) {
                     latestStatusText.current = null;
-                    statusHistoryRef.current = [];
 
                     // Finalize any lingering in-progress artifact parts for this task
                     // With the new artifact_completed signal, in-progress artifacts should only remain if they truly failed
@@ -2033,7 +2049,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
-            statusHistoryRef.current = [];
 
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
@@ -2178,7 +2193,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closePreview();
                 isFinalizing.current = false;
                 latestStatusText.current = null;
-                statusHistoryRef.current = [];
 
                 sseEventSequenceRef.current = 0;
                 // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
@@ -2452,7 +2466,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
             }
             latestStatusText.current = null;
-            statusHistoryRef.current = [];
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [closeCurrentEventSource, isResponding, setError]);
@@ -2486,7 +2499,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(true);
             setCurrentTaskId(null);
             latestStatusText.current = null;
-            statusHistoryRef.current = [];
 
             sseEventSequenceRef.current = 0;
 
@@ -2505,8 +2517,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
             latestStatusText.current = "Thinking";
-            // Seed the status history with "Thinking" as the first progress update
-            statusHistoryRef.current = ["Thinking"];
             setMessages(prev => [...prev, userMsg]);
 
             try {
@@ -2778,7 +2788,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
                 isFinalizing.current = false;
                 latestStatusText.current = null;
-                statusHistoryRef.current = [];
             }
         },
         [

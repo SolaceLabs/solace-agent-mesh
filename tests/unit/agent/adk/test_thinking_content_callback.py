@@ -13,10 +13,12 @@ from solace_agent_mesh.common.data_parts import ThinkingContentData
 
 def _make_callback_context(thinking_phase_active=False):
     """Create a mock CallbackContext with a2a_context and session state."""
-    ctx = MagicMock(spec=CallbackContext)
+    ctx = MagicMock()
     ctx.state = {"a2a_context": {"task_id": "test-task"}}
     session = MagicMock()
     session.state = {"thinking_phase_active": thinking_phase_active}
+    # Wire up _invocation_context.session so get_session_from_callback_context works
+    ctx._invocation_context.session = session
     return ctx, session
 
 
@@ -154,6 +156,29 @@ class TestProcessThinkingContentCallback:
         published_data = mock_publish.call_args[0][2]
         assert published_data.is_complete is True
         assert published_data.content == ""
+
+    @pytest.mark.asyncio
+    @patch("solace_agent_mesh.agent.adk.callbacks.get_session_from_callback_context")
+    @patch("solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update", new_callable=AsyncMock)
+    async def test_phase_transition_with_null_metadata_sends_complete(self, mock_publish, mock_get_session):
+        """Most common real-world case: text chunk after thinking has custom_metadata=None."""
+        ctx, session = _make_callback_context(thinking_phase_active=True)
+        mock_get_session.return_value = session
+        resp = _make_llm_response(
+            content_text="actual response text",
+            custom_metadata=None,
+        )
+        host = MagicMock()
+
+        result = await process_thinking_content_callback(ctx, resp, host)
+
+        assert result is None
+        assert session.state["thinking_phase_active"] is False
+        mock_publish.assert_called_once()
+        published_data = mock_publish.call_args[0][2]
+        assert isinstance(published_data, ThinkingContentData)
+        assert published_data.content == ""
+        assert published_data.is_complete is True
 
     @pytest.mark.asyncio
     @patch("solace_agent_mesh.agent.adk.callbacks.get_session_from_callback_context")
