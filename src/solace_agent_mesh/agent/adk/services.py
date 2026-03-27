@@ -551,13 +551,12 @@ def initialize_session_service(component) -> BaseSessionService:
         migration_component=component,
     )
 
-    # Check if auto-summarization is enabled from component config.
-    # Use getattr with a default so this works when called from components
-    # that don't have auto_summarization_config (e.g. WebUIBackendComponent).
-    auto_sum_config = getattr(component, "auto_summarization_config", {})
-    if auto_sum_config.get("enabled", False):
-        # Wrap with FilteringSessionService to automatically filter ghost events.
-        # This ensures ALL get_session() calls across the codebase get filtered sessions.
+    # Check if auto-summarization is enabled from component config
+    auto_sum_config = component.auto_summarization_config
+    if auto_sum_config.get("enabled", True):
+        # Wrap with FilteringSessionService to automatically filter ghost events
+        # This ensures ALL get_session() calls across the codebase get filtered sessions
+        # There is a risk of spilling summary events in case if flag flips between True/False - and no filtering.
         log.info(
             "%s Wrapping session service with FilteringSessionService for automatic compaction filtering.",
             component.log_identifier,

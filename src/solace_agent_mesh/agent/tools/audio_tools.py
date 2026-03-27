@@ -1320,6 +1320,9 @@ async def transcribe_audio(
                         f"{log_identifier} Failed to clean up temporary file {temp_file_path}: {e}"
                     )
 
+    except json.JSONDecodeError as jde:
+        log.error(f"{log_identifier} JSON decode error: {jde}")
+        return ToolResult.error("Invalid JSON response from API")
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -1331,9 +1334,6 @@ async def transcribe_audio(
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling transcription API: {re}")
         return ToolResult.error(f"Request error: {re}")
-    except json.JSONDecodeError as jde:
-        log.error(f"{log_identifier} JSON decode error: {jde}")
-        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in transcribe_audio: {e}")
         return ToolResult.error(f"An unexpected error occurred: {e}")

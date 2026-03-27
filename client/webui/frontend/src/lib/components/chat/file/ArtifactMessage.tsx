@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api, getErrorFromResponse } from "@/lib/api";
 import { Spinner } from "@/lib/components/ui/spinner";
@@ -37,9 +36,11 @@ type ArtifactMessageProps = (
     uniqueKey?: string; // Optional unique key for expansion state (e.g., taskId-filename)
     isStreaming?: boolean;
     message?: MessageFE; // Optional message to get taskId for ragData lookup
+    readOnly?: boolean; // Hide delete button and other edit actions
+    onDownloadOverride?: () => Promise<void>; // Custom download handler
 };
 
-export function ArtifactMessage(props: ArtifactMessageProps) {
+export const ArtifactMessage = (props: ArtifactMessageProps) => {
     const { artifacts, allArtifacts, setPreviewArtifact, openSidePanelTab, sessionId, openDeleteModal, markArtifactAsDisplayed, downloadAndResolveArtifact, navigateArtifactVersion, ragData } = useChatContext();
     const { activeProject } = useProjectContext();
     const [isLoading, setIsLoading] = useState(false);
@@ -52,9 +53,7 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
     const artifact = useMemo(() => artifacts.find(art => art.filename === props.name), [artifacts, props.name]);
     const context = props.context || "chat";
     const isStreaming = props.isStreaming;
-
-    // Check if this artifact is from a project (should not be deletable)
-    const isProjectArtifact = artifact?.source === "project";
+    const readOnly = props.readOnly || artifact?.source === "project" || false;
 
     // Extract version from URI if available
     const version = useMemo(() => {
@@ -135,6 +134,12 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
     }, [artifact, artifactInAll, openSidePanelTab, setPreviewArtifact, version, navigateArtifactVersion]);
 
     const handleDownloadClick = useCallback(() => {
+        // If custom download handler is provided, use it
+        if (props.onDownloadOverride) {
+            props.onDownloadOverride();
+            return;
+        }
+
         // Build the file to download from available sources
         let fileToDownload: FileAttachment | null = null;
 
@@ -149,9 +154,14 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
                 size: artifactSource.size,
                 last_modified: artifactSource.last_modified,
             };
-            // If artifact doesn't have URI, try to use content from fileAttachment
-            if (!fileToDownload.uri && fileAttachment?.content) {
-                fileToDownload.content = fileAttachment.content;
+            // If artifact doesn't have URI, try to use content from various sources
+            if (!fileToDownload.uri) {
+                // Priority: fetchedContent (from downloadAndResolveArtifact) > fileAttachment.content
+                if (fetchedContent) {
+                    fileToDownload.content = fetchedContent;
+                } else if (fileAttachment?.content) {
+                    fileToDownload.content = fileAttachment.content;
+                }
             }
         } else if (fileAttachment) {
             fileToDownload = fileAttachment;
@@ -162,7 +172,7 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, artifactInAll, fileAttachment, sessionId, activeProject?.id, props.name]);
+    }, [artifact, artifactInAll, fileAttachment, sessionId, activeProject?.id, props.name, fetchedContent, props.onDownloadOverride]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {
@@ -343,8 +353,8 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
             return {
                 onInfo: handleInfoClick,
                 onDownload: props.status === "completed" ? handleDownloadClick : undefined,
-                // Hide delete button for artifacts with source="project" (they came from project files)
-                onDelete: artifact && props.status === "completed" && !isProjectArtifact ? handleDeleteClick : undefined,
+                // Hide delete button for artifacts with source="project" (they came from project files) or in readOnly mode
+                onDelete: artifact && props.status === "completed" && !readOnly ? handleDeleteClick : undefined,
             };
         } else {
             // In chat context, show preview, download, and info actions
@@ -355,7 +365,7 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
                 onInfo: handleInfoClick,
             };
         }
-    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, isProjectArtifact]);
+    }, [props.status, context, handleDownloadClick, artifact, handleDeleteClick, handleInfoClick, handlePreviewClick, readOnly]);
 
     // Get description from allArtifacts (unfiltered) so hidden artifacts still show their description
     const description = artifactInAll?.description;
@@ -503,4 +513,4 @@ export function ArtifactMessage(props: ArtifactMessageProps) {
             sourceProjectName={getSourceProjectName(artifactInAll, activeProject)}
         />
     );
-}
+};

@@ -383,3 +383,112 @@ export const ALL_PROVIDERS: ModelProvider[] = Object.values(PROVIDER_CONFIGS)
         if (b.id === "custom") return -1;
         return a.label.localeCompare(b.label);
     });
+
+/**
+ * Build model params and auth config from form data.
+ * Shared between save and test connection flows.
+ */
+export function buildModelPayload(data: ModelFormData) {
+    // Strip out REDACTED_CREDENTIAL_PLACEHOLDER from credential fields
+    // These placeholders are shown during edit to indicate redacted server-stored credentials
+    // Converting to empty string prevents overwriting the server-side credential
+    REDACTED_CREDENTIAL_FIELDS.forEach(field => {
+        if (data[field] === REDACTED_CREDENTIAL_PLACEHOLDER) {
+            data[field] = "";
+        }
+    });
+
+    const providerConfig = getProviderConfig(data.provider);
+
+    // Collect model_params from provider-specific fields
+    const modelParams: Record<string, unknown> = {};
+    for (const field of providerConfig.fields) {
+        if (data[field.name] != null && data[field.name] !== "") {
+            const value = field.type === "number" ? Number(data[field.name]) : data[field.name];
+            modelParams[field.name] = value;
+        }
+    }
+
+    // Add common model params
+    if (data.temperature != null && data.temperature !== "") {
+        modelParams.temperature = Number(data.temperature);
+    }
+    if (data.maxTokens != null && data.maxTokens !== "") {
+        modelParams.max_tokens = Number(data.maxTokens);
+    }
+    if (data.cache_strategy != null && data.cache_strategy !== "") {
+        modelParams.cache_strategy = data.cache_strategy;
+    }
+
+    // Add custom parameters
+    if (data.customParams && Array.isArray(data.customParams)) {
+        data.customParams.forEach((param: { key: string; value: string }) => {
+            if (param.key.trim()) {
+                modelParams[param.key] = param.value;
+            }
+        });
+    }
+
+    // Build auth config
+    // When editing, only include credential fields if they are provided (not empty)
+    // This preserves existing server-side credentials if user doesn't change them
+    let authConfig: Record<string, unknown> = {};
+    if (data.authType === "apikey") {
+        authConfig = { type: "apikey" };
+        if (data.apiKey) {
+            authConfig.api_key = data.apiKey;
+        }
+    } else if (data.authType === "oauth2") {
+        authConfig = { type: "oauth2" };
+        if (data.clientId) {
+            authConfig.client_id = data.clientId;
+        }
+        if (data.clientSecret) {
+            authConfig.client_secret = data.clientSecret;
+        }
+        if (data.tokenUrl) {
+            authConfig.token_url = data.tokenUrl;
+        }
+        if (data.oauthScope) {
+            authConfig.scope = data.oauthScope;
+        }
+        if (data.oauthTokenRefreshBufferSeconds) {
+            authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
+        }
+    } else if (data.authType === "aws_iam") {
+        authConfig = { type: "aws_iam" };
+        if (data.awsAccessKeyId) {
+            authConfig.aws_access_key_id = data.awsAccessKeyId;
+        }
+        if (data.awsSecretAccessKey) {
+            authConfig.aws_secret_access_key = data.awsSecretAccessKey;
+        }
+        if (data.awsSessionToken) {
+            authConfig.aws_session_token = data.awsSessionToken;
+        }
+    } else if (data.authType === "gcp_service_account") {
+        authConfig = { type: "gcp_service_account" };
+        if (data.gcpServiceAccountJson) {
+            authConfig.service_account_json = data.gcpServiceAccountJson;
+        }
+    } else {
+        authConfig = { type: "none" };
+    }
+
+    // Format model name with provider prefix if needed
+    let modelName = data.modelName;
+    if (!modelName.includes("/") && data.provider === "custom") {
+        modelName = `openai/${modelName}`;
+    }
+
+    return {
+        alias: data.alias,
+        provider: data.provider,
+        modelName,
+        apiBase: data.apiBase || null,
+        description: data.description || null,
+        authType: data.authType,
+        authConfig,
+        modelParams,
+    };
+}

@@ -144,7 +144,15 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     };
 
     const displayDescription = getDisplayDescription(description);
-    const hasDescription = description && description.trim();
+    const hasDescription = description?.trim();
+    let primaryLabel: string;
+    if (hasDescription) {
+        primaryLabel = displayDescription;
+    } else if (filename.length > 50) {
+        primaryLabel = `${filename.substring(0, 47)}...`;
+    } else {
+        primaryLabel = filename;
+    }
 
     const handleBarClick = () => {
         if (status === "completed" && actions?.onPreview) {
@@ -180,6 +188,18 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 }
             }}
             onClick={isDeleted ? undefined : handleBarClick}
+            onKeyDown={
+                isClickable
+                    ? e => {
+                          if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handleBarClick();
+                          }
+                      }
+                    : undefined
+            }
+            role={isClickable ? "button" : undefined}
+            tabIndex={isClickable ? 0 : undefined}
         >
             <div className="flex min-h-[60px] items-center gap-3 p-3">
                 {/* File Icon */}
@@ -190,7 +210,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                     {/*Primary line: Description (if available) or Filename */}
                     <div className="flex items-center gap-2">
                         <div className="truncate text-sm leading-tight font-semibold" title={hasDescription ? description : filename}>
-                            {hasDescription ? displayDescription : filename.length > 50 ? `${filename.substring(0, 47)}...` : filename}
+                            {primaryLabel}
                         </div>
                         {/* Project badge */}
                         {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} className="max-w-[360px]" />}
