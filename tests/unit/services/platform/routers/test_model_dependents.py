@@ -69,30 +69,27 @@ class TestGetModelDependentsEndpoint:
         mock_config.id = "uuid-123"
         mock_service.get_by_alias.return_value = mock_config
 
-        with patch(
-            "solace_agent_mesh.services.platform.api.routers.model_configurations_router."
-            "solace_agent_mesh_enterprise",
-            None,
-        ):
-            # Force ImportError on the enterprise import inside the function
-            import builtins
-            real_import = builtins.__import__
+        mock_db = Mock()
 
-            def mock_import(name, *args, **kwargs):
-                if name.startswith("solace_agent_mesh_enterprise"):
-                    raise ImportError("No enterprise package")
-                return real_import(name, *args, **kwargs)
+        # Force ImportError on the enterprise import inside the function
+        import builtins
+        real_import = builtins.__import__
 
-            with patch("builtins.__import__", side_effect=mock_import):
-                result = await get_model_dependents(
-                    alias="general",
-                    _=None,
-                    db=Mock(),
-                    service=mock_service,
-                )
+        def mock_import(name, *args, **kwargs):
+            if name.startswith("solace_agent_mesh_enterprise"):
+                raise ImportError("No enterprise package")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import):
+            result = await get_model_dependents(
+                alias="general",
+                _=None,
+                db=mock_db,
+                service=mock_service,
+            )
 
         assert result.data == []
-        mock_service.get_by_alias.assert_called_once_with(Mock(), "general")
+        mock_service.get_by_alias.assert_called_once_with(mock_db, "general")
 
     @pytest.mark.asyncio
     async def test_returns_dependents_when_enterprise_available(self):
@@ -281,14 +278,16 @@ class TestDeleteModelCallsHandler:
         config.alias = "test"
         mock_service.get_by_alias.return_value = config
 
+        mock_db = Mock()
+
         await delete_model(
             alias="test",
             _=None,
-            db=Mock(),
+            db=mock_db,
             user={"id": "u1"},
             service=mock_service,
             component=Mock(),
             dependents_handler=ModelDependentsHandler(),
         )
 
-        mock_service.delete.assert_called_once_with(Mock(), "test")
+        mock_service.delete.assert_called_once_with(mock_db, "test")
