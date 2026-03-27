@@ -790,7 +790,7 @@ const getChatBubble = (
             {/* Render inline progress updates at the top of AI messages */}
             {!message.isUser && message.progressUpdates && message.progressUpdates.length > 0 && (
                 <div className="pl-4">
-                    <InlineProgressUpdates updates={message.progressUpdates} isActive={!message.isComplete} />
+                    <InlineProgressUpdates updates={message.progressUpdates} isActive={!message.isComplete} onViewWorkflow={message.taskId ? handleViewWorkflowClick : undefined} />
                 </div>
             )}
             {/* Render context quote above user message if present */}

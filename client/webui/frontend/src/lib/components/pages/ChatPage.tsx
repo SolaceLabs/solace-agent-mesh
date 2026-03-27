@@ -7,9 +7,8 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
-import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -51,10 +50,7 @@ export function ChatPage() {
         messages,
         isSidePanelCollapsed,
         setIsSidePanelCollapsed,
-        openSidePanelTab,
-        setTaskIdInSidePanel,
         isResponding,
-        latestStatusText,
         isLoadingSession,
         sessionToDelete,
         closeSessionDeleteModal,
@@ -391,26 +387,6 @@ export function ChatPage() {
         return map;
     }, [messages]);
 
-    const loadingMessage = useMemo(() => {
-        return messages.find(message => message.isStatusBubble);
-    }, [messages]);
-
-    const backendStatusText = useMemo(() => {
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage]);
-
-    const handleViewProgressClick = useMemo(() => {
-        // Use currentTaskId directly instead of relying on loadingMessage
-        if (!currentTaskId) return undefined;
-
-        return () => {
-            setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("activity");
-        };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
-
     // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
         const state = location.state as {
@@ -564,7 +540,6 @@ export function ChatPage() {
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
-                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
                                         </>

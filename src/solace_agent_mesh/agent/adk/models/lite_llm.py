@@ -89,6 +89,10 @@ class TextChunk(BaseModel):
     text: str
 
 
+class ThinkingChunk(BaseModel):
+    text: str
+
+
 class UsageMetadataChunk(BaseModel):
     prompt_tokens: int
     completion_tokens: int
@@ -535,19 +539,19 @@ def _model_response_to_chunk(
     response: ModelResponse,
 ) -> Generator[
     Tuple[
-        Optional[Union[TextChunk, FunctionChunk, UsageMetadataChunk]],
+        Optional[Union[TextChunk, FunctionChunk, UsageMetadataChunk, ThinkingChunk]],
         Optional[str],
     ],
     None,
     None,
 ]:
-    """Converts a litellm message to text, function or usage metadata chunk.
+    """Converts a litellm message to text, function, thinking or usage metadata chunk.
 
     Args:
       response: The response from the model.
 
     Yields:
-      A tuple of text or function or usage metadata chunk and finish reason.
+      A tuple of text, function, thinking or usage metadata chunk and finish reason.
     """
 
     message = None
@@ -557,6 +561,14 @@ def _model_response_to_chunk(
         # check streaming delta
         if message is None and response["choices"][0].get("delta", None):
             message = response["choices"][0]["delta"]
+
+        # Check for reasoning/thinking content (Anthropic extended_thinking, OpenAI reasoning)
+        # This arrives via reasoning_content or provider_specific_fields
+        reasoning = message.get("reasoning_content") or (
+            message.get("provider_specific_fields", {}) or {}
+        ).get("reasoning_content")
+        if reasoning:
+            yield ThinkingChunk(text=reasoning), finish_reason
 
         if message.get("content", None):
             yield TextChunk(text=message.get("content")), finish_reason
@@ -610,6 +622,15 @@ def _model_response_to_generate_content_response(
         raise ValueError("No message in response")
 
     llm_response = _message_to_generate_content_response(message)
+
+    # Extract reasoning/thinking content for non-streaming responses
+    reasoning = message.get("reasoning_content") or (
+        message.get("provider_specific_fields", {}) or {}
+    ).get("reasoning_content")
+    if reasoning:
+        llm_response.custom_metadata = llm_response.custom_metadata or {}
+        llm_response.custom_metadata["thinking_content"] = reasoning
+
     if response.get("usage", None):
         llm_response.usage_metadata = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=response["usage"].get("prompt_tokens", 0),
@@ -870,6 +891,7 @@ class LiteLlm(BaseLlm):
     _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = PrivateAttr(default=None)
     _cache_strategy: str = PrivateAttr(default="5m") # Default to 5-minute ephemeral cache
+    _thinking_config: Optional[Dict[str, Any]] = PrivateAttr(default=None) # Thinking/reasoning token config
     _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
     _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
 
@@ -885,8 +907,18 @@ class LiteLlm(BaseLlm):
           model: The name of the LiteLlm model.
           on_status_change: Optional callback invoked on status transitions: (old_status, new_status) -> None.
           **kwargs: Additional arguments to pass to the litellm completion api.
-                   Can include OAuth configuration parameters.
+                   Can include OAuth configuration parameters and thinking config.
         """
+        # Extract keys that are NOT Pydantic fields before calling super().__init__()
+        # BaseLlm does not set extra="allow", so unknown fields cause validation errors.
+        # These keys are handled by configure_model() instead.
+        _non_pydantic_keys = [
+            "thinking", "cache_strategy",
+            "oauth_client_id", "oauth_client_secret", "oauth_token_url",
+            "oauth_scope", "oauth_audience",
+        ]
+        _extracted = {k: kwargs.pop(k) for k in _non_pydantic_keys if k in kwargs}
+
         super().__init__(model=model if model else "__pending_initialization__", **kwargs)
         self._status = "initializing"
         self._on_status_change = on_status_change
@@ -896,7 +928,7 @@ class LiteLlm(BaseLlm):
         for logger_name in ["LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "litellm"]:
             logging.getLogger(logger_name).handlers.clear()
 
-        _additional_args = kwargs.copy()
+        _additional_args = {**kwargs, **_extracted}
         # preventing generation call with llm_client
         # and overriding messages, tools and stream which are managed internally
         _additional_args.pop("llm_client", None)
@@ -1008,6 +1040,14 @@ class LiteLlm(BaseLlm):
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 
+        # Extract thinking/reasoning token configuration if present
+        thinking_config = copied_model_config.pop("thinking", None)
+        if thinking_config and isinstance(thinking_config, dict):
+            self._thinking_config = thinking_config
+            logger.info("LiteLlm initialized with thinking config: %s", thinking_config)
+        else:
+            self._thinking_config = None
+
         # Extract OAuth configuration if present
         oauth_config = self._extract_oauth_config(copied_model_config)
         if oauth_config:
@@ -1088,6 +1128,37 @@ class LiteLlm(BaseLlm):
         if generation_params:
             completion_args.update(generation_params)
 
+        # Inject thinking/reasoning token configuration if present
+        if self._thinking_config:
+            thinking_budget = self._thinking_config.get("budget_tokens", 0)
+            if thinking_budget and thinking_budget > 0:
+                thinking_param = {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget,
+                }
+                model_name = completion_args.get("model", "")
+                is_native_anthropic = model_name.startswith("anthropic/") or model_name.startswith("claude-")
+
+                if is_native_anthropic:
+                    # Native Anthropic API: pass thinking as top-level param
+                    completion_args["thinking"] = thinking_param
+                else:
+                    # OpenAI-compatible proxy (e.g., vertex-claude, litellm proxy):
+                    # Pass thinking ONLY via extra_body to avoid OpenAI client rejection
+                    extra_body = completion_args.get("extra_body", {})
+                    extra_body["thinking"] = thinking_param
+                    completion_args["extra_body"] = extra_body
+
+                # Anthropic requires temperature=1 when thinking is enabled
+                if "temperature" in completion_args:
+                    logger.info("Overriding temperature to 1 (required for thinking mode)")
+                completion_args["temperature"] = 1
+                logger.debug(
+                    "Thinking tokens enabled with budget: %d (native_anthropic=%s)",
+                    thinking_budget,
+                    is_native_anthropic,
+                )
+
         if not tools and completion_args.get("parallel_tool_calls", False):
             # Setting parallel_tool_calls without any tools causes an error from Anthropic.
             completion_args.pop("parallel_tool_calls")
@@ -1127,6 +1198,17 @@ class LiteLlm(BaseLlm):
                         function_calls[index]["id"] = (
                             chunk.id or function_calls[index]["id"] or str(index)
                         )
+                    elif isinstance(chunk, ThinkingChunk):
+                        # Yield thinking content as a special LlmResponse with metadata
+                        thinking_response = LlmResponse(
+                            content=types.Content(
+                                role="model",
+                                parts=[types.Part.from_text(text=chunk.text)],
+                            ),
+                            partial=True,
+                            custom_metadata={"is_thinking_content": True},
+                        )
+                        yield thinking_response
                     elif isinstance(chunk, TextChunk):
                         text += chunk.text
                         yield _message_to_generate_content_response(

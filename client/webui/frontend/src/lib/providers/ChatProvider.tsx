@@ -939,6 +939,82 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         const data = part.data as any;
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
+                                case "thinking_content": {
+                                    const { content: thinkingText, is_complete: isThinkingComplete } = data as {
+                                        content: string;
+                                        is_complete: boolean;
+                                    };
+
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        const lastMsg = newMessages[newMessages.length - 1];
+
+                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                                            // Append thinking content to existing AI message
+                                            const existingThinking = lastMsg.thinkingContent || "";
+                                            const updatedThinking = existingThinking + thinkingText;
+
+                                            // Also update the "thinking" progress update in the timeline
+                                            const updatedProgressUpdates = [...(lastMsg.progressUpdates || [])];
+                                            const thinkingIdx = updatedProgressUpdates.findIndex(p => p.type === "thinking");
+                                            if (thinkingIdx >= 0) {
+                                                updatedProgressUpdates[thinkingIdx] = {
+                                                    ...updatedProgressUpdates[thinkingIdx],
+                                                    expandableContent: updatedThinking,
+                                                    isExpandableComplete: isThinkingComplete,
+                                                };
+                                            } else {
+                                                // Insert "Reasoning" as a progress step (after "Thinking" if present)
+                                                updatedProgressUpdates.push({
+                                                    type: "thinking" as const,
+                                                    text: "Reasoning",
+                                                    timestamp: Date.now(),
+                                                    expandableContent: updatedThinking,
+                                                    isExpandableComplete: isThinkingComplete,
+                                                });
+                                            }
+
+                                            newMessages[newMessages.length - 1] = {
+                                                ...lastMsg,
+                                                thinkingContent: updatedThinking,
+                                                isThinkingComplete: isThinkingComplete,
+                                                progressUpdates: updatedProgressUpdates,
+                                            };
+                                        } else {
+                                            // Create new AI message with thinking content
+                                            newMessages.push({
+                                                role: "agent",
+                                                parts: [],
+                                                taskId: currentTaskIdFromResult,
+                                                isUser: false,
+                                                isComplete: false,
+                                                thinkingContent: thinkingText,
+                                                isThinkingComplete: isThinkingComplete,
+                                                progressUpdates: [
+                                                    {
+                                                        type: "thinking" as const,
+                                                        text: "Reasoning",
+                                                        timestamp: Date.now(),
+                                                        expandableContent: thinkingText,
+                                                        isExpandableComplete: isThinkingComplete,
+                                                    },
+                                                ],
+                                                metadata: {
+                                                    messageId: `msg-${v4()}`,
+                                                    lastProcessedEventSequence: currentEventSequence,
+                                                },
+                                            });
+                                        }
+                                        return newMessages;
+                                    });
+
+                                    // If this is a thinking-only event, don't process further
+                                    const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
+                                    if (otherPartsThinking.length === 0) {
+                                        return;
+                                    }
+                                    break;
+                                }
                                 case "agent_progress_update": {
                                     const statusText = String(data?.status_text ?? "Processing...");
                                     latestStatusText.current = statusText;

@@ -56,6 +56,7 @@ from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     LlmInvocationData,
+    ThinkingContentData,
     ToolInvocationStartData,
     ToolResultData,
     TemplateBlockData,
@@ -198,6 +199,92 @@ async def _resolve_early_embeds_in_chunk(
             "%s Error resolving embeds in chunk: %s", log_identifier, e, exc_info=True
         )
         return chunk  # Return original chunk on error
+
+
+async def process_thinking_content_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to intercept and stream thinking/reasoning content.
+
+    Checks for thinking content in the LlmResponse custom_metadata (set by
+    the LiteLlm adapter when the model produces reasoning tokens) and publishes
+    it as a ThinkingContentData signal via the A2A data part mechanism.
+
+    Thinking content is stripped from the LlmResponse so it does not appear
+    in the main text stream. The frontend renders it in a collapsible block.
+    """
+    log_identifier = "[Callback:ProcessThinkingContent]"
+
+    if not llm_response.custom_metadata:
+        return None
+
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        return None
+
+    is_thinking = llm_response.custom_metadata.get("is_thinking_content", False)
+    thinking_text_full = llm_response.custom_metadata.get("thinking_content")
+
+    # Track thinking phase state in session to detect transitions
+    session = get_session_from_callback_context(callback_context)
+    thinking_phase_key = "thinking_phase_active"
+
+    if is_thinking and llm_response.content and llm_response.content.parts:
+        # Streaming thinking chunk — publish each text part as a signal
+        session.state[thinking_phase_key] = True
+        for part in llm_response.content.parts:
+            if part.text:
+                thinking_data = ThinkingContentData(
+                    content=part.text,
+                    is_complete=False,
+                )
+                await _publish_data_part_status_update(
+                    host_component, a2a_context, thinking_data
+                )
+                log.debug(
+                    "%s Published thinking chunk (%d chars)",
+                    log_identifier,
+                    len(part.text),
+                )
+
+        # Strip thinking content from the LlmResponse so it does not
+        # appear in the main text stream
+        llm_response.content = adk_types.Content(role="model", parts=[])
+        return None
+
+    # Check if thinking phase just ended (transition from thinking to regular content)
+    if session.state.get(thinking_phase_key) and not is_thinking:
+        session.state[thinking_phase_key] = False
+        thinking_complete = ThinkingContentData(
+            content="",
+            is_complete=True,
+        )
+        await _publish_data_part_status_update(
+            host_component, a2a_context, thinking_complete
+        )
+        log.debug("%s Thinking phase completed, sent is_complete signal", log_identifier)
+
+    if thinking_text_full:
+        # Non-streaming: full thinking content in metadata (from non-streaming response)
+        thinking_data = ThinkingContentData(
+            content=thinking_text_full,
+            is_complete=True,
+        )
+        await _publish_data_part_status_update(
+            host_component, a2a_context, thinking_data
+        )
+        log.debug(
+            "%s Published full thinking content (%d chars)",
+            log_identifier,
+            len(thinking_text_full),
+        )
+        # Remove from metadata to avoid downstream confusion
+        llm_response.custom_metadata.pop("thinking_content", None)
+
+    return None
 
 
 async def process_artifact_blocks_callback(
