@@ -84,13 +84,13 @@ describe("AppLayout model warning banner", () => {
             // Banner and dialog may both show a "Go to Models" button
             const buttons = screen.getAllByRole("button", { name: /Go to Models/i });
             expect(buttons.length).toBeGreaterThanOrEqual(1);
-            expect(screen.queryByText(/Contact your administrator/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
         });
 
         test("shows contact admin text when user lacks write permission", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({ hasModelConfigWrite: false });
-            expect(screen.getByText(/Contact your administrator/)).toBeInTheDocument();
+            expect(screen.getByText(/Ask your administrator/)).toBeInTheDocument();
             expect(screen.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         });
     });
