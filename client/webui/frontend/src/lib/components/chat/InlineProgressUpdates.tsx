@@ -39,6 +39,22 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
         }
     }, [isActive, updates.length]);
 
+    // Inject CSS keyframes once
+    useEffect(() => {
+        const styleId = "progress-slide-in-keyframes";
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement("style");
+            style.id = styleId;
+            style.textContent = `
+                @keyframes progressSlideIn {
+                    from { opacity: 0; transform: translateY(-8px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }, []);
+
     if (!updates || updates.length === 0) {
         return null;
     }
@@ -47,16 +63,17 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
     const deduped = updates.filter((update, index) => update.type === "thinking" || index === 0 || update.text !== updates[index - 1].text);
 
     const shouldCollapseList = deduped.length > COLLAPSE_THRESHOLD;
-    const visibleUpdates = shouldCollapseList && !isListExpanded ? [deduped[0], ...deduped.slice(-2)] : deduped;
-    const hiddenCount = deduped.length - COLLAPSE_THRESHOLD;
+    const visibleIndices = shouldCollapseList && !isListExpanded ? [0, ...Array.from({ length: 2 }, (_, i) => deduped.length - 2 + i)] : deduped.map((_, i) => i);
+    const visibleUpdates = visibleIndices.map(i => deduped[i]);
+    const hiddenCount = shouldCollapseList && !isListExpanded ? deduped.length - visibleUpdates.length : 0;
 
-    const toggleThinking = (index: number) => {
+    const toggleThinking = (dedupedIndex: number) => {
         setExpandedThinkingIds(prev => {
             const next = new Set(prev);
-            if (next.has(index)) {
-                next.delete(index);
+            if (next.has(dedupedIndex)) {
+                next.delete(dedupedIndex);
             } else {
-                next.add(index);
+                next.add(dedupedIndex);
             }
             return next;
         });
@@ -74,17 +91,8 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
         );
     }
 
-    // CSS keyframes for slide-in animation (injected once)
-    const slideInStyle = `
-        @keyframes progressSlideIn {
-            from { opacity: 0; transform: translateY(-8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    `;
-
     return (
         <div className="mb-3 ml-[9px] pl-5">
-            <style>{slideInStyle}</style>
             {/* Collapse header when task is complete */}
             {!isActive && (
                 <div className="mb-1">
@@ -111,16 +119,17 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                 )}
 
                 {visibleUpdates.map((update, index) => {
+                    const dedupedIndex = visibleIndices[index];
                     const isLast = index === visibleUpdates.length - 1;
                     const isThinking = update.type === "thinking";
-                    const isThinkingExpanded = expandedThinkingIds.has(index);
+                    const isThinkingExpanded = expandedThinkingIds.has(dedupedIndex);
                     const isActiveStep = isLast && isActive;
 
                     // Show expand button after first item when list is collapsed
                     const showExpandButton = shouldCollapseList && !isListExpanded && index === 0;
 
                     return (
-                        <React.Fragment key={`${update.timestamp}-${index}`}>
+                        <React.Fragment key={`${update.timestamp}-${dedupedIndex}`}>
                             <div
                                 className="relative py-3"
                                 style={{
@@ -138,7 +147,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                                 {isThinking ? (
                                     /* Thinking/Reasoning item - collapsible */
                                     <div>
-                                        <button type="button" className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => toggleThinking(index)}>
+                                        <button type="button" className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => toggleThinking(dedupedIndex)}>
                                             <span className="font-medium">{update.text}</span>
                                             {isThinkingExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                                         </button>
@@ -154,12 +163,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                                     </div>
                                 ) : (
                                     /* Regular status text */
-                                    <span className={`text-sm leading-relaxed ${isActiveStep ? "text-(--primary-text-wMain)" : "text-(--secondary-text-wMain)"}`}>
-                                        {update.type === "artifact" && <span className="font-medium">Artifact: </span>}
-                                        {update.type === "tool_call" && <span className="font-medium">Tool: </span>}
-                                        {update.type === "delegation" && <span className="font-medium">Agent: </span>}
-                                        {update.text}
-                                    </span>
+                                    <span className={`text-sm leading-relaxed ${isActiveStep ? "text-(--primary-text-wMain)" : "text-(--secondary-text-wMain)"}`}>{update.text}</span>
                                 )}
                             </div>
 

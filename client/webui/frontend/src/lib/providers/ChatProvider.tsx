@@ -37,6 +37,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    ProgressUpdate,
 } from "@/lib/types";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -97,7 +98,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const statusHistoryRef = useRef<string[]>([]);
-    const [statusHistory, setStatusHistory] = useState<string[]>([]);
     const sseEventSequenceRef = useRef<number>(0);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
@@ -971,7 +971,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 // Previous reasoning block is complete or doesn't exist — create a new one
                                                 updatedProgressUpdates.push({
                                                     type: "thinking" as const,
-                                                    text: "Reasoning",
+                                                    text: "Thinking",
                                                     timestamp: Date.now(),
                                                     expandableContent: thinkingText,
                                                     isExpandableComplete: isThinkingComplete,
@@ -997,7 +997,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 progressUpdates: [
                                                     {
                                                         type: "thinking" as const,
-                                                        text: "Reasoning",
+                                                        text: "Thinking",
                                                         timestamp: Date.now(),
                                                         expandableContent: thinkingText,
                                                         isExpandableComplete: isThinkingComplete,
@@ -1024,34 +1024,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     latestStatusText.current = statusText;
                                     // Accumulate status history for inline progress display
                                     statusHistoryRef.current = [...statusHistoryRef.current, statusText];
-                                    setStatusHistory([...statusHistoryRef.current]);
 
-                                    // Auto-close any open thinking block when a non-thinking event arrives
-                                    // This ensures separate reasoning blocks per agent
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        const lastMsg = newMessages[newMessages.length - 1];
-                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult && lastMsg.progressUpdates) {
-                                            const lastThinkingIdx = lastMsg.progressUpdates.findLastIndex((p: import("@/lib/types").ProgressUpdate) => p.type === "thinking");
-                                            if (lastThinkingIdx >= 0 && !lastMsg.progressUpdates[lastThinkingIdx].isExpandableComplete) {
-                                                const updatedProgressUpdates = [...lastMsg.progressUpdates];
-                                                updatedProgressUpdates[lastThinkingIdx] = {
-                                                    ...updatedProgressUpdates[lastThinkingIdx],
-                                                    isExpandableComplete: true,
-                                                };
-                                                newMessages[newMessages.length - 1] = {
-                                                    ...lastMsg,
-                                                    progressUpdates: updatedProgressUpdates,
-                                                    isThinkingComplete: true,
-                                                };
-                                                return newMessages;
-                                            }
-                                        }
-                                        return prev; // No change needed
-                                    });
-
-                                    // Push progress update to the AI message for inline display
-                                    const progressUpdate: import("@/lib/types").ProgressUpdate = {
+                                    // Auto-close any open thinking block and push progress update in a single pass
+                                    const progressUpdate: ProgressUpdate = {
                                         type: "status",
                                         text: statusText,
                                         timestamp: Date.now(),
@@ -1060,19 +1035,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         const newMessages = [...prev];
                                         const lastMsg = newMessages[newMessages.length - 1];
                                         if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
-                                            // Append to existing AI message
+                                            let updatedProgressUpdates = [...(lastMsg.progressUpdates || [])];
+                                            let isThinkingComplete = lastMsg.isThinkingComplete;
+
+                                            // Auto-close any open thinking block
+                                            const lastThinkingIdx = updatedProgressUpdates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                            if (lastThinkingIdx >= 0 && !updatedProgressUpdates[lastThinkingIdx].isExpandableComplete) {
+                                                updatedProgressUpdates[lastThinkingIdx] = {
+                                                    ...updatedProgressUpdates[lastThinkingIdx],
+                                                    isExpandableComplete: true,
+                                                };
+                                                isThinkingComplete = true;
+                                            }
+
+                                            // Append progress update
+                                            updatedProgressUpdates = [...updatedProgressUpdates, progressUpdate];
+
                                             newMessages[newMessages.length - 1] = {
                                                 ...lastMsg,
-                                                progressUpdates: [...(lastMsg.progressUpdates || []), progressUpdate],
+                                                progressUpdates: updatedProgressUpdates,
+                                                isThinkingComplete,
                                             };
                                         } else {
                                             // Create a new AI message bubble for progress updates
-                                            // Include "Thinking" as the initial step if this is the first progress update
-                                            const thinkingUpdate: import("@/lib/types").ProgressUpdate = {
-                                                type: "status",
-                                                text: "Thinking",
-                                                timestamp: Date.now() - 1, // slightly before current update
-                                            };
                                             newMessages.push({
                                                 role: "agent",
                                                 parts: [],
@@ -1080,7 +1065,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 isUser: false,
                                                 isComplete: false,
                                                 isStatusBubble: false,
-                                                progressUpdates: [thinkingUpdate, progressUpdate],
+                                                progressUpdates: [progressUpdate],
                                                 metadata: {
                                                     messageId: `msg-${v4()}`,
                                                     lastProcessedEventSequence: currentEventSequence,
@@ -1335,21 +1320,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             .replace(/\b\w/g, c => c.toUpperCase()); // Title case
                                     };
 
-                                    let progressType: import("@/lib/types").ProgressUpdate["type"];
+                                    let progressType: ProgressUpdate["type"];
                                     let progressText: string;
 
                                     if (isPeerDelegation) {
                                         progressType = "delegation";
-                                        progressText = `Delegating to ${formatToolName(toolName)}`;
+                                        progressText = `Asking ${formatToolName(toolName)} for help`;
                                     } else if (isWorkflowDelegation) {
                                         progressType = "delegation";
-                                        progressText = `Running workflow ${formatToolName(toolName)}`;
+                                        progressText = `Running ${formatToolName(toolName)}`;
                                     } else {
                                         progressType = "tool_call";
                                         progressText = `Using ${formatToolName(toolName)}`;
                                     }
 
-                                    const toolProgressUpdate: import("@/lib/types").ProgressUpdate = {
+                                    const toolProgressUpdate: ProgressUpdate = {
                                         type: progressType,
                                         text: progressText,
                                         timestamp: Date.now(),
@@ -1703,7 +1688,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 if (isFinalEvent) {
                     latestStatusText.current = null;
                     statusHistoryRef.current = [];
-                    setStatusHistory([]);
+
                     // Finalize any lingering in-progress artifact parts for this task
                     // With the new artifact_completed signal, in-progress artifacts should only remain if they truly failed
                     for (let i = newMessages.length - 1; i >= 0; i--) {
@@ -2049,7 +2034,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             isFinalizing.current = false;
             latestStatusText.current = null;
             statusHistoryRef.current = [];
-            setStatusHistory([]);
+
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
             setRagData([]);
@@ -2194,7 +2179,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 statusHistoryRef.current = [];
-                setStatusHistory([]);
+
                 sseEventSequenceRef.current = 0;
                 // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
@@ -2468,7 +2453,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
             latestStatusText.current = null;
             statusHistoryRef.current = [];
-            setStatusHistory([]);
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [closeCurrentEventSource, isResponding, setError]);
@@ -2503,7 +2487,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setCurrentTaskId(null);
             latestStatusText.current = null;
             statusHistoryRef.current = [];
-            setStatusHistory([]);
+
             sseEventSequenceRef.current = 0;
 
             const userMsg: MessageFE = {
@@ -2523,7 +2507,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = "Thinking";
             // Seed the status history with "Thinking" as the first progress update
             statusHistoryRef.current = ["Thinking"];
-            setStatusHistory(["Thinking"]);
             setMessages(prev => [...prev, userMsg]);
 
             try {
@@ -2796,7 +2779,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 statusHistoryRef.current = [];
-                setStatusHistory([]);
             }
         },
         [
@@ -3127,7 +3109,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
-        statusHistory,
         isLoadingSession,
         agents,
         agentsLoading,

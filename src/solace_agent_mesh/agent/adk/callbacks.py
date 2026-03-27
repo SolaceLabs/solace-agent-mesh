@@ -267,7 +267,7 @@ async def process_thinking_content_callback(
         )
         log.debug("%s Thinking phase completed, sent is_complete signal", log_identifier)
 
-    if thinking_text_full:
+    elif thinking_text_full:
         # Non-streaming: full thinking content in metadata (from non-streaming response)
         thinking_data = ThinkingContentData(
             content=thinking_text_full,
