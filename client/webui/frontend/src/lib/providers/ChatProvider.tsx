@@ -355,6 +355,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             displayHtml: message.displayHtml,
             contextQuote: message.contextQuote,
             contextQuoteSourceId: message.contextQuoteSourceId,
+            // Persist inline progress timeline data so it survives page reloads
+            ...(message.progressUpdates && message.progressUpdates.length > 0 ? { progressUpdates: message.progressUpdates } : {}),
+            ...(message.thinkingContent ? { thinkingContent: message.thinkingContent, isThinkingComplete: message.isThinkingComplete ?? true } : {}),
         };
     }, []);
 
@@ -514,6 +517,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     senderDisplayName: bubble.sender_display_name, // Preserve sender identity for collaborative sessions
                     senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
+                    // Restore inline progress timeline data
+                    ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
+                    ...(bubble.thinkingContent ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,

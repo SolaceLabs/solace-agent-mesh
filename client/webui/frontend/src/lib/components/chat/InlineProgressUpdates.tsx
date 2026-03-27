@@ -66,7 +66,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
     // Collapsed state: show "Timeline >"
     if (!isTimelineOpen) {
         return (
-            <div className="mb-3 ml-[9px] flex items-center gap-2 pl-5">
+            <div className="mb-3 -ml-2 flex items-center gap-2">
                 <button type="button" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(true)}>
                     <span className="font-medium">Timeline</span>
                     <ChevronRight className="h-3.5 w-3.5" />
@@ -79,7 +79,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
         <div className="mb-3 ml-[9px] pl-5">
             {/* Collapse header when task is complete */}
             {!isActive && (
-                <div className="mb-1">
+                <div className="mb-1 -ml-[17px]">
                     <button type="button" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(false)}>
                         <span className="font-medium">Timeline</span>
                         <ChevronDown className="h-3.5 w-3.5" />
