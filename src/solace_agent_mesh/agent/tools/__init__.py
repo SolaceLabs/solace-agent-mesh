@@ -17,6 +17,7 @@ from . import deep_research_tools
 from . import web_search_tools
 from . import index_search_tools
 from . import dynamic_tool
+from . import agent_insights_tools
 
 # Export ToolResult abstraction for tool authors
 from .tool_result import ToolResult, DataObject, DataDisposition
