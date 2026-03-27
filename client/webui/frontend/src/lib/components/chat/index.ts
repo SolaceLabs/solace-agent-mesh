@@ -17,5 +17,6 @@ export { UserPresenceAvatars } from "./UserPresenceAvatars";
 export { ShareNotificationMessage } from "./ShareNotificationMessage";
 export { MessageAttribution } from "./MessageAttribution";
 export { CollaborativeUserMessage } from "./CollaborativeUserMessage";
+export { InlineProgressUpdates } from "./InlineProgressUpdates";
 export * from "./file";
 export * from "./selection";

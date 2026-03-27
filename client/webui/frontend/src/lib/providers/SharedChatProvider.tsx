@@ -190,6 +190,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             notifications: [],
             isCancelling: false,
             latestStatusText,
+            statusHistory: [],
             isLoadingSession: false,
 
             // Agents - Empty for shared sessions

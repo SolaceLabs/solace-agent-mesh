@@ -96,6 +96,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
+    const statusHistoryRef = useRef<string[]>([]);
+    const [statusHistory, setStatusHistory] = useState<string[]>([]);
     const sseEventSequenceRef = useRef<number>(0);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const messagesRef = useRef<MessageFE[]>([]);
@@ -938,7 +940,52 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
                                 case "agent_progress_update": {
-                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                    const statusText = String(data?.status_text ?? "Processing...");
+                                    latestStatusText.current = statusText;
+                                    // Accumulate status history for inline progress display
+                                    statusHistoryRef.current = [...statusHistoryRef.current, statusText];
+                                    setStatusHistory([...statusHistoryRef.current]);
+
+                                    // Push progress update to the AI message for inline display
+                                    const progressUpdate: import("@/lib/types").ProgressUpdate = {
+                                        type: "status",
+                                        text: statusText,
+                                        timestamp: Date.now(),
+                                    };
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        const lastMsg = newMessages[newMessages.length - 1];
+                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                                            // Append to existing AI message
+                                            newMessages[newMessages.length - 1] = {
+                                                ...lastMsg,
+                                                progressUpdates: [...(lastMsg.progressUpdates || []), progressUpdate],
+                                            };
+                                        } else {
+                                            // Create a new AI message bubble for progress updates
+                                            // Include "Thinking" as the initial step if this is the first progress update
+                                            const thinkingUpdate: import("@/lib/types").ProgressUpdate = {
+                                                type: "status",
+                                                text: "Thinking",
+                                                timestamp: Date.now() - 1, // slightly before current update
+                                            };
+                                            newMessages.push({
+                                                role: "agent",
+                                                parts: [],
+                                                taskId: currentTaskIdFromResult,
+                                                isUser: false,
+                                                isComplete: false,
+                                                isStatusBubble: false,
+                                                progressUpdates: [thinkingUpdate, progressUpdate],
+                                                metadata: {
+                                                    messageId: `msg-${v4()}`,
+                                                    lastProcessedEventSequence: currentEventSequence,
+                                                },
+                                            });
+                                        }
+                                        return newMessages;
+                                    });
+
                                     const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
                                     if (otherParts.length === 0) {
                                         return; // This is a status-only event, do not process further.
@@ -1097,6 +1144,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                     bytesTransferred: bytes_transferred,
                                                 };
                                                 agentMessage.parts.push(newPart);
+                                                // Add progress update for new artifact creation
+                                                agentMessage.progressUpdates = [...(agentMessage.progressUpdates || []), { type: "artifact" as const, text: `Creating ${filename}`, timestamp: Date.now() }];
                                             }
                                         } else if (status === "completed") {
                                             const fileAttachment: FileAttachment = {
@@ -1158,8 +1207,62 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Return immediately to prevent the generic status handler from running
                                     return;
                                 }
-                                case "tool_invocation_start":
+                                case "tool_invocation_start": {
+                                    // Capture tool invocation as a progress update
+                                    const toolName = String((data as any)?.tool_name ?? "unknown");
+
+                                    // Skip internal/system tools that shouldn't be shown to users
+                                    const internalTools = ["_notify_artifact_save", "_continue_generation", "_save_artifact"];
+                                    if (internalTools.some(t => toolName.startsWith(t) || toolName === t)) {
+                                        break;
+                                    }
+
+                                    // Check if this is a peer agent delegation (tool name starts with "peer_")
+                                    const isPeerDelegation = toolName.startsWith("peer_");
+                                    // Check if this is a workflow delegation
+                                    const isWorkflowDelegation = toolName.startsWith("workflow_");
+
+                                    // Format tool name for human-friendly display
+                                    const formatToolName = (name: string): string => {
+                                        // Remove common prefixes and format
+                                        return name
+                                            .replace(/^(peer_|workflow_)/, "")
+                                            .replace(/_/g, " ")
+                                            .replace(/\b\w/g, c => c.toUpperCase()); // Title case
+                                    };
+
+                                    let progressType: import("@/lib/types").ProgressUpdate["type"];
+                                    let progressText: string;
+
+                                    if (isPeerDelegation) {
+                                        progressType = "delegation";
+                                        progressText = `Delegating to ${formatToolName(toolName)}`;
+                                    } else if (isWorkflowDelegation) {
+                                        progressType = "delegation";
+                                        progressText = `Running workflow ${formatToolName(toolName)}`;
+                                    } else {
+                                        progressType = "tool_call";
+                                        progressText = `Using ${formatToolName(toolName)}`;
+                                    }
+
+                                    const toolProgressUpdate: import("@/lib/types").ProgressUpdate = {
+                                        type: progressType,
+                                        text: progressText,
+                                        timestamp: Date.now(),
+                                    };
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        const lastMsg = newMessages[newMessages.length - 1];
+                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                                            newMessages[newMessages.length - 1] = {
+                                                ...lastMsg,
+                                                progressUpdates: [...(lastMsg.progressUpdates || []), toolProgressUpdate],
+                                            };
+                                        }
+                                        return newMessages;
+                                    });
                                     break;
+                                }
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
                                     const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";
@@ -1495,6 +1598,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Add a new status bubble if the task is not over
                 if (isFinalEvent) {
                     latestStatusText.current = null;
+                    statusHistoryRef.current = [];
+                    setStatusHistory([]);
                     // Finalize any lingering in-progress artifact parts for this task
                     // With the new artifact_completed signal, in-progress artifacts should only remain if they truly failed
                     for (let i = newMessages.length - 1; i >= 0; i--) {
@@ -1839,6 +1944,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
+            statusHistoryRef.current = [];
+            setStatusHistory([]);
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
             setRagData([]);
@@ -1982,6 +2089,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closePreview();
                 isFinalizing.current = false;
                 latestStatusText.current = null;
+                statusHistoryRef.current = [];
+                setStatusHistory([]);
                 sseEventSequenceRef.current = 0;
                 // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
@@ -2254,6 +2363,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
             }
             latestStatusText.current = null;
+            statusHistoryRef.current = [];
+            setStatusHistory([]);
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
     }, [closeCurrentEventSource, isResponding, setError]);
@@ -2287,6 +2398,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(true);
             setCurrentTaskId(null);
             latestStatusText.current = null;
+            statusHistoryRef.current = [];
+            setStatusHistory([]);
             sseEventSequenceRef.current = 0;
 
             const userMsg: MessageFE = {
@@ -2304,6 +2417,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
             latestStatusText.current = "Thinking";
+            // Seed the status history with "Thinking" as the first progress update
+            statusHistoryRef.current = ["Thinking"];
+            setStatusHistory(["Thinking"]);
             setMessages(prev => [...prev, userMsg]);
 
             try {
@@ -2575,6 +2691,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
                 isFinalizing.current = false;
                 latestStatusText.current = null;
+                statusHistoryRef.current = [];
+                setStatusHistory([]);
             }
         },
         [
@@ -2905,6 +3023,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentTaskId,
         isCancelling,
         latestStatusText,
+        statusHistory,
         isLoadingSession,
         agents,
         agentsLoading,

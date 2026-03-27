@@ -31,6 +31,7 @@ import { CompactionNotification, type CompactionNotificationData } from "./Compa
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MessageAttribution } from "./MessageAttribution";
+import { InlineProgressUpdates } from "./InlineProgressUpdates";
 
 /**
  * Returns true if a user message is from another user (not the current viewer).
@@ -708,7 +709,8 @@ const getChatBubble = (
     }
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
-    if (!hasContent) {
+    const hasProgressUpdates = message.progressUpdates && message.progressUpdates.length > 0;
+    if (!hasContent && !hasProgressUpdates) {
         return null;
     }
 
@@ -785,6 +787,12 @@ const getChatBubble = (
 
     return (
         <div key={message.metadata?.messageId} className="space-y-6">
+            {/* Render inline progress updates at the top of AI messages */}
+            {!message.isUser && message.progressUpdates && message.progressUpdates.length > 0 && (
+                <div className="pl-4">
+                    <InlineProgressUpdates updates={message.progressUpdates} isActive={!message.isComplete} />
+                </div>
+            )}
             {/* Render context quote above user message if present */}
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">

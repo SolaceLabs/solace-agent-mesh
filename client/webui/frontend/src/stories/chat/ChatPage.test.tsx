@@ -32,6 +32,7 @@ function makeDefaultChatContext(overrides: Record<string, unknown> = {}) {
         setTaskIdInSidePanel: vi.fn(),
         isResponding: false,
         latestStatusText: { current: null },
+        statusHistory: [],
         isLoadingSession: false,
         sessionToDelete: null,
         closeSessionDeleteModal: vi.fn(),

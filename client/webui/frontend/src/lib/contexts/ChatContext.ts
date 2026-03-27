@@ -25,6 +25,7 @@ export interface ChatState {
     notifications: Notification[];
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
+    statusHistory: string[];
     isLoadingSession: boolean;
     // Agents
     agents: AgentCardInfo[];
