@@ -214,4 +214,40 @@ def get_model_list_service() -> "ModelListService":
     """
     from solace_agent_mesh.services.platform.services import ModelListService
 
-    return ModelListService()    
+    return ModelListService()
+
+
+class ModelDependentsHandler:
+    """Interface for handling model-dependent agents on delete.
+
+    The community default is a no-op. Enterprise overrides this to find
+    and undeploy agents that depend on a given model configuration.
+    """
+
+    async def undeploy_dependents(self, model_alias: str, model_id: str, component) -> list[dict]:
+        """Undeploy agents depending on the given model (by alias or ID).
+
+        Args:
+            model_alias: The model alias being deleted.
+            model_id: The model UUID being deleted.
+            component: PlatformServiceComponent instance for publishing.
+
+        Returns:
+            List of dicts with info about undeployed agents.
+        """
+        return []
+
+
+_model_dependents_handler: ModelDependentsHandler = ModelDependentsHandler()
+
+
+def set_model_dependents_handler(handler: ModelDependentsHandler):
+    """Register an enterprise handler for model-dependent agent management."""
+    global _model_dependents_handler
+    _model_dependents_handler = handler
+    log.info("Model dependents handler registered.")
+
+
+def get_model_dependents_handler() -> ModelDependentsHandler:
+    """FastAPI dependency for the model dependents handler."""
+    return _model_dependents_handler
