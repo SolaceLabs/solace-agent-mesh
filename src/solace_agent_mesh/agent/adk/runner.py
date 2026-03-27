@@ -1408,7 +1408,7 @@ async def run_adk_async_task_thread_wrapper(
     """
     # Read auto-summarization config from component (per-agent configuration)
     auto_sum_config = component.auto_summarization_config
-    compaction_enabled = auto_sum_config.get("enabled", False)
+    compaction_enabled = auto_sum_config.get("enabled", True)
     compaction_percentage = auto_sum_config.get("compaction_percentage", 0.25)
 
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
