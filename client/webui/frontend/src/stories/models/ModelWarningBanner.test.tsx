@@ -16,6 +16,7 @@ function renderBanner(props: { showWarning: boolean; hasModelConfigWrite: boolea
     );
 }
 describe("ModelWarningBanner", () => {
+    
     test("renders nothing when showWarning is false", () => {
         const { container } = renderBanner({ showWarning: false, hasModelConfigWrite: true });
         expect(container.innerHTML).toBe("");
