@@ -206,7 +206,7 @@ class SamAgentComponent(SamComponentBase):
             )
             self.auto_summarization_config = self.get_config(
                 "auto_summarization", {
-                    "enabled": False,
+                    "enabled": True,
                     "compaction_percentage": 0.25
                 }
             )

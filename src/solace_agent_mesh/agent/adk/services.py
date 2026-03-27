@@ -519,7 +519,7 @@ def initialize_session_service(component) -> BaseSessionService:
 
     # Check if auto-summarization is enabled from component config
     auto_sum_config = component.auto_summarization_config
-    if auto_sum_config.get("enabled", False):
+    if auto_sum_config.get("enabled", True):
         # Wrap with FilteringSessionService to automatically filter ghost events
         # This ensures ALL get_session() calls across the codebase get filtered sessions
         # There is a risk of spilling summary events in case if flag flips between True/False - and no filtering.
