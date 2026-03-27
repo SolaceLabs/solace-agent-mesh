@@ -1,6 +1,6 @@
 import { PromptBuilderChat } from "@/lib/components/prompts";
 import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fireEvent, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { fn } from "storybook/test";
 
@@ -108,6 +108,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof PromptBuilderChat>;
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const USER_PROMPT = "I want a template for weekly code reviews that includes the PR link, reviewer name, and summary of changes.";
+
+/** Type a message into the chat textarea and click Send. */
+async function sendMessage(canvas: ReturnType<typeof within>) {
+    const textarea = await canvas.findByRole("textbox");
+    fireEvent.change(textarea, { target: { value: USER_PROMPT } });
+
+    const sendButton = canvas.getByRole("button", { name: /send message/i });
+    fireEvent.click(sendButton);
+}
+
 // ── Stories ──────────────────────────────────────────────────────────────────
 
 export const Default: Story = {
@@ -115,6 +128,24 @@ export const Default: Story = {
         const canvas = within(canvasElement);
         const heading = await canvas.findByText("AI Builder");
         expect(heading).toBeVisible();
+
+        // Greeting message should be visible
+        await canvas.findByText(/I'll help you create a prompt template/);
+
+        // Send a message and verify the full round-trip
+        await sendMessage(canvas);
+
+        // User message appears in the chat
+        await canvas.findByText(USER_PROMPT);
+
+        // Assistant response appears
+        const response = await canvas.findByText(/I'll create a code review template for you/);
+        expect(response).toBeVisible();
+
+        // Input is cleared and ready for the next message
+        const textarea = canvas.getByRole("textbox");
+        expect(textarea).toHaveValue("");
+        expect(textarea).not.toBeDisabled();
     },
 };
 
@@ -127,6 +158,21 @@ export const AuthenticationError: Story = {
         },
         msw: { handlers: [initHandler, authErrorHandler] },
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await sendMessage(canvas);
+
+        // Error message appears with alert styling
+        const errorMsg = await canvas.findByText(/LLM service rejected the authentication credentials/);
+        expect(errorMsg).toBeVisible();
+
+        // User's message is preserved in the chat history
+        expect(canvas.getByText(USER_PROMPT)).toBeVisible();
+
+        // Input is re-enabled so user can retry
+        const textarea = canvas.getByRole("textbox");
+        expect(textarea).not.toBeDisabled();
+    },
 };
 
 export const RateLimitError: Story = {
@@ -137,6 +183,13 @@ export const RateLimitError: Story = {
             },
         },
         msw: { handlers: [initHandler, rateLimitErrorHandler] },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await sendMessage(canvas);
+
+        const errorMsg = await canvas.findByText(/rate limit has been exceeded/);
+        expect(errorMsg).toBeVisible();
     },
 };
 
@@ -149,6 +202,13 @@ export const TimeoutError: Story = {
         },
         msw: { handlers: [initHandler, timeoutErrorHandler] },
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await sendMessage(canvas);
+
+        const errorMsg = await canvas.findByText(/request to the LLM service timed out/);
+        expect(errorMsg).toBeVisible();
+    },
 };
 
 export const ModelNotFoundError: Story = {
@@ -160,6 +220,13 @@ export const ModelNotFoundError: Story = {
         },
         msw: { handlers: [initHandler, modelNotFoundErrorHandler] },
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await sendMessage(canvas);
+
+        const errorMsg = await canvas.findByText(/configured LLM model was not found/);
+        expect(errorMsg).toBeVisible();
+    },
 };
 
 export const ConnectionError: Story = {
@@ -170,5 +237,12 @@ export const ConnectionError: Story = {
             },
         },
         msw: { handlers: [initHandler, connectionErrorHandler] },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await sendMessage(canvas);
+
+        const errorMsg = await canvas.findByText(/Unable to connect to the LLM service/);
+        expect(errorMsg).toBeVisible();
     },
 };
