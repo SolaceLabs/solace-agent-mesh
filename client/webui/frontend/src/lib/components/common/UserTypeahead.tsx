@@ -3,7 +3,7 @@
  * Uses Popover-based implementation with search input and dropdown results.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ChangeEvent, type KeyboardEvent, type FC } from "react";
 import { cva } from "class-variance-authority";
 import { X } from "lucide-react";
 import { Input } from "@/lib/components/ui/input";
@@ -23,9 +23,13 @@ interface UserTypeaheadProps {
     excludeEmails: string[];
     selectedEmail?: string | null;
     error?: boolean;
+    /** Hide the "Viewer" badge (useful for chat sharing where role is always viewer) */
+    hideRoleBadge?: boolean;
+    /** Hide the close/remove button (useful when parent component has its own remove button) */
+    hideCloseButton?: boolean;
 }
 
-export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error }) => {
+export const UserTypeahead: FC<UserTypeaheadProps> = ({ id, onSelect, onRemove, excludeEmails, selectedEmail, error, hideRoleBadge = false, hideCloseButton = false }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [activeIndex, setActiveIndex] = useState(0);
     const [isKeyboardMode, setIsKeyboardMode] = useState(false);
@@ -61,7 +65,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
     }, [id, onRemove]);
 
     const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
+        (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
                 handleClose();
@@ -94,7 +98,7 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
 
     // Handle input change - clear selection if user starts typing
     const handleInputChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
+        (e: ChangeEvent<HTMLInputElement>) => {
             const newValue = e.target.value;
             if (selectedEmail) {
                 // Clear selection and start fresh search
@@ -157,12 +161,16 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
                     </div>
                 </PopoverContent>
             </Popover>
-            <Badge variant="secondary" className="justify-self-center">
-                Viewer
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={handleClose} className={classForIconButton()}>
-                <X className="h-4 w-4" />
-            </Button>
+            {!hideRoleBadge && (
+                <Badge variant="secondary" className="justify-self-center">
+                    Viewer
+                </Badge>
+            )}
+            {!hideCloseButton && (
+                <Button variant="ghost" size="sm" onClick={handleClose} className={classForIconButton()}>
+                    <X className="h-4 w-4" />
+                </Button>
+            )}
         </>
     );
 };
@@ -170,11 +178,11 @@ export const UserTypeahead: React.FC<UserTypeaheadProps> = ({ id, onSelect, onRe
 const classForTypeaheadItem = cva(["w-full", "px-3", "py-2", "text-left", "transition-colors"], {
     variants: {
         active: {
-            true: "bg-(--secondary-w40)",
+            true: "bg-(--primary-w10)",
             false: "",
         },
         hoverEnabled: {
-            true: "hover:bg-(--secondary-w40)",
+            true: "hover:bg-(--primary-w10)",
             false: "",
         },
     },

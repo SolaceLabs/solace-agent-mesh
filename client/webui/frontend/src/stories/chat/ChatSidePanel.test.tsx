@@ -35,7 +35,7 @@ describe("projectIndexing feature flag", () => {
                         configFeatureEnablement: { project_indexing: false },
                     }}
                 >
-                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} isSidePanelTransitioning={false} />
+                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} />
                 </StoryProvider>
             </MemoryRouter>
         );
@@ -54,7 +54,7 @@ describe("projectIndexing feature flag", () => {
                         configFeatureEnablement: { project_indexing: true },
                     }}
                 >
-                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} isSidePanelTransitioning={false} />
+                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} />
                 </StoryProvider>
             </MemoryRouter>
         );

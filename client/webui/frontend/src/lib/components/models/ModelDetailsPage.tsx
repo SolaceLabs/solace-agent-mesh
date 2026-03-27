@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
@@ -6,14 +6,17 @@ import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction 
 import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, PageValue, Metadata } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 
-import { useModelConfigs } from "@/lib/api/models";
+import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS, getDisplayModelName } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
+import { ModelDeleteDialog } from "./ModelDeleteDialog";
 
 export const ModelDetailsPage = () => {
     const navigate = useNavigate();
     const { alias: modelAlias } = useParams<{ alias: string }>();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading } = useModelConfigs();
+    const deleteModel = useDeleteModel();
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const modelToView = useMemo(() => {
         if (!modelAlias) return null;
@@ -35,10 +38,9 @@ export const ModelDetailsPage = () => {
             {
                 id: "delete",
                 label: "Delete",
-                onClick: () => {},
+                onClick: () => setDeleteDialogOpen(true),
                 icon: <Trash2 />,
                 iconPosition: "left",
-                disabled: true,
             },
         ];
         return actions;
@@ -136,6 +138,19 @@ export const ModelDetailsPage = () => {
                         }}
                     />
                 </PageContentWrapper>
+            )}
+
+            {modelToView && (
+                <ModelDeleteDialog
+                    open={deleteDialogOpen}
+                    onOpenChange={setDeleteDialogOpen}
+                    onConfirm={async () => {
+                        await deleteModel.mutateAsync(modelToView.alias);
+                        navigate("/agents?tab=models");
+                    }}
+                    isLoading={deleteModel.isPending}
+                    modelAlias={modelToView.alias}
+                />
             )}
 
             <Footer>
