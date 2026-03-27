@@ -954,22 +954,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             const existingThinking = lastMsg.thinkingContent || "";
                                             const updatedThinking = existingThinking + thinkingText;
 
-                                            // Also update the "thinking" progress update in the timeline
+                                            // Update or create a "thinking" progress update in the timeline
+                                            // Find the LAST thinking entry that is NOT yet complete (active reasoning block)
                                             const updatedProgressUpdates = [...(lastMsg.progressUpdates || [])];
-                                            const thinkingIdx = updatedProgressUpdates.findIndex(p => p.type === "thinking");
-                                            if (thinkingIdx >= 0) {
-                                                updatedProgressUpdates[thinkingIdx] = {
-                                                    ...updatedProgressUpdates[thinkingIdx],
-                                                    expandableContent: updatedThinking,
+                                            const lastThinkingIdx = updatedProgressUpdates.findLastIndex(p => p.type === "thinking");
+                                            const lastThinkingEntry = lastThinkingIdx >= 0 ? updatedProgressUpdates[lastThinkingIdx] : null;
+
+                                            if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
+                                                // Append to the active (incomplete) reasoning block
+                                                updatedProgressUpdates[lastThinkingIdx] = {
+                                                    ...lastThinkingEntry,
+                                                    expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
                                                     isExpandableComplete: isThinkingComplete,
                                                 };
                                             } else {
-                                                // Insert "Reasoning" as a progress step (after "Thinking" if present)
+                                                // Previous reasoning block is complete or doesn't exist — create a new one
                                                 updatedProgressUpdates.push({
                                                     type: "thinking" as const,
                                                     text: "Reasoning",
                                                     timestamp: Date.now(),
-                                                    expandableContent: updatedThinking,
+                                                    expandableContent: thinkingText,
                                                     isExpandableComplete: isThinkingComplete,
                                                 });
                                             }
@@ -1021,6 +1025,30 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Accumulate status history for inline progress display
                                     statusHistoryRef.current = [...statusHistoryRef.current, statusText];
                                     setStatusHistory([...statusHistoryRef.current]);
+
+                                    // Auto-close any open thinking block when a non-thinking event arrives
+                                    // This ensures separate reasoning blocks per agent
+                                    setMessages(prev => {
+                                        const newMessages = [...prev];
+                                        const lastMsg = newMessages[newMessages.length - 1];
+                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult && lastMsg.progressUpdates) {
+                                            const lastThinkingIdx = lastMsg.progressUpdates.findLastIndex((p: import("@/lib/types").ProgressUpdate) => p.type === "thinking");
+                                            if (lastThinkingIdx >= 0 && !lastMsg.progressUpdates[lastThinkingIdx].isExpandableComplete) {
+                                                const updatedProgressUpdates = [...lastMsg.progressUpdates];
+                                                updatedProgressUpdates[lastThinkingIdx] = {
+                                                    ...updatedProgressUpdates[lastThinkingIdx],
+                                                    isExpandableComplete: true,
+                                                };
+                                                newMessages[newMessages.length - 1] = {
+                                                    ...lastMsg,
+                                                    progressUpdates: updatedProgressUpdates,
+                                                    isThinkingComplete: true,
+                                                };
+                                                return newMessages;
+                                            }
+                                        }
+                                        return prev; // No change needed
+                                    });
 
                                     // Push progress update to the AI message for inline display
                                     const progressUpdate: import("@/lib/types").ProgressUpdate = {
