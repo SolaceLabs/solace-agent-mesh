@@ -15,24 +15,20 @@ function renderBanner(props: { showWarning: boolean; hasModelConfigWrite: boolea
         </MemoryRouter>
     );
 }
-
 describe("ModelWarningBanner", () => {
     test("renders nothing when showWarning is false", () => {
         const { container } = renderBanner({ showWarning: false, hasModelConfigWrite: true });
         expect(container.innerHTML).toBe("");
     });
-
     test("renders warning text when showWarning is true", () => {
         renderBanner({ showWarning: true, hasModelConfigWrite: false });
         expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
     });
-
     test("shows Go to Models button when hasModelConfigWrite is true", () => {
         renderBanner({ showWarning: true, hasModelConfigWrite: true });
         expect(screen.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
         expect(screen.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
     });
-
     test("shows admin contact text when hasModelConfigWrite is false", () => {
         renderBanner({ showWarning: true, hasModelConfigWrite: false });
         expect(screen.getByText(/Ask your administrator/)).toBeInTheDocument();

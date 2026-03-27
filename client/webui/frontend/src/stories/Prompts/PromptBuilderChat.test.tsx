@@ -11,19 +11,10 @@ expect.extend(matchers);
 
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
-
-// ---------------------------------------------------------------------------
-// API spies
-// ---------------------------------------------------------------------------
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGet = vi.spyOn(api.webui, "get" as any);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockPost = vi.spyOn(api.webui, "post" as any);
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const defaultConfig = {
     name: "",
@@ -74,7 +65,6 @@ function setupChatErrorResponse(overrides: Record<string, unknown> = {}) {
     });
 }
 
-/** Wait for init to complete, then type and submit a message */
 async function typeAndSubmit(text: string) {
     await waitFor(() => {
         expect(screen.getByText("AI Builder")).toBeInTheDocument();
@@ -85,10 +75,6 @@ async function typeAndSubmit(text: string) {
         fireEvent.submit(textarea.closest("form")!);
     });
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -403,42 +389,34 @@ describe("PromptBuilderChat error handling", () => {
             expect(screen.getByText("Thinking...")).toBeInTheDocument();
         });
     });
-
     test("textarea is disabled while loading", async () => {
         setupInitSuccess();
         renderChat();
         await waitFor(() => {
             expect(screen.getByText("AI Builder")).toBeInTheDocument();
         });
-
         mockPost.mockReturnValueOnce(new Promise(() => {}));
         const textarea = screen.getByRole("textbox");
         fireEvent.change(textarea, { target: { value: "Create a template" } });
-
         await act(async () => {
             fireEvent.submit(textarea.closest("form")!);
         });
-
         await waitFor(() => {
             expect(textarea).toBeDisabled();
         });
     });
-
     test("send button is disabled while loading", async () => {
         setupInitSuccess();
         renderChat();
         await waitFor(() => {
             expect(screen.getByText("AI Builder")).toBeInTheDocument();
         });
-
         mockPost.mockReturnValueOnce(new Promise(() => {}));
         const textarea = screen.getByRole("textbox");
         fireEvent.change(textarea, { target: { value: "Create a template" } });
-
         await act(async () => {
             fireEvent.submit(textarea.closest("form")!);
         });
-
         const sendButton = screen.getByRole("button", { name: /send message/i });
         await waitFor(() => {
             expect(sendButton).toBeDisabled();
@@ -461,9 +439,7 @@ describe("PromptBuilderChat initial message", () => {
                 }),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         renderChat({ initialMessage: "Create a code review template" });
-
         await waitFor(() => {
             expect(screen.getByText("Create a code review template")).toBeInTheDocument();
         });
@@ -494,7 +470,6 @@ describe("PromptBuilderChat initial message", () => {
             expect(onConfigUpdate).toHaveBeenCalledWith({ name: "Review Template", category: "Dev" });
         });
     });
-
     test("does not call onConfigUpdate when initial message response has is_error true with non-empty template_updates", async () => {
         setupInitSuccess();
         const chatResponse = {
@@ -509,16 +484,13 @@ describe("PromptBuilderChat initial message", () => {
                 }),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         const onConfigUpdate = vi.fn();
         renderChat({ initialMessage: "Create a template", onConfigUpdate });
-
         await waitFor(() => {
             expect(screen.getByText("Auth error")).toBeInTheDocument();
         });
         expect(onConfigUpdate).not.toHaveBeenCalled();
     });
-
     test("calls onReadyToSave from initial message response", async () => {
         setupInitSuccess();
         const chatResponse = {
@@ -533,15 +505,12 @@ describe("PromptBuilderChat initial message", () => {
                 }),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         const onReadyToSave = vi.fn();
         renderChat({ initialMessage: "Create a template", onReadyToSave });
-
         await waitFor(() => {
             expect(onReadyToSave).toHaveBeenCalledWith(true);
         });
     });
-
     test("does not call onReadyToSave when initial message response has is_error", async () => {
         setupInitSuccess();
         const chatResponse = {
@@ -556,16 +525,13 @@ describe("PromptBuilderChat initial message", () => {
                 }),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         const onReadyToSave = vi.fn();
         renderChat({ initialMessage: "Create a template", onReadyToSave });
-
         await waitFor(() => {
             expect(screen.getByText("Auth error")).toBeInTheDocument();
         });
         expect(onReadyToSave).not.toHaveBeenCalled();
     });
-
     test("shows error when initial message API returns non-ok response", async () => {
         setupInitSuccess();
         const chatResponse = {
@@ -573,14 +539,11 @@ describe("PromptBuilderChat initial message", () => {
             json: () => Promise.resolve({}),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         renderChat({ initialMessage: "Create a template" });
-
         await waitFor(() => {
             expect(screen.getByText(/conversation history is too long/)).toBeInTheDocument();
         });
     });
-
     test("shows error when initial message API throws", async () => {
         setupInitSuccess();
         mockPost.mockRejectedValueOnce(new Error("Network failure"));
@@ -591,7 +554,6 @@ describe("PromptBuilderChat initial message", () => {
             expect(screen.getByText(/encountered an error processing your request/)).toBeInTheDocument();
         });
     });
-
     test("passes conversation history to initial message API with fullResponse option", async () => {
         setupInitSuccess();
         const chatResponse = {
@@ -606,9 +568,7 @@ describe("PromptBuilderChat initial message", () => {
                 }),
         };
         mockPost.mockResolvedValueOnce(chatResponse);
-
         renderChat({ initialMessage: "Create a template" });
-
         await waitFor(() => {
             expect(mockPost).toHaveBeenCalledWith(
                 "/api/v1/prompts/chat",
@@ -622,7 +582,6 @@ describe("PromptBuilderChat initial message", () => {
         });
     });
 });
-
 describe("PromptBuilderChat STT feature flag", () => {
     test("does not render AudioRecorder when speechToText feature is disabled", async () => {
         setupInitSuccess();
