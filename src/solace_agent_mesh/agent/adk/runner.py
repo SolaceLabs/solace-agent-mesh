@@ -1004,6 +1004,120 @@ async def _perform_session_compaction(
     return reloaded_session, summary
 
 
+async def _repair_dangling_tool_calls_in_session(
+    component: "SamAgentComponent",
+    adk_session: ADKSession,
+    logical_task_id: str,
+):
+    """
+    Scan the ADK session events for dangling tool calls (function_call events
+    with no matching function_response) and append synthetic error response
+    events to the session to repair them.
+
+    This is the "belt" fix that complements the existing "suspenders"
+    (repair_history_callback in callbacks.py). While repair_history_callback
+    repairs dangling calls in llm_request.contents before each LLM call,
+    this function repairs them at the session level BEFORE the ADK runner
+    starts. This prevents the LLM from seeing stale dangling calls from
+    previous turns and potentially retrying them as long-running peer tool
+    calls that will never receive a response.
+
+    Args:
+        component: The SamAgentComponent instance.
+        adk_session: The ADK session to scan and repair.
+        logical_task_id: The task ID for logging.
+    """
+    log_identifier = f"{component.log_identifier}[RepairSession:{logical_task_id}]"
+
+    if not adk_session or not adk_session.events:
+        return
+
+    # Build a set of all function_response IDs in the session
+    response_ids: set[str] = set()
+    for event in adk_session.events:
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.function_response and part.function_response.id:
+                    response_ids.add(part.function_response.id)
+
+    # Find all function_call IDs that have no matching response
+    dangling_calls: list[tuple[str, str]] = []  # (call_id, tool_name)
+    for event in adk_session.events:
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if (
+                    part.function_call
+                    and part.function_call.id
+                    and part.function_call.id not in response_ids
+                ):
+                    dangling_calls.append(
+                        (part.function_call.id, part.function_call.name or "unknown")
+                    )
+
+    if not dangling_calls:
+        return
+
+    tool_names = [name for _, name in dangling_calls]
+    log.warning(
+        "%s Found %d dangling tool call(s) in session events for tool(s): %s. "
+        "Appending synthetic error responses to session to prevent runner blocking.",
+        log_identifier,
+        len(dangling_calls),
+        tool_names,
+    )
+
+    # Create synthetic function_response parts for each dangling call
+    repair_parts = []
+    for call_id, tool_name in dangling_calls:
+        response_part = adk_types.Part.from_function_response(
+            name=tool_name,
+            response={
+                "status": "error",
+                "message": (
+                    "This tool call from a previous turn did not receive a response. "
+                    "It has been automatically repaired. Do NOT retry this call — "
+                    "instead, proceed with the current user request."
+                ),
+            },
+        )
+        response_part.function_response.id = call_id
+        repair_parts.append(response_part)
+
+    # Append a single repair event with all the synthetic responses
+    repair_event = ADKEvent(
+        invocation_id=logical_task_id,
+        author="system",
+        content=adk_types.Content(role="tool", parts=repair_parts),
+    )
+
+    try:
+        from .services import append_event_with_retry
+
+        await append_event_with_retry(
+            session_service=component.session_service,
+            session=adk_session,
+            event=repair_event,
+            app_name=component.agent_name,
+            user_id=adk_session.user_id,
+            session_id=adk_session.id,
+            log_identifier=log_identifier,
+        )
+        log.warning(
+            "%s Successfully repaired %d dangling tool call(s) in session %s: %s",
+            log_identifier,
+            len(dangling_calls),
+            adk_session.id,
+            tool_names,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to append repair event for dangling tool calls: %s",
+            log_identifier,
+            e,
+            exc_info=True,
+        )
+
+
 async def _append_a2a_context_event(
     component: "SamAgentComponent",
     adk_session: ADKSession,
@@ -1445,6 +1559,15 @@ async def run_adk_async_task_thread_wrapper(
                     component.log_identifier,
                     logical_task_id,
                 )
+
+        # Repair any dangling tool calls from previous turns in the session
+        # before the ADK runner starts. This prevents the LLM from seeing stale
+        # unresolved tool calls and potentially retrying them as long-running
+        # peer calls that will never receive a response (causing indefinite blocking).
+        if adk_session and component.session_service:
+            await _repair_dangling_tool_calls_in_session(
+                component, adk_session, logical_task_id
+            )
 
         # Run the ADK task with automatic compaction retry on context limit errors
         is_paused, adk_session = await _run_with_compaction_retry(
