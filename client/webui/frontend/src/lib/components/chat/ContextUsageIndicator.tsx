@@ -124,11 +124,13 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         prevRespondingRef.current = isResponding;
     }, [isResponding, fetchUsage]);
 
-    // Click outside to collapse
+    // Click outside to collapse — also clear stale success/error banners
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
                 setIsExpanded(false);
+                setCompactSuccess(null);
+                setCompactError(null);
             }
         };
         if (isExpanded) {
@@ -136,6 +138,20 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             return () => document.removeEventListener("mousedown", handleClickOutside);
         }
     }, [isExpanded]);
+
+    // Auto-dismiss compaction success message after 5 seconds
+    useEffect(() => {
+        if (!compactSuccess) return;
+        const timer = setTimeout(() => setCompactSuccess(null), 5000);
+        return () => clearTimeout(timer);
+    }, [compactSuccess]);
+
+    // Auto-dismiss compaction error message after 8 seconds
+    useEffect(() => {
+        if (!compactError) return;
+        const timer = setTimeout(() => setCompactError(null), 8000);
+        return () => clearTimeout(timer);
+    }, [compactError]);
 
     const pct = usage?.usagePercentage ?? 0;
     const colorClass = getUsageColor(pct);
@@ -257,8 +273,22 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
                         {shouldShowCompressButton && (
                             <div className="space-y-2 border-t pt-3">
-                                {compactSuccess && <div className="rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">{compactSuccess}</div>}
-                                {compactError && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">{compactError}</div>}
+                                {compactSuccess && (
+                                    <div className="flex items-start justify-between gap-1 rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">
+                                        <span>{compactSuccess}</span>
+                                        <button className="shrink-0 opacity-60 hover:opacity-100" onClick={() => setCompactSuccess(null)} aria-label="Dismiss">
+                                            ✕
+                                        </button>
+                                    </div>
+                                )}
+                                {compactError && (
+                                    <div className="flex items-start justify-between gap-1 rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">
+                                        <span>{compactError}</span>
+                                        <button className="shrink-0 opacity-60 hover:opacity-100" onClick={() => setCompactError(null)} aria-label="Dismiss">
+                                            ✕
+                                        </button>
+                                    </div>
+                                )}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
