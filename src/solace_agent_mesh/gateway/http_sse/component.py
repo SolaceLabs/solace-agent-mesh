@@ -1538,6 +1538,36 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             log.info(
                                 "%s Task logging is disabled.", self.log_identifier
                             )
+
+                        # Pre-warm starter suggestions cache in the background
+                        # Wait for agents to register before generating suggestions
+                        async def _warm_starter_suggestions():
+                            try:
+                                # Wait for agents to register (they arrive via Solace messages)
+                                await asyncio.sleep(15)
+                                from .dependencies import get_starter_suggestions_service as _get_sss
+                                from .routers.starter_suggestions import _extract_agent_data
+                                # Create the singleton service instance
+                                model_config = self.get_config("model", {})
+                                llm = self.get_lite_llm_model()
+                                from .services.starter_suggestions_service import StarterSuggestionsService
+                                from .dependencies import _starter_suggestions_service_instance
+                                import solace_agent_mesh.gateway.http_sse.dependencies as deps_module
+                                if deps_module._starter_suggestions_service_instance is None:
+                                    deps_module._starter_suggestions_service_instance = StarterSuggestionsService(
+                                        model_config=model_config, llm=llm
+                                    )
+                                service = deps_module._starter_suggestions_service_instance
+                                agents_data = _extract_agent_data(self.agent_registry)
+                                if agents_data:
+                                    await service.warm_cache(agents_data)
+                                else:
+                                    log.info("%s No agents registered yet, skipping starter suggestions warm-up", self.log_identifier)
+                            except Exception as e:
+                                log.warning("%s Failed to warm starter suggestions cache: %s", self.log_identifier, e)
+
+                        self.fastapi_event_loop.create_task(_warm_starter_suggestions())
+                        log.info("%s Scheduled starter suggestions cache warm-up task", self.log_identifier)
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",

@@ -9,7 +9,7 @@ import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, us
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ChatStarterCards, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -433,6 +433,21 @@ export function ChatPage() {
         navigate(location.pathname, { replace: true, state: {} });
     }, [location.state, location.pathname, navigate, handleSwitchSession, handleNewSession]);
 
+    // Determine if this is an empty chat (no user messages yet) for showing starter cards.
+    // The ChatProvider always adds a welcome message on new chats, so we check if there are
+    // no user-sent messages and no active session (sessionId is empty for new chats).
+    const isEmptyChat = useMemo(() => {
+        if (isResponding || isLoadingSession) return false;
+        const hasUserMessages = messages.some(msg => msg.isUser);
+        const hasTaskMessages = messages.some(msg => msg.taskId);
+        return !hasUserMessages && !hasTaskMessages;
+    }, [messages, isResponding, isLoadingSession]);
+
+    // Handle starter card option click - dispatch event to auto-submit the prompt
+    const handleStarterOptionClick = useCallback((prompt: string) => {
+        window.dispatchEvent(new CustomEvent("starter-card-submit", { detail: { prompt } }));
+    }, []);
+
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
         const handleWindowFocus = () => {
@@ -517,6 +532,17 @@ export function ChatPage() {
                                             <Spinner size="medium" variant="primary">
                                                 <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
                                             </Spinner>
+                                        </div>
+                                    ) : isEmptyChat ? (
+                                        /* Empty chat state: centered input with welcome text and starter cards */
+                                        <div className="flex h-full flex-col items-center justify-center px-4">
+                                            <div className="flex w-full max-w-4xl flex-col items-center gap-6">
+                                                <h2 className="text-foreground text-2xl font-semibold tracking-tight">What can I help you with?</h2>
+                                                <div className="w-full" style={CHAT_STYLES}>
+                                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                </div>
+                                                <ChatStarterCards onOptionClick={handleStarterOptionClick} />
+                                            </div>
                                         </div>
                                     ) : (
                                         <>

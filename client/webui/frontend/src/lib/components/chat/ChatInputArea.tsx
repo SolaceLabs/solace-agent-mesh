@@ -200,6 +200,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
+    // Handle starter card option click - auto-submit the prompt directly
+    useEffect(() => {
+        const handleStarterCardSubmit = async (event: Event) => {
+            const customEvent = event as CustomEvent<{ prompt: string }>;
+            const { prompt } = customEvent.detail;
+            if (isResponding) return;
+
+            // Set the input value briefly (for visual feedback) then submit
+            setInputValue(prompt);
+            // Small delay to ensure state is updated, then auto-submit
+            setTimeout(async () => {
+                const fakeEvent = new Event("submit") as unknown as FormEvent;
+                await handleSubmit(fakeEvent, [], prompt);
+                setInputValue("");
+                scrollToBottom?.();
+            }, 50);
+        };
+
+        window.addEventListener("starter-card-submit", handleStarterCardSubmit);
+        return () => {
+            window.removeEventListener("starter-card-submit", handleStarterCardSubmit);
+        };
+    }, [isResponding, handleSubmit, scrollToBottom]);
+
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {

@@ -1,6 +1,7 @@
 export { AudioRecorder } from "./AudioRecorder";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";
+export { ChatStarterCards } from "./ChatStarterCards";
 export { ChatSessionDeleteDialog } from "./ChatSessionDeleteDialog";
 export { ChatSessionDialog } from "./ChatSessionDialog";
 export { ChatSessions } from "./ChatSessions";

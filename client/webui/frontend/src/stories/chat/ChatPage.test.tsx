@@ -150,6 +150,7 @@ describe("ChatPage", () => {
             ChatSessionDeleteDialog: () => React.createElement("div", { "data-testid": "chat-session-delete-dialog" }),
             ChatSidePanel: () => React.createElement("div", { "data-testid": "chat-side-panel" }),
             ChatInputArea: () => React.createElement("div", { "data-testid": "chat-input-area" }),
+            ChatStarterCards: ({ onOptionClick }: { onOptionClick: (prompt: string) => void }) => React.createElement("div", { "data-testid": "chat-starter-cards", onClick: () => onOptionClick("test prompt") }),
             LoadingMessageRow: () => React.createElement("div", { "data-testid": "loading-message-row" }),
             ProjectBadge: ({ text }: { text: string }) => React.createElement("span", { "data-testid": "project-badge" }, text),
             SessionSidePanel: ({ onToggle }: { onToggle: () => void }) => React.createElement("div", { "data-testid": "session-side-panel", onClick: onToggle }),
