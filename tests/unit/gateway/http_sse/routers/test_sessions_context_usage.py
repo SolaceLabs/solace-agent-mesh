@@ -15,32 +15,62 @@ class TestGetModelContextLimit:
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 _get_model_context_limit,
-                DEFAULT_CONTEXT_LIMIT,
             )
-
-            with patch(
-                "solace_agent_mesh.gateway.http_sse.routers.sessions._get_model_context_limit.__module__",
-            ):
-                pass
 
             mock_info = {"max_input_tokens": 128_000}
             with patch("litellm.get_model_info", return_value=mock_info):
                 result = _get_model_context_limit("gpt-4")
                 assert result == 128_000
 
-    def test_returns_default_on_exception(self):
+    def test_returns_none_on_exception(self):
+        """When LiteLLM raises for both full and bare name, return None."""
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
             return_value=MagicMock(),
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 _get_model_context_limit,
-                DEFAULT_CONTEXT_LIMIT,
             )
 
             with patch("litellm.get_model_info", side_effect=Exception("unknown model")):
                 result = _get_model_context_limit("unknown-model")
-                assert result == DEFAULT_CONTEXT_LIMIT
+                assert result is None
+
+    def test_returns_none_when_litellm_has_no_max_input_tokens(self):
+        """When LiteLLM returns info but max_input_tokens is missing, return None."""
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=MagicMock(),
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                _get_model_context_limit,
+            )
+
+            mock_info = {"model_name": "some-model"}  # no max_input_tokens key
+            with patch("litellm.get_model_info", return_value=mock_info):
+                result = _get_model_context_limit("some-model")
+                assert result is None
+
+    def test_strips_provider_prefix_on_fallback(self):
+        """When full name fails but bare name succeeds, return the bare name result."""
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=MagicMock(),
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                _get_model_context_limit,
+            )
+
+            def mock_get_model_info(name):
+                if name == "custom-provider/gpt-4o":
+                    raise Exception("unknown model")
+                if name == "gpt-4o":
+                    return {"max_input_tokens": 128_000}
+                raise Exception("unknown model")
+
+            with patch("litellm.get_model_info", side_effect=mock_get_model_info):
+                result = _get_model_context_limit("custom-provider/gpt-4o")
+                assert result == 128_000
 
 
 def _make_mock_db():
