@@ -8,7 +8,8 @@ export interface ContextUsage {
     promptTokens: number;
     completionTokens: number;
     cachedTokens: number;
-    maxInputTokens: number;
+    /** null when the model's context limit is unknown (e.g. LiteLLM has no info) */
+    maxInputTokens: number | null;
     usagePercentage: number;
     model: string;
     totalEvents: number;
