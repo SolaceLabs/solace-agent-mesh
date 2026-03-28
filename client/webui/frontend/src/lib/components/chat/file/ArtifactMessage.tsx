@@ -172,7 +172,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
         } else {
             console.error(`No file to download for artifact: ${props.name}`);
         }
-    }, [artifact, artifactInAll, fileAttachment, sessionId, activeProject?.id, props.name, fetchedContent, props.onDownloadOverride]);
+    }, [artifact, artifactInAll, fileAttachment, fetchedContent, sessionId, activeProject?.id, props.name, props.onDownloadOverride]);
 
     const handleDeleteClick = useCallback(() => {
         if (artifact) {

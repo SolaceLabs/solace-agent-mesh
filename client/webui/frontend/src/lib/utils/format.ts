@@ -46,6 +46,26 @@ export const formatRelativeTime = (dateString: string): string => {
  * @param isoString - The ISO date string to format
  * @param format - The format type: "datetime" (default), "date", or "time"
  */
+/**
+ * Format a numeric epoch timestamp (seconds or milliseconds) to locale string.
+ * Auto-detects whether the value is in seconds or milliseconds.
+ */
+export const formatEpochTimestamp = (timestamp: number): string => {
+    const ts = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+    const date = new Date(ts);
+    return date.toLocaleString();
+};
+
+/**
+ * Format a duration in milliseconds to a human-readable string.
+ */
+export const formatDuration = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 3600000) return `${(ms / 60000).toFixed(1)}m`;
+    return `${(ms / 3600000).toFixed(1)}h`;
+};
+
 export const formatTimestamp = (isoString?: string | null, format: "datetime" | "date" | "time" = "datetime"): string => {
     if (!isoString) return "N/A";
     try {
