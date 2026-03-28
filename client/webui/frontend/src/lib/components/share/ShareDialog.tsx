@@ -171,6 +171,13 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
         sessionDetailQuery.refetch();
     }, [open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Auto-show the public link section when a share link already exists
+    useEffect(() => {
+        if (open && shareLinkQuery.data && !isNewlyCreatedLink) {
+            setShowPublicLink(true);
+        }
+    }, [open, shareLinkQuery.data, isNewlyCreatedLink]);
+
     const handleAddRow = useCallback(() => {
         const newId = `typeahead-${Date.now()}`;
         prepend({ id: newId, email: null, accessLevel: "read-only" });
