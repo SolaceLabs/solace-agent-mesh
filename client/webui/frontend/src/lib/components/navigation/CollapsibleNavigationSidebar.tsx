@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { useChatContext, useSessionStorage } from "@/lib/hooks";
+import { useChatContext, useSessionStorage, useIsChatSharingEnabled } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
+import { SharedChatsList } from "@/lib/components/chat/SharedChatsList";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ export interface CollapsibleNavigationSidebarProps {
      */
     items: NavItemConfig[];
 
-    header?: HeaderConfig | React.ReactNode;
+    header?: HeaderConfig | ReactNode;
 
     showNewChatButton?: boolean;
     newChatConfig?: NewChatConfig;
@@ -48,7 +49,7 @@ export interface CollapsibleNavigationSidebarProps {
     defaultCollapsed?: boolean;
 }
 
-export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
+export const CollapsibleNavigationSidebar = ({
     items,
     header,
     showNewChatButton = true,
@@ -59,9 +60,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     activeItemId: controlledActiveItemId,
     isCollapsed: controlledIsCollapsed,
     defaultCollapsed = false,
-}) => {
+}: CollapsibleNavigationSidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
     const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
@@ -184,12 +186,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const newChatLabel = newChatConfig?.label ?? "New Chat";
     const NewChatIcon = newChatConfig?.icon ?? Plus;
 
-    const renderHeader = (): React.ReactNode => {
+    const renderHeader = (): ReactNode => {
         if (header && typeof header === "object" && header !== null && "component" in header) {
             const headerConfig = header as HeaderConfig;
             if (headerConfig.component) return headerConfig.component;
         } else if (header !== undefined && header !== null) {
-            return header as React.ReactNode;
+            return header as ReactNode;
         }
         return <SolaceIcon variant={isCollapsed ? "short" : "full"} className={isCollapsed ? "h-8 w-8" : "h-8 w-24"} />;
     };
@@ -303,6 +305,8 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         );
                     })}
                 </div>
+                {/* Shared with me section - renders nothing if no shared chats */}
+                {chatSharingEnabled && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}

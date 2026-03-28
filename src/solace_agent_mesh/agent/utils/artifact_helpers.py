@@ -5,7 +5,6 @@ Helper functions for artifact management, including metadata handling and schema
 import asyncio
 import logging
 import base64
-import binascii
 import json
 import csv
 import io
@@ -14,7 +13,7 @@ import os
 import yaml
 import traceback
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, List, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
@@ -95,15 +94,19 @@ def sanitize_to_filename(
     replacement_char: str = "_"
 ) -> str:
     """
-    Sanitizes arbitrary text into a safe filename.
+    Sanitizes arbitrary text into a safe, ASCII-only filename.
     
     Converts text (like a research question or title) into a filesystem-safe
     filename by:
     1. Converting to lowercase
-    2. Removing non-word characters (except spaces and hyphens)
+    2. Removing non-ASCII and non-word characters (except spaces and hyphens)
     3. Replacing spaces and hyphens with the replacement character
     4. Limiting length to max_length
     5. Optionally appending a suffix
+    
+    Note: Uses re.ASCII flag so that \\w only matches [a-zA-Z0-9_], ensuring
+    the resulting filename contains only ASCII characters. This is required
+    because S3 metadata (which stores the filename) only supports ASCII values.
     
     Args:
         text: The text to convert into a filename (e.g., research question, title)
@@ -112,7 +115,7 @@ def sanitize_to_filename(
         replacement_char: Character to replace spaces/hyphens with. Default: "_"
     
     Returns:
-        A sanitized filename string safe for filesystem use.
+        A sanitized, ASCII-only filename string safe for filesystem and cloud storage use.
     
     Examples:
         >>> sanitize_to_filename("What is AI?")
@@ -127,8 +130,11 @@ def sanitize_to_filename(
     if not text:
         return f"unnamed{suffix}"
     
-    # Convert to lowercase and remove non-word characters except spaces and hyphens
-    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
+    # Convert to lowercase and remove non-ASCII/non-word characters except spaces and hyphens.
+    # The re.ASCII flag ensures \w only matches [a-zA-Z0-9_], preventing Unicode
+    # characters (e.g., Chinese, Japanese, Arabic) from being included in the filename.
+    # This is critical because S3 metadata only supports ASCII values (DATAGO-130045).
+    safe_name = re.sub(r'[^\w\s-]', '', text.lower(), flags=re.ASCII)
     
     # Replace spaces and hyphens with the replacement character
     safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
@@ -179,7 +185,7 @@ def format_artifact_uri(
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -934,7 +940,7 @@ def decode_and_get_bytes(
                 log_identifier,
                 mime_type,
             )
-        except (binascii.Error, ValueError) as decode_error:
+        except ValueError as decode_error:
             log.warning(
                 "%s Failed to base64 decode content for mimeType '%s'. Treating as text/plain. Error: %s",
                 log_identifier,
@@ -1322,7 +1328,7 @@ async def load_artifact_content_or_metadata(
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
@@ -1516,14 +1522,12 @@ async def load_artifact_content_or_metadata(
                     # Try multiple encodings with fallback for Windows-exported files
                     # Common case: CSV files exported from Excel on Windows use CP1252
                     content_str = None
-                    used_encoding = None
                     encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
                     decode_errors = []
-                    
+
                     for enc in encodings_to_try:
                         try:
                             content_str = data_bytes.decode(enc, errors=error_handling)
-                            used_encoding = enc
                             if enc != encoding:
                                 log.info(
                                     "%s Successfully decoded text artifact '%s' v%d using fallback encoding '%s' (primary '%s' failed)",

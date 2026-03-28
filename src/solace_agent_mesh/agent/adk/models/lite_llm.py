@@ -37,6 +37,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+import litellm
 from litellm.exceptions import BadRequestError
 from litellm import (
     ChatCompletionAssistantMessage,
@@ -57,6 +58,15 @@ from litellm import (
     completion,
     token_counter,
 )
+
+# Disable litellm's aiohttp transport to prevent memory leaks.
+#
+# litellm's default aiohttp transport (LiteLLMAiohttpTransport) creates new
+# aiohttp.ClientSession + TCPConnector objects when the asyncio event loop changes
+# (see _get_valid_client_session() in litellm/llms/custom_httpx/aiohttp_transport.py),
+# but NEVER closes the old sessions
+litellm.disable_aiohttp_transport = True
+
 from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 

@@ -229,6 +229,42 @@ def _determine_binary_artifact_preview_enabled(
     return True
 
 
+def _determine_chat_sharing_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if chat sharing feature should be enabled.
+
+    Requirements:
+    1. Identity service must be configured (for user management)
+    2. SQL persistence must be enabled (for share records)
+    3. Explicit enablement via frontend_feature_enablement.chatSharing
+
+    Returns:
+        bool: True if chat sharing should be enabled
+    """
+    # Check if identity service is configured
+    if component.identity_service is None:
+        log.debug("%s Chat sharing disabled: no identity_service configured", log_prefix)
+        return False
+
+    # Check if SQL persistence is available
+    session_config = component.get_config("session_service", {})
+    if session_config.get("type") != "sql":
+        log.debug("%s Chat sharing disabled: SQL persistence not available", log_prefix)
+        return False
+
+    # Check explicit feature enablement
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    enabled = feature_flags.get("chatSharing", False)
+    if enabled:
+        log.debug("%s Chat sharing enabled: explicitly enabled in config", log_prefix)
+    else:
+        log.debug("%s Chat sharing disabled: not explicitly enabled in config", log_prefix)
+    return enabled
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -426,6 +462,14 @@ async def get_app_config(
         else:
             log.debug("%s Binary artifact preview feature flag is disabled.", log_prefix)
         
+        # Determine if chat sharing should be enabled
+        chat_sharing_enabled = _determine_chat_sharing_enabled(component, log_prefix)
+        feature_enablement["chatSharing"] = chat_sharing_enabled
+        if chat_sharing_enabled:
+            log.debug("%s Chat sharing feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Chat sharing feature flag is disabled.", log_prefix)
+
         # Check tool configuration status
         tool_config_status = {}
         
