@@ -44,7 +44,8 @@ class SessionService:
         db: DbSession,
         user_id: UserId,
         pagination: PaginationParams | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
+        source: str | None = None,
     ) -> PaginatedResponse[Session]:
         """
         Get paginated sessions for a user with full metadata including project names and background task status.
@@ -56,6 +57,7 @@ class SessionService:
             user_id: User ID to filter sessions by
             pagination: Pagination parameters
             project_id: Optional project ID to filter sessions by (for project-specific views)
+            source: Optional source filter ("chat", "scheduler", or None for all)
         """
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
@@ -63,9 +65,9 @@ class SessionService:
         pagination = get_pagination_or_default(pagination)
         session_repository = self._get_repositories(db)
 
-        # Fetch sessions with optional project filtering
-        sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id)
-        total_count = session_repository.count_by_user(db, user_id, project_id=project_id)
+        # Fetch sessions with optional project and source filtering
+        sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id, source=source)
+        total_count = session_repository.count_by_user(db, user_id, project_id=project_id, source=source)
 
         # Enrich sessions with project names
         # Collect unique project IDs
@@ -158,6 +160,7 @@ class SessionService:
         agent_id: str | None = None,
         session_id: str | None = None,
         project_id: str | None = None,
+        source: str | None = "chat",
     ) -> Optional[Session]:
         if not self.is_persistence_enabled():
             log.debug("Persistence is not enabled. Skipping session creation in DB.")
@@ -176,6 +179,7 @@ class SessionService:
             name=name,
             agent_id=agent_id,
             project_id=project_id,
+            source=source,
             created_time=now_ms,
             updated_time=now_ms,
         )
