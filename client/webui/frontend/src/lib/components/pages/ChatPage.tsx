@@ -5,7 +5,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled, useAuthContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -42,6 +42,7 @@ export function ChatPage() {
     const { activeProject } = useProjectContext();
     const { autoTitleGenerationEnabled } = useConfigContext();
     const chatSharingEnabled = useIsChatSharingEnabled();
+    const { userInfo } = useAuthContext();
     const location = useLocation();
     const navigate = useNavigate();
     const {
@@ -448,6 +449,30 @@ export function ChatPage() {
         window.dispatchEvent(new CustomEvent("starter-card-submit", { detail: { prompt } }));
     }, []);
 
+    // Extract user's first name for personalized greeting
+    const userFirstName = useMemo(() => {
+        // Try username from auth context (e.g., "john.doe@company.com" or "John Doe")
+        const username = typeof userInfo?.username === "string" ? userInfo.username : "";
+        if (username) {
+            // If it looks like an email, extract the part before @ and use the first segment
+            if (username.includes("@")) {
+                const localPart = username.split("@")[0];
+                const firstName = localPart.split(/[._-]/)[0];
+                return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+            }
+            // If it looks like a full name, use the first word
+            const firstName = username.split(/\s+/)[0];
+            return firstName.charAt(0).toUpperCase() + firstName.slice(1);
+        }
+        // Try currentUserEmail from chat context
+        if (currentUserEmail && currentUserEmail.includes("@")) {
+            const localPart = currentUserEmail.split("@")[0];
+            const firstName = localPart.split(/[._-]/)[0];
+            return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+        }
+        return null;
+    }, [userInfo, currentUserEmail]);
+
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
         const handleWindowFocus = () => {
@@ -537,7 +562,7 @@ export function ChatPage() {
                                         /* Empty chat state: centered input with welcome text and starter cards */
                                         <div className="flex h-full flex-col items-center justify-center px-4">
                                             <div className="flex w-full max-w-4xl flex-col items-center gap-6">
-                                                <h2 className="text-foreground text-2xl font-semibold tracking-tight">What can I help you with?</h2>
+                                                <h2 className="text-foreground text-2xl font-semibold tracking-tight">{userFirstName ? `What can I help you with, ${userFirstName}?` : "What can I help you with?"}</h2>
                                                 <div className="w-full" style={CHAT_STYLES}>
                                                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                                 </div>

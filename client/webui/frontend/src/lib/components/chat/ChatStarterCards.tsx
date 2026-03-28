@@ -60,64 +60,46 @@ function categoriesToCards(categories: StarterSuggestionCategory[]): StarterCard
     }));
 }
 
-/** Default enterprise-focused starter cards shown when LLM suggestions are unavailable */
+/** Default starter cards shown when LLM suggestions are unavailable */
 const DEFAULT_STARTER_CARDS: StarterCard[] = [
     {
         icon: <BarChart3 className="h-4 w-4" />,
-        label: "Competitive Research",
-        description: "Analyze market position and competitors",
+        label: "Research & Analysis",
+        description: "Investigate topics and analyze data",
         options: [
-            {
-                label: "Compare against top 3 competitors",
-                prompt: "Conduct a competitive analysis comparing our company's market position against our top 3 competitors. Include market share, product differentiation, pricing strategies, and recent strategic moves.",
-            },
-            { label: "Identify market trends", prompt: "Research and summarize the latest market trends in our industry. Identify emerging opportunities, potential disruptions, and how competitors are positioning themselves." },
-            { label: "SWOT analysis of our position", prompt: "Perform a SWOT analysis of our company's current market position. Identify our key strengths, weaknesses, opportunities, and threats relative to our competitive landscape." },
-            { label: "Pricing strategy comparison", prompt: "Analyze the pricing strategies of our main competitors. Compare pricing models, tiers, and value propositions to identify opportunities for our pricing optimization." },
+            { label: "Help me research a topic", prompt: "Help me research a topic in depth. Ask me what I'd like to investigate and I'll provide the details." },
+            { label: "Analyze data for insights", prompt: "Help me analyze some data to find patterns and insights. Ask me about the data I'm working with so we can get started." },
+            { label: "Compare options or alternatives", prompt: "Help me compare different options or alternatives to make a decision. Ask me what I'm evaluating." },
         ],
     },
     {
-        icon: <Users className="h-4 w-4" />,
-        label: "Customer Insights",
-        description: "Discover trends from customer data",
+        icon: <FileText className="h-4 w-4" />,
+        label: "Writing & Editing",
+        description: "Draft, rewrite, and improve content",
         options: [
-            { label: "Analyze customer pain points", prompt: "Analyze our customer feedback data to identify the top pain points and friction areas. Provide actionable recommendations for improving customer experience." },
-            { label: "Customer satisfaction drivers", prompt: "Identify the key drivers of customer satisfaction from our feedback data. What are customers most happy about and what keeps them loyal?" },
-            { label: "Churn risk analysis", prompt: "Analyze customer behavior patterns to identify early warning signs of churn. What factors most strongly predict customer attrition?" },
-            { label: "Segment customer feedback", prompt: "Segment our customer feedback by customer type, product area, and sentiment. Identify patterns unique to each segment." },
+            { label: "Make my message more persuasive", prompt: "Rewrite my message so it feels more persuasive for its audience and goal. If needed, ask me to share the message and what I want it to achieve." },
+            { label: "Draft a professional email", prompt: "Help me draft a professional email. Ask me about the recipient, purpose, and key points I want to cover." },
+            { label: "Summarize a long document", prompt: "Help me create a concise summary of a document. Ask me to share the content or tell you what it's about." },
         ],
     },
     {
-        icon: <ShieldCheck className="h-4 w-4" />,
-        label: "Compliance Report",
-        description: "Review regulatory status and risks",
+        icon: <Lightbulb className="h-4 w-4" />,
+        label: "Planning & Strategy",
+        description: "Organize ideas and plan next steps",
         options: [
-            { label: "Regulatory status overview", prompt: "Generate a compliance status report covering our current regulatory obligations, recent policy changes, and any areas requiring immediate attention." },
-            { label: "Risk assessment summary", prompt: "Perform a risk assessment of our current compliance posture. Identify high-risk areas, gaps in controls, and recommended remediation steps." },
-            { label: "Policy change impact analysis", prompt: "Analyze recent regulatory and policy changes that affect our industry. Summarize the impact on our operations and required actions." },
-            { label: "Audit preparation checklist", prompt: "Create a comprehensive audit preparation checklist based on our regulatory requirements. Include documentation needs, control evidence, and timeline recommendations." },
+            { label: "Help me plan a project", prompt: "Help me create a project plan with milestones and tasks. Ask me about the project scope and timeline so we can get started." },
+            { label: "Brainstorm solutions", prompt: "Help me brainstorm solutions to a challenge I'm facing. Ask me to describe the problem and any constraints." },
+            { label: "Prepare for a meeting", prompt: "Help me prepare for an upcoming meeting. Ask me about the meeting topic, attendees, and what I want to accomplish." },
         ],
     },
     {
         icon: <TrendingUp className="h-4 w-4" />,
-        label: "Business Strategy",
-        description: "Plan initiatives and growth strategy",
+        label: "Problem Solving",
+        description: "Work through complex challenges",
         options: [
-            { label: "Quarterly strategic plan", prompt: "Help me develop a strategic plan for the next quarter. Analyze current performance metrics, identify growth opportunities, and recommend key initiatives with expected ROI." },
-            { label: "Growth opportunity analysis", prompt: "Identify and evaluate the top growth opportunities for our business. Consider market expansion, product development, partnerships, and operational improvements." },
-            { label: "KPI dashboard review", prompt: "Review our key performance indicators and provide insights on trends, areas of concern, and recommendations for improvement across all business units." },
-            { label: "Resource allocation plan", prompt: "Help me optimize resource allocation across our key initiatives. Analyze current spending, expected returns, and recommend rebalancing for maximum impact." },
-        ],
-    },
-    {
-        icon: <FileSearch className="h-4 w-4" />,
-        label: "Data Analysis",
-        description: "Extract insights from your data",
-        options: [
-            { label: "Find patterns and trends", prompt: "Help me analyze a dataset to uncover key patterns, trends, and anomalies. I need statistical summaries and actionable insights from the data." },
-            { label: "Create data visualizations", prompt: "Recommend the best data visualizations for my dataset. Suggest chart types, key metrics to highlight, and how to tell a compelling data story." },
-            { label: "Statistical summary report", prompt: "Generate a comprehensive statistical summary of my data including distributions, correlations, outliers, and key metrics with interpretations." },
-            { label: "Anomaly detection", prompt: "Analyze my data for anomalies and unusual patterns. Identify outliers, unexpected trends, and potential data quality issues that need investigation." },
+            { label: "Break down a complex problem", prompt: "Help me break down a complex problem into manageable parts. Ask me to describe what I'm dealing with." },
+            { label: "Evaluate a decision", prompt: "Help me think through a decision by weighing pros and cons. Ask me about the options I'm considering." },
+            { label: "Troubleshoot an issue", prompt: "Help me troubleshoot an issue I'm experiencing. Ask me to describe the problem and what I've already tried." },
         ],
     },
 ];

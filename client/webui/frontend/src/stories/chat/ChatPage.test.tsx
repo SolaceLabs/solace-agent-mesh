@@ -89,6 +89,7 @@ describe("ChatPage", () => {
             useTitleAnimation: mockUseTitleAnimation,
             useConfigContext: mockUseConfigContext,
             useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
+            useAuthContext: () => ({ userInfo: { username: "test.user@example.com" }, isAuthenticated: true, useAuthorization: false, login: vi.fn(), logout: vi.fn() }),
         }));
 
         vi.doMock("@/lib/providers", () => ({

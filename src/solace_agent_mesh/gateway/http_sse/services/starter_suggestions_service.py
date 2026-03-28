@@ -21,121 +21,83 @@ log = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 600
 
 # LLM parameters
-DEFAULT_TEMPERATURE = 0.8
+DEFAULT_TEMPERATURE = 0.7
 
 # Default fallback suggestions when LLM is unavailable
 DEFAULT_STARTER_SUGGESTIONS: list[dict[str, Any]] = [
     {
         "icon": "BarChart3",
-        "label": "Competitive Research",
-        "description": "Analyze market position and competitors",
+        "label": "Research & Analysis",
+        "description": "Investigate topics and analyze data",
         "options": [
             {
-                "label": "Compare against top 3 competitors",
-                "prompt": "Conduct a competitive analysis comparing our company's market position against our top 3 competitors. Include market share, product differentiation, pricing strategies, and recent strategic moves.",
+                "label": "Help me research a topic",
+                "prompt": "Help me research a topic in depth. Ask me what I'd like to investigate and I'll provide the details.",
             },
             {
-                "label": "Identify market trends",
-                "prompt": "Research and summarize the latest market trends in our industry. Identify emerging opportunities, potential disruptions, and how competitors are positioning themselves.",
+                "label": "Analyze data for insights",
+                "prompt": "Help me analyze some data to find patterns and insights. Ask me about the data I'm working with so we can get started.",
             },
             {
-                "label": "SWOT analysis of our position",
-                "prompt": "Perform a SWOT analysis of our company's current market position. Identify our key strengths, weaknesses, opportunities, and threats relative to our competitive landscape.",
+                "label": "Compare options or alternatives",
+                "prompt": "Help me compare different options or alternatives to make a decision. Ask me what I'm evaluating.",
             },
         ],
     },
     {
-        "icon": "Users",
-        "label": "Customer Insights",
-        "description": "Discover trends from customer data",
+        "icon": "FileText",
+        "label": "Writing & Editing",
+        "description": "Draft, rewrite, and improve content",
         "options": [
             {
-                "label": "Analyze customer pain points",
-                "prompt": "Analyze our customer feedback data to identify the top pain points and friction areas. Provide actionable recommendations for improving customer experience.",
+                "label": "Make my message more persuasive",
+                "prompt": "Rewrite my message so it feels more persuasive for its audience and goal. If needed, ask me to share the message and what I want it to achieve.",
             },
             {
-                "label": "Customer satisfaction drivers",
-                "prompt": "Identify the key drivers of customer satisfaction from our feedback data. What are customers most happy about and what keeps them loyal?",
+                "label": "Draft a professional email",
+                "prompt": "Help me draft a professional email. Ask me about the recipient, purpose, and key points I want to cover.",
             },
             {
-                "label": "Churn risk analysis",
-                "prompt": "Analyze customer behavior patterns to identify early warning signs of churn. What factors most strongly predict customer attrition?",
-            },
-        ],
-    },
-    {
-        "icon": "ShieldCheck",
-        "label": "Compliance Report",
-        "description": "Review regulatory status and risks",
-        "options": [
-            {
-                "label": "Regulatory status overview",
-                "prompt": "Generate a compliance status report covering our current regulatory obligations, recent policy changes, and any areas requiring immediate attention.",
-            },
-            {
-                "label": "Risk assessment summary",
-                "prompt": "Perform a risk assessment of our current compliance posture. Identify high-risk areas, gaps in controls, and recommended remediation steps.",
-            },
-            {
-                "label": "Policy change impact analysis",
-                "prompt": "Analyze recent regulatory and policy changes that affect our industry. Summarize the impact on our operations and required actions.",
-            },
-        ],
-    },
-    {
-        "icon": "TrendingUp",
-        "label": "Business Strategy",
-        "description": "Plan initiatives and growth strategy",
-        "options": [
-            {
-                "label": "Quarterly strategic plan",
-                "prompt": "Help me develop a strategic plan for the next quarter. Analyze current performance metrics, identify growth opportunities, and recommend key initiatives with expected ROI.",
-            },
-            {
-                "label": "Growth opportunity analysis",
-                "prompt": "Identify and evaluate the top growth opportunities for our business. Consider market expansion, product development, partnerships, and operational improvements.",
-            },
-            {
-                "label": "KPI dashboard review",
-                "prompt": "Review our key performance indicators and provide insights on trends, areas of concern, and recommendations for improvement across all business units.",
-            },
-        ],
-    },
-    {
-        "icon": "FileSearch",
-        "label": "Data Analysis",
-        "description": "Extract insights from your data",
-        "options": [
-            {
-                "label": "Find patterns and trends",
-                "prompt": "Help me analyze a dataset to uncover key patterns, trends, and anomalies. I need statistical summaries and actionable insights from the data.",
-            },
-            {
-                "label": "Create data visualizations",
-                "prompt": "Recommend the best data visualizations for my dataset. Suggest chart types, key metrics to highlight, and how to tell a compelling data story.",
-            },
-            {
-                "label": "Statistical summary report",
-                "prompt": "Generate a comprehensive statistical summary of my data including distributions, correlations, outliers, and key metrics with interpretations.",
+                "label": "Summarize a long document",
+                "prompt": "Help me create a concise summary of a document. Ask me to share the content or tell you what it's about.",
             },
         ],
     },
     {
         "icon": "Lightbulb",
-        "label": "Process Optimization",
-        "description": "Streamline workflows and operations",
+        "label": "Planning & Strategy",
+        "description": "Organize ideas and plan next steps",
         "options": [
             {
-                "label": "Identify bottlenecks",
-                "prompt": "Review our current workflow processes and identify bottlenecks, inefficiencies, and automation opportunities. Provide a prioritized list of improvements.",
+                "label": "Help me plan a project",
+                "prompt": "Help me create a project plan with milestones and tasks. Ask me about the project scope and timeline so we can get started.",
             },
             {
-                "label": "Automation opportunities",
-                "prompt": "Analyze our business processes to identify the best candidates for automation. Estimate effort, impact, and ROI for each automation opportunity.",
+                "label": "Brainstorm solutions",
+                "prompt": "Help me brainstorm solutions to a challenge I'm facing. Ask me to describe the problem and any constraints.",
             },
             {
-                "label": "Workflow redesign",
-                "prompt": "Help me redesign a key business workflow to improve efficiency. Map the current state, identify waste, and propose an optimized future state.",
+                "label": "Prepare for a meeting",
+                "prompt": "Help me prepare for an upcoming meeting. Ask me about the meeting topic, attendees, and what I want to accomplish.",
+            },
+        ],
+    },
+    {
+        "icon": "TrendingUp",
+        "label": "Problem Solving",
+        "description": "Work through complex challenges",
+        "options": [
+            {
+                "label": "Break down a complex problem",
+                "prompt": "Help me break down a complex problem into manageable parts. Ask me to describe what I'm dealing with.",
+            },
+            {
+                "label": "Evaluate a decision",
+                "prompt": "Help me think through a decision by weighing pros and cons. Ask me about the options I'm considering.",
+            },
+            {
+                "label": "Troubleshoot an issue",
+                "prompt": "Help me troubleshoot an issue I'm experiencing. Ask me to describe the problem and what I've already tried.",
             },
         ],
     },
@@ -275,37 +237,47 @@ class StarterSuggestionsService:
         """Call LiteLLM to generate starter suggestions."""
         log.info("Calling LiteLLM for starter suggestions generation")
 
-        prompt = f"""You are a helpful assistant that generates starter conversation suggestions for an enterprise AI chat interface.
+        prompt = f"""You are generating starter task suggestions for an enterprise AI chat interface called Agent Mesh.
 
-The chat interface has access to the following AI agents and their capabilities:
+The system has these AI agents available:
 
 {agent_descriptions}
 
-Based on these available agents and their capabilities, generate 4-6 starter card categories. Each category should represent a common enterprise task that leverages the available agents.
+Generate exactly 4 starter card categories that showcase what these agents can do. Each category should represent a type of task the agents can help with.
 
 For each category, provide:
-- "icon": A Lucide React icon name (choose from: BarChart3, Users, ShieldCheck, TrendingUp, FileSearch, Lightbulb, Search, FileText, Database, Globe, Bot, Briefcase, Code, Mail, Calendar, Settings, Zap, Target, PieChart, LineChart)
-- "label": A short category label (2-4 words)
-- "description": A brief description (5-10 words)
-- "options": An array of 3-4 specific prompt options, each with:
-  - "label": A short action label (3-8 words)
-  - "prompt": A detailed, ready-to-send prompt (1-3 sentences) that a user would send to the chat
+- "icon": A Lucide icon name from this list ONLY: BarChart3, Users, ShieldCheck, TrendingUp, FileSearch, Lightbulb, Search, FileText, Database, Globe, Bot, Briefcase, Code, Mail, Calendar, Settings, Zap, Target, PieChart, LineChart
+- "label": A short category label (2-3 words)
+- "description": A brief description (5-8 words)
+- "options": An array of 3-4 task options, each with:
+  - "label": A short action label (3-7 words)
+  - "prompt": A ready-to-send prompt (1-2 sentences)
 
-Requirements:
-- Make suggestions specific and actionable, not generic
-- Tailor suggestions to the actual capabilities of the available agents
-- Focus on enterprise use cases (research, analysis, reporting, planning, etc.)
-- Each prompt should be self-contained and ready to submit
-- Vary the icon choices across categories
+CRITICAL RULES for prompts:
+- Prompts must be GENERIC and work for ANY user at ANY company
+- Do NOT invent specific company names, product names, competitor names, or industry-specific details
+- Do NOT reference "our company", "our competitors", "our data" — the user hasn't provided any context yet
+- Prompts should describe the TYPE of task and invite the user to provide their own context
+- Prompts should feel conversational and helpful, like a smart assistant offering to help
+- If the task needs user input, the prompt should ask for it naturally
+- Good example: "Rewrite my message so it feels more persuasive for its audience and goal. If needed, ask me to share the message and what I want it to achieve."
+- Good example: "Help me draft a competitive analysis. Ask me about my industry and key competitors to get started."
+- Good example: "I need to prepare a summary report. Help me organize my thoughts — ask me what the report is about."
+- Bad example: "Analyze Apple vs Samsung market share in the smartphone industry"
+- Bad example: "Summarize the Q3 2024 financial report for Acme Corp"
+- Bad example: "Research the latest trends in the automotive industry"
 
-Respond with ONLY valid JSON in this exact format (no markdown, no code fences):
+Focus on enterprise use cases that match the available agent capabilities.
+Use different icons for each category.
+
+Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
 {{"categories": [
   {{
     "icon": "IconName",
     "label": "Category Label",
     "description": "Brief description",
     "options": [
-      {{"label": "Action label", "prompt": "Detailed prompt text..."}}
+      {{"label": "Action label", "prompt": "Generic task prompt..."}}
     ]
   }}
 ]}}"""
