@@ -75,8 +75,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
 
     return (
         <GridCard onClick={onClick}>
-            <CardHeader className="gap-0">
-                <div className="flex items-start justify-between gap-2">
+            <CardHeader className="min-w-0 gap-0 overflow-hidden">
+                <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <Tooltip open={isTruncated ? undefined : false}>
