@@ -1059,7 +1059,6 @@ async def trigger_title_generation(
 # component config specifies a model.  Callers should prefer the component's
 # configured model (component.model_config) over this constant.
 DEFAULT_MODEL = "claude-sonnet-4-5"
-DEFAULT_CONTEXT_LIMIT = 200_000
 
 
 class ContextUsageResponse(BaseModel):
@@ -1069,7 +1068,7 @@ class ContextUsageResponse(BaseModel):
     prompt_tokens: int = Field(alias="promptTokens")
     completion_tokens: int = Field(alias="completionTokens")
     cached_tokens: int = Field(default=0, alias="cachedTokens")
-    max_input_tokens: int = Field(alias="maxInputTokens")
+    max_input_tokens: Optional[int] = Field(default=None, alias="maxInputTokens")
     usage_percentage: float = Field(alias="usagePercentage")
     model: str
     total_events: int = Field(alias="totalEvents")
@@ -1101,15 +1100,43 @@ class CompactSessionResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-def _get_model_context_limit(model_name: str) -> int:
-    """Get model context window limit using LiteLLM, with fallback."""
-    try:
-        from litellm import get_model_info
-        info = get_model_info(model_name)
-        return info.get("max_input_tokens", DEFAULT_CONTEXT_LIMIT)
-    except Exception:
-        log.debug("Could not retrieve model info for %s, using default", model_name)
-        return DEFAULT_CONTEXT_LIMIT
+def _get_model_context_limit(model_name: str) -> Optional[int]:
+    """Get model context window limit using LiteLLM.
+
+    Returns the max_input_tokens for the model if LiteLLM has reliable info,
+    or None if the model is unknown / the limit cannot be determined.
+    Previously this fell back to a hard-coded 200 000 which could be wrong
+    for models whose actual limit differs.  Returning None lets the frontend
+    hide the context-usage indicator instead of showing misleading data.
+
+    Tries the full model name first, then strips the LiteLLM provider prefix
+    (e.g. "openai/gpt-4o" → "gpt-4o") as a fallback.
+    """
+    from litellm import get_model_info
+
+    def _try_lookup(name: str) -> Optional[int]:
+        try:
+            info = get_model_info(name)
+            return info.get("max_input_tokens")
+        except Exception:
+            return None
+
+    # First try the full model name (works for most standard names)
+    result = _try_lookup(model_name)
+    if result is not None:
+        return result
+
+    # If the name contains a provider prefix (e.g. "openai/gpt-4o"),
+    # strip it and retry with just the model portion.
+    if "/" in model_name:
+        bare_name = model_name.rsplit("/", 1)[-1]
+        result = _try_lookup(bare_name)
+        if result is not None:
+            log.debug("Resolved max_input_tokens for %s via bare name %s", model_name, bare_name)
+            return result
+
+    log.debug("Could not determine max_input_tokens for model %s", model_name)
+    return None
 
 
 @router.get("/sessions/{session_id}/context-usage", response_model=ContextUsageResponse)
@@ -1185,8 +1212,12 @@ async def get_session_context_usage(
             completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
             cached_tokens = latest.total_cached_input_tokens or 0
 
-        max_input_tokens = _get_model_context_limit(effective_model) if current_tokens > 0 else DEFAULT_CONTEXT_LIMIT
-        usage_pct = min(100.0, round((current_tokens / max_input_tokens) * 100, 1)) if max_input_tokens > 0 and current_tokens > 0 else 0.0
+        max_input_tokens = _get_model_context_limit(effective_model)
+        usage_pct = (
+            min(100.0, round((current_tokens / max_input_tokens) * 100, 1))
+            if max_input_tokens and current_tokens > 0
+            else 0.0
+        )
 
         return ContextUsageResponse(
             sessionId=session_id,

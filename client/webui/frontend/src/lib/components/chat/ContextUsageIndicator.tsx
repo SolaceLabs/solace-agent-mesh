@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { RefreshCw, Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare, ListChecks } from "lucide-react";
+import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare, ListChecks } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
 import { getSessionContextUsage, compactSession } from "@/lib/api/sessions";
@@ -43,7 +43,6 @@ const CompressionIcon = ({ className }: { className?: string }) => (
 export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0 }: ContextUsageIndicatorProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [usage, setUsage] = useState<ContextUsage | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
     const [isCompacting, setIsCompacting] = useState(false);
     const [compactError, setCompactError] = useState<string | null>(null);
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
@@ -57,7 +56,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         // from handleCompress already reflects the correct post-compaction state
         // and the backend won't have updated task-level data yet.
         if (compactingRef.current) return;
-        setIsLoading(true);
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
             // Double-check the flag again after the async call in case compaction
@@ -72,8 +70,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             // On error, reset usage so we don't show stale data from a previous agent
             setUsage(null);
             return null;
-        } finally {
-            setIsLoading(false);
         }
     }, [sessionId, selectedAgentName]);
 
@@ -156,10 +152,10 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const pct = usage?.usagePercentage ?? 0;
     const colorClass = getUsageColor(pct);
     const formattedCurrent = formatTokenCount(usage?.currentContextTokens ?? 0);
-    const formattedLimit = formatTokenCount(usage?.maxInputTokens ?? 0);
+    const formattedLimit = usage?.maxInputTokens ? formatTokenCount(usage.maxInputTokens) : null;
 
     // Show compress button when 15+ messages OR 70%+ token usage
-    const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 70, [messageCount, pct]);
+    const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 25, [messageCount, pct]);
 
     const handleCompress = async () => {
         if (compactingRef.current) return;
@@ -186,7 +182,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                               // promptTokens: keep prev.promptTokens (cumulative, unchanged by compaction)
                               // completionTokens: keep prev.completionTokens (cumulative, unchanged by compaction)
                               totalEvents: result.remainingEvents,
-                              usagePercentage: prev.maxInputTokens > 0 ? Math.round((result.remainingTokens / prev.maxInputTokens) * 100) : 0,
+                              usagePercentage: prev.maxInputTokens != null && prev.maxInputTokens > 0 ? Math.round((result.remainingTokens / prev.maxInputTokens) * 100) : 0,
                               hasCompaction: true,
                           }
                         : prev
@@ -215,6 +211,9 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
     if (!sessionId) return null;
     if (!usage) return null; // Still loading or API failed — hide silently
+    // Hide when the model's context limit is unknown (LiteLLM has no info) —
+    // showing a progress bar against a made-up 200K limit would be misleading.
+    if (usage.maxInputTokens == null) return null;
 
     return (
         <div ref={containerRef} className="relative inline-block">
@@ -224,16 +223,13 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                     <div className="space-y-3 p-3">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-semibold">Context Window Usage</span>
-                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={fetchUsage} disabled={isLoading}>
-                                <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
-                            </Button>
                         </div>
 
                         <div className="space-y-1">
                             <Progress value={pct} className="h-2" />
                             <div className="text-muted-foreground flex justify-between text-xs">
                                 <span>{formattedCurrent} used</span>
-                                <span>{formattedLimit} limit</span>
+                                {formattedLimit && <span>{formattedLimit} limit</span>}
                             </div>
                         </div>
 
@@ -322,7 +318,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                     <TooltipTrigger asChild>
                         <div className="cursor-pointer p-2" onClick={() => setIsExpanded(prev => !prev)}>
                             <div className="flex items-center gap-2">
-                                <div className="w-28 space-y-1">
+                                <div className="w-36 space-y-1">
                                     <Progress value={pct} className="h-1.5" />
                                     <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
@@ -343,9 +339,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                     </TooltipTrigger>
                     <TooltipContent side="top">
                         <p className="font-semibold">Context Window Usage</p>
-                        <p className="text-xs">
-                            {formattedCurrent} / {formattedLimit} tokens ({pct}%)
-                        </p>
+                        <p className="text-xs">{formattedLimit ? `${formattedCurrent} / ${formattedLimit} tokens (${pct}%)` : `${formattedCurrent} tokens used`}</p>
                     </TooltipContent>
                 </Tooltip>
             </div>
