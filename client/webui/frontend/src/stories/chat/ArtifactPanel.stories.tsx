@@ -2,7 +2,9 @@ import type { Meta, StoryContext, StoryFn, StoryObj } from "@storybook/react-vit
 import { mockMessages } from "../mocks/data";
 import { ChatPage } from "@/lib/components/pages/ChatPage";
 import { within } from "storybook/test";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
 
+const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: false } });
 const meta = {
     title: "Pages/Chat/ArtifactPanel",
     component: ChatPage,
@@ -15,6 +17,7 @@ const meta = {
         },
     },
     decorators: [
+        OpenFeatureDecorator,
         (Story: StoryFn, context: StoryContext) => {
             const storyResult = Story(context.args, context);
 
@@ -37,6 +40,7 @@ export const Default: Story = {
             isSidePanelCollapsed: true,
             activeSidePanelTab: "files",
             artifacts: [{ filename: "test.md", size: 1024, mime_type: "text/markdown", last_modified: new Date().toISOString() }],
+            allArtifacts: [{ filename: "test.md", size: 1024, mime_type: "text/markdown", last_modified: new Date().toISOString() }],
         },
         configContext: {
             persistenceEnabled: false,

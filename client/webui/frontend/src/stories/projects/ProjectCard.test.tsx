@@ -214,5 +214,143 @@ describe("ProjectCard", () => {
 
             expect(mockOnShare).toHaveBeenCalledWith(mockProject);
         });
+
+        describe("Pin/Star Button", () => {
+            test("pin button shown when onTogglePin is provided", async () => {
+                const OwnerWithPin = composeStory(
+                    {
+                        args: {
+                            project: mockProject,
+                            onDelete: () => {},
+                            onTogglePin: () => {},
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<OwnerWithPin />);
+
+                expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
+                expect(screen.getByRole("button", { name: "Add to favorites" })).toBeInTheDocument();
+            });
+
+            test("pin button NOT shown when onTogglePin is not provided", async () => {
+                const OwnerWithoutPin = composeStory(
+                    {
+                        args: {
+                            project: mockProject,
+                            onDelete: () => {},
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<OwnerWithoutPin />);
+
+                expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
+                expect(screen.queryByRole("button", { name: "Add to favorites" })).toBeNull();
+                expect(screen.queryByRole("button", { name: "Remove from favorites" })).toBeNull();
+            });
+
+            test("pin button shows filled star when project is pinned", async () => {
+                const pinnedProject = { ...mockProject, isPinned: true };
+                const PinnedCard = composeStory(
+                    {
+                        args: {
+                            project: pinnedProject,
+                            onDelete: () => {},
+                            onTogglePin: () => {},
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<PinnedCard />);
+
+                expect(await screen.findByText(mockProject.name)).toBeInTheDocument();
+                expect(screen.getByRole("button", { name: "Remove from favorites" })).toBeInTheDocument();
+            });
+
+            test("onTogglePin callback triggered with project when clicking pin button", async () => {
+                const user = userEvent.setup();
+                const mockOnTogglePin = vi.fn();
+
+                const CardWithPin = composeStory(
+                    {
+                        args: {
+                            project: mockProject,
+                            onDelete: () => {},
+                            onTogglePin: mockOnTogglePin,
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<CardWithPin />);
+
+                const pinButton = await screen.findByRole("button", { name: "Add to favorites" });
+                await user.click(pinButton);
+
+                await waitFor(() => {
+                    expect(mockOnTogglePin).toHaveBeenCalledTimes(1);
+                });
+
+                expect(mockOnTogglePin).toHaveBeenCalledWith(mockProject);
+            });
+
+            test("pin button click does not trigger card onClick", async () => {
+                const user = userEvent.setup();
+                const mockOnClick = vi.fn();
+                const mockOnTogglePin = vi.fn();
+
+                const CardWithPin = composeStory(
+                    {
+                        args: {
+                            project: mockProject,
+                            onClick: mockOnClick,
+                            onDelete: () => {},
+                            onTogglePin: mockOnTogglePin,
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<CardWithPin />);
+
+                const pinButton = await screen.findByRole("button", { name: "Add to favorites" });
+                await user.click(pinButton);
+
+                await waitFor(() => {
+                    expect(mockOnTogglePin).toHaveBeenCalledTimes(1);
+                });
+
+                expect(mockOnClick).not.toHaveBeenCalled();
+            });
+
+            test("pin button is disabled when isPinToggling is true", async () => {
+                const CardWithPinToggling = composeStory(
+                    {
+                        args: {
+                            project: mockProject,
+                            onDelete: () => {},
+                            onTogglePin: () => {},
+                            isPinToggling: true,
+                        },
+                        parameters: ownerWithAuthorization("owner-user"),
+                    },
+                    meta
+                );
+
+                render(<CardWithPinToggling />);
+
+                const pinButton = await screen.findByRole("button", { name: "Add to favorites" });
+                expect(pinButton).toBeDisabled();
+            });
+        });
     });
 });

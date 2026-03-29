@@ -1,9 +1,9 @@
-import React, { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useContext, type MouseEvent } from "react";
 
 import { Download, Eye } from "lucide-react";
 
 import { Button } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
+import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import type { ArtifactInfo } from "@/lib/types";
 
 import { getFileIcon } from "./fileUtils";
@@ -14,18 +14,29 @@ interface FileMessageProps {
     className?: string;
     onDownload?: () => void;
     isEmbedded?: boolean;
+    /**
+     * When true, renders in read-only mode without requiring ChatContext.
+     * Used for shared sessions where ChatProvider is not available.
+     */
+    readOnly?: boolean;
 }
 
-export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mimeType, className, onDownload, isEmbedded = false }) => {
-    const { artifacts, setPreviewArtifact, openSidePanelTab } = useChatContext();
+export const FileMessage = ({ filename, mimeType, className, onDownload, isEmbedded = false, readOnly = false }: Readonly<FileMessageProps>) => {
+    // Try to get ChatContext, but don't fail if not available (for shared sessions)
+    const chatContext = useContext(ChatContext) as ChatContextValue | undefined;
+    const hasContext = chatContext !== undefined && !readOnly;
 
-    const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find(artifact => artifact.filename === filename), [artifacts, filename]);
+    const artifacts = hasContext ? chatContext.artifacts : [];
+    const setPreviewArtifact = hasContext ? chatContext.setPreviewArtifact : undefined;
+    const openSidePanelTab = hasContext ? chatContext.openSidePanelTab : undefined;
+
+    const artifact: ArtifactInfo | undefined = useMemo(() => artifacts.find((a: ArtifactInfo) => a.filename === filename), [artifacts, filename]);
     const FileIcon = useMemo(() => getFileIcon(artifact || { filename, mime_type: mimeType || "", size: 0, last_modified: "" }), [artifact, filename, mimeType]);
 
     const handlePreviewClick = useCallback(
-        (e: React.MouseEvent) => {
+        (e: MouseEvent) => {
             e.stopPropagation();
-            if (artifact) {
+            if (artifact && setPreviewArtifact && openSidePanelTab) {
                 openSidePanelTab("files");
                 setPreviewArtifact(artifact);
             }
@@ -40,7 +51,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
     }, [onDownload]);
 
     return (
-        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-(--secondary-w20) px-2 py-1 ${className || ""}`}>
+        <div className={`flex h-11 max-w-xs flex-shrink items-center gap-2 rounded-lg bg-(--message-background) px-2 py-1 ${className || ""}`}>
             {FileIcon}
             <span className="min-w-0 flex-1 truncate text-sm leading-9" title={filename}>
                 <strong>
@@ -48,7 +59,7 @@ export const FileMessage: React.FC<Readonly<FileMessageProps>> = ({ filename, mi
                 </strong>
             </span>
 
-            {artifact && !isEmbedded && (
+            {artifact && !isEmbedded && !readOnly && setPreviewArtifact && (
                 <Button variant="ghost" onClick={handlePreviewClick} tooltip="Preview">
                     <Eye className="h-4 w-4" />
                 </Button>

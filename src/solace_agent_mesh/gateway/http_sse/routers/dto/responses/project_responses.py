@@ -18,6 +18,7 @@ class ProjectResponse(BaseTimestampResponse):
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     default_agent_id: Optional[str] = Field(default=None, alias="defaultAgentId")
     artifact_count: Optional[int] = Field(default=None, alias="artifactCount")
+    is_pinned: bool = Field(default=False, alias="isPinned")
     created_at: int = Field(alias="createdAt")
     updated_at: Optional[int] = Field(default=None, alias="updatedAt")
 

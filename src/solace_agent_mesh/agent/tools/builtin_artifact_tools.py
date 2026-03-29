@@ -55,6 +55,7 @@ async def _internal_create_artifact(
     description: Optional[str] = None,
     metadata_json: Optional[str] = None,
     schema_max_keys: Optional[int] = None,
+    tags: Optional[List[str]] = None,
 ) -> ToolResult:
     """
     Internal helper to create an artifact with its first chunk of content and metadata.
@@ -71,7 +72,7 @@ async def _internal_create_artifact(
         description (str, optional): A description for the artifact.
         metadata_json (str, optional): A JSON string of additional metadata.
         schema_max_keys (int, optional): Max keys for schema inference.
-
+        tags (List[str], optional): Tags for categorization (e.g., ["__working"]).
 
     Returns:
         A ToolResult indicating the result of the save operation.
@@ -174,6 +175,7 @@ async def _internal_create_artifact(
             metadata_dict=final_metadata,
             timestamp=timestamp_for_artifact,
             schema_max_keys=max_keys_to_use,
+            tags=tags,
             tool_context=tool_context,
             suppress_visualization_signal=True,  # Fenced blocks handle their own visualization signals
         )
@@ -801,7 +803,7 @@ async def extract_content_from_artifact(
     source_artifact_content_bytes = source_artifact_data.get("raw_bytes")
     source_mime_type = source_artifact_data.get("mime_type", "application/octet-stream")
     actual_source_version = source_artifact_data.get("version", "unknown")
-
+    host_component = getattr(inv_context.agent, "host_component", None)
     chosen_llm = None
     try:
         if model_config_for_extraction:
@@ -824,9 +826,9 @@ async def extract_content_from_artifact(
                     "%s Invalid 'model' config for extraction tool. Falling back to agent default.",
                     log_identifier,
                 )
-                chosen_llm = inv_context.agent.canonical_model
+                chosen_llm = host_component.get_lite_llm_model()
         else:
-            chosen_llm = inv_context.agent.canonical_model
+            chosen_llm = host_component.get_lite_llm_model()
             log.info(
                 "%s Using agent's default LLM: %s", log_identifier, chosen_llm.model
             )

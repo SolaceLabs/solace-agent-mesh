@@ -11,6 +11,13 @@ Usage example:
 from .checker import FeatureChecker
 from .provider import SamFeatureProvider
 from .registry import FeatureDefinition, FeatureRegistry, ReleasePhase
+from .core import (
+    get_registry,
+    has_env_override,
+    initialize,
+    is_known_flag,
+    load_flags_from_yaml,
+)
 
 __all__ = [
     "FeatureChecker",
@@ -18,4 +25,9 @@ __all__ = [
     "FeatureRegistry",
     "ReleasePhase",
     "SamFeatureProvider",
+    "get_registry",
+    "has_env_override",
+    "initialize",
+    "is_known_flag",
+    "load_flags_from_yaml",
 ]

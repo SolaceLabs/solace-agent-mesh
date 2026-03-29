@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { useChatContext, useSessionStorage } from "@/lib/hooks";
+import { useChatContext, useSessionStorage, useIsChatSharingEnabled } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
+import { SharedChatsList } from "@/lib/components/chat/SharedChatsList";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
@@ -13,11 +14,11 @@ import { NavItemButton } from "./NavItemButton";
 import { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 import type { NavItem } from "./types";
 
-/** Wraps children in a Tooltip when collapsed, renders children directly when expanded */
-const ConditionalTooltip: React.FC<{ show: boolean; label: string; children: React.ReactElement }> = ({ show, label, children }) => (
+/** Wraps children in a Tooltip when collapsed or when a custom tooltip is provided */
+const ConditionalTooltip: React.FC<{ show: boolean; label: string; tooltip?: string; children: React.ReactElement }> = ({ show, label, tooltip, children }) => (
     <Tooltip>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
-        {show && <TooltipContent side="right">{label}</TooltipContent>}
+        {(show || tooltip) && <TooltipContent side="right">{show ? label : tooltip}</TooltipContent>}
     </Tooltip>
 );
 
@@ -29,7 +30,7 @@ export interface CollapsibleNavigationSidebarProps {
      */
     items: NavItemConfig[];
 
-    header?: HeaderConfig | React.ReactNode;
+    header?: HeaderConfig | ReactNode;
 
     showNewChatButton?: boolean;
     newChatConfig?: NewChatConfig;
@@ -48,7 +49,7 @@ export interface CollapsibleNavigationSidebarProps {
     defaultCollapsed?: boolean;
 }
 
-export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebarProps> = ({
+export const CollapsibleNavigationSidebar = ({
     items,
     header,
     showNewChatButton = true,
@@ -59,9 +60,10 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     activeItemId: controlledActiveItemId,
     isCollapsed: controlledIsCollapsed,
     defaultCollapsed = false,
-}) => {
+}: CollapsibleNavigationSidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
+    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
     const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
@@ -184,12 +186,12 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const newChatLabel = newChatConfig?.label ?? "New Chat";
     const NewChatIcon = newChatConfig?.icon ?? Plus;
 
-    const renderHeader = (): React.ReactNode => {
+    const renderHeader = (): ReactNode => {
         if (header && typeof header === "object" && header !== null && "component" in header) {
             const headerConfig = header as HeaderConfig;
             if (headerConfig.component) return headerConfig.component;
         } else if (header !== undefined && header !== null) {
-            return header as React.ReactNode;
+            return header as ReactNode;
         }
         return <SolaceIcon variant={isCollapsed ? "short" : "full"} className={isCollapsed ? "h-8 w-8" : "h-8 w-24"} />;
     };
@@ -204,16 +206,16 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
     const textAnimBase = "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200";
 
     return (
-        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-16" : "w-64")}>
+        <nav className={cn("navigation-sidebar flex h-full flex-col overflow-visible border-r bg-(--darkSurface-bg) transition-[width] duration-200 ease-out", isCollapsed ? "w-20" : "w-64")}>
             {/* Header */}
-            <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-4">
+            <div className="relative flex min-h-[80px] w-full items-center border-b border-(--secondary-w70) py-3 pr-4 pl-7">
                 <div className="flex items-center gap-2">{renderHeader()}</div>
                 {!hideCollapseButton &&
                     (isCollapsed ? (
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <button onClick={handleToggle} className="absolute -right-3 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
-                                    <ChevronRight className="size-4 text-(--darkSurface-text)" />
+                                <button onClick={handleToggle} className="absolute -right-3 z-30 flex h-8 w-7 cursor-pointer items-center justify-center rounded bg-(--darkSurface-bg) p-0.5 shadow-md hover:bg-(--darkSurface-bgHover)">
+                                    <ChevronRight className="size-6 text-(--darkSurface-text)" />
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent side="right">Expand Navigation</TooltipContent>
@@ -248,7 +250,7 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         const hasActiveChild = item.children?.some(child => activeItem === child.id) ?? false;
                         return (
                             <div key={item.id}>
-                                <ConditionalTooltip show={isCollapsed} label={item.label}>
+                                <ConditionalTooltip show={isCollapsed} label={item.label} tooltip={item.tooltip}>
                                     <NavItemButton
                                         item={item}
                                         isActive={activeItem === item.id}
@@ -276,13 +278,24 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                                     />
                                 </ConditionalTooltip>
                                 {!isCollapsed && item.hasSubmenu && expandedMenus[item.id] && item.children && (
-                                    <div className="pl-8">
+                                    <div className="pl-10">
                                         {item.children.map(child => {
                                             const isChildActive = activeItem === child.id;
                                             return (
                                                 <div key={child.id} className="group relative">
-                                                    <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30 group-hover:w-[3px] group-hover:opacity-100")} />
-                                                    <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                    <div className={cn("absolute top-0 left-0 h-full bg-(--brand-w60) transition-all", isChildActive ? "w-[3px]" : "w-px opacity-30")} />
+                                                    {child.tooltip ? (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div>
+                                                                    <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="right">{child.tooltip}</TooltipContent>
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <NavItemButton item={child} isActive={isChildActive} onClick={() => handleItemClick(child.id, child)} indent />
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -292,16 +305,18 @@ export const CollapsibleNavigationSidebar: React.FC<CollapsibleNavigationSidebar
                         );
                     })}
                 </div>
+                {/* Shared with me section - renders nothing if no shared chats */}
+                {chatSharingEnabled && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}
             {showRecentChats && (
                 <div className={cn("flex min-h-0 flex-col transition-[opacity] duration-200", isCollapsed ? "pointer-events-none h-0 min-h-0 flex-none overflow-hidden opacity-0" : "flex-1 opacity-100")}>
                     <div className="border-t border-(--secondary-w70)" />
-                    <div className="mb-2 flex items-center justify-between pt-4 pr-6 pl-6">
-                        <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
+                    <div className="mb-2 flex items-center justify-between pt-6 pr-6 pl-6">
+                        <span className="text-sm font-bold text-(--secondary-wMain)">Recent Chats</span>
                         {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
-                        <Link to="/chat" state={{ openSessionsPanel: true }} className="cursor-pointer text-sm text-[#679DB4] no-underline hover:text-[#E6EFF2]">
+                        <Link to="/chat" state={{ openSessionsPanel: true }} className="cursor-pointer text-sm font-bold text-[#679DB4] no-underline hover:text-[#E6EFF2]">
                             View All
                         </Link>
                     </div>

@@ -32,8 +32,8 @@ export const solaceDark: ThemePalette = {
         w8040: "#00000066",
         w100: "#f5f5f5",
         wMain: "#8790a0",
-        w40: "#536574",
-        w20: "#536574",
+        w40: "#6f8190",
+        w20: "#1e3a4d",
         w10: "#354e62",
 
         text: {
@@ -45,8 +45,8 @@ export const solaceDark: ThemePalette = {
     background: {
         w100: "#f5f5f5",
         wMain: "#7184A1",
-        w20: "#071e36",
-        w10: "#03223B",
+        w20: "#0F2336",
+        w10: "#02172b",
     },
 
     info: {
@@ -86,8 +86,8 @@ export const solaceDark: ThemePalette = {
     },
 
     stateLayer: {
-        w10: "#3C4652",
-        w20: "#c5ced9",
+        w10: "#c5ced91a",
+        w20: "#c5ced933",
     },
 
     accent: {
@@ -157,7 +157,6 @@ export const solaceDark: ThemePalette = {
         w10: "#0a1621",
     },
 
-    // common to solace.ts except for bg => background-w10 to reduce the number of very close dark blue shades
     darkSurface: {
         bg: "#03223B",
         bgHover: "#021B2F",

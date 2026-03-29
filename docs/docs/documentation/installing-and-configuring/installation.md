@@ -7,7 +7,7 @@ sidebar_position: 310
 
 Before you begin, ensure you have the following:
 
-- **Python 3.10.16+**
+- **Python 3.10.16 – 3.13.x**
 - **pip** (usually included with Python) or **uv** (install [uv](https://docs.astral.sh/uv/getting-started/installation/))
 - **Operating System**: macOS, Linux, or Windows (via [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
 - **LLM API key** from any major provider or your own custom endpoint
