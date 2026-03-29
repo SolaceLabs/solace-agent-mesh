@@ -964,6 +964,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     break;
                 case "artifact-update":
                     // An artifact was created or updated, refetch the list for the side panel.
+                    console.log(`[SAM-REDIRECT] artifact-update received, current sessionId=${sessionId}, ref=${currentSessionIdRef.current}`);
                     void artifactsRefetch();
                     return; // No further processing needed for this event.
                 default:
@@ -1048,17 +1049,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 last_modified: new Date().toISOString(),
                                                 // Ensure URI is set
                                                 uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
-                                                // Accumulate content chunks for in-progress and completed artifacts
+                                                // Accumulate content chunks for in-progress and completed artifacts.
+                                                // Keep accumulated content for SAM config artifacts (e.g. build manifests)
+                                                // even when not displayed — they render via BuildPlanCard, not ArtifactMessage.
                                                 accumulatedContent:
                                                     status === "in-progress" && artifact_chunk
                                                         ? (existingArtifact.accumulatedContent || "") + artifact_chunk
                                                         : status === "completed" && !isDisplayed
                                                           ? undefined // Clear accumulated content when completed if NOT displayed
-                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
+                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts and SAM configs
                                                 // Mark that streaming content is plain text (not base64)
                                                 isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
-                                                // Update mime_type when completed
-                                                mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
+                                                // Update mime_type whenever the backend provides it (both in-progress and completed)
+                                                mime_type: mime_type || existingArtifact.mime_type,
                                                 // Mark that embed resolution is needed when completed
                                                 needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
                                             };
@@ -1394,6 +1397,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Handle tool results that may contain RAG metadata
                                     const resultData = (data as any).result_data;
 
+                                    // Check for redirect tool result — promote to renderable content
+                                    if (resultData?.type === "redirect") {
+                                        const dataPart = part as DataPart;
+                                        dataPart.data = resultData;
+                                        break;
+                                    }
+
                                     // Check if result_data contains rag_metadata
                                     if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
                                         const ragMetadata = resultData.rag_metadata;
@@ -1465,10 +1475,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             const newContentParts =
                 messageToProcess?.parts?.filter(p => {
-                    // Keep deep_research_progress data parts
+                    // Keep deep_research_progress and redirect data parts
                     if (p.kind === "data") {
                         const dataPart = p as DataPart;
-                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
+                        const dataType = dataPart.data && (dataPart.data as any).type;
+                        return dataType === "deep_research_progress" || dataType === "redirect";
                     }
                     // Filter out text parts if we have deep research progress (to show progress-only)
                     if (p.kind === "text" && hasDeepResearchProgress) {
@@ -1545,7 +1556,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     // For other cases, only create a new bubble if there is visible content to render.
                     // Include deep_research_progress data parts as visible content
                     const hasVisibleContent =
-                        isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
+                        isTaskFailed ||
+                        newContentParts.some(p => {
+                            if (p.kind === "text") return (p as TextPart).text.trim() !== "";
+                            if (p.kind === "file") return true;
+                            if (p.kind === "data") {
+                                const dataType = (p as DataPart).data && ((p as DataPart).data as any).type;
+                                return dataType === "deep_research_progress" || dataType === "redirect";
+                            }
+                            return false;
+                        });
                     if (hasVisibleContent) {
                         const newBubble: MessageFE = {
                             role: "agent",
@@ -2402,6 +2422,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Use overrideSessionId if provided (e.g., from artifact upload that created a session)
                 let effectiveSessionId = overrideSessionId || sessionId;
 
+                console.log(`[handleSubmit] effectiveSessionId=${effectiveSessionId}, sessionId=${sessionId}, overrideSessionId=${overrideSessionId}, ref=${currentSessionIdRef.current}`);
                 console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
 
                 for (const file of currentFiles) {

@@ -10,6 +10,7 @@ import { useChatContext, useCitationClick, useUIMode } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { RedirectButton } from "./RedirectButton";
 import { DeepResearchReportContent } from "@/lib/components/research/DeepResearchReportContent";
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
@@ -20,6 +21,7 @@ import { parseCitations } from "@/lib/utils/citations";
 
 import DOMPurify from "dompurify";
 import { ArtifactMessage, FileMessage } from "./file";
+import { BuildPlanCard } from "./artifact/BuildPlanCard";
 import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
@@ -612,7 +614,7 @@ const getChatBubble = (
     reportContentOverride?: string,
     highlightedText?: string | null
 ): React.ReactNode => {
-    const { openSidePanelTab, setTaskIdInSidePanel, ragData } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData, builderMode, artifacts } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -663,14 +665,40 @@ const getChatBubble = (
         );
     }
 
+    // Check for redirect data part — render as a clickable button
+    const redirectPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data && ((p as DataPart).data as any).type === "redirect") as DataPart | undefined;
+
     // Group contiguous parts to handle interleaving of text and files
     const groupedParts: (TextPart | FilePart | ArtifactPart)[] = [];
     let currentTextGroup = "";
-
     message.parts?.forEach(part => {
         if (part.kind === "text") {
             currentTextGroup += (part as TextPart).text;
         } else if (part.kind === "file" || part.kind === "artifact") {
+            // In builder mode, hide config artifacts and platform_components.json from the chat.
+            // Build manifest gets a BuildPlanCard rendering instead of the normal artifact bar.
+            if (builderMode && part.kind === "artifact") {
+                const artifactPart = part as ArtifactPart;
+                const name = artifactPart.name || "";
+                // Look up MIME type from the global artifacts list (available even during in-progress)
+                const mimeType = artifactPart.file?.mime_type || artifacts.find(a => a.filename === name)?.mime_type || "";
+                const isSamConfig = mimeType.startsWith("application/vnd.sam-");
+                // Detect build manifests by mime_type or filename fallback (mime_type may not be set during early streaming)
+                const isBuildManifest = mimeType === "application/vnd.sam-build-manifest+yaml" || name === "build_manifest.yaml";
+
+                if (isBuildManifest) {
+                    // Flush pending text before injecting the BuildPlanCard placeholder
+                    if (currentTextGroup) {
+                        groupedParts.push({ kind: "text", text: currentTextGroup });
+                        currentTextGroup = "";
+                    }
+                    // BuildPlanCard manages its own content lifecycle (accumulatedContent → fetch)
+                    groupedParts.push({ kind: "build-plan", filename: name, isComplete: artifactPart.status === "completed" } as any);
+                }
+                if (name === "platform_components.json" || isSamConfig || isBuildManifest) {
+                    return; // Hide all SAM config artifacts, build manifests, and platform_components.json
+                }
+            }
             if (currentTextGroup) {
                 groupedParts.push({ kind: "text", text: currentTextGroup });
                 currentTextGroup = "";
@@ -682,7 +710,7 @@ const getChatBubble = (
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
 
-    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
+    const hasContent = groupedParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || p.kind === "artifact" || (p as any).kind === "build-plan");
     if (!hasContent) {
         return null;
     }
@@ -717,8 +745,8 @@ const getChatBubble = (
         const uniqueKey = message.taskId
             ? `${message.taskId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
             : message.metadata?.messageId
-              ? `${message.metadata.messageId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
-              : undefined;
+                ? `${message.metadata.messageId}-${part.kind === "file" ? (part as FilePart).file.name : (part as ArtifactPart).name}`
+                : undefined;
 
         if (part.kind === "file") {
             const filePart = part as FilePart;
@@ -825,9 +853,23 @@ const getChatBubble = (
                     );
                 } else if (part.kind === "artifact" || part.kind === "file") {
                     return renderArtifactOrFilePart(part, index, shouldStream);
+                } else if ((part as any).kind === "build-plan") {
+                    const bp = part as any;
+                    return (
+                        <div key={`part-build-plan-${index}`} className="flex justify-start pl-4">
+                            <BuildPlanCard filename={bp.filename} isComplete={bp.isComplete} />
+                        </div>
+                    );
                 }
                 return null;
             })}
+
+            {/* Show redirect button only after the task completes */}
+            {redirectPart && message.isComplete && (
+                <div className="flex justify-start pl-4">
+                    <RedirectButton data={redirectPart.data as any} />
+                </div>
+            )}
 
             {/* Show deep research report content inline (without References and Methodology sections) */}
             {deepResearchReportInfo && <DeepResearchReportBubble deepResearchReportInfo={deepResearchReportInfo} message={message} onContentLoaded={onReportContentLoaded} />}
@@ -1052,34 +1094,34 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                 // Show sources element for deep research, web search, and document search (in message actions area)
                 !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
                     ? (() => {
-                          const allSources = taskRagData.flatMap(r => r.sources);
+                        const allSources = taskRagData.flatMap(r => r.sources);
 
-                          // For deep research: filter to only show fetched sources (not snippets)
-                          // For web search: show all sources including images (images with source links will be shown)
-                          const sourcesToShow = isDeepResearchComplete
-                              ? allSources.filter(source => {
-                                    const sourceType = source.sourceType || "web";
-                                    // For images in deep research: include if they have a source link
-                                    if (sourceType === "image") {
-                                        return source.sourceUrl || source.metadata?.link;
-                                    }
-                                    const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                                    return wasFetched;
-                                })
-                              : allSources.filter(source => {
-                                    const sourceType = source.sourceType || "web";
-                                    // For images in web search: include if they have a source link
-                                    if (sourceType === "image") {
-                                        return source.sourceUrl || source.metadata?.link;
-                                    }
-                                    return true;
-                                });
+                        // For deep research: filter to only show fetched sources (not snippets)
+                        // For web search: show all sources including images (images with source links will be shown)
+                        const sourcesToShow = isDeepResearchComplete
+                            ? allSources.filter(source => {
+                                const sourceType = source.sourceType || "web";
+                                // For images in deep research: include if they have a source link
+                                if (sourceType === "image") {
+                                    return source.sourceUrl || source.metadata?.link;
+                                }
+                                const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
+                                return wasFetched;
+                            })
+                            : allSources.filter(source => {
+                                const sourceType = source.sourceType || "web";
+                                // For images in web search: include if they have a source link
+                                if (sourceType === "image") {
+                                    return source.sourceUrl || source.metadata?.link;
+                                }
+                                return true;
+                            });
 
-                          // Only render if we have sources
-                          if (sourcesToShow.length === 0) return null;
+                        // Only render if we have sources
+                        if (sourcesToShow.length === 0) return null;
 
-                          return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
-                      })()
+                        return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
+                    })()
                     : undefined,
                 // Pass deep research report info if available
                 isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined,

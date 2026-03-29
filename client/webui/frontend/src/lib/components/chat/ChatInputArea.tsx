@@ -216,6 +216,30 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
+    // On mount, check for pending redirect input stored by BuilderPage / redirect flow.
+    // The key is kept in sessionStorage until this component stays mounted for a few
+    // seconds, so it survives unmount/remount cycles caused by agent-list re-fetches.
+    useEffect(() => {
+        const pending = sessionStorage.getItem("sam_redirect_pending_input");
+        if (pending) {
+            console.log("[SAM-REDIRECT] ChatInputArea applying pending input, length:", pending.length);
+            setInputValue(pending);
+            setDesiredCursorPosition(pending.length);
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+                setDesiredCursorPosition(undefined);
+            }, 100);
+            // Only remove the key after we've been mounted long enough to be stable.
+            // If we unmount before this fires, the timer is cancelled and the next
+            // mount will re-apply the input.
+            const cleanup = setTimeout(() => {
+                console.log("[SAM-REDIRECT] ChatInputArea stable — clearing pending input");
+                sessionStorage.removeItem("sam_redirect_pending_input");
+            }, 3000);
+            return () => clearTimeout(cleanup);
+        }
+    }, []);
+
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {

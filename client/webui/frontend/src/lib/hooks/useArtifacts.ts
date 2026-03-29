@@ -37,6 +37,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         try {
             let endpoint: string;
 
+            console.log(`[SAM-REDIRECT] useArtifacts.fetchArtifacts called, sessionId=${sessionId}`);
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
                 endpoint = `/api/v1/artifacts/${sessionId}`;
             } else if (activeProject?.id) {

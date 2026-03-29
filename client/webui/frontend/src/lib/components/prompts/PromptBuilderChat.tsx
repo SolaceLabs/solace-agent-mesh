@@ -24,10 +24,12 @@ interface PromptBuilderChatProps {
     currentConfig: TemplateConfig;
     onReadyToSave: (ready: boolean) => void;
     initialMessage?: string | null;
+    /** When true, pre-fill the input with initialMessage instead of auto-sending it. */
+    prefillOnly?: boolean;
     isEditing?: boolean;
 }
 
-export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, isEditing = false }) => {
+export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, prefillOnly = false, isEditing = false }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -74,8 +76,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     },
                 ]);
 
-                // If there's an initial message, send it automatically
+                // If there's an initial message, either pre-fill or auto-send
                 if (initialMessage) {
+                    if (prefillOnly) {
+                        // Just pre-fill the input for user review
+                        setInput(initialMessage);
+                        setIsInitializing(false);
+                        return;
+                    }
+
                     setHasUserMessage(true);
                     const userMessage: Message = {
                         role: "user",
