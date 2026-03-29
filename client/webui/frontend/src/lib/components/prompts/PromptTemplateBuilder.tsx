@@ -15,12 +15,13 @@ interface PromptTemplateBuilderProps {
     onBack: () => void;
     onSuccess?: (createdPromptId?: string | null) => void;
     initialMessage?: string | null;
+    prefillOnly?: boolean;
     editingGroup?: PromptGroup | null;
     isEditing?: boolean;
     initialMode?: "manual" | "ai-assisted";
 }
 
-export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, editingGroup, isEditing = false, initialMode }) => {
+export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ onBack, onSuccess, initialMessage, prefillOnly, editingGroup, isEditing = false, initialMode }) => {
     const { config, updateConfig, saveTemplate, updateTemplate, resetConfig, validationErrors, isLoading } = usePromptTemplateBuilder(editingGroup);
     const { configFeatureEnablement } = useConfigContext();
     const aiAssistedEnabled = configFeatureEnablement?.promptAIAssisted ?? true;
@@ -205,7 +206,7 @@ export const PromptTemplateBuilder: React.FC<PromptTemplateBuilderProps> = ({ on
                 <div className="flex min-h-0 flex-1">
                     {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
                     <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
-                        <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} isEditing={isEditing} />
+                        <PromptBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} prefillOnly={prefillOnly} isEditing={isEditing} />
                     </div>
 
                     {/* Right Panel - Template Preview (only in AI mode) */}

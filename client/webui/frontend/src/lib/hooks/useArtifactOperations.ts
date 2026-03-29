@@ -250,7 +250,9 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
                 const base64Content = await blobToBase64(blob);
                 const fileData = getFileAttachment(artifacts, filename, artifact.mime_type || "application/octet-stream", base64Content);
 
-                // Clear the accumulated content and flags after successful download
+                // Clear the accumulated content and flags after successful download.
+                // Keep accumulated content for SAM config artifacts (e.g. build manifests)
+                // — they render via BuildPlanCard which needs the content to persist.
                 setArtifacts(prevArtifacts => {
                     return prevArtifacts.map(art =>
                         art.filename === filename
