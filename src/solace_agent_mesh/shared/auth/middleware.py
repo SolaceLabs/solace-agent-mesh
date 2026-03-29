@@ -5,6 +5,7 @@ Provides reusable OAuth2 token validation middleware that works with any
 component that has OAuth configuration.
 """
 
+import re
 import httpx
 import logging
 from fastapi import Request as FastAPIRequest
@@ -16,6 +17,14 @@ from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
 )
 
 log = logging.getLogger(__name__)
+
+# Regex matching share view/artifact GET paths that use soft-auth.
+# Share IDs are 21-char nanoid strings ([A-Za-z0-9_-]{21}).
+# The {21} length constraint prevents false matches on sub-routes
+# like /link/..., /shared-with-me, or /{share_id}/users.
+_SHARE_SOFT_AUTH_RE = re.compile(
+    r"^/api/v1/share/[A-Za-z0-9_-]{21}(?:/artifacts/.+)?$"
+)
 
 
 def _extract_access_token(request: FastAPIRequest) -> str:
@@ -219,25 +228,17 @@ def create_oauth_middleware(component):
             # for owner checks) but do NOT reject the request on failure —
             # the share router decides whether auth is required per-link.
             #
-            # Paths that need this soft-auth behaviour:
+            # Soft-auth paths (explicitly matched):
             #   GET /api/v1/share/{share_id}                  (view session)
             #   GET /api/v1/share/{share_id}/artifacts/...    (download artifact)
             #
-            # Paths that still require hard auth:
-            #   GET /api/v1/share/                            (list own links)
-            #   GET /api/v1/share/link/{session_id}           (get link for session)
-            #   GET /api/v1/share/shared-with-me              (shared with me)
-            #   GET /api/v1/share/{share_id}/users            (share users)
-            share_soft_auth = False
-            if request.method == "GET" and request.url.path.startswith("/api/v1/share/"):
-                path_after_share = request.url.path[len("/api/v1/share/"):]
-                # Soft-auth only for paths that look like a share_id
-                # (not starting with known sub-routes that require hard auth)
-                hard_auth_prefixes = ("link/", "shared-with-me", "")
-                if path_after_share and not any(
-                    path_after_share.startswith(p) for p in hard_auth_prefixes if p
-                ) and not path_after_share.endswith("/users"):
-                    share_soft_auth = True
+            # Share IDs are 21-char nanoid strings ([A-Za-z0-9_-]{21}),
+            # so the regex length constraint prevents false matches on
+            # sub-routes like /link/, /shared-with-me, or /{id}/users.
+            share_soft_auth = (
+                request.method == "GET"
+                and _SHARE_SOFT_AUTH_RE.match(request.url.path) is not None
+            )
 
             if any(request.url.path.startswith(path) for path in skip_paths):
                 await self.app(scope, receive, send)

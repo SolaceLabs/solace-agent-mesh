@@ -23,7 +23,6 @@ import { copyToClipboard, copyDeferredToClipboard } from "../../utils/clipboard"
 import { api } from "../../api";
 import { cn } from "../../utils";
 import { useConfigContext } from "../../hooks/useConfigContext";
-import type { ShareLink } from "../../types/share";
 
 type AccessLevel = "read-only";
 
@@ -109,7 +108,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
     const updateSnapshotMutation = useUpdateShareSnapshot();
 
     // Derived state from React Query
-    const shareLink: ShareLink | null = shareLinkQuery.data ?? null;
+    const shareLink = shareLinkQuery.data ?? null;
     const sharedUsers = shareUsersQuery.data?.users ?? [];
     const ownerEmail = shareUsersQuery.data?.ownerEmail ?? "";
     const loadingUsers = shareUsersQuery.isLoading;
