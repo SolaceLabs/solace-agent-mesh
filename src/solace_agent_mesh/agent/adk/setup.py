@@ -34,7 +34,6 @@ from mcp import StdioServerParameters
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk import callbacks as adk_callbacks
-from ...agent.adk.models.lite_llm import LiteLlm
 from ...common.utils.type_utils import is_subclass_by_name
 # DynamicTool and DynamicToolProvider are loaded via PythonToolLoader
 from ..tools.registry import tool_registry
@@ -979,47 +978,7 @@ def initialize_adk_agent(
         agent_name,
     )
 
-    model_config = component.get_config("model")
-    adk_model_instance: Union[str, BaseLlm]
-    if isinstance(model_config, str):
-        adk_model_instance = model_config
-    elif isinstance(model_config, dict):
-        if model_config.get("type") is None:
-            # Use setdefault to add keys only if they are not already present in the YAML
-            model_config.setdefault("num_retries", 3)
-            model_config.setdefault("timeout", 120)
-            log.info(
-                "%s Applying default resilience settings for LiteLlm model (num_retries=%s, timeout=%s). These can be overridden in YAML.",
-                component.log_identifier,
-                model_config["num_retries"],
-                model_config["timeout"],
-            )
-
-        try:
-
-            adk_model_instance = LiteLlm(**model_config)
-            log.info(
-                "%s Initialized LiteLlm model: %s",
-                component.log_identifier,
-                model_config.get("model"),
-            )
-        except ImportError:
-            log.error(
-                "%s LiteLlm dependency not found. Cannot use dictionary model config.",
-                component.log_identifier,
-            )
-            raise
-        except Exception as e:
-            log.error(
-                "%s Failed to initialize model from dictionary config: %s",
-                component.log_identifier,
-                e,
-            )
-            raise
-    else:
-        raise ValueError(
-            f"{component.log_identifier} Invalid 'model' configuration type: {type(model_config)}"
-        )
+    adk_model_instance = component.get_lite_llm_model()
 
     instruction = component._resolve_instruction_provider(
         component.get_config("instruction", "")

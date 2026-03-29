@@ -23,6 +23,7 @@ class TestWorkflowAppConfigName:
         config = WorkflowAppConfig(
             namespace="test_namespace",
             name="TestWorkflow",
+            model="gemini-1.5-pro",
             workflow=WorkflowDefinition(
                 description="Test workflow",
                 nodes=[
@@ -39,6 +40,7 @@ class TestWorkflowAppConfigName:
         with pytest.raises(ValidationError) as excinfo:
             WorkflowAppConfig(
                 namespace="test_namespace",
+                model="gemini-1.5-pro",
                 workflow=WorkflowDefinition(
                     description="Test workflow",
                     nodes=[
@@ -54,6 +56,7 @@ class TestWorkflowAppConfigName:
         config = WorkflowAppConfig(
             namespace="test_namespace",
             name="MyWorkflow",
+            model="gemini-1.5-pro",
             workflow=WorkflowDefinition(
                 description="Test workflow",
                 nodes=[
@@ -77,6 +80,7 @@ class TestWorkflowAppConfigValidation:
             WorkflowAppConfig(
                 namespace="test_namespace",
                 name="TestWorkflow",
+                model="gemini-1.5-pro",
                 workflow=WorkflowDefinition(
                     description="Test workflow",
                     nodes=[
@@ -97,6 +101,7 @@ class TestWorkflowAppConfigValidation:
         config = WorkflowAppConfig(
             namespace="test_namespace",
             name="TimeoutWorkflow",
+            model="gemini-1.5-pro",
             workflow=WorkflowDefinition(
                 description="Complete workflow",
                 nodes=[
@@ -119,6 +124,7 @@ class TestWorkflowAppConfigValidation:
         config = WorkflowAppConfig(
             namespace="test_namespace",
             name="DefaultTimeoutWorkflow",
+            model="gemini-1.5-pro",
             workflow=WorkflowDefinition(
                 description="Test workflow",
                 nodes=[
@@ -142,6 +148,7 @@ class TestWorkflowAppConfigFromDict:
         config_dict = {
             "namespace": "test_namespace",
             "name": "DictCreatedWorkflow",
+            "model": "gemini-1.5-pro",
             "workflow": {
                 "description": "Test workflow",
                 "nodes": [

@@ -8,6 +8,7 @@ import fnmatch
 import inspect
 import json
 import logging
+import os
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -83,7 +84,7 @@ from ...common.constants import (
     EXTENSION_URI_SCHEMAS,
 )
 from ...common.data_parts import AgentProgressUpdateData, ArtifactSavedData
-from ...common.error_handlers import get_error_message
+from ...common.error_handlers import get_error_message, is_llm_exception
 from ...common.middleware.registry import MiddlewareRegistry
 from ...common.sac.sam_component_base import SamComponentBase
 from ...common.utils.rbac_utils import validate_agent_access
@@ -161,10 +162,17 @@ class SamAgentComponent(SamComponentBase):
             if not self.agent_name:
                 raise ValueError("Internal Error: Agent name missing after validation.")
             self.model_config = self.get_config("model")
-            if not self.model_config:
+
+            if not self._lazy_model_mode and not self.model_config:
                 raise ValueError(
                     "Internal Error: Model config missing after validation."
                 )
+            if self._lazy_model_mode:
+                log.info(
+                    "%s Lazy model mode enabled. Agent will start without model config.",
+                    self.log_identifier,
+                )
+
             self.instruction_config = self.get_config("instruction", "")
             self.global_instruction_config = self.get_config("global_instruction", "")
             self.tools_config = self.get_config("tools", [])
@@ -198,7 +206,7 @@ class SamAgentComponent(SamComponentBase):
             )
             self.auto_summarization_config = self.get_config(
                 "auto_summarization", {
-                    "enabled": False,
+                    "enabled": True,
                     "compaction_percentage": 0.25
                 }
             )
@@ -1772,11 +1780,18 @@ class SamAgentComponent(SamComponentBase):
             )
 
             if resolved_text:
-                await self._publish_text_as_partial_a2a_status_update(
-                    resolved_text,
-                    a2a_context,
-                    is_stream_terminating_content=False,
-                )
+                is_run_based = a2a_context.get("is_run_based_session", False)
+                if is_run_based:
+                    with self.active_tasks_lock:
+                        tc = self.active_tasks.get(logical_task_id)
+                    if tc:
+                        tc.append_to_run_based_buffer(resolved_text)
+                else:
+                    await self._publish_text_as_partial_a2a_status_update(
+                        resolved_text,
+                        a2a_context,
+                        is_stream_terminating_content=False,
+                    )
                 log.debug(
                     "%s Successfully flushed and published buffer content (resolved: %d bytes).",
                     log_identifier,
@@ -3006,11 +3021,8 @@ class SamAgentComponent(SamComponentBase):
             peer_reply_topic = a2a_context.get("replyToTopic")
             namespace = self.get_config("namespace")
 
-            # Detect context limit errors and provide user-friendly message
-            error_message = "An unexpected error occurred during tool execution. Please try your request again. If the problem persists, contact an administrator."
-
-            if isinstance(exception, BadRequestError):
-                # Use centralized error handler
+            # Use centralized error handler for all LLM-related exceptions
+            if is_llm_exception(exception):
                 error_message, is_context_limit = get_error_message(exception)
 
                 if is_context_limit:
@@ -3020,6 +3032,11 @@ class SamAgentComponent(SamComponentBase):
                         logical_task_id,
                         exception,
                     )
+            else:
+                error_message = (
+                    "An unexpected error occurred while processing your request. "
+                    "Please try again. If the problem persists, contact an administrator."
+                )
 
             failed_status = a2a.create_task_status(
                 state=TaskState.failed,
@@ -4095,6 +4112,29 @@ class SamAgentComponent(SamComponentBase):
             )
             raise e
 
+    def _on_model_status_change(self, old_status: str, new_status: str):
+        """Callback invoked by LiteLlm on any status transition.
+
+        Handles starting/stopping agent card publishing based on model readiness.
+        """
+        if not self._lazy_model_mode:
+            return  # No action needed if not in lazy model mode
+        
+        log.info(
+            "%s Model status changed: %s -> %s",
+            self.log_identifier,
+            old_status,
+            new_status,
+        )
+        if new_status == "ready":
+            self._publish_agent_card()
+        elif new_status == "none" and old_status == "ready":
+            self.cancel_timer(self._card_publish_timer_id)
+            log.info(
+                "%s Agent card publishing stopped (model unconfigured).",
+                self.log_identifier,
+            )
+
     async def _async_setup_and_run(self) -> None:
         """
         Main async logic for the agent component.
@@ -4107,7 +4147,8 @@ class SamAgentComponent(SamComponentBase):
             # Perform agent-specific async initialization
             await self._perform_async_init()
 
-            self._publish_agent_card()
+            if not self._lazy_model_mode:
+                self._publish_agent_card()
 
         except Exception as e:
             log.exception(

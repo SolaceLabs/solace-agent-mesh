@@ -16,6 +16,10 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     load_artifact_content_or_metadata,
     get_artifact_info_list,
 )
+from solace_agent_mesh.common.constants import (
+    ARTIFACT_TAG_USER_UPLOADED,
+    ARTIFACT_TAG_WORKING,
+)
 from datetime import datetime, timezone
 
 from tests.integration.scenarios_programmatic.test_helpers import (
@@ -371,3 +375,233 @@ class TestArtifactToolIntegration:
         )
         
         print(f"Scenario {scenario_id}: load_artifact tool executed successfully")
+
+
+class TestArtifactTagging:
+    """Tests for artifact tagging functionality."""
+
+    async def test_tags_stored_in_metadata(
+        self,
+        test_artifact_service_instance: TestInMemoryArtifactService,
+    ):
+        """Test that tags are correctly stored in artifact metadata."""
+        scenario_id = "test_tags_stored_in_metadata"
+
+        # Save artifact with tags
+        content = b"Content with tags"
+        test_tags = ["__internal", "custom_tag"]
+
+        result = await save_artifact_with_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_tags",
+            filename="tagged_file.txt",
+            content_bytes=content,
+            mime_type="text/plain",
+            metadata_dict={"description": "File with tags"},
+            timestamp=datetime.now(timezone.utc),
+            tags=test_tags,
+        )
+
+        assert result["status"] == "success", f"Scenario {scenario_id}: Save failed"
+
+        # Load metadata and verify tags are stored
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_tags",
+            filename="tagged_file.txt",
+            version="latest",
+            load_metadata_only=True,
+        )
+
+        assert metadata_result["status"] == "success", f"Scenario {scenario_id}: Load metadata failed"
+        assert "tags" in metadata_result["metadata"], f"Scenario {scenario_id}: Tags not in metadata"
+        assert metadata_result["metadata"]["tags"] == test_tags, f"Scenario {scenario_id}: Tags mismatch"
+
+        print(f"Scenario {scenario_id}: Tags correctly stored in metadata")
+
+    async def test_user_uploaded_tag(
+        self,
+        test_artifact_service_instance: TestInMemoryArtifactService,
+    ):
+        """Test that user-uploaded artifacts can be tagged with __user_uploaded."""
+        scenario_id = "test_user_uploaded_tag"
+
+        content = b"User uploaded content"
+
+        result = await save_artifact_with_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_user_upload",
+            filename="user_upload.txt",
+            content_bytes=content,
+            mime_type="text/plain",
+            metadata_dict={},
+            timestamp=datetime.now(timezone.utc),
+            tags=[ARTIFACT_TAG_USER_UPLOADED],
+        )
+
+        assert result["status"] == "success", f"Scenario {scenario_id}: Save failed"
+
+        # Verify tag via metadata load
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_user_upload",
+            filename="user_upload.txt",
+            version="latest",
+            load_metadata_only=True,
+        )
+
+        assert ARTIFACT_TAG_USER_UPLOADED in metadata_result["metadata"]["tags"], \
+            f"Scenario {scenario_id}: __user_uploaded tag not found"
+
+        print(f"Scenario {scenario_id}: __user_uploaded tag correctly stored")
+
+    async def test_working_tag(
+        self,
+        test_artifact_service_instance: TestInMemoryArtifactService,
+    ):
+        """Test that working artifacts can be tagged with __working."""
+        scenario_id = "test_working_tag"
+
+        content = b"Working artifact content"
+
+        result = await save_artifact_with_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_working",
+            filename="working_file.txt",
+            content_bytes=content,
+            mime_type="text/plain",
+            metadata_dict={},
+            timestamp=datetime.now(timezone.utc),
+            tags=[ARTIFACT_TAG_WORKING],
+        )
+
+        assert result["status"] == "success", f"Scenario {scenario_id}: Save failed"
+
+        # Verify tag via metadata load
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_working",
+            filename="working_file.txt",
+            version="latest",
+            load_metadata_only=True,
+        )
+
+        assert ARTIFACT_TAG_WORKING in metadata_result["metadata"]["tags"], \
+            f"Scenario {scenario_id}: __working tag not found"
+
+        print(f"Scenario {scenario_id}: __working tag correctly stored")
+
+    async def test_tags_in_artifact_info_list(
+        self,
+        test_artifact_service_instance: TestInMemoryArtifactService,
+    ):
+        """Test that tags are included in get_artifact_info_list results."""
+        scenario_id = "test_tags_in_artifact_info_list"
+
+        # Save artifacts with different tags
+        artifacts_to_create = [
+            ("user_file.txt", [ARTIFACT_TAG_USER_UPLOADED]),
+            ("working_file.txt", [ARTIFACT_TAG_WORKING]),
+            ("multi_tag.txt", [ARTIFACT_TAG_WORKING, "custom"]),
+        ]
+
+        for filename, tags in artifacts_to_create:
+            await save_artifact_with_metadata(
+                artifact_service=test_artifact_service_instance,
+                app_name="TestAgent",
+                user_id="test_user@example.com",
+                session_id="test_session_list",
+                filename=filename,
+                content_bytes=b"Test content",
+                mime_type="text/plain",
+                metadata_dict={},
+                timestamp=datetime.now(timezone.utc),
+                tags=tags,
+            )
+
+        # Get artifact info list
+        artifact_list = await get_artifact_info_list(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_list",
+        )
+
+        # Verify tags are included for each artifact
+        artifacts_by_name = {a.filename: a for a in artifact_list}
+
+        assert ARTIFACT_TAG_USER_UPLOADED in artifacts_by_name["user_file.txt"].tags, \
+            f"Scenario {scenario_id}: user_file.txt missing __user_uploaded tag"
+        assert ARTIFACT_TAG_WORKING in artifacts_by_name["working_file.txt"].tags, \
+            f"Scenario {scenario_id}: working_file.txt missing __working tag"
+        assert ARTIFACT_TAG_WORKING in artifacts_by_name["multi_tag.txt"].tags, \
+            f"Scenario {scenario_id}: multi_tag.txt missing __working tag"
+        assert "custom" in artifacts_by_name["multi_tag.txt"].tags, \
+            f"Scenario {scenario_id}: multi_tag.txt missing custom tag"
+
+        print(f"Scenario {scenario_id}: Tags correctly included in artifact info list")
+
+    async def test_artifact_without_tags(
+        self,
+        test_artifact_service_instance: TestInMemoryArtifactService,
+    ):
+        """Test that artifacts without tags handle gracefully (None or empty)."""
+        scenario_id = "test_artifact_without_tags"
+
+        content = b"No tags content"
+
+        result = await save_artifact_with_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_no_tags",
+            filename="no_tags.txt",
+            content_bytes=content,
+            mime_type="text/plain",
+            metadata_dict={},
+            timestamp=datetime.now(timezone.utc),
+            tags=None,  # Explicitly no tags
+        )
+
+        assert result["status"] == "success", f"Scenario {scenario_id}: Save failed"
+
+        # Verify metadata doesn't have tags key (or has None)
+        metadata_result = await load_artifact_content_or_metadata(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_no_tags",
+            filename="no_tags.txt",
+            version="latest",
+            load_metadata_only=True,
+        )
+
+        # Tags should not be present when saved as None
+        assert metadata_result["metadata"].get("tags") is None, \
+            f"Scenario {scenario_id}: Expected no tags, got {metadata_result['metadata'].get('tags')}"
+
+        # Verify artifact info list handles this gracefully
+        artifact_list = await get_artifact_info_list(
+            artifact_service=test_artifact_service_instance,
+            app_name="TestAgent",
+            user_id="test_user@example.com",
+            session_id="test_session_no_tags",
+        )
+
+        assert len(artifact_list) == 1, f"Scenario {scenario_id}: Expected 1 artifact"
+        assert artifact_list[0].tags is None, \
+            f"Scenario {scenario_id}: Expected None tags in ArtifactInfo"
+
+        print(f"Scenario {scenario_id}: Artifacts without tags handled gracefully")

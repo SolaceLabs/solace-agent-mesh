@@ -259,9 +259,8 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
     return (
         <div className={`${className ?? "bg-card-background"} relative h-full w-full`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onClick={handleBackgroundClick}>
             <PanZoomCanvas ref={canvasRef} initialScale={1} minScale={0.25} maxScale={2} sidePanelWidth={sidePanelWidth} onUserInteraction={handleUserInteraction} onTransformChange={onTransformChange}>
-                <div
+                <section
                     ref={containerRef}
-                    role="region"
                     aria-label="Workflow visualization"
                     className="relative"
                     style={{
@@ -275,7 +274,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                     {/* Node layer */}
                     <WorkflowNodeRenderer
                         nodes={layout.nodes}
-                        selectedNodeId={selectedNodeId || undefined}
+                        selectedNodeId={selectedNodeId ?? undefined}
                         highlightedNodeIds={highlightedNodeIds}
                         onNodeClick={handleNodeClick}
                         onExpand={handleExpand}
@@ -286,7 +285,7 @@ const WorkflowDiagram: React.FC<WorkflowDiagramProps> = ({
                         currentWorkflowName={currentWorkflowName}
                         parentPath={parentPath}
                     />
-                </div>
+                </section>
             </PanZoomCanvas>
         </div>
     );

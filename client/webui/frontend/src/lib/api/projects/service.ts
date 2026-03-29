@@ -102,6 +102,10 @@ export const createProjectShares = async (projectId: string, data: BatchShareReq
     return api.webui.post<BatchShareResponse>(`/api/v1/projects/${projectId}/shares`, data);
 };
 
+export const togglePinProject = async (projectId: string) => {
+    return api.webui.patch<Project>(`/api/v1/projects/${projectId}/pin`, {});
+};
+
 export const deleteProjectShares = async (projectId: string, data: BatchDeleteRequest) => {
     // Using a custom fetch approach since api.webui.delete doesn't support body parameter
     const response = await fetch(api.webui.getFullUrl(`/api/v1/projects/${projectId}/shares`), {
