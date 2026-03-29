@@ -9,10 +9,10 @@ const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
-import { useSseErrorRecovery } from "@/lib/hooks/useSseErrorRecovery";
+import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
+import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -47,16 +47,23 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled } = useConfigContext();
+    const { configWelcomeMessage: rawWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
+
+    // In onboard mode, override the welcome message with a friendlier intro.
+    const isOnboardMode = window.location.hash?.includes("mode=onboard");
+    const configWelcomeMessage = isOnboardMode
+        ? "Hey there! I'm SAM — the **S**olace **A**gent **M**esh.\n\nI'm an AI-powered platform that lets you build, connect, and orchestrate intelligent agents. Ask me anything — what I can do, how I work, how to set up agents, or what use cases I'm built for. I'm here to help you get started!"
+        : rawWelcomeMessage;
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { userInfo } = useAuthContext();
-
     // State Variables from useChat
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
+
+    // Collaborative session detection and state
+    const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
 
     // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
@@ -129,7 +136,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
 
     // Chat Side Panel State
-    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
+    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
 
     // Title Generation
     const { generateTitle } = useTitleGeneration();
@@ -183,7 +190,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } = useArtifactPreview({
         sessionId,
         projectId: activeProject?.id,
-        artifacts,
+        artifacts: allArtifacts,
         setError,
     });
 
@@ -219,7 +226,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     // Get the authenticated user's ID for background task monitoring
-    const authenticatedUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+    const authenticatedUserId = getCurrentUserId();
 
     const {
         backgroundTasks,
@@ -504,6 +511,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 return {
                     taskId: task.taskId,
+                    createdTime: task.createdTime,
                     role: bubble.type === "user" ? "user" : "agent",
                     parts: processedParts,
                     isUser: bubble.type === "user",
@@ -517,6 +525,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     // Restore HIL state (responded summary banner).
                     ...(bubble.userInputRequest ? { userInputRequest: bubble.userInputRequest } : {}),
+                    senderDisplayName: bubble.sender_display_name, // Preserve sender identity for collaborative sessions
+                    senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -615,9 +625,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-            // Extract RAG data from task metadata
-            const allRagData: RAGSearchResult[] = [];
-
             for (const task of migratedTasks) {
                 if (task.taskMetadata?.feedback) {
                     feedbackMap[task.taskId] = {
@@ -625,12 +632,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         text: task.taskMetadata.feedback.text || "",
                     };
                 }
-
-                // Restore RAG data if present
-                if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
-                    allRagData.push(...task.taskMetadata.rag_data);
-                }
             }
+
+            // Extract RAG data from task metadata
+            const allRagData = extractRagDataFromTasks(migratedTasks);
 
             // Extract agent name from the most recent task
             // (Use the last task's agent since that's the most recent interaction)
@@ -825,6 +830,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // No tasks with buffered events - just set all messages at once
                 setMessages(allMessages);
             }
+
+            // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
+            // Sender info in messages is kept for UI display purposes only.
         },
         [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
     );
@@ -989,7 +997,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     break;
                                 }
                                 case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text } = data as {
+                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text, tags } = data as {
                                         filename: string;
                                         status: "in-progress" | "completed" | "failed" | "cancelled";
                                         bytes_transferred: number;
@@ -998,6 +1006,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         artifact_chunk?: string;
                                         version?: number;
                                         rolled_back_text?: string;
+                                        tags?: string[];
                                     };
 
                                     // Handle "cancelled" status - this happens when an artifact block was started
@@ -1064,6 +1073,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                 mime_type: mime_type || existingArtifact.mime_type,
                                                 // Mark that embed resolution is needed when completed
                                                 needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
+                                                // Update tags if provided
+                                                tags: tags !== undefined ? tags : existingArtifact.tags,
                                             };
 
                                             return updated;
@@ -1082,6 +1093,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                                         accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
                                                         isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
                                                         needsEmbedResolution: status === "completed" ? true : false,
+                                                        tags,
                                                     },
                                                 ];
                                             }
@@ -1393,6 +1405,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Don't return early - let the data part flow through to the message
                                     break;
                                 }
+                                case "compaction_notification": {
+                                    // Compaction notification - keep the data part for ChatMessage to render
+                                    // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
+                                    latestStatusText.current = null;
+                                    break;
+                                }
                                 case "tool_result": {
                                     // Handle tool results that may contain RAG metadata
                                     const resultData = (data as any).result_data;
@@ -1473,21 +1491,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return false;
             });
 
-            const newContentParts =
-                messageToProcess?.parts?.filter(p => {
-                    // Keep deep_research_progress and redirect data parts
-                    if (p.kind === "data") {
-                        const dataPart = p as DataPart;
-                        const dataType = dataPart.data && (dataPart.data as any).type;
-                        return dataType === "deep_research_progress" || dataType === "redirect";
-                    }
-                    // Filter out text parts if we have deep research progress (to show progress-only)
-                    if (p.kind === "text" && hasDeepResearchProgress) {
-                        return false;
-                    }
-                    // Keep files and artifacts
-                    return true;
-                }) || [];
+            const newContentParts = filterRenderableDataParts(messageToProcess?.parts || [], !!hasDeepResearchProgress);
             const hasNewFiles = newContentParts.some(p => p.kind === "file");
 
             // Check if this is a failed task
@@ -1534,6 +1538,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         },
                     };
                     newMessages[existingAgentIdx] = updatedMessage;
+                } else if (isCompactionNotificationBubble(lastMessage, (result as TaskStatusUpdateEvent).taskId, newContentParts)) {
+                    // Always create a new bubble for compaction notifications
+                    // so they don't get appended to the response text bubble
+                    // (ChatMessage early-returns <CompactionNotification/> when it sees this part,
+                    // which would hide the streamed text if they shared a bubble)
+                    newMessages.push({
+                        role: "agent",
+                        parts: newContentParts,
+                        taskId: currentTaskIdFromResult,
+                        isUser: false,
+                        isComplete: isFinalEvent,
+                        metadata: {
+                            messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                            sessionId: (result as TaskStatusUpdateEvent).contextId,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    });
                 } else if (existingAgentMsg && newContentParts.length > 0) {
                     // When the final response includes file parts, the gateway has
                     // resolved artifact_return embeds and interleaved them at the
@@ -1554,19 +1575,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     // For failed tasks, always create a message bubble even if there are no content parts
                     // For other cases, only create a new bubble if there is visible content to render.
-                    // Include deep_research_progress data parts as visible content
-                    const hasVisibleContent =
-                        isTaskFailed ||
-                        newContentParts.some(p => {
-                            if (p.kind === "text") return (p as TextPart).text.trim() !== "";
-                            if (p.kind === "file") return true;
-                            if (p.kind === "data") {
-                                const dataType = (p as DataPart).data && ((p as DataPart).data as any).type;
-                                return dataType === "deep_research_progress" || dataType === "redirect";
-                            }
-                            return false;
-                        });
-                    if (hasVisibleContent) {
+                    if (isTaskFailed || checkHasVisibleContent(newContentParts)) {
                         const newBubble: MessageFE = {
                             role: "agent",
                             parts: newContentParts,
@@ -1926,6 +1935,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Clear session name - will be set when first message is sent
             setSessionName(null);
 
+            // Reset collaborative session flag - new sessions are always owned by the current user
+            resetCollaborativeState();
+
             // Clear project context when starting a new chat outside of a project
             if (activeProject && !preserveProjectContext) {
                 setActiveProject(null);
@@ -1956,7 +1968,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData, findAgentBubbleForTask]
+        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData, findAgentBubbleForTask, resetCollaborativeState]
     );
 
     // Wrapper that shows confirmation when task is running and background tasks are disabled
@@ -2041,6 +2053,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const sessionData = await api.webui.get(`/api/v1/sessions/${newSessionId}`);
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
+
+                // Detect collaborative session (owner differs from current user)
+                await detectCollaborativeSession(session, newSessionId);
 
                 // Activate or deactivate project context based on session's project
                 // Set flag to prevent handleNewSession from being triggered by this project change
@@ -2185,6 +2200,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             generateTitle,
             isTaskRunningInBackground,
             replayBufferedEvents,
+            detectCollaborativeSession,
         ]
     );
 
@@ -2341,28 +2357,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /* console.log for SSE open */
     }, []);
 
-    // SSE error recovery with token refresh — extracted to a custom hook for testability.
-    // See useSseErrorRecovery.ts for the full implementation.
-    const cleanupMessages = useCallback(() => {
-        latestStatusText.current = null;
-        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, []);
-
-    const { sseReconnectKey, handleSseError } = useSseErrorRecovery(
-        {
-            isResponding,
-            isFinalizing,
-            isCancelling: isCancellingRef,
-            currentTaskId,
-        },
-        {
-            closeCurrentEventSource,
-            setError,
-            setIsResponding,
-            setCurrentTaskId,
-            cleanupMessages,
+    const handleSseError = useCallback(() => {
+        if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
+            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
-    );
+        if (!isFinalizing.current) {
+            setIsResponding(false);
+            if (!isCancellingRef.current) {
+                closeCurrentEventSource();
+                setCurrentTaskId(null);
+            }
+            latestStatusText.current = null;
+        }
+        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+    }, [closeCurrentEventSource, isResponding, setError]);
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {
@@ -2748,6 +2756,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         };
     }, [sessionId]);
 
+    // Listen for switch-to-session events (e.g., after forking a shared chat)
+    useEffect(() => {
+        const handleSwitchToSession = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId) {
+                handleSwitchSession(detail.sessionId);
+            }
+        };
+        window.addEventListener("switch-to-session", handleSwitchToSession);
+        return () => {
+            window.removeEventListener("switch-to-session", handleSwitchToSession);
+        };
+    }, [handleSwitchSession]);
+
     useEffect(() => {
         const handleSessionUpdated = async (event: Event) => {
             const customEvent = event as CustomEvent;
@@ -2991,7 +3013,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, closeCurrentEventSource, sseReconnectKey]);
+    }, [currentTaskId, closeCurrentEventSource]);
 
     const contextValue: ChatContextValue = {
         ragData,
@@ -3008,6 +3030,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         messages,
         setMessages,
         isResponding,
+        isCollaborativeSession,
+        hasSharedEditors,
+        currentUserEmail,
+        sessionOwnerName,
+        sessionOwnerEmail,
         currentTaskId,
         isCancelling,
         latestStatusText,
@@ -3026,9 +3053,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
+        allArtifacts,
         artifactsLoading,
         artifactsRefetch,
         setArtifacts,
+        showWorkingArtifacts,
+        toggleShowWorkingArtifacts,
+        workingArtifactCount,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,
@@ -3085,6 +3116,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         backgroundTasks,
         backgroundNotifications,
         isTaskRunningInBackground,
+
+        hasModelConfigWrite: !configUseAuthorization,
     };
 
     // Handlers for the running task warning dialog

@@ -3072,6 +3072,15 @@ wheels = [
 ]
 
 [[package]]
+name = "nanoid"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/9d/0250bf5935d88e214df469d35eccc0f6ff7e9db046fc8a9aeb4b2a192775/nanoid-2.0.0.tar.gz", hash = "sha256:5a80cad5e9c6e9ae3a41fa2fb34ae189f7cb420b2a5d8f82bd9d23466e4efa68", size = 3290, upload-time = "2018-11-20T14:45:51.578Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/0d/8630f13998638dc01e187fadd2e5c6d42d127d08aeb4943d231664d6e539/nanoid-2.0.0-py3-none-any.whl", hash = "sha256:90aefa650e328cffb0893bbd4c236cfd44c48bc1f2d0b525ecc53c3187b653bb", size = 5844, upload-time = "2018-11-20T14:45:50.165Z" },
+]
+
+[[package]]
 name = "narwhals"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4050,14 +4059,14 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.8.0"
+version = "6.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/a3/e705b0805212b663a4c27b861c8a603dba0f8b4bb281f96f8e746576a50d/pypdf-6.8.0.tar.gz", hash = "sha256:cb7eaeaa4133ce76f762184069a854e03f4d9a08568f0e0623f7ea810407833b", size = 5307831, upload-time = "2026-03-09T13:37:40.591Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/fb/dc2e8cb006e80b0020ed20d8649106fe4274e82d8e756ad3e24ade19c0df/pypdf-6.9.1.tar.gz", hash = "sha256:ae052407d33d34de0c86c5c729be6d51010bf36e03035a8f23ab449bca52377d", size = 5311551, upload-time = "2026-03-17T10:46:07.876Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/ec/4ccf3bb86b1afe5d7176e1c8abcdbf22b53dd682ec2eda50e1caadcf6846/pypdf-6.8.0-py3-none-any.whl", hash = "sha256:2a025080a8dd73f48123c89c57174a5ff3806c71763ee4e49572dc90454943c7", size = 332177, upload-time = "2026-03-09T13:37:38.774Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/f4/75543fa802b86e72f87e9395440fe1a89a6d149887e3e55745715c3352ac/pypdf-6.9.1-py3-none-any.whl", hash = "sha256:f35a6a022348fae47e092a908339a8f3dc993510c026bb39a96718fc7185e89f", size = 333661, upload-time = "2026-03-17T10:46:06.286Z" },
 ]
 
 [[package]]
@@ -4858,6 +4867,7 @@ dependencies = [
     { name = "asteval" },
     { name = "authlib" },
     { name = "azure-cognitiveservices-speech" },
+    { name = "azure-identity" },
     { name = "azure-storage-blob" },
     { name = "beautifulsoup4" },
     { name = "bm25s" },
@@ -4885,6 +4895,7 @@ dependencies = [
     { name = "markdownify" },
     { name = "markitdown", extra = ["all"] },
     { name = "mermaid-cli" },
+    { name = "nanoid" },
     { name = "numpy" },
     { name = "openai" },
     { name = "openfeature-sdk" },
@@ -4955,6 +4966,7 @@ requires-dist = [
     { name = "asyncpg", marker = "extra == 'test'" },
     { name = "authlib", specifier = ">=1.6.9" },
     { name = "azure-cognitiveservices-speech", specifier = "==1.41.1" },
+    { name = "azure-identity", specifier = ">=1.17.0" },
     { name = "azure-storage-blob", specifier = "==12.28.0" },
     { name = "beautifulsoup4", specifier = "==4.13.5" },
     { name = "bm25s", specifier = "==0.2.14" },
@@ -4986,6 +4998,7 @@ requires-dist = [
     { name = "markdownify", specifier = "==1.2.0" },
     { name = "markitdown", extras = ["all"], specifier = "==0.1.4" },
     { name = "mermaid-cli", specifier = "==0.1.2" },
+    { name = "nanoid", specifier = "==2.0.0" },
     { name = "numpy", specifier = "==2.2.6" },
     { name = "openai", specifier = "==1.99.9" },
     { name = "openfeature-sdk", specifier = "==0.8.4" },
@@ -5001,7 +5014,7 @@ requires-dist = [
     { name = "pydub", specifier = "==0.25.1" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
-    { name = "pypdf", specifier = "==6.8.0" },
+    { name = "pypdf", specifier = "==6.9.1" },
     { name = "pystache", specifier = "==0.6.8" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },

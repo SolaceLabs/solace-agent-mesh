@@ -9,25 +9,7 @@ interface GridCardProps extends ComponentProps<typeof Card> {
 
 export const GridCard = ({ children, className, isSelected, onClick, ...props }: GridCardProps) => {
     return (
-        <Card
-            className={cn(
-                "flex h-[200px] w-[380px] flex-shrink-0 py-4 transition-all",
-                onClick && "cursor-pointer hover:bg-(--primary-w10)",
-                onClick && "focus-visible:border-(--brand-w100) focus-visible:outline-none",
-                isSelected && "border-(--brand-w100)",
-                className
-            )}
-            onClick={onClick}
-            onKeyDown={e => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onClick?.();
-                }
-            }}
-            {...(onClick && { role: "button", tabIndex: 0 })}
-            noPadding
-            {...props}
-        >
+        <Card noPadding onCardSelect={onClick} isCardSelected={isSelected} className={cn("flex h-50 w-95 shrink-0 py-4", className)} {...props}>
             {children}
         </Card>
     );

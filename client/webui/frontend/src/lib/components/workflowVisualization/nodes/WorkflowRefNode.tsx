@@ -1,6 +1,6 @@
-import type { MouseEvent } from "react";
 import { Workflow } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 /**
  * Workflow reference node - Rectangle with workflow icon, name, and "Workflow" badge
@@ -22,7 +22,7 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
                 width: `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={handleClick}
+            {...clickableNodeProps(() => onClick?.(node))}
         >
             <div className="flex items-center gap-2 overflow-hidden">
                 <Workflow className="h-5 w-5 flex-shrink-0 text-(--brand-wMain)" />

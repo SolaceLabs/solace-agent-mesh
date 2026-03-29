@@ -1,10 +1,8 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
 import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
 import { api } from "../api";
-import { SamFeatureProvider } from "./openfeature";
 
 interface BackendConfig {
     frontend_server_url: string;
@@ -27,16 +25,6 @@ interface BackendConfig {
     background_tasks_config?: {
         default_timeout_ms?: number;
     };
-}
-
-interface FeatureFlagInfo {
-    key: string;
-    name: string;
-    release_phase: string;
-    resolved: boolean;
-    has_env_override: boolean;
-    registry_default: boolean;
-    description: string;
 }
 
 interface ConfigProviderProps {
@@ -66,18 +54,11 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
             setError(null);
 
             try {
-                let [configResponse, featuresResponse] = await Promise.all([
-                    api.webui.get("/api/v1/config", {
-                        credentials: "include",
-                        headers: { Accept: "application/json" },
-                        fullResponse: true,
-                    }),
-                    api.webui.get("/api/v1/config/features", {
-                        credentials: "include",
-                        headers: { Accept: "application/json" },
-                        fullResponse: true,
-                    }),
-                ]);
+                let configResponse = await api.webui.get("/api/v1/config", {
+                    credentials: "include",
+                    headers: { Accept: "application/json" },
+                    fullResponse: true,
+                });
 
                 let data: BackendConfig;
 
@@ -90,25 +71,15 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                         if (!csrfToken) {
                             throw new Error("Failed to obtain CSRF token after config fetch failed.");
                         }
-                        console.log("Retrying config and features fetch with CSRF token...");
-                        [configResponse, featuresResponse] = await Promise.all([
-                            api.webui.get("/api/v1/config", {
-                                credentials: "include",
-                                headers: {
-                                    "X-CSRF-TOKEN": csrfToken,
-                                    Accept: "application/json",
-                                },
-                                fullResponse: true,
-                            }),
-                            api.webui.get("/api/v1/config/features", {
-                                credentials: "include",
-                                headers: {
-                                    "X-CSRF-TOKEN": csrfToken,
-                                    Accept: "application/json",
-                                },
-                                fullResponse: true,
-                            }),
-                        ]);
+                        console.log("Retrying config fetch with CSRF token...");
+                        configResponse = await api.webui.get("/api/v1/config", {
+                            credentials: "include",
+                            headers: {
+                                "X-CSRF-TOKEN": csrfToken,
+                                Accept: "application/json",
+                            },
+                            fullResponse: true,
+                        });
                         if (!configResponse.ok) {
                             const errorTextRetry = await configResponse.text();
                             console.error("Config fetch retry failed:", configResponse.status, errorTextRetry);
@@ -120,15 +91,6 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     }
                 } else {
                     data = await configResponse.json();
-                }
-
-                let featureFlags: Record<string, boolean> = {};
-                if (featuresResponse.ok) {
-                    const featuresData: FeatureFlagInfo[] = await featuresResponse.json();
-                    featureFlags = Object.fromEntries(featuresData.map(f => [f.key, f.resolved]));
-                    console.log("Feature flags loaded:", featureFlags);
-                } else {
-                    console.warn("Features endpoint unavailable, falling back to empty feature flags:", featuresResponse.status);
                 }
 
                 const effectiveUseAuthorization = data.frontend_use_authorization ?? false;
@@ -171,7 +133,6 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     binaryArtifactPreviewEnabled,
                 };
                 if (isMounted) {
-                    await OpenFeature.setProviderAndWait(new SamFeatureProvider(featureFlags));
                     RETAINED_CONFIG = mappedConfig;
                     setConfig(mappedConfig);
 
@@ -204,11 +165,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
     }, [fetchCsrfToken]);
 
     if (config) {
-        return (
-            <ConfigContext.Provider value={config}>
-                <OpenFeatureProvider>{children}</OpenFeatureProvider>
-            </ConfigContext.Provider>
-        );
+        return <ConfigContext.Provider value={config}>{children}</ConfigContext.Provider>;
     }
 
     // If config is not yet available, handle loading and error states.

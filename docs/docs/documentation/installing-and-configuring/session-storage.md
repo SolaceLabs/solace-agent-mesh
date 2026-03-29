@@ -303,6 +303,22 @@ Parameters:
 - `database_url`: Connection string for the agent's database
 - `default_behavior`: `"PERSISTENT"` (reuse sessions) or `"RUN_BASED"` (new session per run)
 
+### Auto-Compaction for Long Conversations
+
+Agents automatically compact conversation history when context limits are exceeded. This feature is enabled by default and requires no configuration.
+
+When an LLM returns a context window overflow error, the system intercepts it and automatically compacts the first N% of conversation turns (where N is the compaction_percentage), then retries the request. You can control what percentage of history is compacted using the `compaction_percentage` setting:
+
+```yaml
+auto_summarization:
+  # Compact 50% of conversation history when limits are reached
+  # Default: 0.25 (25%)
+  # Range: 0.0 - 1.0 (e.g., 0.25 = 25%, 0.5 = 50%, 0.8 = 80%)
+  compaction_percentage: 0.5
+```
+
+The system always compacts up to the nearest complete conversation turn and preserves at least one recent turn uncompacted.
+
 ### Environment Variables
 
 Each agent can have its own database credentials:

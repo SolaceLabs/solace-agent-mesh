@@ -12,7 +12,7 @@ class FeatureFlagResponse(BaseModel):
     name: str = Field(..., description="Human-readable label for the flag")
     release_phase: str = Field(
         ...,
-        description="Lifecycle phase: early_access, beta, experimental, or ga",
+        description="Lifecycle phase: experimental, early_access, beta, controlled_availability, general_availability, or deprecated",
     )
     resolved: bool = Field(
         ...,

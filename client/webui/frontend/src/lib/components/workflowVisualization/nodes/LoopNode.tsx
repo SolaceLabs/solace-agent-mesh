@@ -1,4 +1,5 @@
 import type { FC, ReactNode, MouseEvent } from "react";
+import { clickableNodeProps } from "@/lib/components/utils";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
@@ -43,6 +44,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
     if (isCollapsed || !hasChildren) {
         return (
             <div
+                {...clickableNodeProps(() => onClick?.(node))}
                 className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
                     width: `${node.width}px`,

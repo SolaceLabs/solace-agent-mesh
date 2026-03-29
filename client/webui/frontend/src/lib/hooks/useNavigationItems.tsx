@@ -21,6 +21,15 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
     const items = useMemo((): NavItemConfig[] => {
         const navItems: NavItemConfig[] = [];
 
+        navItems.push({
+            id: "agents",
+            label: "Agent Mesh",
+            icon: Bot,
+            route: "/agents",
+            routeMatch: "/agents",
+            position: "top",
+        });
+
         if (projectsEnabled) {
             navItems.push({
                 id: "projects",
@@ -42,7 +51,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
             });
         }
 
@@ -53,7 +62,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
             });
         }
 
@@ -159,7 +168,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, buil
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chats";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/shared-chat")) return "chats";
         if (path.startsWith("/builder")) return "build";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";

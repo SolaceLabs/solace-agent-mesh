@@ -16,6 +16,7 @@ patch_adk()
 
 from typing import Any, Dict, List, Optional, Union, Literal
 from pydantic import Field, ValidationError, model_validator
+from openfeature import api as openfeature_api
 from ...common.app_base import SamAppBase
 
 from ...common.a2a import (
@@ -219,6 +220,22 @@ class ArtifactServiceConfig(SamConfigBase):
         default=None,
         description="Custom identifier for artifact scope (required if artifact_scope is 'custom').",
     )
+    container_name: Optional[str] = Field(
+        default=None,
+        description="Azure Blob Storage container name (required for type 'azure').",
+    )
+    account_name: Optional[str] = Field(
+        default=None,
+        description="Azure Storage account name (for type 'azure').",
+    )
+    connection_string: Optional[str] = Field(
+        default=None,
+        description="Azure Storage connection string (for type 'azure').",
+    )
+    account_key: Optional[str] = Field(
+        default=None,
+        description="Azure Storage account key (for type 'azure').",
+    )
 
     @model_validator(mode="after")
     def check_artifact_scope(self) -> "ArtifactServiceConfig":
@@ -299,8 +316,15 @@ class SamAgentAppConfig(SamConfigBase):
         default=None,
         description="Deployment tracking information for rolling updates and version control.",
     )
-    model: Union[str, Dict[str, Any]] = Field(
-        ..., description="ADK model name (string) or BaseLlm config dict."
+    model: Optional[Union[str, Dict[str, Any]]] = Field(
+        default=None,
+        description="ADK model name (string) or BaseLlm config dict."
+    )
+    model_provider: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional dynamic model provider configuration. this will overwrite the 'model' field if provided. "
+        )
     )
     agent_identity: Optional[AgentIdentityConfig] = Field(
         default_factory=lambda: AgentIdentityConfig(key_mode="auto"),
@@ -487,6 +511,21 @@ class SamAgentAppConfig(SamConfigBase):
         description="Configuration for intelligent processing of MCP tool responses.",
     )
 
+    @model_validator(mode="after")
+    def _validate_model_requirement(self) -> "SamAgentAppConfig":
+        if self.agent_type == "workflow":
+            return self
+        model_config_ui_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
+        if self.model is None and not model_config_ui_enabled:
+            raise ValueError(
+                "Missing required field: 'model'. Provide a model config"
+            )
+        if model_config_ui_enabled and (not self.model_provider and not self.model):
+            raise ValueError(
+                "Invalid configuration: 'model_provider' or 'model' must be provided."
+            )
+        return self
+
 
 class SamAgentApp(SamAppBase):
     """
@@ -504,6 +543,18 @@ class SamAgentApp(SamAppBase):
         log.debug("Initializing A2A_ADK_App...")
 
         app_config_dict = app_info.get("app_config", {})
+
+        agent_name = app_config_dict.get("agent_name", "")
+        # The agent name must be alphanumeric and underscore only
+        if not all(c.isalnum() or c == "_" for c in agent_name):
+            # Converting to a valid format by replacing invalid characters with underscores
+            valid_agent_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in agent_name)
+            log.warning(
+                "Agent name '%s' contains invalid characters. Converted to '%s'",
+                agent_name,
+                valid_agent_name,
+            )
+            app_config_dict["agent_name"] = valid_agent_name
 
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply

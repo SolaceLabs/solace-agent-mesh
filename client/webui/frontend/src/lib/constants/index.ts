@@ -1,3 +1,4 @@
+export * from "./artifactTags";
 export * from "./nodeColors";
 export * from "./reservedCommands";
 export * from "./streaming";

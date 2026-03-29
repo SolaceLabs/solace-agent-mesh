@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 
-import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Star, Download } from "lucide-react";
+import { Pencil, Trash2, NotepadText, Tag, History, MoreHorizontal, MessageSquare, Download } from "lucide-react";
 
-import { GridCard } from "@/lib/components/common";
+import { GridCard, PinButton } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { useConfigContext } from "@/lib/hooks";
@@ -82,17 +82,7 @@ export const PromptCard: React.FC<PromptDisplayCardProps> = ({ prompt, isSelecte
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
-                        {onTogglePin && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleTogglePin}
-                                className={prompt.isPinned ? "text-(--primary-wMain)" : "text-(--secondary-text-wMain)"}
-                                tooltip={prompt.isPinned ? "Remove from favorites" : "Add to favorites"}
-                            >
-                                <Star size={16} fill={prompt.isPinned ? "currentColor" : "none"} />
-                            </Button>
-                        )}
+                        {onTogglePin && <PinButton isPinned={prompt.isPinned} onClick={handleTogglePin} />}
                         <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                             <DropdownMenuTrigger asChild>
                                 <Button

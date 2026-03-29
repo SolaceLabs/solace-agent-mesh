@@ -31,9 +31,9 @@ def _minimal_flag(**overrides) -> dict:
     base = {
         "key": "f",
         "name": "F",
-        "release_phase": "ga",
-        "default_enabled": False,
-        "jira_epic": "DATAGO-99999",
+        "release_phase": "general_availability",
+        "default": False,
+        "jira": "DATAGO-99999",
     }
     base.update(overrides)
     return base
@@ -51,9 +51,9 @@ class TestFeatureRegistryRegister:
         return FeatureDefinition(
             key=key,
             name=key,
-            release_phase=ReleasePhase.GA,
-            default_enabled=default,
-            jira_epic="DATAGO-99999",
+            release_phase=ReleasePhase.GENERAL_AVAILABILITY,
+            default=default,
+            jira="DATAGO-99999",
             **kwargs,
         )
 
@@ -86,12 +86,12 @@ class TestFeatureRegistryRegister:
             FeatureDefinition(
                 key="f",
                 name="F v2",
-                release_phase=ReleasePhase.GA,
-                default_enabled=True,
-                jira_epic="DATAGO-99999",
+                release_phase=ReleasePhase.GENERAL_AVAILABILITY,
+                default=True,
+                jira="DATAGO-99999",
             )
         )
-        assert reg.get("f").default_enabled is True
+        assert reg.get("f").default is True
         assert reg.get("f").name == "F v2"
 
 
@@ -103,27 +103,31 @@ class TestFeatureRegistryYamlLoad:
         defn = reg.get("f")
         assert defn is not None
         assert defn.key == "f"
-        assert defn.release_phase == ReleasePhase.GA
-        assert defn.default_enabled is False
-        assert defn.jira_epic == "DATAGO-99999"
+        assert defn.release_phase == ReleasePhase.GENERAL_AVAILABILITY
+        assert defn.default is False
+        assert defn.jira == "DATAGO-99999"
 
     def test_loads_all_release_phases(self, tmp_path):
         flags = [
             _minimal_flag(key=k, release_phase=phase)
             for k, phase in [
-                ("a", "early_access"),
-                ("b", "beta"),
-                ("c", "experimental"),
-                ("d", "ga"),
+                ("a", "experimental"),
+                ("b", "early_access"),
+                ("c", "beta"),
+                ("d", "controlled_availability"),
+                ("e", "general_availability"),
+                ("f", "deprecated"),
             ]
         ]
         p = _minimal_yaml(tmp_path, flags)
         reg = FeatureRegistry()
         reg.load_from_yaml(p)
-        assert reg.get("a").release_phase == ReleasePhase.EARLY_ACCESS
-        assert reg.get("b").release_phase == ReleasePhase.BETA
-        assert reg.get("c").release_phase == ReleasePhase.EXPERIMENTAL
-        assert reg.get("d").release_phase == ReleasePhase.GA
+        assert reg.get("a").release_phase == ReleasePhase.EXPERIMENTAL
+        assert reg.get("b").release_phase == ReleasePhase.EARLY_ACCESS
+        assert reg.get("c").release_phase == ReleasePhase.BETA
+        assert reg.get("d").release_phase == ReleasePhase.CONTROLLED_AVAILABILITY
+        assert reg.get("e").release_phase == ReleasePhase.GENERAL_AVAILABILITY
+        assert reg.get("f").release_phase == ReleasePhase.DEPRECATED
 
     def test_loads_optional_description(self, tmp_path):
         p = _minimal_yaml(tmp_path, [_minimal_flag(description="hello")])
@@ -140,16 +144,16 @@ class TestFeatureRegistryYamlLoad:
     def test_later_yaml_load_overwrites_same_key(self, tmp_path):
         p1 = tmp_path / "a" / "f.yaml"
         p1.parent.mkdir(parents=True)
-        p1.write_text(yaml.dump({"features": [_minimal_flag(name="F", default_enabled=False)]}))
+        p1.write_text(yaml.dump({"features": [_minimal_flag(name="F", default=False)]}))
 
         p2 = tmp_path / "b" / "f.yaml"
         p2.parent.mkdir(parents=True)
-        p2.write_text(yaml.dump({"features": [_minimal_flag(name="F v2", default_enabled=True)]}))
+        p2.write_text(yaml.dump({"features": [_minimal_flag(name="F v2", default=True)]}))
 
         reg = FeatureRegistry()
         reg.load_from_yaml(p1)
         reg.load_from_yaml(p2)
-        assert reg.get("f").default_enabled is True
+        assert reg.get("f").default is True
         assert reg.get("f").name == "F v2"
 
     def test_load_raises_for_missing_file(self):
@@ -163,20 +167,20 @@ class TestFeatureRegistryYamlLoad:
         reg.load_from_yaml(p)
         assert reg.all() == []
 
-    def test_load_raises_for_missing_default_enabled(self, tmp_path):
+    def test_load_raises_for_missing_default(self, tmp_path):
         flag = _minimal_flag()
-        del flag["default_enabled"]
+        del flag["default"]
         p = _minimal_yaml(tmp_path, [flag])
         reg = FeatureRegistry()
-        with pytest.raises(ValueError, match="default_enabled"):
+        with pytest.raises(ValueError, match="default"):
             reg.load_from_yaml(p)
 
-    def test_load_raises_for_missing_jira_epic(self, tmp_path):
+    def test_load_raises_for_missing_jira(self, tmp_path):
         flag = _minimal_flag()
-        del flag["jira_epic"]
+        del flag["jira"]
         p = _minimal_yaml(tmp_path, [flag])
         reg = FeatureRegistry()
-        with pytest.raises(ValueError, match="jira_epic"):
+        with pytest.raises(ValueError, match="jira"):
             reg.load_from_yaml(p)
 
     def test_load_raises_for_invalid_release_phase(self, tmp_path):
@@ -206,4 +210,4 @@ class TestFeatureRegistryYamlLoad:
         flags = reg.all()
         for defn in flags:
             assert defn.key != ""
-            assert defn.jira_epic != ""
+            assert defn.jira != ""

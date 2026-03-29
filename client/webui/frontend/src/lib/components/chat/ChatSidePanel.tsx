@@ -17,7 +17,6 @@ interface ChatSidePanelProps {
     onCollapsedToggle: (isSidePanelCollapsed: boolean) => void;
     isSidePanelCollapsed: boolean;
     setIsSidePanelCollapsed: (isSidePanelCollapsed: boolean) => void;
-    isSidePanelTransitioning: boolean;
 }
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed, isSidePanelTransitioning }) => {
@@ -256,7 +255,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                                         return (
                                             <div className="flex h-full flex-col">
                                                 <FlowChartDetails task={visualizedTask} />
-                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} isSidePanelTransitioning={isSidePanelTransitioning} />
+                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} />
                                             </div>
                                         );
                                     }

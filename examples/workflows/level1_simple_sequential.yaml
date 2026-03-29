@@ -3,7 +3,7 @@ log:
   log_file_level: DEBUG
   log_file: level1_simple_sequential.log
 
-!include ../../shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # ============================================================================

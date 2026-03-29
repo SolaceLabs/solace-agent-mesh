@@ -101,7 +101,7 @@ class TestClearBufferedTaskEventsAuthorization:
             "solace_agent_mesh.gateway.http_sse.routers.tasks.get_sac_component",
             return_value=mock_component,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (
@@ -184,7 +184,7 @@ class TestClearBufferedTaskEventsAuthorization:
             "solace_agent_mesh.gateway.http_sse.routers.tasks.get_sac_component",
             return_value=mock_component,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (

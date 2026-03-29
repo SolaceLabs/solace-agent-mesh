@@ -103,6 +103,10 @@ class DataObject(BaseModel):
         default=None,
         description="Additional metadata to store with the artifact."
     )
+    tags: Optional[List[str]] = Field(
+        default=None,
+        description="Optional tags to apply to the artifact (e.g., ['__working'] to mark as internal)."
+    )
 
     class Config:
         use_enum_values = True
