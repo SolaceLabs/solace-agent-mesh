@@ -35,6 +35,20 @@ class PlatformServiceApp(SamAppBase):
             "description": "Namespace for service configuration.",
         },
         {
+            "name": "model",
+            "required": False,
+            "type": "string or dict",
+            "description": "ADK model name (string) or BaseLlm config dict.",
+        },
+        {
+            "name": "model_provider",
+            "required": False,
+            "type": "list of strings",
+            "description": (
+                "Optional dynamic model provider configuration. this will overwrite the 'model' field if provided. "
+            ),
+        },
+        {
             "name": "database_url",
             "required": True,
             "type": "string",

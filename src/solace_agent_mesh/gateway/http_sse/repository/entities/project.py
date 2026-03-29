@@ -17,6 +17,7 @@ class Project(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     system_prompt: Optional[str] = Field(None, max_length=4000)
     default_agent_id: Optional[str] = None
+    is_pinned: bool = False
     created_at: int
     updated_at: Optional[int] = None
     deleted_at: Optional[int] = None

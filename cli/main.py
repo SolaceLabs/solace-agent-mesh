@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from cli import __version__
 from cli.commands.init_cmd import init
+from solace_agent_mesh.common.features import core as feature_flags
 from cli.commands.run_cmd import run
 from cli.commands.add_cmd import add
 from cli.commands.plugin_cmd import plugin
@@ -63,7 +64,7 @@ def _version_callback(ctx, param, value):
 )
 def cli():
     """Solace CLI Application"""
-    pass
+    feature_flags.initialize()
 
 
 cli.add_command(init)

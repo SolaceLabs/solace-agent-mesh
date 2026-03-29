@@ -159,12 +159,16 @@ class PlatformServiceFactory:
         """Run database migrations for Platform Service."""
         try:
             from solace_agent_mesh.services.platform.api.main import (
+                _run_community_migrations,
                 _run_enterprise_migrations,
             )
 
+            log.info("[PlatformServiceFactory] Running community platform migrations...")
+            _run_community_migrations(database_url)
+
             log.info("[PlatformServiceFactory] Running enterprise platform migrations...")
             _run_enterprise_migrations(database_url)
-            log.info("[PlatformServiceFactory] Enterprise platform migrations completed")
+            log.info("[PlatformServiceFactory] Platform migrations completed")
         except ImportError:
             log.info("[PlatformServiceFactory] Enterprise package not available - skipping enterprise migrations")
         except Exception as e:
@@ -262,6 +266,24 @@ class PlatformServiceFactory:
     def _setup_exception_handlers(self):
         """Set up exception handlers for the FastAPI application."""
         from fastapi.responses import JSONResponse
+        from solace_agent_mesh.shared.exceptions.exceptions import (
+            EntityNotFoundError,
+            EntityAlreadyExistsError,
+        )
+
+        @self.app.exception_handler(EntityNotFoundError)
+        async def entity_not_found_handler(request, exc):
+            return JSONResponse(
+                status_code=404,
+                content={"detail": exc.message}
+            )
+
+        @self.app.exception_handler(EntityAlreadyExistsError)
+        async def entity_already_exists_handler(request, exc):
+            return JSONResponse(
+                status_code=409,
+                content={"detail": exc.message}
+            )
 
         @self.app.exception_handler(HTTPException)
         async def http_exception_handler(request, exc):

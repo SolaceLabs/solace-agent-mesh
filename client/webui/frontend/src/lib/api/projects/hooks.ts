@@ -137,6 +137,17 @@ export function useUpdateFileMetadata() {
     });
 }
 
+export function useTogglePinProject() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (projectId: string) => projectService.togglePinProject(projectId),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
+        },
+    });
+}
+
 export function useExportProject() {
     return useMutation({
         mutationFn: (projectId: string) => projectService.exportProject(projectId),

@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
 import { NODE_COLORS } from "@/lib/constants";
+import { clickableNodeProps } from "@/lib/components/utils";
 import AgentNode from "./AgentNode";
 
 interface LoopNodeProps {
@@ -57,14 +58,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
         return (
             <div className="flex flex-col px-4" style={{ minWidth: `${LOOP_WIDTH + 72}px` }}>
                 {/* Solid Header Box - positioned at top, centered with fixed width */}
-                <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-                    style={{ width: `${LOOP_WIDTH}px` }}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                >
+                <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ width: `${LOOP_WIDTH}px` }}>
                     {/* Header row */}
                     <div className="flex items-center gap-4 px-4 py-2">
                         <div className="flex items-center gap-2">
@@ -109,14 +103,7 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, onClick, onChildClick, 
 
     // No children - render as compact node
     return (
-        <div
-            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: "fit-content", minWidth: "120px" }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-        >
+        <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ width: "fit-content", minWidth: "120px" }}>
             <div className="flex items-center gap-2">
                 <RefreshCw className={`h-4 w-4 ${NODE_COLORS.loop}`} />
                 <span className="text-sm font-semibold">Loop</span>

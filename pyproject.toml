@@ -7,7 +7,7 @@ name = "solace-agent-mesh"
 dynamic = ["version"]
 description = "Solace Agent Mesh is an open-source framework for building event-driven, multi-agent AI systems where specialized agents collaborate on complex tasks."
 readme = "README.md"
-requires-python = ">=3.10.16"
+requires-python = ">=3.10.16,<3.14"
 license = { file = "LICENSE" }
 authors = [
   { name="SolaceLabs", email="solacelabs@solace.com" },
@@ -76,7 +76,7 @@ dependencies = [
     "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
-    "pypdf==6.8.0",  # [CVE-2026-31826] Security fix: large memory usage via crafted PDF content stream
+    "pypdf==6.9.1",  # [CVE-2026-33123] Security fix: large memory usage via crafted PDF content stream
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
@@ -133,7 +133,7 @@ dependencies = [
     "asyncpg",
     "bm25s==0.2.14",
     "pymysql>=1.1.0",  # Required for MySQL testcontainers
-    "pypdf==6.8.0",
+    "pypdf==6.9.1",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"

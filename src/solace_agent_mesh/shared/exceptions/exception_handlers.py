@@ -102,7 +102,8 @@ async def external_service_error_handler(
     request: Request, exc: ExternalServiceError
 ) -> JSONResponse:
     """Handle external service errors - 503 Service Unavailable."""
-    error_dto = EventErrorDTO.create("Service is unavailable.")
+    message = exc.message if exc.message else "Service is unavailable."
+    error_dto = EventErrorDTO.create(message)
     return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_dto.model_dump())
 
 

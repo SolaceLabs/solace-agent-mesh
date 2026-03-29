@@ -9,6 +9,7 @@ const chatBubbleVariant = cva("flex gap-2 max-w-full items-end relative group", 
         variant: {
             received: "self-start",
             sent: "self-end flex-row-reverse",
+            "other-user": "self-start",
         },
         layout: {
             default: "",
@@ -56,7 +57,8 @@ const chatBubbleMessageVariants = cva("", {
     variants: {
         variant: {
             received: "rounded-r-lg rounded-tl-lg",
-            sent: "rounded-l-lg rounded-tr-lg justify-end bg-(--secondary-w20) p-4",
+            sent: "rounded-l-lg rounded-tr-lg justify-end bg-(--message-background) p-4",
+            "other-user": "rounded-r-lg rounded-bl-lg bg-(--other-user-message-background) p-4",
         },
         layout: {
             default: "",
@@ -103,7 +105,7 @@ const ChatBubbleAction: React.FC<ChatBubbleActionProps> = ({ icon, onClick, clas
 );
 
 interface ChatBubbleActionWrapperProps extends React.HTMLAttributes<HTMLDivElement> {
-    variant?: "sent" | "received";
+    variant?: "sent" | "received" | "other-user";
     className?: string;
 }
 

@@ -2,9 +2,9 @@
 Helper functions for artifact management, including metadata handling and schema inference.
 """
 
+import asyncio
 import logging
 import base64
-import binascii
 import json
 import csv
 import io
@@ -13,7 +13,7 @@ import os
 import yaml
 import traceback
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple, List, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, List, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
@@ -22,6 +22,7 @@ from ...common.utils.mime_helpers import is_text_based_mime_type, is_text_based_
 from ...common.constants import (
     TEXT_ARTIFACT_CONTEXT_MAX_LENGTH_CAPACITY,
     TEXT_ARTIFACT_CONTEXT_DEFAULT_LENGTH,
+    ARTIFACT_TAG_USER_UPLOADED,
 )
 from ...agent.utils.context_helpers import get_original_session_id
 
@@ -93,15 +94,19 @@ def sanitize_to_filename(
     replacement_char: str = "_"
 ) -> str:
     """
-    Sanitizes arbitrary text into a safe filename.
+    Sanitizes arbitrary text into a safe, ASCII-only filename.
     
     Converts text (like a research question or title) into a filesystem-safe
     filename by:
     1. Converting to lowercase
-    2. Removing non-word characters (except spaces and hyphens)
+    2. Removing non-ASCII and non-word characters (except spaces and hyphens)
     3. Replacing spaces and hyphens with the replacement character
     4. Limiting length to max_length
     5. Optionally appending a suffix
+    
+    Note: Uses re.ASCII flag so that \\w only matches [a-zA-Z0-9_], ensuring
+    the resulting filename contains only ASCII characters. This is required
+    because S3 metadata (which stores the filename) only supports ASCII values.
     
     Args:
         text: The text to convert into a filename (e.g., research question, title)
@@ -110,7 +115,7 @@ def sanitize_to_filename(
         replacement_char: Character to replace spaces/hyphens with. Default: "_"
     
     Returns:
-        A sanitized filename string safe for filesystem use.
+        A sanitized, ASCII-only filename string safe for filesystem and cloud storage use.
     
     Examples:
         >>> sanitize_to_filename("What is AI?")
@@ -125,8 +130,11 @@ def sanitize_to_filename(
     if not text:
         return f"unnamed{suffix}"
     
-    # Convert to lowercase and remove non-word characters except spaces and hyphens
-    safe_name = re.sub(r'[^\w\s-]', '', text.lower())
+    # Convert to lowercase and remove non-ASCII/non-word characters except spaces and hyphens.
+    # The re.ASCII flag ensures \w only matches [a-zA-Z0-9_], preventing Unicode
+    # characters (e.g., Chinese, Japanese, Arabic) from being included in the filename.
+    # This is critical because S3 metadata only supports ASCII values (DATAGO-130045).
+    safe_name = re.sub(r'[^\w\s-]', '', text.lower(), flags=re.ASCII)
     
     # Replace spaces and hyphens with the replacement character
     safe_name = re.sub(r'[-\s]+', replacement_char, safe_name)
@@ -177,7 +185,7 @@ def format_artifact_uri(
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
 ) -> str:
     """Formats the components into a standard artifact:// URI."""
     path = f"/{user_id}/{session_id}/{filename}"
@@ -344,6 +352,7 @@ async def save_artifact_with_metadata(
     explicit_schema: Optional[Dict] = None,
     schema_inference_depth: Optional[int] = None,
     schema_max_keys: int = DEFAULT_SCHEMA_MAX_KEYS,
+    tags: Optional[List[str]] = None,
     tool_context: Optional["ToolContext"] = None,
     suppress_visualization_signal: bool = False,
 ) -> Dict[str, Any]:
@@ -476,6 +485,7 @@ async def save_artifact_with_metadata(
                         size=len(content_bytes),
                         description=metadata_dict.get("description") if metadata_dict else None,
                         version_count=None,  # Count not available in save context
+                        tags=tags,
                     )
 
                     # Publish artifact saved notification via component method
@@ -503,6 +513,8 @@ async def save_artifact_with_metadata(
             ),
             **(metadata_dict or {}),
         }
+        if tags:
+            final_metadata["tags"] = tags
         if explicit_schema:
             final_metadata["schema"] = {
                 "type": mime_type,
@@ -663,6 +675,7 @@ async def process_artifact_upload(
             schema_max_keys=component.get_config(
                 "schema_max_keys", DEFAULT_SCHEMA_MAX_KEYS
             ),
+            tags=[ARTIFACT_TAG_USER_UPLOADED],  # Mark artifacts uploaded by user
         )
 
         if save_result["status"] == "success":
@@ -927,7 +940,7 @@ def decode_and_get_bytes(
                 log_identifier,
                 mime_type,
             )
-        except (binascii.Error, ValueError) as decode_error:
+        except ValueError as decode_error:
             log.warning(
                 "%s Failed to base64 decode content for mimeType '%s'. Treating as text/plain. Error: %s",
                 log_identifier,
@@ -993,45 +1006,52 @@ async def get_artifact_counts_batch(
 ) -> Dict[str, int]:
     """
     Get artifact counts for multiple sessions in a batch operation.
-    
+
     Args:
         artifact_service: The artifact service instance.
         app_name: The application name.
         user_id: The user ID.
         session_ids: List of session IDs to get counts for.
-    
+
     Returns:
         Dict mapping session_id to artifact_count (excluding internal/generated files)
     """
+    import asyncio
+
     log_prefix = f"[ArtifactHelper:get_counts_batch] App={app_name}, User={user_id} -"
-    counts: Dict[str, int] = {}
-    
+
+    if not session_ids:
+        return {}
+
     try:
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
-        
-        for session_id in session_ids:
-            try:
-                keys = await list_keys_method(
-                    app_name=app_name, user_id=user_id, session_id=session_id
-                )
-                # Count only user-uploaded files (exclude metadata, converted text, and index files)
-                # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
-                # with "user:") which are shared across sessions. Currently no code path
-                # creates user-scoped artifacts, but if that changes, these keys should
-                # be filtered out here to avoid inflating per-project counts.
-                count = sum(1 for key in keys if not is_internal_artifact(key))
-                counts[session_id] = count
-                log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
-            except Exception as e:
-                log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
-                counts[session_id] = 0
-                
-    except Exception as e:
-        log.exception("%s Error in batch count operation: %s", log_prefix, e)
-        # Return 0 for all sessions on error
+    except AttributeError:
+        log.exception("%s artifact_service has no list_artifact_keys method", log_prefix)
         return {session_id: 0 for session_id in session_ids}
-    
-    return counts
+
+    async def _count_session(session_id: str) -> tuple[str, int]:
+        try:
+            keys = await list_keys_method(
+                app_name=app_name, user_id=user_id, session_id=session_id
+            )
+            # Count only user-uploaded files (exclude metadata, converted text, and index files)
+            # NOTE: list_artifact_keys() may also return user-scoped keys (prefixed
+            # with "user:") which are shared across sessions. Currently no code path
+            # creates user-scoped artifacts, but if that changes, these keys should
+            # be filtered out here to avoid inflating per-project counts.
+            count = sum(1 for key in keys if not is_internal_artifact(key))
+            log.debug("%s Session %s has %d artifacts", log_prefix, session_id, count)
+            return session_id, count
+        except Exception as e:
+            log.warning("%s Failed to get count for session %s: %s", log_prefix, session_id, e)
+            return session_id, 0
+
+    try:
+        results = await asyncio.gather(*(_count_session(sid) for sid in session_ids))
+        return dict(results)
+    except Exception as e:
+        log.exception("%s Error in concurrent batch count operation: %s", log_prefix, e)
+        return {session_id: 0 for session_id in session_ids}
 
 
 async def get_artifact_info_list(
@@ -1120,8 +1140,9 @@ async def get_artifact_info_list(
                     else None
                 )
 
-                # Extract source from metadata
+                # Extract source and tags from metadata
                 source = metadata.get("source")
+                tags = metadata.get("tags")
                 source_project_id = metadata.get("source_project_id")
 
                 artifact_info_list.append(
@@ -1135,6 +1156,7 @@ async def get_artifact_info_list(
                         version=loaded_version_num,
                         version_count=version_count,
                         source=source,
+                        tags=tags,
                         source_project_id=source_project_id,
                     )
                 )
@@ -1173,13 +1195,140 @@ async def get_artifact_info_list(
     return artifact_info_list
 
 
+def _metadata_to_artifact_info(
+    filename: str,
+    metadata: Dict[str, Any],
+    *,
+    version: Optional[int] = None,
+    version_count: int = 0,
+    schema_definition: Optional[Dict] = None,
+) -> ArtifactInfo:
+    """
+    Convert a raw metadata dict into an ArtifactInfo.
+
+    Shared helper used by both get_artifact_info_list and get_artifact_info_list_fast
+    to avoid duplicating the metadata extraction logic.
+    """
+    mime_type = metadata.get("mime_type", "application/data")
+    size = metadata.get("size_bytes", 0)
+    description = metadata.get("description", "No description provided")
+
+    last_modified_ts = metadata.get("timestamp_utc")
+    last_modified_iso = (
+        datetime.fromtimestamp(last_modified_ts, tz=timezone.utc).isoformat()
+        if last_modified_ts
+        else None
+    )
+
+    source = metadata.get("source")
+    tags = metadata.get("tags")
+    source_project_id = metadata.get("source_project_id")
+
+    return ArtifactInfo(
+        filename=filename,
+        mime_type=mime_type,
+        size=size,
+        last_modified=last_modified_iso,
+        schema_definition=schema_definition or metadata.get("schema", {}),
+        description=description,
+        version=version,
+        version_count=version_count,
+        source=source,
+        tags=tags,
+        source_project_id=source_project_id,
+    )
+
+
+async def get_artifact_info_list_fast(
+    artifact_service: BaseArtifactService,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+) -> List[ArtifactInfo]:
+    """
+    Lightweight version of get_artifact_info_list optimised for the /all endpoint.
+
+    Differences from get_artifact_info_list:
+    - Loads metadata for all artifacts in the session **in parallel** (asyncio.gather)
+    - Skips get_latest_artifact_version() and list_versions() — not needed for tile grid
+    - Returns the same ArtifactInfo shape but with version/version_count omitted
+
+    This reduces per-session storage calls from 1 + 3N (sequential) to 1 + N (parallel),
+    dramatically improving the /all endpoint latency for users with many artifacts.
+    """
+    log_prefix = f"[ArtifactHelper:get_info_list_fast] App={app_name}, User={user_id}, Session={session_id} -"
+
+    try:
+        list_keys_method = getattr(artifact_service, "list_artifact_keys")
+        keys = await list_keys_method(
+            app_name=app_name, user_id=user_id, session_id=session_id
+        )
+        log.debug("%s Found %d artifact keys.", log_prefix, len(keys))
+
+        # Filter out metadata suffix keys
+        artifact_filenames = [
+            filename for filename in keys if not filename.endswith(METADATA_SUFFIX)
+        ]
+
+        if not artifact_filenames:
+            return []
+
+        async def _load_single_metadata(filename: str) -> Optional[ArtifactInfo]:
+            """Load metadata for a single artifact. Returns None on failure."""
+            try:
+                data = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    version="latest",
+                    load_metadata_only=True,
+                    log_identifier_prefix=f"{log_prefix} [{filename}]",
+                )
+
+                return _metadata_to_artifact_info(filename, data.get("metadata", {}))
+            except FileNotFoundError:
+                log.warning("%s Artifact '%s' not found. Skipping.", log_prefix, filename)
+                return None
+            except Exception as e:
+                log.warning("%s Error loading metadata for '%s': %s", log_prefix, filename, e)
+                return ArtifactInfo(
+                    filename=filename,
+                    size=0,
+                    mime_type="application/octet-stream",
+                    description=f"Error loading details: {e}",
+                )
+
+        # Load all metadata in parallel
+        results = await asyncio.gather(
+            *(_load_single_metadata(f) for f in artifact_filenames),
+            return_exceptions=True,
+        )
+
+        artifact_info_list: List[ArtifactInfo] = []
+        for result in results:
+            if isinstance(result, Exception):
+                log.warning("%s Metadata load task failed with %s", log_prefix, type(result).__name__)
+                continue
+            if result is not None:
+                artifact_info_list.append(result)
+
+        log.debug("%s Returning %d artifacts (fast path).", log_prefix, len(artifact_info_list))
+        return artifact_info_list
+
+    except Exception as e:
+        log.exception("%s Error in fast artifact info list: %s", log_prefix, e)
+        return []
+
+
 async def load_artifact_content_or_metadata(
     artifact_service: BaseArtifactService,
     app_name: str,
     user_id: str,
     session_id: str,
     filename: str,
-    version: Union[int, str],
+    version: int | str,
     load_metadata_only: bool = False,
     return_raw_bytes: bool = False,
     max_content_length: Optional[int] = None,
@@ -1373,14 +1522,12 @@ async def load_artifact_content_or_metadata(
                     # Try multiple encodings with fallback for Windows-exported files
                     # Common case: CSV files exported from Excel on Windows use CP1252
                     content_str = None
-                    used_encoding = None
                     encodings_to_try = [encoding, "utf-16", "cp1252", "latin-1"]
                     decode_errors = []
-                    
+
                     for enc in encodings_to_try:
                         try:
                             content_str = data_bytes.decode(enc, errors=error_handling)
-                            used_encoding = enc
                             if enc != encoding:
                                 log.info(
                                     "%s Successfully decoded text artifact '%s' v%d using fallback encoding '%s' (primary '%s' failed)",

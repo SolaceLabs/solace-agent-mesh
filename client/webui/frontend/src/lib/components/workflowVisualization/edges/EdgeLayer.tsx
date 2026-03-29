@@ -55,7 +55,7 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
 
                         {/* Edge label (if present) */}
                         {edge.label && (
-                            <text x={(edge.sourceX + edge.targetX) / 2} y={(edge.sourceY + edge.targetY) / 2 - 8} textAnchor="middle" className="fill-gray-500 text-xs">
+                            <text x={(edge.sourceX + edge.targetX) / 2} y={(edge.sourceY + edge.targetY) / 2 - 8} textAnchor="middle" className="fill-(--secondary-text-wMain) text-xs">
                                 {edge.label}
                             </text>
                         )}
