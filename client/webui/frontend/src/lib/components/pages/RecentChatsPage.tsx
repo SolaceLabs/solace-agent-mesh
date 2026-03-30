@@ -6,13 +6,16 @@ import { Loader2, Check, X, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, formatTimestamp, cn } from "@/lib/utils";
-import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog } from "@/lib/components/chat";
+import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
+import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
-export interface PaginatedSessionsResponse {
+const PAGE_SIZE = 20;
+const BACKGROUND_TASK_POLL_MS = 10_000;
+
+interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
         pagination: {
@@ -56,23 +59,18 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return (isThisSessionResponding && isNewChat) || hasBackgroundTaskWithNewTitle;
     }, [session.name, session.id, respondingSessionId, isGenerating, autoTitleGenerationEnabled, session.hasRunningBackgroundTask]);
 
-    const animationClass = useMemo(() => {
+    const animationVariant = useMemo((): "pulseGenerate" | "pulseWait" | "none" => {
         if (isGenerating || isAnimating) {
-            if (isWaitingForTitle) {
-                return "animate-pulse-slow";
-            }
-            return "animate-pulse opacity-50";
+            return isWaitingForTitle ? "pulseGenerate" : "pulseWait";
         }
-        if (isWaitingForTitle) {
-            return "animate-pulse-slow";
-        }
-        return "opacity-100";
+        if (isWaitingForTitle) return "pulseGenerate";
+        return "none";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <span className={cn("truncate text-sm font-bold text-(--primary-text-wMain) transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>{animatedName}</span>
+                <span className={sessionTitleStyles({ active: isSelected, animation: animationVariant })}>{animatedName}</span>
             </TooltipTrigger>
             <TooltipContent className="max-w-[480px]">{animatedName}</TooltipContent>
         </Tooltip>
@@ -85,6 +83,7 @@ export const RecentChatsPage: React.FC = () => {
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
+    const regeneratingRef = useRef<string | null>(null);
 
     // Track which session started the response
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
@@ -121,7 +120,7 @@ export const RecentChatsPage: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
+            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${PAGE_SIZE}`);
 
             if (append) {
                 setSessions(prev => [...prev, ...result.data]);
@@ -203,7 +202,7 @@ export const RecentChatsPage: React.FC = () => {
 
         const intervalId = setInterval(() => {
             fetchSessions(1, false);
-        }, 10000);
+        }, BACKGROUND_TASK_POLL_MS);
 
         return () => {
             clearInterval(intervalId);
@@ -260,12 +259,13 @@ export const RecentChatsPage: React.FC = () => {
 
     const handleRenameWithAI = useCallback(
         async (session: Session) => {
-            if (regeneratingTitleForSession) {
+            if (regeneratingRef.current) {
                 addNotification?.("AI rename already in progress", "info");
                 return;
             }
 
             setRegeneratingTitleForSession(session.id);
+            regeneratingRef.current = session.id;
 
             try {
                 const data = await api.webui.get(`/api/v1/sessions/${session.id}/chat-tasks`);
@@ -307,9 +307,10 @@ export const RecentChatsPage: React.FC = () => {
                 addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
             } finally {
                 setRegeneratingTitleForSession(null);
+                regeneratingRef.current = null;
             }
         },
-        [generateTitle, addNotification, regeneratingTitleForSession]
+        [generateTitle, addNotification]
     );
 
     const handleSessionSelect = async (sessionId: string) => {
@@ -411,7 +412,7 @@ export const RecentChatsPage: React.FC = () => {
                 {filteredSessions.length > 0 && (
                     <div className="flex flex-col gap-2">
                         {filteredSessions.map(session => (
-                            <div key={session.id} className="group relative h-[75px] rounded-lg border p-4 transition-colors hover:bg-(--primary-w10)">
+                            <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
                                 {editingSessionId === session.id ? (
                                     <div className="flex items-center gap-2">
                                         <input
@@ -467,7 +468,6 @@ export const RecentChatsPage: React.FC = () => {
                                                 onDelete={handleDeleteClick}
                                                 onGoToProject={handleGoToProject}
                                                 isRegeneratingTitle={regeneratingTitleForSession === session.id}
-                                                triggerClassName=""
                                             />
                                         </div>
                                     </div>
