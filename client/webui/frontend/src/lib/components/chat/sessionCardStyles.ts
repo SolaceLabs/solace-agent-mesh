@@ -4,7 +4,7 @@ import { cva } from "class-variance-authority";
 export const sessionCardStyles = cva(["group", "relative", "rounded-lg", "border", "p-4", "transition-colors"], {
     variants: {
         active: {
-            true: "border-(--brand-w60) bg-(--secondary-w10)",
+            true: "bg-(--secondary-w10)",
             false: "hover:bg-(--primary-w10)",
         },
         size: {
