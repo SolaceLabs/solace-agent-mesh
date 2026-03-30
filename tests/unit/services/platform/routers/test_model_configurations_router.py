@@ -189,6 +189,8 @@ class TestDeleteModelEndpoint:
         mock_component = Mock()
         mock_user = {"id": "user-1"}
 
+        from solace_agent_mesh.services.platform.api.dependencies import ModelDependentsHandler
+
         await delete_model(
             model_id="uuid-789",
             _=None,
@@ -196,6 +198,7 @@ class TestDeleteModelEndpoint:
             user=mock_user,
             service=mock_service,
             component=mock_component,
+            dependents_handler=ModelDependentsHandler(),
         )
 
         mock_service.get_by_id.assert_called_once()
