@@ -20,14 +20,8 @@ const mockConfigData = {
     identity_service_type: null,
 };
 
-const mockFeaturesData = [
-    { key: "my_feature", name: "My Feature", release_phase: "ga", resolved: true, has_env_override: false, registry_default: false, description: "" },
-    { key: "other_feature", name: "Other", release_phase: "beta", resolved: false, has_env_override: false, registry_default: false, description: "" },
-];
-
 describe("ConfigProvider", () => {
     let ConfigProvider: React.ComponentType<{ children: React.ReactNode }>;
-    let mockSetProviderAndWait: ReturnType<typeof vi.fn>;
     let mockFetchCsrfToken: ReturnType<typeof vi.fn>;
     let mockWebuiGet: ReturnType<typeof vi.fn>;
     let mockApiConfigure: ReturnType<typeof vi.fn>;
@@ -35,15 +29,9 @@ describe("ConfigProvider", () => {
     beforeEach(async () => {
         vi.resetModules();
 
-        mockSetProviderAndWait = vi.fn().mockResolvedValue(undefined);
         mockFetchCsrfToken = vi.fn().mockResolvedValue(null);
         mockWebuiGet = vi.fn();
         mockApiConfigure = vi.fn();
-
-        vi.doMock("@openfeature/react-sdk", () => ({
-            OpenFeature: { setProviderAndWait: mockSetProviderAndWait },
-            OpenFeatureProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-        }));
 
         vi.doMock("@/lib/hooks/useCsrfContext", () => ({
             useCsrfContext: () => ({
@@ -79,11 +67,8 @@ describe("ConfigProvider", () => {
     }
 
     describe("successful initialization", () => {
-        test("renders children after config and features load successfully", async () => {
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeOkResponse(mockConfigData);
-                return makeOkResponse(mockFeaturesData);
-            });
+        test("renders children after config loads successfully", async () => {
+            mockWebuiGet.mockResolvedValue(makeOkResponse(mockConfigData));
 
             render(
                 <ConfigProvider>
@@ -94,35 +79,10 @@ describe("ConfigProvider", () => {
             await waitFor(() => {
                 expect(screen.getByTestId("child")).toBeInTheDocument();
             });
-        });
-
-        test("passes feature flags from /config/features to OpenFeature provider", async () => {
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeOkResponse(mockConfigData);
-                return makeOkResponse(mockFeaturesData);
-            });
-
-            render(
-                <ConfigProvider>
-                    <div data-testid="child">Hello</div>
-                </ConfigProvider>
-            );
-
-            await waitFor(() => {
-                expect(screen.getByTestId("child")).toBeInTheDocument();
-            });
-
-            expect(mockSetProviderAndWait).toHaveBeenCalledOnce();
-            const providerArg = mockSetProviderAndWait.mock.calls[0][0];
-            expect(providerArg.resolveBooleanEvaluation("my_feature", false)).toEqual({ value: true, reason: "STATIC" });
-            expect(providerArg.resolveBooleanEvaluation("other_feature", true)).toEqual({ value: false, reason: "STATIC" });
         });
 
         test("configures api client with server URLs from config response", async () => {
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeOkResponse(mockConfigData);
-                return makeOkResponse(mockFeaturesData);
-            });
+            mockWebuiGet.mockResolvedValue(makeOkResponse(mockConfigData));
 
             render(
                 <ConfigProvider>
@@ -138,35 +98,9 @@ describe("ConfigProvider", () => {
         });
     });
 
-    describe("features endpoint degradation", () => {
-        test("renders children with empty feature flags when features endpoint is unavailable", async () => {
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeOkResponse(mockConfigData);
-                return makeErrorResponse(503);
-            });
-
-            render(
-                <ConfigProvider>
-                    <div data-testid="child">Hello</div>
-                </ConfigProvider>
-            );
-
-            await waitFor(() => {
-                expect(screen.getByTestId("child")).toBeInTheDocument();
-            });
-
-            expect(mockSetProviderAndWait).toHaveBeenCalledOnce();
-            const providerArg = mockSetProviderAndWait.mock.calls[0][0];
-            expect(providerArg.resolveBooleanEvaluation("any_flag", true)).toEqual({ value: true, reason: "DEFAULT" });
-        });
-    });
-
     describe("config fetch error handling", () => {
         test("shows error state when config fetch fails with non-403 status", async () => {
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeErrorResponse(500);
-                return makeOkResponse(mockFeaturesData);
-            });
+            mockWebuiGet.mockResolvedValue(makeErrorResponse(500));
 
             render(
                 <ConfigProvider>
@@ -181,17 +115,14 @@ describe("ConfigProvider", () => {
     });
 
     describe("CSRF retry on 403", () => {
-        test("retries both config and features with CSRF token after initial 403", async () => {
+        test("retries config with CSRF token after initial 403", async () => {
             mockFetchCsrfToken.mockResolvedValue("csrf-token-xyz");
             let configCallCount = 0;
 
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") {
-                    configCallCount++;
-                    if (configCallCount === 1) return makeErrorResponse(403, "Forbidden");
-                    return makeOkResponse(mockConfigData);
-                }
-                return makeOkResponse(mockFeaturesData);
+            mockWebuiGet.mockImplementation(async () => {
+                configCallCount++;
+                if (configCallCount === 1) return makeErrorResponse(403, "Forbidden");
+                return makeOkResponse(mockConfigData);
             });
 
             render(
@@ -211,10 +142,7 @@ describe("ConfigProvider", () => {
         test("shows error state when CSRF retry config fetch also fails", async () => {
             mockFetchCsrfToken.mockResolvedValue("csrf-token-xyz");
 
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeErrorResponse(403, "Forbidden");
-                return makeOkResponse(mockFeaturesData);
-            });
+            mockWebuiGet.mockResolvedValue(makeErrorResponse(403, "Forbidden"));
 
             render(
                 <ConfigProvider>
@@ -230,10 +158,7 @@ describe("ConfigProvider", () => {
         test("shows error state when CSRF token cannot be obtained after 403", async () => {
             mockFetchCsrfToken.mockResolvedValue(null);
 
-            mockWebuiGet.mockImplementation(async (endpoint: string) => {
-                if (endpoint === "/api/v1/config") return makeErrorResponse(403, "Forbidden");
-                return makeOkResponse(mockFeaturesData);
-            });
+            mockWebuiGet.mockResolvedValue(makeErrorResponse(403, "Forbidden"));
 
             render(
                 <ConfigProvider>

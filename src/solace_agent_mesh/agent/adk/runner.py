@@ -9,6 +9,8 @@ import os
 from google.adk.agents.invocation_context import LlmCallsLimitExceededError
 from litellm.exceptions import BadRequestError
 
+from ...common.error_handlers import LITELLM_EXCEPTIONS
+
 
 class TaskCancelledError(Exception):
     """Raised when an ADK task is cancelled via external signal."""
@@ -1002,6 +1004,500 @@ async def _perform_session_compaction(
     return reloaded_session, summary
 
 
+async def _repair_dangling_tool_calls_in_session(
+    component: "SamAgentComponent",
+    adk_session: ADKSession,
+    logical_task_id: str,
+):
+    """
+    Scan the ADK session events for dangling tool calls (function_call events
+    with no matching function_response) and append synthetic error response
+    events to the session to repair them.
+
+    This is the "belt" fix that complements the existing "suspenders"
+    (repair_history_callback in callbacks.py). While repair_history_callback
+    repairs dangling calls in llm_request.contents before each LLM call,
+    this function repairs them at the session level BEFORE the ADK runner
+    starts. This prevents the LLM from seeing stale dangling calls from
+    previous turns and potentially retrying them as long-running peer tool
+    calls that will never receive a response.
+
+    Args:
+        component: The SamAgentComponent instance.
+        adk_session: The ADK session to scan and repair.
+        logical_task_id: The task ID for logging.
+    """
+    log_identifier = f"{component.log_identifier}[RepairSession:{logical_task_id}]"
+
+    if not adk_session or not adk_session.events:
+        return
+
+    # Build a set of all function_response IDs in the session
+    response_ids: set[str] = set()
+    for event in adk_session.events:
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.function_response and part.function_response.id:
+                    response_ids.add(part.function_response.id)
+
+    # Find all function_call IDs that have no matching response
+    dangling_calls: list[tuple[str, str]] = []  # (call_id, tool_name)
+    for event in adk_session.events:
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if (
+                    part.function_call
+                    and part.function_call.id
+                    and part.function_call.id not in response_ids
+                ):
+                    dangling_calls.append(
+                        (part.function_call.id, part.function_call.name or "unknown")
+                    )
+
+    if not dangling_calls:
+        return
+
+    tool_names = [name for _, name in dangling_calls]
+    log.warning(
+        "%s Found %d dangling tool call(s) in session events for tool(s): %s. "
+        "Appending synthetic error responses to session to prevent runner blocking.",
+        log_identifier,
+        len(dangling_calls),
+        tool_names,
+    )
+
+    # Create synthetic function_response parts for each dangling call
+    repair_parts = []
+    for call_id, tool_name in dangling_calls:
+        response_part = adk_types.Part.from_function_response(
+            name=tool_name,
+            response={
+                "status": "error",
+                "message": (
+                    "This tool call from a previous turn did not receive a response. "
+                    "It has been automatically repaired. Do NOT retry this call — "
+                    "instead, proceed with the current user request."
+                ),
+            },
+        )
+        response_part.function_response.id = call_id
+        repair_parts.append(response_part)
+
+    # Append a single repair event with all the synthetic responses
+    repair_event = ADKEvent(
+        invocation_id=logical_task_id,
+        author="system",
+        content=adk_types.Content(role="tool", parts=repair_parts),
+    )
+
+    try:
+        from .services import append_event_with_retry
+
+        await append_event_with_retry(
+            session_service=component.session_service,
+            session=adk_session,
+            event=repair_event,
+            app_name=component.agent_name,
+            user_id=adk_session.user_id,
+            session_id=adk_session.id,
+            log_identifier=log_identifier,
+        )
+        log.warning(
+            "%s Successfully repaired %d dangling tool call(s) in session %s: %s",
+            log_identifier,
+            len(dangling_calls),
+            adk_session.id,
+            tool_names,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to append repair event for dangling tool calls: %s",
+            log_identifier,
+            e,
+            exc_info=True,
+        )
+
+
+async def _append_a2a_context_event(
+    component: "SamAgentComponent",
+    adk_session: ADKSession,
+    a2a_context: dict[str, Any],
+    logical_task_id: str,
+):
+    """
+    Append a context-setting event to the ADK session to inject A2A context.
+
+    This event stores the A2A context in session state so that tools can access
+    it for scope filtering and other A2A-aware behavior.
+
+    Args:
+        component: The SamAgentComponent instance.
+        adk_session: The ADK session to append the event to.
+        a2a_context: The A2A context dictionary to inject.
+        logical_task_id: The task ID for logging.
+    """
+    context_setting_invocation_id = logical_task_id
+    try:
+        from .services import append_event_with_retry
+
+        context_setting_event = ADKEvent(
+            invocation_id=context_setting_invocation_id,
+            author="A2A_Host_System",
+            content=adk_types.Content(
+                role="user",  # Must set role to avoid breaking ADK's is_final_response() logic
+                parts=[
+                    adk_types.Part(
+                        text="Initializing A2A context for task run."
+                    )
+                ],
+            ),
+            actions=EventActions(state_delta={"a2a_context": a2a_context}),
+            branch=None,
+        )
+        # Use retry helper to handle stale session race conditions
+        await append_event_with_retry(
+            session_service=component.session_service,
+            session=adk_session,
+            event=context_setting_event,
+            app_name=component.agent_name,
+            user_id=adk_session.user_id,
+            session_id=adk_session.id,
+            log_identifier=f"{component.log_identifier}[ContextEvent:{logical_task_id}]",
+        )
+        log.debug(
+            "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
+            component.log_identifier,
+            adk_session.id,
+            logical_task_id,
+        )
+    except Exception as e_append:
+        log.error(
+            "%s Failed to append context-setting event for task %s: %s.",
+            component.log_identifier,
+            logical_task_id,
+            e_append,
+            exc_info=True,
+        )
+
+
+async def _run_with_compaction_retry(
+    component: "SamAgentComponent",
+    task_context: "TaskExecutionContext",
+    adk_session: ADKSession,
+    adk_content: adk_types.Content,
+    run_config: RunConfig,
+    a2a_context: dict[str, Any],
+    compaction_enabled: bool,
+    compaction_percentage: float,
+    logical_task_id: str,
+) -> tuple[bool, ADKSession]:
+    """
+    Run the ADK task with automatic compaction retry on context limit errors.
+
+    Retries up to 3 times when context limit is exceeded and auto-summarization
+    is enabled. Coordinates with parallel tasks via per-session compaction locks.
+
+    Args:
+        component: The SamAgentComponent instance.
+        task_context: The task execution context.
+        adk_session: The ADK session to use.
+        adk_content: The input content for the ADK agent.
+        run_config: The ADK run configuration.
+        a2a_context: The A2A context dictionary.
+        compaction_enabled: Whether auto-summarization is enabled.
+        compaction_percentage: Percentage of conversation to compact (0.0 - 1.0).
+        logical_task_id: The task ID for logging.
+
+    Returns:
+        Tuple of (is_paused, updated_adk_session). Returns None for the session
+        if the function handled the error gracefully and the caller should return early.
+    """
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count <= max_retries:
+        try:
+            # Check if test mode compaction is enabled and should trigger, will always be false for prod.
+            if _is_test_mode_trigger_enabled() and compaction_enabled and adk_session.events and adk_content.role == 'user':
+                _test_and_trigger_compaction(_get_test_token_threshold(), adk_session, component)
+
+            is_paused = await run_adk_async_task(
+                component,
+                task_context,
+                adk_session,
+                adk_content,
+                run_config,
+                a2a_context,
+            )
+            return is_paused, adk_session
+
+        except BadRequestError as e:
+            # Check if this is a context limit error AND auto-summarization is enabled
+            if not (_is_context_limit_error(e) and compaction_enabled):
+                # Either not a context limit error, or auto-summarization is disabled
+                if _is_context_limit_error(e):
+                    log.error(
+                        "%s Context limit exceeded for task %s, but auto-summarization is disabled. "
+                        "Enable it in the agent's auto_summarization config.",
+                        component.log_identifier,
+                        logical_task_id
+                    )
+                raise  # Re-raise the original error
+
+            # Context limit error with auto-summarization enabled
+            retry_count += 1
+
+            # Check if we've exceeded max retries
+            if retry_count > max_retries:
+                await _handle_max_retries_exceeded(
+                    component=component,
+                    a2a_context=a2a_context,
+                    session_id=adk_session.id,
+                    max_retries=max_retries,
+                    logical_task_id=logical_task_id,
+                    log_identifier=component.log_identifier
+                )
+                return False, None  # Exit cleanly - user already got the graceful message
+
+            # Get per-session compaction lock to coordinate parallel tasks
+            compaction_lock = await component.session_compaction_state.get_lock(adk_session.id)
+
+            # Check if another task is already compacting this session
+            if compaction_lock.locked():
+                # Wait for parallel compaction to complete and get updated session
+                adk_session = await _wait_for_parallel_compaction(
+                    component=component,
+                    compaction_lock=compaction_lock,
+                    session_id=adk_session.id,
+                    user_id=adk_session.user_id,
+                    logical_task_id=logical_task_id,
+                    log_identifier=component.log_identifier
+                )
+                # Retry without doing our own compaction (other task did it)
+                continue
+
+            # Lock is available - we'll do the compaction work
+            async with compaction_lock:
+                try:
+                    adk_session, _ = await _perform_session_compaction(
+                        component=component,
+                        session=adk_session,
+                        retry_count=retry_count,
+                        max_retries=max_retries,
+                        logical_task_id=logical_task_id,
+                        log_identifier=component.log_identifier,
+                        compaction_threshold=compaction_percentage
+                    )
+                except RuntimeError as rt_err:
+                    # Check if this is the "Insufficient conversation history" error
+                    if "Insufficient conversation history" in str(rt_err):
+                        # Clean up any pending summary
+                        component.session_compaction_state.pop_summary(adk_session.id)
+
+                        # Send graceful user-facing message
+                        await _send_insufficient_history_message(
+                            component=component,
+                            a2a_context=a2a_context,
+                            log_identifier=component.log_identifier
+                        )
+                        return False, None  # Exit cleanly - user already got the graceful message
+                    else:
+                        # Different RuntimeError - re-raise
+                        raise
+
+            # Retry with compacted session
+            continue
+
+    # Should not reach here, but satisfy type checker
+    return False, adk_session
+
+
+async def _send_deferred_compaction_notification(
+    component: "SamAgentComponent",
+    adk_session: ADKSession,
+    a2a_context: dict[str, Any],
+):
+    """
+    Send deferred summarization notification AFTER successful response.
+
+    User sees the actual answer first, then a clean notification about what happened.
+    Only ROOT tasks should consume the summary - subtasks should leave it for the
+    root task to notify, preventing duplicate notifications.
+
+    Args:
+        component: The SamAgentComponent instance.
+        adk_session: The ADK session.
+        a2a_context: The A2A context dictionary.
+    """
+    parent_task_id = a2a_context.get("original_message_metadata", {}).get("parentTaskId")
+
+    if parent_task_id:
+        # Subtask - peek but don't consume
+        summary = component.session_compaction_state.get_summary(adk_session.id)
+        if summary:
+            log.info(
+                "%s Subtask compacted (parent: %s) - leaving summary for root task to notify",
+                component.log_identifier,
+                parent_task_id
+            )
+    else:
+        # Root task - consume and send notification
+        summary = component.session_compaction_state.pop_summary(adk_session.id)
+        if summary:
+            log.info(
+                "%s Sending deferred compaction notification for session %s after successful response",
+                component.log_identifier,
+                adk_session.id
+            )
+            is_background = _is_background_task(a2a_context)
+            await _send_truncation_notification(
+                component=component,
+                a2a_context=a2a_context,
+                summary=summary,
+                is_background=is_background,
+                log_identifier=component.log_identifier
+            )
+
+
+def _propagate_cancellation_to_peers(
+    component: "SamAgentComponent",
+    task_context: "TaskExecutionContext",
+    logical_task_id: str,
+):
+    """
+    Propagate cancellation to all active peer sub-tasks.
+
+    Sends CancelTaskRequest to each peer agent that has an active sub-task
+    for the cancelled main task.
+
+    Args:
+        component: The SamAgentComponent instance.
+        task_context: The task execution context (may be None).
+        logical_task_id: The task ID for logging.
+    """
+    sub_tasks_to_cancel = task_context.active_peer_sub_tasks if task_context else {}
+
+    if sub_tasks_to_cancel:
+        log.info(
+            "%s Propagating cancellation to %d peer sub-task(s) for main task %s.",
+            component.log_identifier,
+            len(sub_tasks_to_cancel),
+            logical_task_id,
+        )
+        for sub_task_id, sub_task_info in sub_tasks_to_cancel.items():
+            try:
+                target_peer_agent_name = sub_task_info.get("peer_agent_name")
+                if not sub_task_id or not target_peer_agent_name:
+                    log.warning(
+                        "%s Incomplete sub-task info found for sub-task %s, cannot cancel: %s",
+                        component.log_identifier,
+                        sub_task_id,
+                        sub_task_info,
+                    )
+                    continue
+
+                task_id_for_peer = sub_task_id.replace(
+                    component.CORRELATION_DATA_PREFIX, "", 1
+                )
+                peer_cancel_request = a2a.create_cancel_task_request(
+                    task_id=task_id_for_peer
+                )
+                peer_cancel_user_props = {"clientId": component.agent_name}
+                peer_request_topic = component._get_agent_request_topic(
+                    target_peer_agent_name
+                )
+                component.publish_a2a_message(
+                    payload=peer_cancel_request.model_dump(exclude_none=True),
+                    topic=peer_request_topic,
+                    user_properties=peer_cancel_user_props,
+                )
+            except Exception as e_peer_cancel:
+                log.error(
+                    "%s Failed to send CancelTaskRequest for sub-task %s: %s",
+                    component.log_identifier,
+                    sub_task_id,
+                    e_peer_cancel,
+                    exc_info=True,
+                )
+
+
+def _schedule_finalization(
+    component: "SamAgentComponent",
+    task_context: "TaskExecutionContext",
+    a2a_context: dict[str, Any],
+    logical_task_id: str,
+    is_paused: bool,
+    exception_to_finalize_with: Exception | None,
+):
+    """
+    Schedule the appropriate finalization handler for the completed task.
+
+    Handles both structured invocation tasks (deferred SI finalization) and
+    normal tasks (finalize_task_with_cleanup). Schedules the finalization
+    coroutine on the component's async event loop.
+
+    Args:
+        component: The SamAgentComponent instance.
+        task_context: The task execution context (may be None).
+        a2a_context: The A2A context dictionary.
+        logical_task_id: The task ID for logging.
+        is_paused: Whether the task is paused waiting for peer/user input.
+        exception_to_finalize_with: Exception to pass to finalization, or None.
+    """
+    # Check if this is a retrigger for a structured invocation task.
+    # If so, run deferred SI finalization instead of normal finalization.
+    if task_context and task_context.get_flag("structured_invocation"):
+        if not is_paused or exception_to_finalize_with:
+            log.info(
+                "%s Structured invocation task %s completed (paused=%s, exception=%s). "
+                "Scheduling deferred SI finalization.",
+                component.log_identifier,
+                logical_task_id,
+                is_paused,
+                type(exception_to_finalize_with).__name__ if exception_to_finalize_with else "None",
+            )
+            loop = component.get_async_loop()
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    component.structured_invocation_handler.finalize_deferred_structured_invocation(
+                        task_context, a2a_context, exception_to_finalize_with
+                    ),
+                    loop,
+                )
+            else:
+                log.error(
+                    "%s Async loop not available. Cannot schedule SI finalization for task %s.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+        else:
+            log.info(
+                "%s Structured invocation task %s still paused after retrigger. Waiting for more peer responses.",
+                component.log_identifier,
+                logical_task_id,
+            )
+    else:
+        loop = component.get_async_loop()
+        if loop and loop.is_running():
+            log.debug(
+                "%s Scheduling finalize_task_with_cleanup for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
+            asyncio.run_coroutine_threadsafe(
+                component.finalize_task_with_cleanup(
+                    a2a_context, is_paused, exception_to_finalize_with
+                ),
+                loop,
+            )
+        else:
+            log.error(
+                "%s Async loop not available. Cannot schedule finalization for task %s.",
+                component.log_identifier,
+                logical_task_id,
+            )
+
+
 async def run_adk_async_task_thread_wrapper(
     component: "SamAgentComponent",
     adk_session: ADKSession,
@@ -1026,7 +1522,7 @@ async def run_adk_async_task_thread_wrapper(
     """
     # Read auto-summarization config from component (per-agent configuration)
     auto_sum_config = component.auto_summarization_config
-    compaction_enabled = auto_sum_config.get("enabled", False)
+    compaction_enabled = auto_sum_config.get("enabled", True)
     compaction_percentage = auto_sum_config.get("compaction_percentage", 0.25)
 
     logical_task_id = a2a_context.get("logical_task_id", "unknown_task")
@@ -1053,48 +1549,9 @@ async def run_adk_async_task_thread_wrapper(
         )
 
         if adk_session and component.session_service and append_context_event:
-            context_setting_invocation_id = logical_task_id
-            try:
-                from .services import append_event_with_retry
-
-                context_setting_event = ADKEvent(
-                    invocation_id=context_setting_invocation_id,
-                    author="A2A_Host_System",
-                    content=adk_types.Content(
-                        role="user",  # Must set role to avoid breaking ADK's is_final_response() logic
-                        parts=[
-                            adk_types.Part(
-                                text="Initializing A2A context for task run."
-                            )
-                        ],
-                    ),
-                    actions=EventActions(state_delta={"a2a_context": a2a_context}),
-                    branch=None,
-                )
-                # Use retry helper to handle stale session race conditions
-                await append_event_with_retry(
-                    session_service=component.session_service,
-                    session=adk_session,
-                    event=context_setting_event,
-                    app_name=component.agent_name,
-                    user_id=adk_session.user_id,
-                    session_id=adk_session.id,
-                    log_identifier=f"{component.log_identifier}[ContextEvent:{logical_task_id}]",
-                )
-                log.debug(
-                    "%s Appended context-setting event to ADK session %s (via component.session_service) for task %s.",
-                    component.log_identifier,
-                    adk_session.id,
-                    logical_task_id,
-                )
-            except Exception as e_append:
-                log.error(
-                    "%s Failed to append context-setting event for task %s: %s.",
-                    component.log_identifier,
-                    logical_task_id,
-                    e_append,
-                    exc_info=True,
-                )
+            await _append_a2a_context_event(
+                component, adk_session, a2a_context, logical_task_id
+            )
         else:
             if append_context_event:
                 log.warning(
@@ -1103,106 +1560,30 @@ async def run_adk_async_task_thread_wrapper(
                     logical_task_id,
                 )
 
-        # =================================================================
-        # Retry loop with automatic summarization on context limit errors
-        # System-wide configuration via SAM_ENABLE_AUTO_SUMMARIZATION env var
-        # =================================================================
-        max_retries = 3
-        retry_count = 0
-        is_paused = False
+        # Repair any dangling tool calls from previous turns in the session
+        # before the ADK runner starts. This prevents the LLM from seeing stale
+        # unresolved tool calls and potentially retrying them as long-running
+        # peer calls that will never receive a response (causing indefinite blocking).
+        if adk_session and component.session_service:
+            await _repair_dangling_tool_calls_in_session(
+                component, adk_session, logical_task_id
+            )
 
-        while retry_count <= max_retries:
-            try:
-                # Check if test mode compaction is enabled and should trigger, will always be false for prod.
-                if _is_test_mode_trigger_enabled() and compaction_enabled and adk_session.events and adk_content.role == 'user':
-                    _test_and_trigger_compaction(_get_test_token_threshold(), adk_session, component)
+        # Run the ADK task with automatic compaction retry on context limit errors
+        is_paused, adk_session = await _run_with_compaction_retry(
+            component=component,
+            task_context=task_context,
+            adk_session=adk_session,
+            adk_content=adk_content,
+            run_config=run_config,
+            a2a_context=a2a_context,
+            compaction_enabled=compaction_enabled,
+            compaction_percentage=compaction_percentage,
+            logical_task_id=logical_task_id,
+        )
 
-                is_paused = await run_adk_async_task(
-                    component,
-                    task_context,
-                    adk_session,
-                    adk_content,
-                    run_config,
-                    a2a_context,
-                )
-                break
-
-            except BadRequestError as e:
-                # Check if this is a context limit error AND auto-summarization is enabled
-                if not (_is_context_limit_error(e) and compaction_enabled):
-                    # Either not a context limit error, or auto-summarization is disabled
-                    if _is_context_limit_error(e):
-                        log.error(
-                            "%s Context limit exceeded for task %s, but auto-summarization is disabled. "
-                            "Enable it in the agent's auto_summarization config.",
-                            component.log_identifier,
-                            logical_task_id
-                        )
-                    raise  # Re-raise the original error
-
-                # Context limit error with auto-summarization enabled
-                retry_count += 1
-
-                # Check if we've exceeded max retries
-                if retry_count > max_retries:
-                    await _handle_max_retries_exceeded(
-                        component=component,
-                        a2a_context=a2a_context,
-                        session_id=adk_session.id,
-                        max_retries=max_retries,
-                        logical_task_id=logical_task_id,
-                        log_identifier=component.log_identifier
-                    )
-                    return  # Exit cleanly - user already got the graceful message
-
-                # Get per-session compaction lock to coordinate parallel tasks
-                compaction_lock = await component.session_compaction_state.get_lock(adk_session.id)
-
-                # Check if another task is already compacting this session
-                if compaction_lock.locked():
-                    # Wait for parallel compaction to complete and get updated session
-                    adk_session = await _wait_for_parallel_compaction(
-                        component=component,
-                        compaction_lock=compaction_lock,
-                        session_id=adk_session.id,
-                        user_id=adk_session.user_id,
-                        logical_task_id=logical_task_id,
-                        log_identifier=component.log_identifier
-                    )
-                    # Retry without doing our own compaction (other task did it)
-                    continue
-
-                # Lock is available - we'll do the compaction work
-                async with compaction_lock:
-                    try:
-                        adk_session, _ = await _perform_session_compaction(
-                            component=component,
-                            session=adk_session,
-                            retry_count=retry_count,
-                            max_retries=max_retries,
-                            logical_task_id=logical_task_id,
-                            log_identifier=component.log_identifier,
-                            compaction_threshold=compaction_percentage
-                        )
-                    except RuntimeError as rt_err:
-                        # Check if this is the "Insufficient conversation history" error
-                        if "Insufficient conversation history" in str(rt_err):
-                            # Clean up any pending summary
-                            component.session_compaction_state.pop_summary(adk_session.id)
-
-                            # Send graceful user-facing message
-                            await _send_insufficient_history_message(
-                                component=component,
-                                a2a_context=a2a_context,
-                                log_identifier=component.log_identifier
-                            )
-                            return  # Exit cleanly - user already got the graceful message
-                        else:
-                            # Different RuntimeError - re-raise
-                            raise
-
-                # Retry with compacted session
-                continue
+        if adk_session is None:
+            return  # Graceful early exit (user already notified)
 
         # Mark task as paused if it's waiting for peer response or user input
         if task_context and is_paused:
@@ -1221,36 +1602,9 @@ async def run_adk_async_task_thread_wrapper(
         )
 
         # Send deferred summarization notification AFTER successful response
-        # User sees the actual answer first, then a clean notification about what happened
-        # Only ROOT tasks should consume the summary - subtasks should leave it
-        parent_task_id = a2a_context.get("original_message_metadata", {}).get("parentTaskId")
-
-        if parent_task_id:
-            # Subtask - peek but don't consume
-            summary = component.session_compaction_state.get_summary(adk_session.id)
-            if summary:
-                log.info(
-                    "%s Subtask compacted (parent: %s) - leaving summary for root task to notify",
-                    component.log_identifier,
-                    parent_task_id
-                )
-        else:
-            # Root task - consume and send notification
-            summary = component.session_compaction_state.pop_summary(adk_session.id)
-            if summary:
-                log.info(
-                    "%s Sending deferred compaction notification for session %s after successful response",
-                    component.log_identifier,
-                    adk_session.id
-                )
-                is_background = _is_background_task(a2a_context)
-                await _send_truncation_notification(
-                    component=component,
-                    a2a_context=a2a_context,
-                    summary=summary,
-                    is_background=is_background,
-                    log_identifier=component.log_identifier
-                )
+        await _send_deferred_compaction_notification(
+            component, adk_session, a2a_context
+        )
 
     except TaskCancelledError as tce:
         exception_to_finalize_with = tce
@@ -1260,50 +1614,9 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             tce,
         )
-        sub_tasks_to_cancel = task_context.active_peer_sub_tasks if task_context else {}
-
-        if sub_tasks_to_cancel:
-            log.info(
-                "%s Propagating cancellation to %d peer sub-task(s) for main task %s.",
-                component.log_identifier,
-                len(sub_tasks_to_cancel),
-                logical_task_id,
-            )
-            for sub_task_id, sub_task_info in sub_tasks_to_cancel.items():
-                try:
-                    target_peer_agent_name = sub_task_info.get("peer_agent_name")
-                    if not sub_task_id or not target_peer_agent_name:
-                        log.warning(
-                            "%s Incomplete sub-task info found for sub-task %s, cannot cancel: %s",
-                            component.log_identifier,
-                            sub_task_id,
-                            sub_task_info,
-                        )
-                        continue
-
-                    task_id_for_peer = sub_task_id.replace(
-                        component.CORRELATION_DATA_PREFIX, "", 1
-                    )
-                    peer_cancel_request = a2a.create_cancel_task_request(
-                        task_id=task_id_for_peer
-                    )
-                    peer_cancel_user_props = {"clientId": component.agent_name}
-                    peer_request_topic = component._get_agent_request_topic(
-                        target_peer_agent_name
-                    )
-                    component.publish_a2a_message(
-                        payload=peer_cancel_request.model_dump(exclude_none=True),
-                        topic=peer_request_topic,
-                        user_properties=peer_cancel_user_props,
-                    )
-                except Exception as e_peer_cancel:
-                    log.error(
-                        "%s Failed to send CancelTaskRequest for sub-task %s: %s",
-                        component.log_identifier,
-                        sub_task_id,
-                        e_peer_cancel,
-                        exc_info=True,
-                    )
+        _propagate_cancellation_to_peers(
+            component, task_context, logical_task_id
+        )
     except LlmCallsLimitExceededError as llm_limit_e:
         exception_to_finalize_with = llm_limit_e
         log.warning(
@@ -1312,13 +1625,14 @@ async def run_adk_async_task_thread_wrapper(
             logical_task_id,
             llm_limit_e,
         )
-    except BadRequestError as e:
+    except tuple(LITELLM_EXCEPTIONS) as e:
         exception_to_finalize_with = e
         log.error(
-            "%s Bad Request for task %s: %s. Scheduling finalization.",
+            "%s LLM error [%s] for task %s: %s. Scheduling finalization.",
             component.log_identifier,
+            type(e).__name__,
             logical_task_id,
-            e.message,
+            getattr(e, "message", str(e)),
         )
     except Exception as e:
         exception_to_finalize_with = e
@@ -1330,58 +1644,14 @@ async def run_adk_async_task_thread_wrapper(
         )
 
     if not skip_finalization:
-        # Check if this is a retrigger for a structured invocation task.
-        # If so, run deferred SI finalization instead of normal finalization.
-        if task_context and task_context.get_flag("structured_invocation"):
-            if not is_paused or exception_to_finalize_with:
-                log.info(
-                    "%s Structured invocation task %s completed (paused=%s, exception=%s). "
-                    "Scheduling deferred SI finalization.",
-                    component.log_identifier,
-                    logical_task_id,
-                    is_paused,
-                    type(exception_to_finalize_with).__name__ if exception_to_finalize_with else "None",
-                )
-                loop = component.get_async_loop()
-                if loop and loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        component.structured_invocation_handler.finalize_deferred_structured_invocation(
-                            task_context, a2a_context, exception_to_finalize_with
-                        ),
-                        loop,
-                    )
-                else:
-                    log.error(
-                        "%s Async loop not available. Cannot schedule SI finalization for task %s.",
-                        component.log_identifier,
-                        logical_task_id,
-                    )
-            else:
-                log.info(
-                    "%s Structured invocation task %s still paused after retrigger. Waiting for more peer responses.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-        else:
-            loop = component.get_async_loop()
-            if loop and loop.is_running():
-                log.debug(
-                    "%s Scheduling finalize_task_with_cleanup for task %s.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
-                asyncio.run_coroutine_threadsafe(
-                    component.finalize_task_with_cleanup(
-                        a2a_context, is_paused, exception_to_finalize_with
-                    ),
-                    loop,
-                )
-            else:
-                log.error(
-                    "%s Async loop not available. Cannot schedule finalization for task %s.",
-                    component.log_identifier,
-                    logical_task_id,
-                )
+        _schedule_finalization(
+            component=component,
+            task_context=task_context,
+            a2a_context=a2a_context,
+            logical_task_id=logical_task_id,
+            is_paused=is_paused,
+            exception_to_finalize_with=exception_to_finalize_with,
+        )
     else:
         log.debug(
             "%s Skipping automatic finalization for task %s (skip_finalization=True).",

@@ -1,5 +1,5 @@
 import React from "react";
-import { Trash2, Pencil, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles } from "lucide-react";
+import { Trash2, Pencil, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Share2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -12,12 +12,13 @@ export interface SessionActionMenuProps {
     onMove: (session: Session) => void;
     onDelete: (session: Session) => void;
     onGoToProject?: (session: Session) => void;
+    onShare?: (session: Session) => void;
     isRegeneratingTitle?: boolean;
     /** Additional className for the trigger button (e.g., hover visibility) */
     triggerClassName?: string;
 }
 
-export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, onRename, onRenameWithAI, onMove, onDelete, onGoToProject, isRegeneratingTitle = false, triggerClassName }) => {
+export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, onRename, onRenameWithAI, onMove, onDelete, onGoToProject, onShare, isRegeneratingTitle = false, triggerClassName }) => {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -68,6 +69,17 @@ export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, o
                     <FolderInput size={16} className="mr-2" />
                     Move to Project
                 </DropdownMenuItem>
+                {onShare && (
+                    <DropdownMenuItem
+                        onClick={e => {
+                            e.stopPropagation();
+                            onShare(session);
+                        }}
+                    >
+                        <Share2 size={16} className="mr-2" />
+                        Share
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     onClick={e => {

@@ -1,4 +1,5 @@
 import type { Decorator, StoryFn, StoryContext } from "@storybook/react";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 import { StoryProvider } from "../mocks/StoryProvider";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 
@@ -52,6 +53,11 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         ...(context.args.configContext || {}),
     };
 
+    const featureFlags: Record<string, boolean> = {
+        ...(context.parameters.featureContext || {}),
+        ...(context.args.featureContext || {}),
+    };
+
     const projectContextValues = {
         ...(context.parameters.projectContext || {}),
         ...(context.args.projectContext || {}),
@@ -88,5 +94,9 @@ export const withProviders: Decorator = (Story: StoryFn, context: StoryContext) 
         }
     );
 
-    return <RouterProvider router={router} />;
+    return (
+        <OpenFeatureTestProvider flagValueMap={featureFlags}>
+            <RouterProvider router={router} />
+        </OpenFeatureTestProvider>
+    );
 };

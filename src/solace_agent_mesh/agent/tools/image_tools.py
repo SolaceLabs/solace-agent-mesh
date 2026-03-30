@@ -25,6 +25,17 @@ from ...agent.utils.artifact_helpers import save_artifact_with_metadata, DEFAULT
 
 log = logging.getLogger(__name__)
 
+
+def _resolve_tool_config(tool_config: dict | None, log_identifier: str, required_keys: list[str] | None = None) -> dict:
+    config = tool_config if tool_config is not None else {}
+    if not config:
+        log.warning(f"{log_identifier} Tool-specific configuration (tool_config) is empty.")
+    for key in (required_keys or []):
+        if config.get(key) is None:
+            raise ValueError(f"'{key}' configuration is missing in tool_config.")
+    return config
+
+
 async def create_image_from_description(
     image_description: str,
     output_filename: Optional[str] = None,
@@ -51,24 +62,13 @@ async def create_image_from_description(
         return ToolResult.error("ToolContext is missing.")
 
     try:
-        current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
-
+        current_tool_config = _resolve_tool_config(
+            tool_config, log_identifier, required_keys=["model", "api_key", "api_base"]
+        )
         model_name = current_tool_config.get("model")
         api_key = current_tool_config.get("api_key")
         api_base = current_tool_config.get("api_base")
         extra_params = current_tool_config.get("extra_params", {})
-
-        if not model_name:
-            raise ValueError("'model' configuration is missing in tool_config.")
-        if not api_key:
-            raise ValueError("'api_key' configuration is missing in tool_config.")
-        if not api_base:
-            raise ValueError("'api_base' configuration is missing in tool_config.")
 
         if "/" in model_name:
             original_model_name = model_name
@@ -265,23 +265,12 @@ async def describe_image(
     log_identifier = f"[ImageTools:describe_image:{input_image.filename}]"
 
     try:
-        current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
-
+        current_tool_config = _resolve_tool_config(
+            tool_config, log_identifier, required_keys=["model", "api_key", "api_base"]
+        )
         model_name = current_tool_config.get("model")
         api_key = current_tool_config.get("api_key")
         api_base = current_tool_config.get("api_base")
-
-        if not model_name:
-            raise ValueError("'model' configuration is missing in tool_config.")
-        if not api_key:
-            raise ValueError("'api_key' configuration is missing in tool_config.")
-        if not api_base:
-            raise ValueError("'api_base' configuration is missing in tool_config.")
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
@@ -352,6 +341,9 @@ async def describe_image(
             },
         )
 
+    except json.JSONDecodeError as jde:
+        log.error(f"{log_identifier} JSON decode error: {jde}")
+        return ToolResult.error("Invalid JSON response from API")
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -363,9 +355,6 @@ async def describe_image(
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling vision API: {re}")
         return ToolResult.error(f"Request error: {re}")
-    except json.JSONDecodeError as jde:
-        log.error(f"{log_identifier} JSON decode error: {jde}")
-        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in describe_image: {e}")
         return ToolResult.error(f"An unexpected error occurred: {e}")
@@ -411,23 +400,12 @@ async def describe_audio(
     log_identifier = f"[ImageTools:describe_audio:{input_audio.filename}]"
 
     try:
-        current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
-
+        current_tool_config = _resolve_tool_config(
+            tool_config, log_identifier, required_keys=["model", "api_key", "api_base"]
+        )
         model_name = current_tool_config.get("model")
         api_key = current_tool_config.get("api_key")
         api_base = current_tool_config.get("api_base")
-
-        if not model_name:
-            raise ValueError("'model' configuration is missing in tool_config.")
-        if not api_key:
-            raise ValueError("'api_key' configuration is missing in tool_config.")
-        if not api_base:
-            raise ValueError("'api_base' configuration is missing in tool_config.")
 
         log.debug(f"{log_identifier} Using model: {model_name}, API base: {api_base}")
 
@@ -507,6 +485,9 @@ async def describe_audio(
             },
         )
 
+    except json.JSONDecodeError as jde:
+        log.error(f"{log_identifier} JSON decode error: {jde}")
+        return ToolResult.error("Invalid JSON response from API")
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -518,9 +499,6 @@ async def describe_audio(
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling audio API: {re}")
         return ToolResult.error(f"Request error: {re}")
-    except json.JSONDecodeError as jde:
-        log.error(f"{log_identifier} JSON decode error: {jde}")
-        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in describe_audio: {e}")
         return ToolResult.error(f"An unexpected error occurred: {e}")
@@ -570,13 +548,9 @@ async def edit_image_with_gemini(
             log.error(f"{log_identifier} Required dependencies not available: {ie}")
             return ToolResult.error(f"Required dependencies not available: {ie}")
 
-        current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
-
+        current_tool_config = _resolve_tool_config(
+            tool_config, log_identifier, required_keys=["gemini_api_key"]
+        )
         gemini_api_key = current_tool_config.get("gemini_api_key")
         # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
@@ -587,11 +561,6 @@ async def edit_image_with_gemini(
         pro_model = current_tool_config.get(
             "pro_model", "gemini-3-pro-image-preview"
         )
-
-        if not gemini_api_key:
-            raise ValueError(
-                "'gemini_api_key' configuration is missing in tool_config."
-            )
 
         # Model selection is determined by the calling LLM via use_pro_model parameter
         model_name = pro_model if use_pro_model else default_model
@@ -830,13 +799,9 @@ async def generate_image_with_gemini(
             f"{log_identifier} Processing image generation request for session {session_id}."
         )
 
-        current_tool_config = tool_config if tool_config is not None else {}
-
-        if not current_tool_config:
-            log.warning(
-                f"{log_identifier} Tool-specific configuration (tool_config) is empty."
-            )
-
+        current_tool_config = _resolve_tool_config(
+            tool_config, log_identifier, required_keys=["gemini_api_key"]
+        )
         gemini_api_key = current_tool_config.get("gemini_api_key")
         # Standard model - optimized for speed, efficiency, and lower cost
         default_model = current_tool_config.get(
@@ -847,11 +812,6 @@ async def generate_image_with_gemini(
         pro_model = current_tool_config.get(
             "pro_model", "gemini-3-pro-image-preview"
         )
-
-        if not gemini_api_key:
-            raise ValueError(
-                "'gemini_api_key' configuration is missing in tool_config."
-            )
 
         # Model selection is determined by the calling LLM via use_pro_model parameter
         model_name = pro_model if use_pro_model else default_model

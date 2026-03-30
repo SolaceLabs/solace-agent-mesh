@@ -28,6 +28,13 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentNameDisplayNameMap,
     selectedAgentName: transformedMockAgents[0]?.name || "",
 
+    // Collaborative session state
+    isCollaborativeSession: false,
+    hasSharedEditors: false,
+    currentUserEmail: "test@example.com",
+    sessionOwnerName: null,
+    sessionOwnerEmail: null,
+
     // Loading states
     isResponding: false,
     agentsLoading: false,
@@ -67,6 +74,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     configCollectFeedback: false,
     showWorkingArtifacts: false,
     workingArtifactCount: 0,
+    hasModelConfigWrite: false,
 
     // Background task monitoring
     backgroundTasks: [],

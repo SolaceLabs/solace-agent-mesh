@@ -75,13 +75,13 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
 
     return (
         <GridCard onClick={onClick}>
-            <CardHeader className="gap-0">
-                <div className="flex items-start justify-between gap-2">
+            <CardHeader className="min-w-0 gap-0 overflow-hidden">
+                <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
                         <FolderOpen className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <Tooltip open={isTruncated ? undefined : false}>
                             <TooltipTrigger asChild>
-                                <CardTitle ref={titleRef} className="max-w-[250px] min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
+                                <CardTitle ref={titleRef} className="min-w-0 truncate text-lg font-semibold text-(--primary-text-wMain)">
                                     {project.name}
                                 </CardTitle>
                             </TooltipTrigger>
@@ -121,7 +121,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                 <div className="flex items-center justify-between">
                     <div className="max-w-[200px] truncate text-(--secondary-text-wMain)">{project.userId}</div>
                     <div className="flex items-center gap-4">
-                        {project.artifactCount !== undefined && project.artifactCount !== null && (
+                        {isOwner && project.artifactCount !== undefined && project.artifactCount !== null && (
                             <div className="flex items-center gap-1">
                                 <span className="text-(--secondary-text-wMain)">
                                     {project.artifactCount} {project.artifactCount === 1 ? "file" : "files"}

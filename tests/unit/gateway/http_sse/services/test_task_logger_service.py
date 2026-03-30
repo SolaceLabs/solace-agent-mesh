@@ -43,7 +43,7 @@ class TestShouldLogEvent:
         """Test default behavior logs all events."""
         result = service._should_log_event("some/topic", Mock())
         assert result is True
-    
+
     def test_should_not_log_status_when_disabled(self):
         """Test status events are not logged when disabled."""
         service = TaskLoggerService(None, {"log_status_updates": False})
@@ -67,7 +67,7 @@ class TestShouldLogEvent:
         
         result = service._should_log_event("some/topic", mock_event)
         assert result is False
-    
+
     def test_should_log_artifact_when_enabled(self):
         """Test artifact events are logged when enabled."""
         from a2a.types import TaskArtifactUpdateEvent
@@ -310,7 +310,7 @@ class TestInferEventDetails:
             mock_a2a.get_message_from_send_request.return_value = None
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, {"userId": "user-456"}
+                mock_request, {"userId": "user-456"}
             )
             
             assert direction == "request"
@@ -326,7 +326,7 @@ class TestInferEventDetails:
         mock_task.id = "task-789"
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_task, {"userId": "user-123"}
+            mock_task, {"userId": "user-123"}
         )
         
         assert direction == "response"
@@ -342,7 +342,7 @@ class TestInferEventDetails:
         mock_event.task_id = "task-status-123"
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_event, {}
+            mock_event, {}
         )
         
         assert direction == "status"
@@ -357,7 +357,7 @@ class TestInferEventDetails:
         mock_error.data = {"taskId": "task-error-123"}
         
         direction, task_id, user_id, session_id = service._infer_event_details(
-            "some/topic", mock_error, {}
+            mock_error, {}
         )
         
         assert direction == "error"
@@ -384,7 +384,7 @@ class TestInferEventDetails:
             }
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, user_props
+                mock_request, user_props
             )
             
             assert user_id == "user-from-config"
@@ -402,7 +402,7 @@ class TestInferEventDetails:
             mock_a2a.get_message_from_send_request.return_value = None
             
             direction, task_id, user_id, session_id = service._infer_event_details(
-                "some/topic", mock_request, None
+                mock_request, None
             )
             
             assert direction == "request"
@@ -447,24 +447,24 @@ class TestParseA2AEvent:
         }
         
         result = service._parse_a2a_event("some/topic", payload)
-        
+
         from a2a.types import A2ARequest
         assert isinstance(result, A2ARequest)
     
     def test_parse_invalid_payload_returns_none(self, service):
         """Test that invalid payloads return None."""
         payload = {"invalid": "data"}
-        
+
         result = service._parse_a2a_event("some/topic", payload)
-        
+
         assert result is None
     
     def test_parse_malformed_payload_returns_none(self, service):
         """Test that malformed payloads return None."""
         payload = {"method": "invalid", "params": "not_a_dict"}
-        
+
         result = service._parse_a2a_event("some/topic", payload)
-        
+
         assert result is None
 
 

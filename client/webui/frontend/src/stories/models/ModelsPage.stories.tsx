@@ -68,10 +68,10 @@ export const Default: Story = {
         const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
         modelsTab.click();
 
-        // Verify table renders with data
-        await canvas.findByText("planning");
-        await canvas.findByText("general");
-        await canvas.findByText("image_gen");
+        // Verify table renders with data (system-created aliases are title-cased via getDisplayAliasName)
+        await canvas.findByText("Planning");
+        await canvas.findByText("General");
+        await canvas.findByText("Image Gen");
 
         // Verify columns exist
         expect(canvas.getByText("Name")).toBeInTheDocument();
@@ -162,9 +162,10 @@ export const WithPagination: Story = {
         modelsTab.click();
 
         // Verify pagination renders with first page of 45 models
-        await canvas.findByText("model-0");
-        await canvas.findByText("model-19");
-        expect(canvas.getByText("model-0")).toBeInTheDocument();
+        // system-created aliases are title-cased, but hyphens are preserved (only underscores split)
+        await canvas.findByText("Model-0");
+        await canvas.findByText("Model-19");
+        expect(canvas.getByText("Model-0")).toBeInTheDocument();
 
         // Verify pagination controls ARE visible (45 models exceed one page)
         const paginationNav = canvas.getByRole("navigation", { name: /pagination/i });

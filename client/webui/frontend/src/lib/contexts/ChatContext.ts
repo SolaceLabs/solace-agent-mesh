@@ -15,6 +15,11 @@ export interface ChatState {
     sessionName: string | null;
     messages: MessageFE[];
     isResponding: boolean;
+    isCollaborativeSession: boolean;
+    hasSharedEditors: boolean;
+    currentUserEmail: string;
+    sessionOwnerName: string | null;
+    sessionOwnerEmail: string | null;
     currentTaskId: string | null;
     selectedAgentName: string;
     notifications: Notification[];
@@ -63,6 +68,8 @@ export interface ChatState {
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
+    // Permission: user can configure LLM models
+    hasModelConfigWrite: boolean;
 }
 
 export interface ChatActions {

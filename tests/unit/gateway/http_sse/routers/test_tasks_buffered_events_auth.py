@@ -93,7 +93,7 @@ class TestGetBufferedTaskEventsAuthorization:
             "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.SSEEventBufferRepository",
             return_value=mock_buffer_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (
@@ -138,7 +138,7 @@ class TestGetBufferedTaskEventsAuthorization:
             "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.SSEEventBufferRepository",
             return_value=mock_buffer_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (

@@ -27,7 +27,6 @@ const sizeConfig = {
 const providerIconMap: Record<string, string> = {
     anthropic: new URL("./assets/claude.svg", import.meta.url).href,
     openai: new URL("./assets/openai.svg", import.meta.url).href,
-    openai_compatible: new URL("./assets/openai.svg", import.meta.url).href,
     google_ai_studio: new URL("./assets/google_ai_studio.svg", import.meta.url).href,
     vertex_ai: new URL("./assets/vertexai.svg", import.meta.url).href,
     azure_openai: new URL("./assets/azure_openai.svg", import.meta.url).href,

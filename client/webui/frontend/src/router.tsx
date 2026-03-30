@@ -1,12 +1,18 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, SharedChatViewPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
-import { ModelDetailsPage } from "./lib/components/models";
+import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
+import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
     return createHashRouter([
+        // Public share route (outside AppLayout)
+        {
+            path: "/share/:shareId",
+            element: <SharedSessionPage />,
+        },
         {
             path: "/",
             element: <AppLayout />,
@@ -22,6 +28,10 @@ export const createRouter = () => {
                 {
                     path: "recent-chats",
                     element: <RecentChatsPage />,
+                },
+                {
+                    path: "shared-chat/:shareId",
+                    element: <SharedChatViewPage />,
                 },
                 {
                     path: "projects",
@@ -89,8 +99,21 @@ export const createRouter = () => {
                     ],
                 },
                 {
-                    path: "models/:alias",
-                    element: <ModelDetailsPage />,
+                    path: "models",
+                    children: [
+                        {
+                            path: "new/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias",
+                            element: <ModelDetailsPage />,
+                        },
+                    ],
                 },
                 {
                     path: "*",

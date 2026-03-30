@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
-    from ..services import ModelConfigService
+    from ..services import ModelConfigService, ModelListService
 
 log = logging.getLogger(__name__)
 
@@ -204,3 +204,14 @@ def get_model_config_service() -> ModelConfigService:
     from solace_agent_mesh.services.platform.services import ModelConfigService
 
     return ModelConfigService()
+
+def get_model_list_service() -> "ModelListService":
+    """
+    FastAPI dependency for ModelListService.
+    Provides a service instance for fetching supported LLM models per provider.
+    Returns:
+        ModelListService instance for accessing model lists.
+    """
+    from solace_agent_mesh.services.platform.services import ModelListService
+
+    return ModelListService()    

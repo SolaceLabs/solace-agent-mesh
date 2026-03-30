@@ -22,3 +22,7 @@ export interface ModelConfigurationListResponse {
     data: ModelConfig[];
     total: number;
 }
+
+export interface ModelConfigStatus {
+    configured: boolean;
+}
