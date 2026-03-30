@@ -1,4 +1,4 @@
-import type { Meta, StoryFn, StoryContext, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 import { RecentChatsPage } from "@/lib/components/pages/RecentChatsPage";
@@ -24,15 +24,12 @@ const meta = {
     parameters: {
         layout: "fullscreen",
         msw: { handlers },
-        configContext: { newNavigation: true, persistenceEnabled: true },
+        configContext: {
+            configFeatureEnablement: { newNavigation: true },
+            persistenceEnabled: true,
+        },
         chatContext: { sessionId: "session-1" },
     },
-    decorators: [
-        (Story: StoryFn, context: StoryContext) => {
-            const storyResult = Story(context.args, context);
-            return <div style={{ height: "100vh", width: "100vw" }}>{storyResult}</div>;
-        },
-    ],
 } satisfies Meta<typeof RecentChatsPage>;
 
 export default meta;

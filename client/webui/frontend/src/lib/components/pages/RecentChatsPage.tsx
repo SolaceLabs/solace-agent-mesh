@@ -382,31 +382,33 @@ export const RecentChatsPage: React.FC = () => {
             />
 
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-                {/* Search and Filter Bar */}
-                <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                        <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
-                    </div>
-
-                    {persistenceEnabled && projectNames.length > 0 && (
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm font-medium">Project:</label>
-                            <Select value={selectedProject} onValueChange={setSelectedProject}>
-                                <SelectTrigger className="w-[200px] rounded-md">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Chats</SelectItem>
-                                    {projectNames.map(projectName => (
-                                        <SelectItem key={projectName} value={projectName}>
-                                            {projectName}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                {/* Search and Filter Bar - only show when there are sessions */}
+                {sessions.length > 0 && (
+                    <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                            <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
                         </div>
-                    )}
-                </div>
+
+                        {persistenceEnabled && projectNames.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium">Project:</label>
+                                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                                    <SelectTrigger className="w-[200px] rounded-md">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Chats</SelectItem>
+                                        {projectNames.map(projectName => (
+                                            <SelectItem key={projectName} value={projectName}>
+                                                {projectName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Sessions Grid */}
                 {filteredSessions.length > 0 && (
@@ -480,7 +482,24 @@ export const RecentChatsPage: React.FC = () => {
                 {/* Empty States */}
                 {filteredSessions.length === 0 && sessions.length > 0 && !isLoading && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
 
-                {sessions.length === 0 && !isLoading && <EmptyState variant="noImage" title="No chat sessions available" subtitle="Start a new chat to create your first session" />}
+                {sessions.length === 0 && !isLoading && (
+                    <EmptyState
+                        variant="noImage"
+                        title="No chat sessions available"
+                        subtitle="Start a new chat to create your first session"
+                        buttons={[
+                            {
+                                icon: <Plus size={16} />,
+                                text: "New Chat",
+                                variant: "default",
+                                onClick: () => {
+                                    navigate("/chat");
+                                    handleNewSession();
+                                },
+                            },
+                        ]}
+                    />
+                )}
 
                 {/* Infinite Scroll Loader */}
                 {hasMore && (
