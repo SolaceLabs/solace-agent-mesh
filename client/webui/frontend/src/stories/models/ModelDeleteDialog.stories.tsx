@@ -1,7 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect } from "react";
+
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
 
 import { ModelDeleteDialog } from "@/lib/components/models";
+import { pluginRegistry } from "@/lib/plugins";
+import { PLUGIN_TYPES } from "@/lib/plugins/constants";
 
 const meta = {
     title: "Pages/Models/ModelDeleteDialog",
@@ -68,6 +72,69 @@ export const ConfirmEnabled: Story = {
 
         const deleteButton = content.getByRole("button", { name: "Delete" });
         expect(deleteButton).toBeEnabled();
+    },
+};
+
+/**
+ * Enterprise plugin overrides the delete dialog - standard confirmation is replaced entirely
+ */
+const withMockDeletePlugin: Decorator = Story => {
+    pluginRegistry.registerPlugin({
+        type: PLUGIN_TYPES.DIALOG,
+        id: "model-delete-dialog",
+        label: "Enterprise Delete Dialog",
+        render: (data: unknown) => {
+            const { open, onOpenChange, onConfirm, modelAlias } = data as {
+                open: boolean;
+                onOpenChange: (open: boolean) => void;
+                onConfirm: () => void;
+                modelAlias: string;
+            };
+            if (!open) return null;
+            return (
+                <div role="dialog" aria-label="Enterprise Delete Dialog" className="bg-background rounded-lg border p-6">
+                    <h2>Enterprise Delete: {modelAlias}</h2>
+                    <p>This is a custom enterprise delete dialog injected via plugin.</p>
+                    <button onClick={onConfirm}>Confirm Enterprise Delete</button>
+                    <button onClick={() => onOpenChange(false)}>Cancel</button>
+                </div>
+            );
+        },
+    });
+
+    useEffect(() => {
+        return () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (pluginRegistry as any)._plugins["model-delete-dialog"];
+        };
+    }, []);
+
+    return <Story />;
+};
+
+export const WithPluginDialog: Story = {
+    name: "With Plugin Dialog (Enterprise Override)",
+    decorators: [withMockDeletePlugin],
+    args: {
+        open: true,
+        onOpenChange: () => {},
+        onConfirm: async () => {},
+        modelId: "model-enterprise-123",
+        modelAlias: "enterprise-model",
+        isLoading: false,
+    },
+    play: async () => {
+        const dialog = await screen.findByRole("dialog", { name: "Enterprise Delete Dialog" });
+        const content = within(dialog);
+
+        expect(content.getByText(/Enterprise Delete: enterprise-model/)).toBeInTheDocument();
+        expect(content.getByText(/custom enterprise delete dialog/)).toBeInTheDocument();
+        expect(content.getByRole("button", { name: "Confirm Enterprise Delete" })).toBeInTheDocument();
+        expect(content.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+
+        // Standard dialog content should NOT be present
+        expect(screen.queryByText("Delete Model")).not.toBeInTheDocument();
+        expect(screen.queryByText(/Type.*DELETE.*to confirm/)).not.toBeInTheDocument();
     },
 };
 
