@@ -17,6 +17,7 @@ jobs:
       release_tag: ${{ steps.resolve-tag.outputs.release_tag }}
       version: ${{ steps.resolve-tag.outputs.version }}
       short_sha: ${{ steps.resolve-commit.outputs.short_sha }}
+      commit_sha: ${{ steps.resolve-commit.outputs.commit_sha }}
       is_release_please_tag: ${{ steps.resolve-commit.outputs.is_release_please_tag }}
     steps:
       - name: Checkout repository at release tag
@@ -162,13 +163,19 @@ jobs:
       release_tag: ${{ needs.build-and-attach-assets.outputs.release_tag }}
     secrets: inherit
 
-  publish-to-dockerhub:
-    name: Promote CI Image to DockerHub
+  build_and_push_docker:
+    name: Build and Push to DockerHub
     needs: build-and-attach-assets
-    if: needs.build-and-attach-assets.outputs.is_release_please_tag == 'true'
-    uses: ./.github/workflows/promote-dockerhub-from-ecr.yml
+    if: always() && (needs.build-and-attach-assets.result == 'success')
+    uses: SolaceLabs/solace-agent-mesh/.github/workflows/build-push-dockerhub.yml@main
     with:
       version: ${{ needs.build-and-attach-assets.outputs.version }}
-      short_sha: ${{ needs.build-and-attach-assets.outputs.short_sha }}
+      commit_hash: ${{ needs.build-and-attach-assets.outputs.commit_sha }}
       push_latest: true
-    secrets: inherit
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SAM_AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+      SAM_AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      SAM_AWS_ECR_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
