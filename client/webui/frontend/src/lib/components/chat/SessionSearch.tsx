@@ -30,6 +30,20 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     const [showResults, setShowResults] = useState(false);
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
+    const handleClear = useCallback(() => {
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowResults(false);
+    }, []);
+
+    const handleSessionClick = useCallback(
+        (sessionId: string) => {
+            onSessionSelect(sessionId);
+            handleClear();
+        },
+        [onSessionSelect, handleClear]
+    );
+
     const { activeIndex, isKeyboardMode, handleMouseEnter, handleKeyDown } = useListKeyboardNavigation({
         itemCount: searchResults.length,
         isOpen: showResults && searchResults.length > 0,
@@ -71,17 +85,6 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     useEffect(() => {
         performSearch(debouncedSearchQuery, projectId);
     }, [debouncedSearchQuery, projectId, performSearch]);
-
-    const handleClear = () => {
-        setSearchQuery("");
-        setSearchResults([]);
-        setShowResults(false);
-    };
-
-    const handleSessionClick = (sessionId: string) => {
-        onSessionSelect(sessionId);
-        handleClear();
-    };
 
     const placeholder = "Search chats by title";
 
