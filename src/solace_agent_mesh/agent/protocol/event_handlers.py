@@ -2980,7 +2980,7 @@ async def handle_compact_session(
             ]
             remaining_tokens = calculate_session_context_tokens(
                 remaining_non_compaction,
-                model=str(component.adk_agent.model),
+                model=component.adk_agent.model.model if hasattr(component.adk_agent.model, 'model') else str(component.adk_agent.model),
             )
 
             log.info(
