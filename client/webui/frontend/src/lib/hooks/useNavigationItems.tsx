@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, LayoutGrid, Sparkles, Workflow, Plug, Globe, Brain } from "lucide-react";
-import { LifecycleBadge } from "@/lib/components/ui";
+
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {

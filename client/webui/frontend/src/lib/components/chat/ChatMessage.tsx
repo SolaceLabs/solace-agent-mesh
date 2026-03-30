@@ -938,11 +938,7 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
-
-    // Determine if this is another user's message (for uploaded files alignment)
-    const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
-    const isRightAligned = message.isUser && !isOtherUser;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, currentUserEmail, agentNameDisplayNameMap } = chatContext;
 
     // State to track deep research report content for message actions functionality
     const [reportContent, setReportContent] = useState<string | null>(null);
@@ -1106,10 +1102,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
         return undefined;
     })();
 
-    // Determine if attribution is shown (for ml-10 margin on content)
-    // Attribution shows for: other-user messages (any session) + agent messages (collaborative or shared-with-editors)
-    const showAgentAttribution = (isCollaborativeSession || hasSharedEditors) && !message.isUser && !message.isStatusBubble;
-    const hasAttribution = (message.isUser && isOtherUser) || showAgentAttribution;
+
 
     return (
         <div ref={messageRef} data-task-id={message.taskId} className={`transition-all duration-500 ${isHighlighted ? "ring-primary/50 bg-primary/5 rounded-lg ring-2" : ""}`}>
@@ -1121,15 +1114,14 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     const userIndex = getUserIndexFromEmail(message.senderEmail || "");
                     return <MessageAttribution type="user" name={displayName} userIndex={userIndex} timestamp={message.createdTime} />;
                 }
-                if (showAgentAttribution) {
+                if (!message.isUser && isCollaborativeSession) {
                     // Show agent attribution in collaborative sessions or sessions shared with editors
                     const agentLabel = agentDisplayName || "AI Assistant";
                     return <MessageAttribution type="agent" name={agentLabel} timestamp={message.createdTime} />;
                 }
                 return null;
             })()}
-            <div className={hasAttribution ? "ml-10" : ""}>
-                {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
+            {/* Show progress block at the top for completed deep research - only for the last message with this taskId */}
                 {isDeepResearchComplete &&
                     hasRagSources &&
                     isLastWithTaskId &&
@@ -1229,103 +1221,15 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
                     if (imageResults.length > 0) {
                         return (
-                            <div className="mb-4">
-                                <InlineResearchProgress
-                                    progress={{
-                                        type: "deep_research_progress",
-                                        phase: "writing",
-                                        status_text: "Research complete",
-                                        progress_percentage: 100,
-                                        current_iteration: 0,
-                                        total_iterations: 0,
-                                        sources_found: fetchedSources.length,
-                                        current_query: "",
-                                        fetching_urls: [],
-                                        elapsed_seconds: 0,
-                                        max_runtime_seconds: 0,
-                                    }}
-                                    isComplete={true}
-                                    ragData={taskRagData}
-                                />
+                            <div className="mt-4">
+                                <ImageSearchGrid images={imageResults} />
                             </div>
                         );
-                    })()}
-                {getChatBubble(
-                    message,
-                    chatContext,
-                    isLastWithTaskId,
-                    isStreaming,
-                    // Show sources element for deep research, web search, and document search (in message actions area)
-                    !message.isUser && (isDeepResearchComplete || isWebSearchComplete || isDocumentSearchComplete) && hasRagSources
-                        ? (() => {
-                              const allSources = taskRagData.flatMap(r => r.sources);
+                    }
+                    return null;
+                })()}
 
-                              // For deep research: filter to only show fetched sources (not snippets)
-                              // For web search: show all sources including images (images with source links will be shown)
-                              const sourcesToShow = isDeepResearchComplete
-                                  ? allSources.filter(source => {
-                                        const sourceType = source.sourceType || "web";
-                                        // For images in deep research: include if they have a source link
-                                        if (sourceType === "image") {
-                                            return source.sourceUrl || source.metadata?.link;
-                                        }
-                                        const wasFetched = source.metadata?.fetched === true || source.metadata?.fetch_status === "success" || (source.contentPreview && source.contentPreview.includes("[Full Content Fetched]"));
-                                        return wasFetched;
-                                    })
-                                  : allSources.filter(source => {
-                                        const sourceType = source.sourceType || "web";
-                                        // For images in web search: include if they have a source link
-                                        if (sourceType === "image") {
-                                            return source.sourceUrl || source.metadata?.link;
-                                        }
-                                        return true;
-                                    });
-
-                              // Only render if we have sources
-                              if (sourcesToShow.length === 0) return null;
-
-                              return <Sources ragMetadata={{ sources: sourcesToShow }} isDeepResearch={isDeepResearchComplete} onDeepResearchClick={handleSourcesClick} />;
-                          })()
-                        : undefined,
-                    // Pass deep research report info if available
-                    isDeepResearchComplete && isLastWithTaskId && deepResearchReportArtifact && sessionId ? { artifact: deepResearchReportArtifact, sessionId, ragData: lastTaskRagData } : undefined,
-                    // Callback to capture report content for TTS/copy
-                    setReportContent,
-                    // Pass report content to MessageActions for TTS/copy
-                    reportContent || undefined,
-                    // Pass highlighted text for scroll-to-source feature
-                    highlightedText
-                )}
-
-                {/* Render images separately at the end for web search */}
-                {!message.isUser &&
-                    isWebSearchComplete &&
-                    hasRagSources &&
-                    (() => {
-                        const allSources = taskRagData.flatMap(r => r.sources);
-                        const imageResults = allSources
-                            .filter(source => {
-                                const sourceType = source.sourceType || "web";
-                                return sourceType === "image" && source.metadata?.imageUrl;
-                            })
-                            .map(source => ({
-                                imageUrl: source.metadata!.imageUrl,
-                                title: source.metadata?.title || source.filename,
-                                link: source.sourceUrl || source.metadata?.link || source.metadata!.imageUrl,
-                            }));
-
-                        if (imageResults.length > 0) {
-                            return (
-                                <div className="mt-4">
-                                    <ImageSearchGrid images={imageResults} />
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
-
-                {getUploadedFiles(message, isRightAligned)}
-            </div>
+            {getUploadedFiles(message)}
         </div>
     );
 };

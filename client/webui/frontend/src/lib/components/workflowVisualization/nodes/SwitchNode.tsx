@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { GitBranch } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
-import { clickableNodeProps } from "@/lib/components/utils";
+
 
 /**
  * Switch node - Shows conditional branching with case rows inside
