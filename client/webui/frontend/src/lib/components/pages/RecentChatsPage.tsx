@@ -70,9 +70,12 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
     return (
-        <span title={animatedName} className={cn("truncate text-sm font-bold text-(--primary-text-wMain) transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>
-            {animatedName}
-        </span>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <span className={cn("truncate text-sm font-bold text-(--primary-text-wMain) transition-opacity duration-300", isSelected && "font-semibold", animationClass)}>{animatedName}</span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[480px]">{animatedName}</TooltipContent>
+        </Tooltip>
     );
 };
 
@@ -447,9 +450,12 @@ export const RecentChatsPage: React.FC = () => {
                                                     </Tooltip>
                                                 )}
                                             </div>
-                                            <span className="text-xs font-normal text-(--secondary-text-wMain)" title={formatTimestamp(session.updatedTime)}>
-                                                Last message {formatRelativeTime(session.updatedTime)}
-                                            </span>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="w-fit cursor-default text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</div>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="bottom">{formatTimestamp(session.updatedTime)}</TooltipContent>
+                                            </Tooltip>
                                         </div>
                                         <div className="flex flex-shrink-0 items-center gap-2">
                                             {session.projectName && <ProjectBadge text={session.projectName} />}
