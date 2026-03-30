@@ -122,14 +122,10 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
                                 {isThinking ? (
                                     /* Thinking/Reasoning item - collapsible */
                                     <div>
-                                        <Button
-                                            variant="ghost"
-                                            className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)"
-                                            onClick={() => toggleThinking(dedupedIndex)}
-                                        >
+                                        <button type="button" className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => toggleThinking(dedupedIndex)}>
                                             <span className="font-medium">{update.text}</span>
                                             {isThinkingExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                        </Button>
+                                        </button>
 
                                         {/* Expandable thinking content */}
                                         {isThinkingExpanded && update.expandableContent && (
