@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp, cn } from "@/lib/utils";
-import { ProjectBadge, SessionSearch, SessionActionMenu } from "@/lib/components/chat";
+import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog } from "@/lib/components/chat";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -78,7 +78,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
 
 export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, addNotification, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -483,6 +483,7 @@ export const RecentChatsPage: React.FC = () => {
                     </div>
                 )}
             </div>
+            <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
         </div>
     );
 };
