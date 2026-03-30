@@ -8,6 +8,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Import shared mock_templates fixture from parent directory
+from tests.unit.cli.commands.shared_fixtures import mock_templates
+
 
 @pytest.fixture
 def temp_project_dir(tmp_path):
@@ -97,71 +100,6 @@ def mock_official_registry(mocker):
     )
     return mocker
 
-
-@pytest.fixture
-def mock_templates(mocker):
-    """Mock template loading to avoid file system dependencies"""
-    mock_config_template = """
-namespace: __COMPONENT_KEBAB_CASE_NAME__
-component_id: __COMPONENT_SNAKE_CASE_NAME__
-type: __PLUGIN_META_DATA_TYPE__
-"""
-    
-    mock_pyproject_template = """
-[project]
-name = "__PLUGIN_KEBAB_CASE_NAME__"
-version = "__PLUGIN_VERSION__"
-description = "__PLUGIN_DESCRIPTION__"
-
-[tool.__PLUGIN_SNAKE_CASE_NAME__.metadata]
-type = "__PLUGIN_META_DATA_TYPE__"
-"""
-    
-    mock_readme_template = """
-# __PLUGIN_SPACED_NAME__
-
-__PLUGIN_DESCRIPTION__
-"""
-    
-    mock_tools_template = """
-# Tools for __PLUGIN_PASCAL_CASE_NAME__
-"""
-    
-    mock_gateway_app_template = """
-# __GATEWAY_NAME_PASCAL_CASE__ Gateway App
-"""
-    
-    mock_gateway_component_template = """
-# __GATEWAY_NAME_PASCAL_CASE__ Component
-"""
-    
-    mock_custom_template = """
-# __COMPONENT_PASCAL_CASE_NAME__ Custom Component
-"""
-    
-    def load_template_side_effect(name, parser=None, *args):
-        templates = {
-            "plugin_agent_config_template.yaml": mock_config_template,
-            "plugin_gateway_config_template.yaml": mock_config_template,
-            "plugin_custom_config_template.yaml": mock_config_template,
-            "plugin_workflow_config_template.yaml": mock_config_template,
-            "plugin_tool_config_template.yaml": mock_config_template,
-            "plugin_pyproject_template.toml": mock_pyproject_template,
-            "plugin_readme_template.md": mock_readme_template,
-            "plugin_tools_template.py": mock_tools_template,
-            "gateway_app_template.py": mock_gateway_app_template,
-            "gateway_component_template.py": mock_gateway_component_template,
-            "plugin_custom_template.py": mock_custom_template,
-        }
-        content = templates.get(name, "")
-        if parser and args:
-            return parser(content, *args)
-        return content
-    
-    return mocker.patch(
-        "cli.commands.plugin_cmd.create_cmd.load_template",
-        side_effect=load_template_side_effect
-    )
 
 
 @pytest.fixture

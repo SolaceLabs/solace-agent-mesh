@@ -8,6 +8,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Import shared mock_templates fixture from parent directory
+from tests.unit.cli.commands.shared_fixtures import mock_templates
+
 
 @pytest.fixture
 def temp_project_dir(tmp_path):
@@ -25,87 +28,6 @@ def temp_project_dir(tmp_path):
     os.chdir(original_cwd)
     shutil.rmtree(project_path, ignore_errors=True)
 
-
-@pytest.fixture
-def mock_templates(mocker):
-    """Mock template loading to avoid file system dependencies"""
-    mock_shared_config = """
-artifact_service:
-  type: __DEFAULT_ARTIFACT_SERVICE_TYPE__
-  artifact_scope: __DEFAULT_ARTIFACT_SERVICE_SCOPE__
-  # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__
-"""
-    
-    mock_logging_config = """
-version: 1
-disable_existing_loggers: false
-
-formatters:
-  simpleFormatter:
-    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
-
-handlers:
-  consoleHandler:
-    class: logging.StreamHandler
-    formatter: simpleFormatter
-    stream: ext://sys.stdout
-
-root:
-  level: WARNING
-  handlers:
-    - consoleHandler
-"""
-    
-    mock_orchestrator_config = """
-namespace: __NAMESPACE__
-app_name: __APP_NAME__
-supports_streaming: __SUPPORTS_STREAMING__
-agent_name: __AGENT_NAME__
-log_file_name: __LOG_FILE_NAME__
-instruction: |
-  __INSTRUCTION__
-session_service:__SESSION_SERVICE__
-artifact_service: __ARTIFACT_SERVICE__
-artifact_handling_mode: __ARTIFACT_HANDLING_MODE__
-enable_embed_resolution: __ENABLE_EMBED_RESOLUTION__
-enable_artifact_content_instruction: __ENABLE_ARTIFACT_CONTENT_INSTRUCTION__
-agent_card:
-  description: __AGENT_CARD_DESCRIPTION__
-  defaultInputModes: __DEFAULT_INPUT_MODES__
-  defaultOutputModes: __DEFAULT_OUTPUT_MODES__
-agent_card_publishing:
-  interval_seconds: __AGENT_CARD_PUBLISHING_INTERVAL__
-agent_discovery:
-  enabled: __AGENT_DISCOVERY_ENABLED__
-inter_agent_communication:
-  allow_list: __INTER_AGENT_COMMUNICATION_ALLOW_LIST__
-  __INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__
-  request_timeout_seconds: __INTER_AGENT_COMMUNICATION_TIMEOUT__
-"""
-    
-    mock_webui_config = """
-frontend_welcome_message: __FRONTEND_WELCOME_MESSAGE__
-frontend_bot_name: __FRONTEND_BOT_NAME__
-frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__
-session_service:__SESSION_SERVICE__
-"""
-    
-    def load_template_side_effect(name, parser=None, *args):
-        templates = {
-            "shared_config.yaml": mock_shared_config,
-            "logging_config_template.yaml": mock_logging_config,
-            "main_orchestrator.yaml": mock_orchestrator_config,
-            "webui.yaml": mock_webui_config,
-        }
-        content = templates.get(name, "")
-        if parser and args:
-            return parser(content, *args)
-        return content
-    
-    return mocker.patch(
-        "cli.utils.load_template",
-        side_effect=load_template_side_effect
-    )
 
 
 @pytest.fixture

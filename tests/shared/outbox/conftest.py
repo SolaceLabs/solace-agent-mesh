@@ -46,7 +46,9 @@ def db_session(session_factory):
 
 @pytest.fixture(autouse=True)
 def cleanup_tables(engine):
+    """Clean outbox_events table between tests."""
     yield
+    # Use shared cleanup utility but only for outbox_events table
     with engine.connect() as conn:
         conn.execute(text("DELETE FROM outbox_events"))
         conn.commit()

@@ -16,6 +16,8 @@ from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
+from tests.shared.constants import TestIds
+from tests.shared.fixtures.cleanup import clean_all_tables
 from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import (
     DatabaseManager,
@@ -178,35 +180,13 @@ def secondary_database_inspector(database_manager):
 @pytest.fixture(autouse=True)
 def clean_database_between_tests(database_manager: DatabaseManager):
     """Cleans database state between tests (used by both primary and secondary clients)"""
-    _clean_main_database(database_manager.provider.get_sync_gateway_engine())
+    engine = database_manager.provider.get_sync_gateway_engine()
+    clean_all_tables(engine)
     yield
-    _clean_main_database(database_manager.provider.get_sync_gateway_engine())
+    clean_all_tables(engine)
     print("[API Tests] Database cleaned between tests")
 
 
-def _clean_main_database(engine):
-    """Clean the main API test database using SQLAlchemy Core"""
-    with engine.connect() as connection, connection.begin():
-        metadata = sa.MetaData()
-        metadata.reflect(bind=connection)
-
-        # Handle database-specific foreign key constraints
-        db_url = str(connection.engine.url)
-        if db_url.startswith("sqlite"):
-            connection.execute(text("PRAGMA foreign_keys=OFF"))
-        elif db_url.startswith("postgresql"):
-            # PostgreSQL handles FK constraints differently - no need to disable
-            pass
-
-        # Delete from all tables except alembic_version
-        for table in reversed(metadata.sorted_tables):
-            if table.name == "alembic_version":
-                continue
-            connection.execute(table.delete())
-
-        # Re-enable foreign key constraints
-        if db_url.startswith("sqlite"):
-            connection.execute(text("PRAGMA foreign_keys=ON"))
 
 
 @pytest.fixture(scope="session")

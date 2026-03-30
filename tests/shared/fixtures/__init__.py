@@ -1,0 +1,2 @@
+"""Shared fixtures module initialization."""
+
