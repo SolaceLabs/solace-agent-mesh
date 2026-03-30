@@ -24,6 +24,11 @@ class ScheduledTaskService:
         self.repo = ScheduledTaskRepository()
         self.scheduler_service = scheduler_service
 
+    @property
+    def namespace(self) -> str:
+        """Expose scheduler namespace without requiring callers to reach through."""
+        return self.scheduler_service.namespace if self.scheduler_service else ""
+
     def create_task(
         self,
         db: DBSession,
@@ -51,12 +56,12 @@ class ScheduledTaskService:
     async def schedule_task(self, task) -> None:
         """Schedule a task in APScheduler (public interface)."""
         if self.scheduler_service:
-            await self.scheduler_service._schedule_task(task)
+            await self.scheduler_service.schedule_task(task)
 
     async def unschedule_task(self, task_id: str) -> None:
         """Remove a task from APScheduler (public interface)."""
         if self.scheduler_service:
-            await self.scheduler_service._unschedule_task(task_id)
+            await self.scheduler_service.unschedule_task(task_id)
 
     def get_task(
         self,

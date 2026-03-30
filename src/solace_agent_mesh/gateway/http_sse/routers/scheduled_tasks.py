@@ -279,7 +279,7 @@ async def create_scheduled_task(
 
         task = task_service.create_task(
             db, request_data,
-            namespace=task_service.scheduler_service.namespace,
+            namespace=task_service.namespace,
             user_id=user_id,
             user_level=request.user_level,
         )
@@ -317,7 +317,7 @@ async def list_scheduled_tasks(
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
         tasks, total = task_service.list_tasks(
             db,
-            namespace=task_service.scheduler_service.namespace,
+            namespace=task_service.namespace,
             user_id=user_id,
             include_namespace_tasks=include_namespace_tasks,
             enabled_only=enabled_only,
@@ -348,7 +348,7 @@ async def get_recent_executions(
     try:
         executions = task_service.get_recent_executions(
             db,
-            namespace=task_service.scheduler_service.namespace,
+            namespace=task_service.namespace,
             user_id=user_id,
             limit=limit,
         )

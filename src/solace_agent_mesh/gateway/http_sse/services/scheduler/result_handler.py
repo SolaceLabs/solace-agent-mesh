@@ -170,10 +170,7 @@ class ResultHandler:
                             uri = a2a.get_uri_from_file_part(file_part)
                             if uri:
                                 art_name = uri.rsplit("/", 1)[-1] if "/" in uri else uri
-                                if not any(
-                                    (a.get("name") if isinstance(a, dict) else None) == art_name
-                                    for a in artifacts
-                                ):
+                                if not _artifact_name_exists(artifacts, art_name):
                                     artifacts.append({
                                         "name": art_name,
                                         "uri": uri,
@@ -219,10 +216,7 @@ class ResultHandler:
                                             "uri": art_uri,
                                         },
                                     }
-                                    if not any(
-                                        (a.get("name") if isinstance(a, dict) else None) == art_name
-                                        for a in artifacts
-                                    ):
+                                    if not _artifact_name_exists(artifacts, art_name):
                                         artifacts.append(artifact_obj)
 
                 # Also check task_artifacts (bundled artifacts, if any)
@@ -244,10 +238,7 @@ class ResultHandler:
                                     "uri": artifact_uri,
                                 },
                             }
-                            if not any(
-                                (a.get("name") if isinstance(a, dict) else None) == artifact_id
-                                for a in artifacts
-                            ):
+                            if not _artifact_name_exists(artifacts, artifact_id):
                                 artifacts.append(artifact_obj)
 
             repo = ScheduledTaskRepository()

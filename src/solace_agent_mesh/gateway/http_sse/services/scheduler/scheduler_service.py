@@ -16,6 +16,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+import pytz
 from croniter import croniter
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
@@ -232,7 +233,7 @@ class SchedulerService:
 
                 for task in tasks:
                     try:
-                        await self._schedule_task(task)
+                        await self.schedule_task(task)
                     except Exception as e:
                         log.error(
                             "[SchedulerService:%s] Failed to schedule task %s: %s",
@@ -251,7 +252,7 @@ class SchedulerService:
         """Unload all scheduled tasks from APScheduler."""
         for task_id in list(self.active_tasks.keys()):
             try:
-                await self._unschedule_task(task_id)
+                await self.unschedule_task(task_id)
             except Exception as e:
                 log.error(
                     "[SchedulerService:%s] Failed to unschedule task %s: %s",
@@ -259,7 +260,7 @@ class SchedulerService:
                     exc_info=True,
                 )
 
-    async def _schedule_task(self, task: ScheduledTaskModel):
+    async def schedule_task(self, task: ScheduledTaskModel):
         """Schedule a single task in APScheduler."""
         job_id = f"scheduled_task_{task.id}"
 
@@ -308,7 +309,7 @@ class SchedulerService:
             )
             raise
 
-    async def _unschedule_task(self, task_id: str):
+    async def unschedule_task(self, task_id: str):
         """Remove a task from APScheduler."""
         job_id = f"scheduled_task_{task_id}"
 
@@ -558,7 +559,6 @@ class SchedulerService:
         not UTC, so the value matches the user's scheduling context.
         """
         try:
-            import pytz
             tz = pytz.timezone(task_timezone)
             now = datetime.now(tz).isoformat()
         except Exception:

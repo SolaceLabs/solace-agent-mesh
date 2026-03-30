@@ -277,7 +277,7 @@ class NotificationService:
         webhook_type = config.get("webhook_type", "generic")
 
         if webhook_type == "slack":
-            status_emoji = "pass" if payload["status"] == "completed" else "fail"
+            status_emoji = "pass" if payload["status"] == ExecutionStatus.COMPLETED else "fail"
             return {
                 "text": f"Scheduled Task: {payload['task_name']} ({status_emoji})",
                 "blocks": [
@@ -296,7 +296,7 @@ class NotificationService:
                 ],
             }
         elif webhook_type == "teams":
-            status_color = "00FF00" if payload["status"] == "completed" else "FF0000"
+            status_color = "00FF00" if payload["status"] == ExecutionStatus.COMPLETED else "FF0000"
             return {
                 "@type": "MessageCard",
                 "@context": "https://schema.org/extensions",
