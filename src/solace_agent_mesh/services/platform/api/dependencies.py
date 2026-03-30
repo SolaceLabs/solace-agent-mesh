@@ -14,6 +14,8 @@ from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from .routers.dto.responses.model_configuration_responses import ModelDependentResponse
+
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
     from ..services import ModelConfigService, ModelListService
@@ -224,7 +226,7 @@ class ModelDependentsHandler:
     and undeploy agents that depend on a given model configuration.
     """
 
-    async def undeploy_dependents(self, model_alias: str, model_id: str, component) -> list[dict]:
+    async def undeploy_dependents(self, model_alias: str, model_id: str, component: "PlatformServiceComponent") -> list[ModelDependentResponse]:
         """Undeploy agents depending on the given model (by alias or ID).
 
         Args:

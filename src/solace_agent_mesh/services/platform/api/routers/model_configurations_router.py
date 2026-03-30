@@ -26,6 +26,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
     ModelConfigurationTestResponse,
     ModelConfigStatusResponse,
+    ModelDependentResponse,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationCreateRequest,
@@ -219,7 +220,7 @@ async def update_model(
 
 @router.get(
     "/models/{alias}/dependents",
-    response_model=DataResponse[list[dict]],
+    response_model=DataResponse[list[ModelDependentResponse]],
     summary="Get agents that depend on a model",
     description="Return deployed agents whose model_provider references the given model alias or ID. Requires enterprise package.",
 )
@@ -228,7 +229,7 @@ async def get_model_dependents(
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[list[dict]]:
+) -> DataResponse[list[ModelDependentResponse]]:
     """Return agents that depend on the given model configuration.
 
     Attempts to import the enterprise ModelDependentsService. If the enterprise
@@ -251,12 +252,12 @@ async def get_model_dependents(
         dependents = dependents_service.get_dependents(db, config.alias, config.id)
 
         return create_data_response([
-            {
-                "id": str(agent.id),
-                "name": agent.name,
-                "type": agent.type,
-                "deploymentStatus": agent.deployment_status,
-            }
+            ModelDependentResponse(
+                id=str(agent.id),
+                name=agent.name,
+                type=agent.type,
+                deployment_status=agent.deployment_status,
+            )
             for agent in dependents
         ])
     except ImportError:

@@ -46,11 +46,12 @@ class TestHandlerRegistration:
         original = get_model_dependents_handler()
         custom = ModelDependentsHandler()
 
-        set_model_dependents_handler(custom)
-        assert get_model_dependents_handler() is custom
-
-        # Restore original
-        set_model_dependents_handler(original)
+        try:
+            set_model_dependents_handler(custom)
+            assert get_model_dependents_handler() is custom
+        finally:
+            # Restore original
+            set_model_dependents_handler(original)
 
 
 class TestGetModelDependentsEndpoint:
@@ -207,7 +208,6 @@ class TestDeleteModelCallsHandler:
 
         call_order = []
         mock_handler.undeploy_dependents.side_effect = lambda *a, **k: call_order.append("undeploy") or []
-        original_delete = mock_service.delete
         mock_service.delete.side_effect = lambda *a, **k: call_order.append("delete")
 
         mock_component = Mock()
