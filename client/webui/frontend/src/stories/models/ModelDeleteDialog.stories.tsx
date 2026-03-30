@@ -104,6 +104,7 @@ const withMockDeletePlugin: Decorator = Story => {
 
     useEffect(() => {
         return () => {
+            // Clear the plugin from the registry
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (pluginRegistry as any)._plugins["model-delete-dialog"];
         };
