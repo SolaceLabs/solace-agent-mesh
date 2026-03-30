@@ -23,6 +23,9 @@ CACHE_TTL_SECONDS = 600
 # LLM parameters
 DEFAULT_TEMPERATURE = 0.7
 
+# Max retries for JSON parse failures (with error feedback to LLM)
+MAX_JSON_RETRIES = 1
+
 # Default fallback suggestions when LLM is unavailable
 DEFAULT_STARTER_SUGGESTIONS: list[dict[str, Any]] = [
     {
@@ -231,13 +234,9 @@ class StarterSuggestionsService:
 
         return "\n".join(lines)
 
-    async def _call_litellm(
-        self, agent_descriptions: str
-    ) -> Optional[list[dict[str, Any]]]:
-        """Call LiteLLM to generate starter suggestions."""
-        log.info("Calling LiteLLM for starter suggestions generation")
-
-        prompt = f"""You are generating starter task suggestions for an enterprise AI chat interface called Agent Mesh.
+    def _build_initial_prompt(self, agent_descriptions: str) -> str:
+        """Build the initial LLM prompt for generating starter suggestions."""
+        return f"""You are generating starter task suggestions for an enterprise AI chat interface called Agent Mesh.
 
 The system has these AI agents available:
 
@@ -254,18 +253,19 @@ For each category, provide:
   - "prompt": A ready-to-send prompt (1-2 sentences)
 
 CRITICAL RULES for prompts:
+- Prompts are written FROM THE USER'S PERSPECTIVE — they will be sent as the user's message to the AI assistant
+- Use first person: "I", "my", "me" — NOT second person "you", "your"
 - Prompts must be GENERIC and work for ANY user at ANY company
 - Do NOT invent specific company names, product names, competitor names, or industry-specific details
 - Do NOT reference "our company", "our competitors", "our data" — the user hasn't provided any context yet
-- Prompts should describe the TYPE of task and invite the user to provide their own context
-- Prompts should feel conversational and helpful, like a smart assistant offering to help
-- If the task needs user input, the prompt should ask for it naturally
-- Good example: "Rewrite my message so it feels more persuasive for its audience and goal. If needed, ask me to share the message and what I want it to achieve."
-- Good example: "Help me draft a competitive analysis. Ask me about my industry and key competitors to get started."
-- Good example: "I need to prepare a summary report. Help me organize my thoughts — ask me what the report is about."
-- Bad example: "Analyze Apple vs Samsung market share in the smartphone industry"
-- Bad example: "Summarize the Q3 2024 financial report for Acme Corp"
-- Bad example: "Research the latest trends in the automotive industry"
+- Prompts should describe what the user wants and invite the AI to ask clarifying questions
+- Prompts should feel natural, like a real person asking for help
+- Good example: "I need to rewrite my message so it feels more persuasive. I'll share the message and what I want it to achieve."
+- Good example: "Help me draft a competitive analysis. I'll tell you about my industry and key competitors."
+- Good example: "I need to prepare a summary report. Ask me what the report is about so we can get started."
+- Bad example: "Share what you'd like summarized" (wrong — uses "you" instead of "I")
+- Bad example: "Analyze Apple vs Samsung market share" (wrong — invents specific subjects)
+- Bad example: "Summarize the Q3 2024 financial report for Acme Corp" (wrong — invents specific details)
 
 Focus on enterprise use cases that match the available agent capabilities.
 Use different icons for each category.
@@ -282,6 +282,31 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
   }}
 ]}}"""
 
+    def _build_correction_prompt(
+        self, previous_response: str, error_reason: str
+    ) -> str:
+        """Build a correction prompt that includes the previous invalid response and error."""
+        return f"""Your previous response was not valid JSON or failed validation.
+
+Here is what you returned:
+---
+{previous_response[:2000]}
+---
+
+Error: {error_reason}
+
+Please try again. Return ONLY valid JSON with no markdown, no code fences, and no explanation.
+The response must be a JSON object with a "categories" array containing exactly 4 category objects.
+Each category must have: "icon" (string), "label" (string), "description" (string), "options" (array).
+Each option must have: "label" (string), "prompt" (string).
+
+Valid icon names: BarChart3, Users, ShieldCheck, TrendingUp, FileSearch, Lightbulb, Search, FileText, Database, Globe, Bot, Briefcase, Code, Mail, Calendar, Settings, Zap, Target, PieChart, LineChart
+
+Example of valid JSON:
+{{"categories": [{{"icon": "Lightbulb", "label": "Planning", "description": "Organize and plan tasks", "options": [{{"label": "Help me plan a project", "prompt": "Help me create a project plan. Ask me about the scope and timeline."}}]}}]}}"""
+
+    async def _send_llm_request(self, prompt: str) -> Optional[str]:
+        """Send a prompt to the LLM and return the raw text response."""
         try:
             from google.genai import types
             from google.adk.models.llm_request import LlmRequest
@@ -308,14 +333,7 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
                             content = part.text
                             break
 
-            if content is None:
-                log.warning(
-                    "LiteLLM returned None content for starter suggestions"
-                )
-                return None
-
-            # Parse the JSON response
-            return self._parse_llm_response(content)
+            return content
 
         except Exception as e:
             log.error(
@@ -325,10 +343,70 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
             )
             return None
 
+    async def _call_litellm(
+        self, agent_descriptions: str
+    ) -> Optional[list[dict[str, Any]]]:
+        """
+        Call LiteLLM to generate starter suggestions with retry on JSON parse failure.
+
+        If the first response fails JSON validation, sends the error back to the LLM
+        with a correction prompt for one retry attempt.
+        """
+        log.info("Calling LiteLLM for starter suggestions generation")
+
+        # First attempt
+        prompt = self._build_initial_prompt(agent_descriptions)
+        content = await self._send_llm_request(prompt)
+
+        if content is None:
+            log.warning("LiteLLM returned None content for starter suggestions")
+            return None
+
+        # Try to parse the response
+        result, error_reason = self._parse_llm_response(content)
+        if result is not None:
+            return result
+
+        # First attempt failed - retry with error feedback
+        log.info(
+            "First LLM attempt failed validation (%s), retrying with correction prompt",
+            error_reason,
+        )
+
+        for retry in range(MAX_JSON_RETRIES):
+            correction_prompt = self._build_correction_prompt(content, error_reason)
+            content = await self._send_llm_request(correction_prompt)
+
+            if content is None:
+                log.warning("LiteLLM returned None on retry %d", retry + 1)
+                return None
+
+            result, error_reason = self._parse_llm_response(content)
+            if result is not None:
+                log.info("Retry %d succeeded - valid JSON produced", retry + 1)
+                return result
+
+            log.warning(
+                "Retry %d still failed validation: %s", retry + 1, error_reason
+            )
+
+        log.warning(
+            "All %d retries exhausted, LLM could not produce valid JSON",
+            MAX_JSON_RETRIES,
+        )
+        return None
+
     def _parse_llm_response(
         self, content: str
-    ) -> Optional[list[dict[str, Any]]]:
-        """Parse and validate the LLM JSON response."""
+    ) -> tuple[Optional[list[dict[str, Any]]], str]:
+        """
+        Parse and validate the LLM JSON response.
+
+        Returns:
+            A tuple of (parsed_categories, error_reason).
+            If parsing succeeds, error_reason is empty.
+            If parsing fails, parsed_categories is None and error_reason describes the issue.
+        """
         try:
             # Strip any markdown code fences if present
             text = content.strip()
@@ -344,8 +422,9 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
 
             categories = data.get("categories", [])
             if not isinstance(categories, list) or len(categories) == 0:
+                reason = "Response JSON has no 'categories' array or it is empty"
                 log.warning("LLM response has no categories")
-                return None
+                return None, reason
 
             # Validate and normalize each category
             valid_icons = {
@@ -373,8 +452,10 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
             }
 
             validated: list[dict[str, Any]] = []
-            for cat in categories:
+            skipped_reasons: list[str] = []
+            for i, cat in enumerate(categories):
                 if not isinstance(cat, dict):
+                    skipped_reasons.append(f"Category {i}: not a JSON object")
                     continue
 
                 icon = cat.get("icon", "Lightbulb")
@@ -385,7 +466,13 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
                 description = cat.get("description", "")
                 options = cat.get("options", [])
 
-                if not label or not isinstance(options, list) or len(options) == 0:
+                if not label:
+                    skipped_reasons.append(f"Category {i}: missing 'label'")
+                    continue
+                if not isinstance(options, list) or len(options) == 0:
+                    skipped_reasons.append(
+                        f"Category '{label}': missing or empty 'options' array"
+                    )
                     continue
 
                 valid_options = []
@@ -408,19 +495,33 @@ Respond with ONLY valid JSON (no markdown, no code fences, no explanation):
                             "options": valid_options,
                         }
                     )
+                else:
+                    skipped_reasons.append(
+                        f"Category '{label}': all options missing 'label' or 'prompt'"
+                    )
 
             if not validated:
+                reason = "No valid categories after validation. Issues: " + "; ".join(
+                    skipped_reasons
+                )
                 log.warning("No valid categories after validation")
-                return None
+                return None, reason
 
             log.info(
                 "Successfully parsed %d starter suggestion categories",
                 len(validated),
             )
-            return validated
+            return validated, ""
 
-        except (json.JSONDecodeError, ValueError) as e:
+        except json.JSONDecodeError as e:
+            reason = f"Invalid JSON syntax: {e}"
             log.error(
                 "Failed to parse LLM response as JSON: %s", e, exc_info=True
             )
-            return None
+            return None, reason
+        except ValueError as e:
+            reason = f"Value error during parsing: {e}"
+            log.error(
+                "Failed to parse LLM response: %s", e, exc_info=True
+            )
+            return None, reason
