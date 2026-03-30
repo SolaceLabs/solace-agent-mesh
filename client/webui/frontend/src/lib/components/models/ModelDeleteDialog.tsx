@@ -75,9 +75,9 @@ const ConfirmDeleteDialog: React.FC<{
     };
 
     // Check if enterprise provides a custom delete dialog
-    const enterpriseDialog = pluginRegistry.getPluginById("model-delete-dialog");
-    if (enterpriseDialog) {
-        return <>{enterpriseDialog.render?.({ open, onOpenChange: handleOpenChange, onConfirm, isLoading, modelId, modelAlias })}</>;
+    const customDialog = pluginRegistry.getPluginById("model-delete-dialog");
+    if (customDialog) {
+        return <>{customDialog.render?.({ open, onOpenChange: handleOpenChange, onConfirm, isLoading, modelId, modelAlias })}</>;
     }
 
     return (
