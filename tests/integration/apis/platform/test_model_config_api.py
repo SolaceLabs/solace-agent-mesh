@@ -9,6 +9,7 @@ Tests the HTTP layer behavior for model configuration endpoints including:
 """
 
 import logging
+import os
 import uuid
 import pytest
 from unittest.mock import patch, MagicMock
