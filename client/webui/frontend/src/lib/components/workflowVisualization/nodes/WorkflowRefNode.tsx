@@ -10,11 +10,6 @@ import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type Nod
 const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick }) => {
     const workflowName = node.data.workflowName || node.data.agentName || node.data.label;
 
-    const handleClick = onClick ? (e: MouseEvent) => {
-        e.stopPropagation();
-        onClick(node);
-    } : undefined;
-
     return (
         <div
             className={`${NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
