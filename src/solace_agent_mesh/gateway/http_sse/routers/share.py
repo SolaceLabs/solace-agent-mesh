@@ -86,10 +86,15 @@ def get_optional_user_email(request: Request) -> Optional[str]:
 
 
 def get_base_url(request: Request) -> str:
-    """Get base URL from request."""
-    # Build base URL from request
-    scheme = request.url.scheme
-    host = request.headers.get('host', request.url.netloc)
+    """Get base URL from request.
+
+    Respects X-Forwarded-Proto and X-Forwarded-Host headers set by
+    reverse proxies / load balancers that terminate TLS so the
+    generated share URLs use the correct scheme (https).
+    """
+    scheme = request.headers.get('x-forwarded-proto', request.url.scheme)
+    host = request.headers.get('x-forwarded-host',
+                               request.headers.get('host', request.url.netloc))
     return f"{scheme}://{host}"
 
 

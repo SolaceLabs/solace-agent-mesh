@@ -18,7 +18,7 @@ function Card({ className, noPadding, onCardSelect, isCardSelected, ...props }: 
             className={cn(
                 "card-surface flex flex-col gap-5 rounded-lg bg-(--background-w10) text-(--primary-text-wMain)",
                 !noPadding && "py-6",
-                onCardSelect && "card-surface-hover cursor-pointer transition-all outline-none hover:bg-(--primary-w10) focus-visible:border-(--brand-wMain)",
+                onCardSelect && "card-surface-hover cursor-pointer transition-all outline-none focus-visible:border-(--brand-wMain)",
                 isCardSelected && "border-(--brand-wMain)",
                 className
             )}
