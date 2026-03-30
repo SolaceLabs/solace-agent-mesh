@@ -463,6 +463,34 @@ class RAGInfoUpdateData(BaseModel):
     timestamp: str = Field(..., description="ISO timestamp of this update")
 
 
+class DeepResearchPlanData(BaseModel):
+    """
+    Data model for deep research plan verification.
+    Sent before research begins to allow user to review/edit/cancel the plan.
+    The frontend renders this as an interactive card with Edit, Cancel, and Start buttons.
+    Includes a configurable auto-approve countdown timer.
+    """
+
+    type: Literal["deep_research_plan"] = Field(
+        "deep_research_plan", description="The constant type for this data part."
+    )
+    plan_id: str = Field(..., description="Unique ID for this plan verification request")
+    title: str = Field(..., description="Auto-generated research title")
+    research_question: str = Field(..., description="The original research question")
+    steps: list[str] = Field(..., description="Ordered list of research plan steps")
+    research_type: str = Field(
+        default="quick", description="Research type: quick or in-depth"
+    )
+    max_iterations: int = Field(..., description="Planned max iterations")
+    max_runtime_seconds: int = Field(..., description="Planned max runtime in seconds")
+    sources: list[str] = Field(
+        default_factory=list, description="Sources to search (e.g., web, kb)"
+    )
+    auto_approve_seconds: int = Field(
+        default=60, description="Countdown seconds for auto-approve"
+    )
+
+
 class DeepResearchReportData(BaseModel):
     """
     Data model for a deep research report completion signal.
