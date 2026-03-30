@@ -2,12 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
-import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
+import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
-import { Button } from "@/lib/components/ui";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage } from "@/lib/hooks";
@@ -177,25 +176,7 @@ function AppLayoutContent() {
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="h-full w-full flex-1 overflow-auto">
-                {showModelWarning && (
-                    <MessageBanner
-                        variant="warning"
-                        style={{ alignItems: "center" }}
-                        message={
-                            <div className="flex w-full items-center justify-between gap-3">
-                                <span>
-                                    No model has been set up. Some features may not work as intended without a configured model.
-                                    {!hasModelConfigWrite && " Contact your administrator for assistance."}
-                                </span>
-                                {hasModelConfigWrite && (
-                                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("/agents?tab=models")}>
-                                        Go to Models
-                                    </Button>
-                                )}
-                            </div>
-                        }
-                    />
-                )}
+                <ModelWarningBanner showWarning={!!showModelWarning} hasModelConfigWrite={hasModelConfigWrite} />
                 <Outlet />
             </main>
             <ToastContainer />
