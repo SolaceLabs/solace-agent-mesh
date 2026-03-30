@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate } from "react-router-dom";
-import { Loader2, Check, X } from "lucide-react";
+import { Loader2, Check, X, Plus } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
@@ -78,7 +78,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
 
 export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, addNotification, currentTaskId } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -361,7 +361,21 @@ export const RecentChatsPage: React.FC = () => {
 
     return (
         <div className="flex h-full flex-col">
-            <Header title="Recent Chats" />
+            <Header
+                title="Recent Chats"
+                buttons={[
+                    <Button
+                        key="new-chat"
+                        onClick={() => {
+                            navigate("/chat");
+                            handleNewSession();
+                        }}
+                    >
+                        <Plus size={16} className="mr-1" />
+                        New Chat
+                    </Button>,
+                ]}
+            />
 
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
                 {/* Search and Filter Bar */}
