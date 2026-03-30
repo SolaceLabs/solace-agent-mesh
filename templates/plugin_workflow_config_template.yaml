@@ -30,6 +30,10 @@ shared_config:
       broker_vpn: ${SOLACE_BROKER_VPN, default}
       temporary_queue: ${USE_TEMPORARY_QUEUES, true}
 
+  # Note: No `models` section is included here because workflow nodes delegate
+  # to separately configured agents, each with their own LLM model settings.
+  # If you need LLM access directly, add a models section (see the agent plugin template).
+
   - services:
     # Default session service configuration
     session_service: &default_session_service

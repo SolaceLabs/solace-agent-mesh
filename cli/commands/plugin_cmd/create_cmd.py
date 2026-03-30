@@ -109,7 +109,8 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
 
     elif plugin_type == "workflow":
         # Workflows are declarative YAML-only; no additional Python source needed.
-        # The __init__.py is already created above for all types.
+        # The src/ directory and __init__.py are still created because the plugin
+        # packaging/install mechanism requires a valid Python package structure.
         pass
 
     elif plugin_type == "custom":
