@@ -9,7 +9,7 @@ Tasks run forever while enabled; failures are tracked for observability only.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -28,7 +28,9 @@ from ...repository.models import (
     ScheduledTaskModel,
     ScheduleType,
 )
-from ...shared import now_epoch_ms
+from ...repository.models import SessionModel
+from ...repository.scheduled_task_repository import ScheduledTaskRepository
+from ...shared import now_epoch_ms, parse_interval_to_seconds
 from .result_handler import ResultHandler
 from .notification_service import NotificationService
 
@@ -36,6 +38,14 @@ log = logging.getLogger(__name__)
 
 # Safe metadata keys that task_metadata may contain.
 # Prevents callers from overriding protocol-level keys.
+DEFAULT_TIMEOUT_SECONDS = 3600
+DEFAULT_MAX_CONCURRENT_EXECUTIONS = 10
+DEFAULT_STALE_EXECUTION_TIMEOUT_SECONDS = 7200
+DEFAULT_STALE_CLEANUP_INTERVAL_SECONDS = 600
+DEFAULT_RETRY_DELAY_SECONDS = 60
+DEFAULT_EXECUTION_HISTORY_KEEP_COUNT = 100
+DEFAULT_MISFIRE_GRACE_TIME = 60
+
 _SAFE_METADATA_KEYS = frozenset({
     "priority",
     "tags",
@@ -67,15 +77,15 @@ class SchedulerService:
         self.core_a2a_service = core_a2a_service
 
         config = config or {}
-        self.default_timeout_seconds = config.get("default_timeout_seconds", 3600)
-        self.max_concurrent_executions = config.get("max_concurrent_executions", 10)
-        self.stale_execution_timeout_seconds = config.get("stale_execution_timeout_seconds", 7200)
-        self.stale_cleanup_interval_seconds = config.get("stale_cleanup_interval_seconds", 600)
+        self.default_timeout_seconds = config.get("default_timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+        self.max_concurrent_executions = config.get("max_concurrent_executions", DEFAULT_MAX_CONCURRENT_EXECUTIONS)
+        self.stale_execution_timeout_seconds = config.get("stale_execution_timeout_seconds", DEFAULT_STALE_EXECUTION_TIMEOUT_SECONDS)
+        self.stale_cleanup_interval_seconds = config.get("stale_cleanup_interval_seconds", DEFAULT_STALE_CLEANUP_INTERVAL_SECONDS)
 
         self.scheduler = AsyncIOScheduler(
             timezone="UTC",
             job_defaults={
-                "misfire_grace_time": 60,
+                "misfire_grace_time": DEFAULT_MISFIRE_GRACE_TIME,
                 "coalesce": True,
             },
         )
@@ -155,7 +165,7 @@ class SchedulerService:
                     self.instance_id, e,
                     exc_info=True,
                 )
-                await asyncio.sleep(60)
+                await asyncio.sleep(DEFAULT_RETRY_DELAY_SECONDS)
 
     async def _cleanup_stale_executions(self):
         """Clean up executions that have been running too long."""
@@ -179,7 +189,7 @@ class SchedulerService:
                     execution.error_message = f"Execution exceeded stale timeout of {self.stale_execution_timeout_seconds} seconds"
 
                     # Clean up in-memory tracking
-                    if execution.a2a_task_id and hasattr(self.result_handler, 'pending_executions_lock'):
+                    if execution.a2a_task_id:
                         async with self.result_handler.pending_executions_lock:
                             self.result_handler.pending_executions.pop(execution.a2a_task_id, None)
                             self.result_handler.execution_sessions.pop(execution.id, None)
@@ -329,19 +339,8 @@ class SchedulerService:
             raise ValueError(f"Unsupported schedule type: {task.schedule_type}")
 
     def _parse_interval(self, interval_str: str) -> int:
-        """Parse interval string to seconds."""
-        interval_str = interval_str.strip().lower()
-
-        if interval_str.endswith("s"):
-            return int(interval_str[:-1])
-        elif interval_str.endswith("m"):
-            return int(interval_str[:-1]) * 60
-        elif interval_str.endswith("h"):
-            return int(interval_str[:-1]) * 3600
-        elif interval_str.endswith("d"):
-            return int(interval_str[:-1]) * 86400
-        else:
-            return int(interval_str)
+        """Parse interval string to seconds (delegates to shared utility)."""
+        return parse_interval_to_seconds(interval_str)
 
     async def _execute_scheduled_task(self, task_id: str):
         """Execute a scheduled task by submitting it to the agent mesh.
@@ -358,7 +357,7 @@ class SchedulerService:
         # is consistent even if the task is updated mid-execution.
         timeout_seconds = self.default_timeout_seconds
         max_retries = 0
-        retry_delay_seconds = 60
+        retry_delay_seconds = DEFAULT_RETRY_DELAY_SECONDS
 
         with self.session_factory() as session:
             task = session.get(ScheduledTaskModel, task_id)
@@ -367,7 +366,7 @@ class SchedulerService:
                 return
             timeout_seconds = task.timeout_seconds or self.default_timeout_seconds
             max_retries = task.max_retries or 0
-            retry_delay_seconds = task.retry_delay_seconds or 60
+            retry_delay_seconds = task.retry_delay_seconds or DEFAULT_RETRY_DELAY_SECONDS
             # Snapshot task fields for the retry loop so we don't re-read
             task_snapshot = {
                 "task_message": task.task_message,
@@ -524,10 +523,9 @@ class SchedulerService:
     async def _enforce_execution_history_bounds(self, task_id: str):
         """Keep only the last 100 executions per task."""
         try:
-            from ...repository.scheduled_task_repository import ScheduledTaskRepository
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:
-                deleted = repo.delete_oldest_executions(session, task_id, keep_count=100)
+                deleted = repo.delete_oldest_executions(session, task_id, keep_count=DEFAULT_EXECUTION_HISTORY_KEEP_COUNT)
                 if deleted > 0:
                     session.commit()
                     log.info(
@@ -616,10 +614,8 @@ class SchedulerService:
             user_id = task_user_id or task_created_by or "system-scheduler"
             session_id = f"scheduled_{execution_id}"
             try:
-                from ...repository.models import SessionModel
                 with self.session_factory() as sess:
-                    from ...shared import now_epoch_ms as _now_ms
-                    now = _now_ms()
+                    now = now_epoch_ms()
                     session_record = SessionModel(
                         id=session_id,
                         name=f"{task_name}",
@@ -716,8 +712,7 @@ class SchedulerService:
                     session.commit()
 
             # --- Step 4: Register, publish, and wait (no session held) ---
-            if hasattr(self.result_handler, 'register_execution'):
-                await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+            await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
 
             self.publish_func(target_topic, payload, user_props)
 
@@ -727,8 +722,7 @@ class SchedulerService:
             )
 
             # Wait for the result handler to signal completion
-            if hasattr(self.result_handler, 'wait_for_completion'):
-                await self.result_handler.wait_for_completion(execution_id)
+            await self.result_handler.wait_for_completion(execution_id)
 
         except Exception as e:
             log.error(
@@ -783,9 +777,7 @@ class SchedulerService:
 
     def get_status(self) -> Dict[str, Any]:
         """Get current status of the scheduler service."""
-        pending_count = 0
-        if hasattr(self.result_handler, 'get_pending_count'):
-            pending_count = self.result_handler.get_pending_count()
+        pending_count = self.result_handler.get_pending_count()
 
         return {
             "instance_id": self.instance_id,

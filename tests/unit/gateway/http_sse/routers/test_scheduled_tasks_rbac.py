@@ -16,6 +16,7 @@ from solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks import (
     create_scheduled_task,
     _validate_scheduling_permission,
 )
+from solace_agent_mesh.gateway.http_sse.services.scheduled_task_service import ScheduledTaskService
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ class TestCreateTaskNamespaceRestriction:
                 request=request,
                 db=MagicMock(),
                 user=user,
-                scheduler_service=MagicMock(),
+                task_service=ScheduledTaskService(scheduler_service=MagicMock()),
                 user_config=user_config,
                 config_resolver=config_resolver,
                 agent_registry=MagicMock(),
@@ -104,7 +105,7 @@ class TestCreateTaskNamespaceRestriction:
         mock_db = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskResponse"
@@ -114,7 +115,7 @@ class TestCreateTaskNamespaceRestriction:
                 request=request,
                 db=mock_db,
                 user=user,
-                scheduler_service=scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=scheduler_service),
                 user_config=user_config,
                 config_resolver=config_resolver,
                 agent_registry=MagicMock(),
@@ -147,7 +148,7 @@ class TestCreateTaskAgentRBAC:
                 request=request,
                 db=MagicMock(),
                 user=user,
-                scheduler_service=MagicMock(),
+                task_service=ScheduledTaskService(scheduler_service=MagicMock()),
                 user_config=user_config,
                 config_resolver=config_resolver,
                 agent_registry=agent_registry,
@@ -176,7 +177,7 @@ class TestCreateTaskAgentRBAC:
                 request=request,
                 db=MagicMock(),
                 user=user,
-                scheduler_service=MagicMock(),
+                task_service=ScheduledTaskService(scheduler_service=MagicMock()),
                 user_config=user_config,
                 config_resolver=config_resolver,
                 agent_registry=agent_registry,

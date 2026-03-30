@@ -32,6 +32,14 @@ def _sanitize_error_message(message: str) -> str:
     return sanitized or "Task execution failed"
 
 
+def _artifact_name_exists(artifacts: list, name: str) -> bool:
+    """Check if an artifact with the given name already exists in the list."""
+    return any(
+        (a.get("name") if isinstance(a, dict) else None) == name
+        for a in artifacts
+    )
+
+
 class ResultHandler:
     """
     Handles A2A task responses for scheduled task executions.
@@ -143,10 +151,7 @@ class ResultHandler:
                         uri = a2a.get_uri_from_file_part(file_part)
                         if uri:
                             art_name = uri.rsplit("/", 1)[-1] if "/" in uri else uri
-                            if not any(
-                                (a.get("name") if isinstance(a, dict) else None) == art_name
-                                for a in artifacts
-                            ):
+                            if not _artifact_name_exists(artifacts, art_name):
                                 artifacts.append({
                                     "name": art_name,
                                     "uri": uri,
@@ -517,47 +522,6 @@ class ResultHandler:
         """Check if a topic is a scheduler response topic."""
         response_prefix = f"{self.namespace}a2a/v1/scheduler/response/"
         return topic.startswith(response_prefix)
-
-    async def cleanup_stale_executions(self, timeout_seconds: int = 7200):
-        """Clean up executions that have been running too long."""
-        try:
-            cutoff_time = now_epoch_ms() - (timeout_seconds * 1000)
-
-            repo = ScheduledTaskRepository()
-            with self.session_factory() as session:
-                from sqlalchemy import select
-                from ...repository.models import ScheduledTaskExecutionModel
-
-                stmt = select(ScheduledTaskExecutionModel).where(
-                    ScheduledTaskExecutionModel.status == ExecutionStatus.RUNNING,
-                    ScheduledTaskExecutionModel.started_at < cutoff_time,
-                )
-                stale_executions = session.execute(stmt).scalars().all()
-
-                for execution in stale_executions:
-                    update_data = {
-                        "status": ExecutionStatus.TIMEOUT,
-                        "completed_at": now_epoch_ms(),
-                        "error_message": "Execution exceeded the configured timeout",
-                    }
-                    repo.update_execution(session, execution.id, update_data)
-
-                    if execution.a2a_task_id:
-                        async with self.pending_executions_lock:
-                            self.pending_executions.pop(execution.a2a_task_id, None)
-                            self.execution_sessions.pop(execution.id, None)
-                            event = self.completion_events.pop(execution.id, None)
-                        if event:
-                            event.set()
-
-                session.commit()
-
-        except Exception as e:
-            log.error(
-                "%s Error cleaning up stale executions: %s",
-                self.log_prefix, e,
-                exc_info=True,
-            )
 
     def get_pending_count(self) -> int:
         """Get count of pending executions."""

@@ -3,9 +3,11 @@ Pydantic models for scheduled tasks API.
 """
 
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from croniter import croniter
 import pytz
+
+from ...shared import MINIMUM_INTERVAL_SECONDS, parse_interval_to_seconds
 
 
 class NotificationChannelConfig(BaseModel):
@@ -79,9 +81,9 @@ class CreateScheduledTaskRequest(BaseModel):
             if not v or not v[-1] in "smhd":
                 raise ValueError(f"Invalid interval format: {v}. Use format like '30s', '5m', '1h', '1d'")
             try:
-                int(v[:-1])
-            except ValueError:
-                raise ValueError(f"Invalid interval value: {v}")
+                parse_interval_to_seconds(v)
+            except ValueError as e:
+                raise ValueError(str(e)) from e
         elif schedule_type == "one_time":
             from datetime import datetime
             try:
@@ -128,6 +130,35 @@ class UpdateScheduledTaskRequest(BaseModel):
         if v is not None and v not in ("agent", "workflow"):
             raise ValueError(f"Invalid target_type: {v}. Must be 'agent' or 'workflow'.")
         return v
+
+    @field_validator("schedule_type")
+    @classmethod
+    def validate_schedule_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("cron", "interval", "one_time"):
+            raise ValueError(f"Invalid schedule_type: {v}. Must be 'cron', 'interval', or 'one_time'.")
+        return v
+
+    @model_validator(mode="after")
+    def validate_schedule_expression_matches_type(self):
+        """Validate schedule_expression against schedule_type when both are provided."""
+        stype = self.schedule_type
+        expr = self.schedule_expression
+        if expr is not None and stype is not None:
+            if stype == "cron":
+                if not croniter.is_valid(expr):
+                    raise ValueError(f"Invalid cron expression: {expr}")
+            elif stype == "interval":
+                try:
+                    parse_interval_to_seconds(expr)
+                except ValueError as e:
+                    raise ValueError(str(e)) from e
+            elif stype == "one_time":
+                from datetime import datetime
+                try:
+                    datetime.fromisoformat(expr)
+                except ValueError:
+                    raise ValueError(f"Invalid ISO 8601 datetime: {expr}")
+        return self
 
 
 class ScheduledTaskResponse(BaseModel):

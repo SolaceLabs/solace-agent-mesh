@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import httpx
 from sqlalchemy.orm import Session as DBSession
 
-from ...repository.models import ScheduledTaskModel, ScheduledTaskExecutionModel
+from ...repository.models import ScheduledTaskModel, ScheduledTaskExecutionModel, ExecutionStatus
 from ...sse_manager import SSEManager
 from ...shared import now_epoch_ms
 
@@ -32,6 +32,21 @@ _BLOCKED_IP_NETWORKS = [
 ]
 
 _ALLOWED_SCHEMES = {"http", "https"}
+
+# Headers that must not be set by user-controlled webhook config
+_DENIED_WEBHOOK_HEADERS = frozenset({
+    "authorization",
+    "cookie",
+    "host",
+    "proxy-authorization",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+    "x-real-ip",
+})
+
+# Broker topics must start with this user-scoped prefix
+_BROKER_TOPIC_PREFIX = "scheduled-tasks/"
 
 
 def _check_ip_blocked(ip_str: str) -> None:
@@ -131,8 +146,8 @@ class NotificationService:
         config = task.notification_config
 
         should_notify = (
-            (execution.status == "completed" and config.get("on_success", True))
-            or (execution.status in ["failed", "timeout"] and config.get("on_failure", True))
+            (execution.status == ExecutionStatus.COMPLETED and config.get("on_success", True))
+            or (execution.status in (ExecutionStatus.FAILED, ExecutionStatus.TIMEOUT) and config.get("on_failure", True))
         )
 
         if not should_notify:
@@ -240,6 +255,14 @@ class NotificationService:
 
         method = config.get("method", "POST").upper()
         headers = config.get("headers", {})
+
+        # Deny security-sensitive headers
+        denied = [k for k in headers if k.lower() in _DENIED_WEBHOOK_HEADERS]
+        if denied:
+            raise ValueError(
+                f"Webhook headers contain denied security-sensitive keys: {', '.join(denied)}"
+            )
+
         if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json"
 
@@ -300,6 +323,13 @@ class NotificationService:
         topic = config.get("topic")
         if not topic:
             raise ValueError("Broker topic not configured")
+
+        # Validate topic to prevent injection into arbitrary broker namespaces
+        if not topic.startswith(_BROKER_TOPIC_PREFIX):
+            raise ValueError(
+                f"Broker topic must start with '{_BROKER_TOPIC_PREFIX}'. "
+                f"Got: '{topic}'"
+            )
 
         if not config.get("include_full_result", False):
             filtered_payload = {

@@ -3,8 +3,7 @@ REST API router for scheduled tasks management.
 """
 
 import logging
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
 from croniter import croniter
@@ -13,10 +12,10 @@ from sqlalchemy.orm import Session as DBSession
 from pydantic import BaseModel, Field
 
 from ..dependencies import get_db, get_config_resolver, get_user_config, get_agent_registry
-from ..repository.scheduled_task_repository import ScheduledTaskRepository
 from ..shared.auth_utils import get_current_user
 from ..shared.pagination import PaginationParams
-from ..shared import now_epoch_ms
+from ..shared import parse_interval_to_seconds
+from ..services.scheduled_task_service import ScheduledTaskService
 from .dto.scheduled_task_dto import (
     CreateScheduledTaskRequest,
     UpdateScheduledTaskRequest,
@@ -30,7 +29,6 @@ from .dto.scheduled_task_dto import (
     SchedulePreviewResponse,
 )
 from ..services.task_builder_assistant import TaskBuilderAssistant, TaskBuilderResponse
-from ..services.scheduler.scheduler_service import _SAFE_METADATA_KEYS
 
 log = logging.getLogger(__name__)
 
@@ -41,10 +39,7 @@ UNAUTHORIZED_MSG = "Not authorized to access this task"
 
 
 def _check_task_ownership(task, user_id: str, user: dict) -> None:
-    """Verify the requesting user owns the task or is an admin for namespace tasks.
-
-    Raises HTTPException(403) if the check fails.
-    """
+    """Verify the requesting user owns the task or is an admin for namespace tasks."""
     if task.user_id and task.user_id != user_id:
         raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
     elif not task.user_id and "admin" not in user.get("roles", []):
@@ -65,11 +60,16 @@ def get_scheduler_service():
     return scheduler_service
 
 
+def get_task_service(
+    scheduler_service=Depends(get_scheduler_service),
+) -> ScheduledTaskService:
+    """Dependency to get the scheduled task CRUD service."""
+    return ScheduledTaskService(scheduler_service=scheduler_service)
+
+
 def _validate_scheduling_permission(user_config: dict, config_resolver) -> None:
     """Check that the user has scheduling permission. Raises 403 if not."""
-    operation_spec = {
-        "operation_type": "scheduling",
-    }
+    operation_spec = {"operation_type": "scheduling"}
     validation_result = config_resolver.validate_operation_config(
         user_config, operation_spec, {"source": "scheduled_tasks_endpoint"}
     )
@@ -85,7 +85,7 @@ def _validate_scheduling_permission(user_config: dict, config_resolver) -> None:
 class TaskBuilderChatRequest(BaseModel):
     """Request for task builder chat interaction."""
     message: str = Field(..., max_length=5000)
-    conversation_history: List[Dict[str, str]] = []
+    conversation_history: List[Dict[str, str]] = Field(default=[], max_length=50)
     current_task: Dict[str, Any] = {}
     available_agents: List[str] = []
 
@@ -172,7 +172,7 @@ async def get_task_builder_greeting(
         ) from e
 
 
-# --- Preview Endpoint (Phase 3.2) ---
+# --- Preview Endpoint ---
 
 @router.post("/preview", response_model=SchedulePreviewResponse)
 async def preview_schedule(
@@ -196,18 +196,7 @@ async def preview_schedule(
                 next_times.append(next_time.isoformat())
 
         elif request.schedule_type == "interval":
-            expr = request.schedule_expression.strip().lower()
-            if expr.endswith("s"):
-                seconds = int(expr[:-1])
-            elif expr.endswith("m"):
-                seconds = int(expr[:-1]) * 60
-            elif expr.endswith("h"):
-                seconds = int(expr[:-1]) * 3600
-            elif expr.endswith("d"):
-                seconds = int(expr[:-1]) * 86400
-            else:
-                seconds = int(expr)
-
+            seconds = parse_interval_to_seconds(request.schedule_expression)
             current = now
             for _ in range(request.count):
                 current = current + timedelta(seconds=seconds)
@@ -236,24 +225,23 @@ async def create_scheduled_task(
     request: CreateScheduledTaskRequest,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
     agent_registry=Depends(get_agent_registry),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Create a new scheduled task."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     log.info("User %s creating scheduled task: %s", user_id, request.name)
 
-    # Phase 2.2: Block namespace-level tasks for non-admin users
     if not request.user_level and "admin" not in user.get("roles", []):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can create namespace-level tasks"
         )
 
-    # Phase 2.1: RBAC - Validate target agent access
+    # RBAC - Validate target agent access
     target_agent = request.target_agent_name or "OrchestratorAgent"
     agent = agent_registry.get_agent(target_agent)
     if not agent:
@@ -261,10 +249,7 @@ async def create_scheduled_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Target agent '{target_agent}' not found in registry"
         )
-    operation_spec = {
-        "operation_type": "agent_access",
-        "target_agent": target_agent,
-    }
+    operation_spec = {"operation_type": "agent_access", "target_agent": target_agent}
     validation_result = config_resolver.validate_operation_config(
         user_config, operation_spec, {"source": "scheduled_tasks_endpoint"}
     )
@@ -275,15 +260,9 @@ async def create_scheduled_task(
         )
 
     try:
-        repo = ScheduledTaskRepository()
-
-        task_data = {
-            "id": str(uuid.uuid4()),
+        request_data = {
             "name": request.name,
             "description": request.description,
-            "namespace": scheduler_service.namespace,
-            "user_id": user_id if request.user_level else None,
-            "created_by": user_id,
             "schedule_type": request.schedule_type,
             "schedule_expression": request.schedule_expression,
             "timezone": request.timezone,
@@ -296,17 +275,18 @@ async def create_scheduled_task(
             "retry_delay_seconds": request.retry_delay_seconds,
             "timeout_seconds": request.timeout_seconds,
             "notification_config": request.notification_config.dict() if request.notification_config else None,
-            "source": "ui",
-            "created_at": now_epoch_ms(),
-            "updated_at": now_epoch_ms(),
         }
 
-        task = repo.create_task(db, task_data)
-        db.commit()
+        task = task_service.create_task(
+            db, request_data,
+            namespace=task_service.scheduler_service.namespace,
+            user_id=user_id,
+            user_level=request.user_level,
+        )
 
         if task.enabled:
             try:
-                await scheduler_service._schedule_task(task)
+                await task_service.schedule_task(task)
             except Exception as e:
                 log.error("Failed to schedule task %s: %s", task.id, e)
 
@@ -329,35 +309,23 @@ async def list_scheduled_tasks(
     include_namespace_tasks: bool = Query(default=True, alias="includeNamespaceTasks"),
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """List scheduled tasks for the current user."""
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-
-        tasks = repo.find_by_namespace(
+        tasks, total = task_service.list_tasks(
             db,
-            namespace=scheduler_service.namespace,
+            namespace=task_service.scheduler_service.namespace,
             user_id=user_id,
             include_namespace_tasks=include_namespace_tasks,
             enabled_only=enabled_only,
             pagination=pagination,
         )
 
-        total = repo.count_by_namespace(
-            db,
-            namespace=scheduler_service.namespace,
-            user_id=user_id,
-            include_namespace_tasks=include_namespace_tasks,
-            enabled_only=enabled_only,
-        )
-
-        task_responses = [ScheduledTaskResponse.from_orm(task) for task in tasks]
-
         return ScheduledTaskListResponse(
-            tasks=task_responses,
+            tasks=[ScheduledTaskResponse.from_orm(t) for t in tasks],
             total=total,
             skip=pagination.offset,
             limit=page_size,
@@ -373,19 +341,18 @@ async def get_recent_executions(
     limit: int = Query(default=50, ge=1, le=100),
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Get recent executions across all tasks."""
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-        executions = repo.find_recent_executions(
+        executions = task_service.get_recent_executions(
             db,
-            namespace=scheduler_service.namespace,
+            namespace=task_service.scheduler_service.namespace,
             user_id=user_id,
             limit=limit,
         )
-        execution_responses = [ExecutionResponse.from_orm(exec) for exec in executions]
+        execution_responses = [ExecutionResponse.from_orm(ex) for ex in executions]
         return ExecutionListResponse(
             executions=execution_responses,
             total=len(execution_responses),
@@ -397,24 +364,20 @@ async def get_recent_executions(
         raise HTTPException(status_code=500, detail="Failed to fetch recent executions") from e
 
 
-# Phase 3.7: Reverse lookup by A2A task ID
 @router.get("/executions/by-a2a-task/{a2a_task_id}", response_model=ExecutionResponse)
 async def get_execution_by_a2a_task_id(
     a2a_task_id: str,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Look up a scheduled task execution by its A2A task ID."""
     try:
-        repo = ScheduledTaskRepository()
-        execution = repo.find_execution_by_a2a_task_id(db, a2a_task_id)
+        execution = task_service.get_execution_by_a2a_task_id(db, a2a_task_id)
         if not execution:
             raise HTTPException(status_code=404, detail="Execution not found for this A2A task ID")
 
-        # Verify ownership: look up the parent task and check created_by matches the requesting user.
-        # Return 404 (not 403) to avoid confirming existence to unauthorized users.
-        task = repo.find_by_id(db, execution.scheduled_task_id)
+        task = task_service.get_task(db, execution.scheduled_task_id)
         if not task or task.created_by != user.get("id"):
             raise HTTPException(status_code=404, detail="Execution not found for this A2A task ID")
 
@@ -438,14 +401,7 @@ async def get_scheduler_status(
             detail="Only administrators can view scheduler status"
         )
     try:
-        status_info = {
-            "instance_id": getattr(scheduler_service, 'instance_id', 'unknown'),
-            "namespace": getattr(scheduler_service, 'namespace', 'unknown'),
-            "active_tasks_count": len(getattr(scheduler_service, 'active_tasks', {})),
-            "running_executions_count": len(getattr(scheduler_service, 'running_executions', {})),
-            "scheduler_running": getattr(getattr(scheduler_service, 'scheduler', None), 'running', False),
-        }
-        return SchedulerStatusResponse(**status_info)
+        return SchedulerStatusResponse(**scheduler_service.get_status())
     except Exception as e:
         log.error("Error fetching scheduler status: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch scheduler status") from e
@@ -456,22 +412,17 @@ async def get_scheduled_task(
     task_id: str,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Get details of a specific scheduled task."""
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-        task = repo.find_by_id(db, task_id, user_id=user_id)
-
+        task = task_service.get_task(db, task_id, user_id=user_id)
         if not task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
-
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
-
         return ScheduledTaskResponse.from_orm(task)
-
     except HTTPException:
         raise
     except Exception as e:
@@ -485,34 +436,31 @@ async def update_scheduled_task(
     request: UpdateScheduledTaskRequest,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
     agent_registry=Depends(get_agent_registry),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Update a scheduled task."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-
-        existing_task = repo.find_by_id(db, task_id, user_id=user_id)
+        existing_task = task_service.get_task(db, task_id, user_id=user_id)
         if not existing_task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
 
         _check_task_ownership(existing_task, user_id, user)
 
-        # Phase 3.5: Config-sourced tasks are read-only except enable/disable
+        # Config-sourced tasks are read-only except enable/disable
         if existing_task.source == "config":
-            allowed_fields = {"enabled"}
             update_fields = {k for k, v in request.dict(exclude_none=True).items()}
-            if not update_fields.issubset(allowed_fields):
+            if not update_fields.issubset({"enabled"}):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Config-sourced tasks can only be enabled/disabled via the UI"
                 )
 
-        # Phase 2.1: RBAC - Validate target agent access if being changed
+        # RBAC - Validate target agent access if being changed
         if request.target_agent_name is not None:
             agent = agent_registry.get_agent(request.target_agent_name)
             if not agent:
@@ -520,10 +468,7 @@ async def update_scheduled_task(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Target agent '{request.target_agent_name}' not found in registry"
                 )
-            operation_spec = {
-                "operation_type": "agent_access",
-                "target_agent": request.target_agent_name,
-            }
+            operation_spec = {"operation_type": "agent_access", "target_agent": request.target_agent_name}
             validation_result = config_resolver.validate_operation_config(
                 user_config, operation_spec, {"source": "scheduled_tasks_endpoint"}
             )
@@ -537,21 +482,10 @@ async def update_scheduled_task(
 
         if "task_message" in update_data and request.task_message is not None:
             update_data["task_message"] = [part.dict() for part in request.task_message]
-
         if "notification_config" in update_data and request.notification_config:
             update_data["notification_config"] = request.notification_config.dict()
 
-        updated_task = repo.update_task(db, task_id, update_data)
-        db.commit()
-
-        schedule_changed = any(k in update_data for k in ["schedule_type", "schedule_expression", "timezone"])
-        if schedule_changed and updated_task.enabled:
-            try:
-                await scheduler_service._unschedule_task(task_id)
-                await scheduler_service._schedule_task(updated_task)
-            except Exception as e:
-                log.error("Failed to reschedule task %s: %s", task_id, e)
-
+        updated_task = await task_service.update_and_reschedule(db, task_id, update_data)
         return ScheduledTaskResponse.from_orm(updated_task)
 
     except HTTPException:
@@ -567,32 +501,27 @@ async def delete_scheduled_task(
     task_id: str,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Soft delete a scheduled task."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-
-        task = repo.find_by_id(db, task_id, user_id=user_id)
+        task = task_service.get_task(db, task_id, user_id=user_id)
         if not task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
-
         _check_task_ownership(task, user_id, user)
 
-        deleted = repo.soft_delete(db, task_id, user_id)
-        db.commit()
-
+        deleted = task_service.delete_task(db, task_id, user_id)
         if not deleted:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
 
         try:
-            await scheduler_service._unschedule_task(task_id)
+            await task_service.unschedule_task(task_id)
         except Exception as e:
-                log.error("Failed to unschedule task %s: %s", task_id, e)
+            log.error("Failed to unschedule task %s: %s", task_id, e)
 
     except HTTPException:
         raise
@@ -607,26 +536,23 @@ async def enable_scheduled_task(
     task_id: str,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Enable a scheduled task."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-        task = repo.find_by_id(db, task_id, user_id=user_id)
+        task = task_service.get_task(db, task_id, user_id=user_id)
         if not task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         _check_task_ownership(task, user_id, user)
 
-        enabled_task = repo.enable_task(db, task_id)
-        db.commit()
-
+        enabled_task = task_service.enable_task(db, task_id)
         if enabled_task:
             try:
-                await scheduler_service._schedule_task(enabled_task)
+                await task_service.schedule_task(enabled_task)
             except Exception as e:
                 log.error("Failed to schedule task %s: %s", task_id, e)
 
@@ -645,26 +571,23 @@ async def disable_scheduled_task(
     task_id: str,
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Disable a scheduled task."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-        task = repo.find_by_id(db, task_id, user_id=user_id)
+        task = task_service.get_task(db, task_id, user_id=user_id)
         if not task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         _check_task_ownership(task, user_id, user)
 
-        disabled_task = repo.disable_task(db, task_id)
-        db.commit()
-
+        disabled_task = task_service.disable_task(db, task_id)
         if disabled_task:
             try:
-                await scheduler_service._unschedule_task(task_id)
+                await task_service.unschedule_task(task_id)
             except Exception as e:
                 log.error("Failed to unschedule task %s: %s", task_id, e)
 
@@ -685,26 +608,22 @@ async def get_task_executions(
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
-    scheduler_service=Depends(get_scheduler_service),
+    task_service: ScheduledTaskService = Depends(get_task_service),
 ):
     """Get execution history for a scheduled task."""
     user_id = user.get("id")
     try:
-        repo = ScheduledTaskRepository()
-        task = repo.find_by_id(db, task_id, user_id=user_id)
+        task = task_service.get_task(db, task_id, user_id=user_id)
         if not task:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
 
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        executions = repo.find_executions_by_task(db, task_id, pagination)
-        total = repo.count_executions_by_task(db, task_id)
-
-        execution_responses = [ExecutionResponse.from_orm(exec) for exec in executions]
+        executions, total = task_service.get_task_executions(db, task_id, pagination)
 
         return ExecutionListResponse(
-            executions=execution_responses,
+            executions=[ExecutionResponse.from_orm(ex) for ex in executions],
             total=total,
             skip=pagination.offset,
             limit=page_size,

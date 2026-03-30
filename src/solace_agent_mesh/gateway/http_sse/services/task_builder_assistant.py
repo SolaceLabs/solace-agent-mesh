@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from litellm import acompletion
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class TaskBuilderResponse(BaseModel):
@@ -46,19 +46,19 @@ def _validate_task_updates(raw: Any) -> Dict[str, Any]:
             if isinstance(value, str) and value in _VALID_SCHEDULE_TYPES:
                 validated[key] = value
             else:
-                logger.warning("LLM returned invalid schedule_type: %s", value)
+                log.warning("LLM returned invalid schedule_type: %s", value)
         elif key == "target_type":
             if isinstance(value, str) and value in _VALID_TARGET_TYPES:
                 validated[key] = value
             else:
-                logger.warning("LLM returned invalid target_type: %s", value)
+                log.warning("LLM returned invalid target_type: %s", value)
         elif key == "enabled":
             validated[key] = bool(value)
         elif key in ("max_retries", "timeout_seconds"):
             try:
                 validated[key] = int(value)
             except (TypeError, ValueError):
-                logger.warning("LLM returned non-integer for %s: %s", key, value)
+                log.warning("LLM returned non-integer for %s: %s", key, value)
         elif isinstance(value, str):
             validated[key] = value[:500]
         else:
@@ -253,7 +253,7 @@ REMEMBER:
                 available_agents
             )
         except Exception as e:
-            logger.error("Error processing message: %s", e, exc_info=True)
+            log.error("Error processing message: %s", e, exc_info=True)
             return TaskBuilderResponse(
                 message="I encountered an error. Could you please rephrase that?",
                 confidence=0.0,
@@ -363,7 +363,7 @@ REMEMBER:
             
             # Parse response
             content = response.choices[0].message.content
-            logger.info("LLM Response: %s", content)
+            log.info("LLM Response: %s", content)
 
             # Strip markdown code fences that LLMs commonly wrap JSON in
             stripped = content.strip()
@@ -377,8 +377,8 @@ REMEMBER:
             try:
                 parsed = json.loads(stripped)
             except json.JSONDecodeError as e:
-                logger.error("Failed to parse LLM response as JSON: %s", e)
-                logger.error("Response content: %s", content)
+                log.error("Failed to parse LLM response as JSON: %s", e)
+                log.error("Response content: %s", content)
                 # Try to extract JSON from response
                 json_match = re.search(r'\{.*\}', content, re.DOTALL)
                 if json_match:
@@ -388,13 +388,13 @@ REMEMBER:
             
             # Handle nested response structure
             if "response" in parsed and isinstance(parsed["response"], dict):
-                logger.info("Unwrapping nested 'response' structure from LLM")
+                log.info("Unwrapping nested 'response' structure from LLM")
                 parsed = parsed["response"]
             
             # Validate message
             message = parsed.get("message", "")
             if not message or message.strip().lower() in ["i understand", "i understand.", "ok", "okay"]:
-                logger.warning("LLM returned generic/empty message: '%s'", message)
+                log.warning("LLM returned generic/empty message: '%s'", message)
                 message = "I'll help you create that scheduled task. Could you provide more details about when it should run and what it should do?"
             
             task_updates = _validate_task_updates(parsed.get("task_updates", {}))
@@ -413,7 +413,7 @@ REMEMBER:
             )
             
         except Exception as e:
-            logger.error("LLM call failed: %s", e, exc_info=True)
+            log.error("LLM call failed: %s", e, exc_info=True)
             # Fallback response
             return TaskBuilderResponse(
                 message="I'm having trouble processing that. Could you describe what you'd like this scheduled task to do? For example, what should it do and when should it run?",

@@ -377,7 +377,7 @@ class TestSendBrokerNotification:
             namespace="test",
             instance_id="test-0",
         )
-        config = {"topic": "notifications/result", "include_full_result": False}
+        config = {"topic": "scheduled-tasks/notifications/result", "include_full_result": False}
         payload = {**_SAMPLE_PAYLOAD, "result_summary": "lots of data", "artifacts": []}
         task = _make_task()
 
@@ -400,7 +400,7 @@ class TestSendBrokerNotification:
             namespace="test",
             instance_id="test-0",
         )
-        config = {"topic": "notifications/result", "include_full_result": True}
+        config = {"topic": "scheduled-tasks/notifications/result", "include_full_result": True}
         payload = {**_SAMPLE_PAYLOAD, "result_summary": "lots of data"}
         task = _make_task()
 

@@ -15,6 +15,21 @@ from .models import (
 )
 
 
+_MUTABLE_TASK_FIELDS = frozenset({
+    "name", "description", "enabled", "schedule_type", "schedule_expression",
+    "timezone", "target_agent_name", "target_type", "task_message",
+    "task_metadata", "max_retries", "retry_delay_seconds", "timeout_seconds",
+    "notification_config", "next_run_at", "last_run_at",
+    "consecutive_failure_count", "run_count", "updated_at",
+})
+
+_MUTABLE_EXECUTION_FIELDS = frozenset({
+    "status", "started_at", "completed_at", "error_message",
+    "result_summary", "artifacts", "notifications_sent",
+    "retry_count", "a2a_task_id",
+})
+
+
 class ScheduledTaskRepository:
     """Repository for scheduled task operations."""
 
@@ -57,7 +72,7 @@ class ScheduledTaskRepository:
             return None
 
         for key, value in update_data.items():
-            if hasattr(task, key):
+            if key in _MUTABLE_TASK_FIELDS:
                 setattr(task, key, value)
 
         task.updated_at = now_epoch_ms()
@@ -229,7 +244,7 @@ class ScheduledTaskRepository:
             return None
 
         for key, value in update_data.items():
-            if hasattr(execution, key):
+            if key in _MUTABLE_EXECUTION_FIELDS:
                 setattr(execution, key, value)
 
         session.flush()

@@ -64,12 +64,17 @@ class SchedulerResultForwarderComponent(ComponentBase):
                     self.log_identifier,
                     data.get("topic", "unknown"),
                 )
+                # Acknowledge the broker message on success
+                if hasattr(message, 'call_acknowledgements'):
+                    message.call_acknowledgements()
             except Exception as queue_err:
                 log.error(
                     "%s Failed to put message in result handler queue: %s",
                     self.log_identifier,
                     queue_err,
                 )
+                if hasattr(message, 'call_negative_acknowledgements'):
+                    message.call_negative_acknowledgements()
 
         except Exception as e:
             log.exception(
@@ -77,5 +82,7 @@ class SchedulerResultForwarderComponent(ComponentBase):
                 self.log_identifier,
                 e,
             )
+            if hasattr(message, 'call_negative_acknowledgements'):
+                message.call_negative_acknowledgements()
 
         return None

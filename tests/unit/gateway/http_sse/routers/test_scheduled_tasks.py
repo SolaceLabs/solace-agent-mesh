@@ -21,6 +21,7 @@ from solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks import (
     disable_scheduled_task,
     update_scheduled_task,
 )
+from solace_agent_mesh.gateway.http_sse.services.scheduled_task_service import ScheduledTaskService
 
 
 def _mock_config_resolver(valid=True):
@@ -76,14 +77,14 @@ class TestGetExecutionByA2aTaskId:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             result = await get_execution_by_a2a_task_id(
                 a2a_task_id="a2a-123",
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
             )
 
         assert result.id == "exec-1"
@@ -107,7 +108,7 @@ class TestGetExecutionByA2aTaskId:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -115,7 +116,7 @@ class TestGetExecutionByA2aTaskId:
                     a2a_task_id="a2a-123",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 )
 
         assert exc_info.value.status_code == 404
@@ -132,7 +133,7 @@ class TestGetExecutionByA2aTaskId:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -140,7 +141,7 @@ class TestGetExecutionByA2aTaskId:
                     a2a_task_id="nonexistent",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 )
 
         assert exc_info.value.status_code == 404
@@ -159,7 +160,7 @@ class TestGetExecutionByA2aTaskId:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -167,7 +168,7 @@ class TestGetExecutionByA2aTaskId:
                     a2a_task_id="a2a-123",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 )
 
         assert exc_info.value.status_code == 404
@@ -312,11 +313,14 @@ class TestGetSchedulerStatus:
         """Admin users receive the scheduler status."""
         user = {"id": "admin-user", "roles": ["admin"]}
         mock_service = MagicMock()
-        mock_service.instance_id = "inst-1"
-        mock_service.namespace = "ns-1"
-        mock_service.active_tasks = {"t1": True, "t2": True}
-        mock_service.running_executions = {"e1": True}
-        mock_service.scheduler = MagicMock(running=True)
+        mock_service.get_status.return_value = {
+            "instance_id": "inst-1",
+            "namespace": "ns-1",
+            "active_tasks_count": 2,
+            "running_executions_count": 1,
+            "scheduler_running": True,
+            "pending_results_count": 0,
+        }
 
         result = await get_scheduler_status(user=user, scheduler_service=mock_service)
 
@@ -380,14 +384,14 @@ class TestGetScheduledTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             result = await get_scheduled_task(
                 task_id="task-1",
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
             )
 
         assert result.id == "task-1"
@@ -403,7 +407,7 @@ class TestGetScheduledTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -411,7 +415,7 @@ class TestGetScheduledTask:
                     task_id="nonexistent",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 )
 
         assert exc_info.value.status_code == 404
@@ -429,7 +433,7 @@ class TestGetScheduledTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -437,7 +441,7 @@ class TestGetScheduledTask:
                     task_id="task-1",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 )
 
         assert exc_info.value.status_code == 404
@@ -466,14 +470,14 @@ class TestDeleteScheduledTask:
         mock_scheduler_service._unschedule_task = AsyncMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             await delete_scheduled_task(
                 task_id="task-1",
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 user_config={},
                 config_resolver=_mock_config_resolver(),
             )
@@ -493,7 +497,7 @@ class TestDeleteScheduledTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -501,7 +505,7 @@ class TestDeleteScheduledTask:
                     task_id="nonexistent",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                     user_config={},
                     config_resolver=_mock_config_resolver(),
                 )
@@ -533,14 +537,14 @@ class TestEnableDisableTask:
         mock_scheduler_service._schedule_task = AsyncMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             result = await enable_scheduled_task(
                 task_id="task-1",
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 user_config={},
                 config_resolver=_mock_config_resolver(),
             )
@@ -565,14 +569,14 @@ class TestEnableDisableTask:
         mock_scheduler_service._unschedule_task = AsyncMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             result = await disable_scheduled_task(
                 task_id="task-1",
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 user_config={},
                 config_resolver=_mock_config_resolver(),
             )
@@ -592,7 +596,7 @@ class TestEnableDisableTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -600,7 +604,7 @@ class TestEnableDisableTask:
                     task_id="nonexistent",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                     user_config={},
                     config_resolver=_mock_config_resolver(),
                 )
@@ -618,7 +622,7 @@ class TestEnableDisableTask:
         mock_scheduler_service = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -626,7 +630,7 @@ class TestEnableDisableTask:
                     task_id="nonexistent",
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                     user_config={},
                     config_resolver=_mock_config_resolver(),
                 )
@@ -663,7 +667,7 @@ class TestConfigSourceUpdateRestriction:
         mock_agent_registry = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             with pytest.raises(HTTPException) as exc_info:
@@ -672,7 +676,7 @@ class TestConfigSourceUpdateRestriction:
                     request=request,
                     db=mock_db,
                     user=user,
-                    scheduler_service=mock_scheduler_service,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                     user_config={},
                     config_resolver=_mock_config_resolver(),
                     agent_registry=mock_agent_registry,
@@ -727,7 +731,7 @@ class TestConfigSourceUpdateRestriction:
         mock_agent_registry = MagicMock()
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             result = await update_scheduled_task(
@@ -735,7 +739,7 @@ class TestConfigSourceUpdateRestriction:
                 request=request,
                 db=mock_db,
                 user=user,
-                scheduler_service=mock_scheduler_service,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
                 user_config={},
                 config_resolver=_mock_config_resolver(),
                 agent_registry=mock_agent_registry,

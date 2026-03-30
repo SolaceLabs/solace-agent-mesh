@@ -525,7 +525,12 @@ class TestParseInterval:
 
     def test_parse_seconds(self):
         service, _ = _build_scheduler_service()
-        assert service._parse_interval("30s") == 30
+        assert service._parse_interval("120s") == 120
+
+    def test_rejects_interval_below_minimum(self):
+        service, _ = _build_scheduler_service()
+        with pytest.raises(ValueError, match="at least 60 seconds"):
+            service._parse_interval("30s")
 
     def test_parse_minutes(self):
         service, _ = _build_scheduler_service()
@@ -906,7 +911,7 @@ class TestEnforceExecutionHistoryBounds:
         mock_repo.delete_oldest_executions.return_value = 5
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.scheduled_task_repository.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             await service._enforce_execution_history_bounds("task-1")
@@ -924,7 +929,7 @@ class TestEnforceExecutionHistoryBounds:
         mock_repo.delete_oldest_executions.return_value = 0
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.scheduled_task_repository.ScheduledTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.ScheduledTaskRepository",
             return_value=mock_repo,
         ):
             await service._enforce_execution_history_bounds("task-1")
@@ -957,17 +962,6 @@ class TestGetStatus:
         assert status["running_executions_count"] == 1
         assert status["pending_results_count"] == 3
         assert status["scheduler_running"] is True
-
-    def test_pending_count_zero_without_method(self):
-        """If result_handler lacks get_pending_count, pending_results_count is 0."""
-        service, mocks = _build_scheduler_service()
-
-        # Remove get_pending_count to simulate missing attribute
-        if hasattr(service.result_handler, "get_pending_count"):
-            del service.result_handler.get_pending_count
-
-        status = service.get_status()
-        assert status["pending_results_count"] == 0
 
 
 # ===========================================================================
