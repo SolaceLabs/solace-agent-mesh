@@ -8,57 +8,21 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ....common.agent_registry import AgentRegistry
+from ....shared.api import get_current_user
 from ..dependencies import get_agent_registry, get_starter_suggestions_service
-from ..services.starter_suggestions_service import StarterSuggestionsService
+from ..services.starter_suggestions_service import (
+    StarterSuggestionsService,
+    extract_agent_data,
+)
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# URI for the SAM tools extension in agent capabilities
-TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
-
-
-def _extract_agent_data(agent_registry: AgentRegistry) -> list[dict[str, Any]]:
-    """
-    Extract simplified agent data from the registry for the suggestions service.
-
-    Returns a list of dicts with keys: name, description, tools.
-    """
-    agent_names = agent_registry.get_agent_names()
-    agents_data = []
-
-    for name in agent_names:
-        agent = agent_registry.get_agent(name)
-        if not agent:
-            continue
-
-        tools = []
-        if agent.capabilities and agent.capabilities.extensions:
-            for ext in agent.capabilities.extensions:
-                if ext.uri == TOOLS_EXTENSION_URI and ext.params:
-                    for tool in ext.params.get("tools", []):
-                        if isinstance(tool, dict):
-                            tools.append(
-                                {
-                                    "name": tool.get("name", ""),
-                                    "description": tool.get("description", ""),
-                                }
-                            )
-
-        agents_data.append(
-            {
-                "name": agent.name,
-                "description": agent.description or "",
-                "tools": tools,
-            }
-        )
-
-    return agents_data
-
 
 @router.get("/starter-suggestions")
 async def get_starter_suggestions(
+    user: dict = Depends(get_current_user),
     agent_registry: AgentRegistry = Depends(get_agent_registry),
     service: StarterSuggestionsService = Depends(get_starter_suggestions_service),
 ) -> dict[str, Any]:
@@ -72,7 +36,7 @@ async def get_starter_suggestions(
     log.info("%sRequest received.", log_prefix)
 
     try:
-        agents_data = _extract_agent_data(agent_registry)
+        agents_data = extract_agent_data(agent_registry)
         log.info(
             "%sExtracted data for %d agents.", log_prefix, len(agents_data)
         )

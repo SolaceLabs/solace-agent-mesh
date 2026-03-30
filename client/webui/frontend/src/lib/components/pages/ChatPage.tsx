@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
+import { extractFirstName } from "@/lib/utils/userFormatting";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -67,6 +68,7 @@ export function ChatPage() {
         sessionOwnerEmail,
         handleSwitchSession,
         handleNewSession,
+        handleSubmit,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -444,31 +446,23 @@ export function ChatPage() {
         return !hasUserMessages && !hasTaskMessages;
     }, [messages, isResponding, isLoadingSession]);
 
-    // Handle starter card option click - dispatch event to auto-submit the prompt
-    const handleStarterOptionClick = useCallback((prompt: string) => {
-        window.dispatchEvent(new CustomEvent("starter-card-submit", { detail: { prompt } }));
-    }, []);
+    // Handle starter card option click - submit prompt directly
+    const handleStarterOptionClick = useCallback(
+        (prompt: string) => {
+            if (isResponding) return;
+            handleSubmit(null, [], prompt);
+        },
+        [isResponding, handleSubmit]
+    );
 
     // Extract user's first name for personalized greeting
     const userFirstName = useMemo(() => {
-        // Try username from auth context (e.g., "john.doe@company.com" or "John Doe")
         const username = typeof userInfo?.username === "string" ? userInfo.username : "";
         if (username) {
-            // If it looks like an email, extract the part before @ and use the first segment
-            if (username.includes("@")) {
-                const localPart = username.split("@")[0];
-                const firstName = localPart.split(/[._-]/)[0];
-                return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
-            }
-            // If it looks like a full name, use the first word
-            const firstName = username.split(/\s+/)[0];
-            return firstName.charAt(0).toUpperCase() + firstName.slice(1);
+            return extractFirstName(username);
         }
-        // Try currentUserEmail from chat context
-        if (currentUserEmail && currentUserEmail.includes("@")) {
-            const localPart = currentUserEmail.split("@")[0];
-            const firstName = localPart.split(/[._-]/)[0];
-            return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+        if (currentUserEmail) {
+            return extractFirstName(currentUserEmail);
         }
         return null;
     }, [userInfo, currentUserEmail]);

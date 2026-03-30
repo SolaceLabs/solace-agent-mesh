@@ -1545,20 +1545,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             try:
                                 # Wait for agents to register (they arrive via Solace messages)
                                 await asyncio.sleep(15)
-                                from .dependencies import get_starter_suggestions_service as _get_sss
-                                from .routers.starter_suggestions import _extract_agent_data
-                                # Create the singleton service instance
-                                model_config = self.get_config("model", {})
-                                llm = self.get_lite_llm_model()
-                                from .services.starter_suggestions_service import StarterSuggestionsService
-                                from .dependencies import _starter_suggestions_service_instance
-                                import solace_agent_mesh.gateway.http_sse.dependencies as deps_module
-                                if deps_module._starter_suggestions_service_instance is None:
-                                    deps_module._starter_suggestions_service_instance = StarterSuggestionsService(
-                                        model_config=model_config, llm=llm
-                                    )
-                                service = deps_module._starter_suggestions_service_instance
-                                agents_data = _extract_agent_data(self.agent_registry)
+                                from .services.starter_suggestions_service import extract_agent_data
+                                from .dependencies import get_starter_suggestions_service
+                                service = await get_starter_suggestions_service(self)
+                                agents_data = extract_agent_data(self.agent_registry)
                                 if agents_data:
                                     await service.warm_cache(agents_data)
                                 else:

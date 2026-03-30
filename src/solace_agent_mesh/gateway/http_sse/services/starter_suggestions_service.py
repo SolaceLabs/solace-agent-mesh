@@ -5,17 +5,58 @@ Generates contextual starter suggestions based on available agent cards,
 with in-memory caching to avoid repeated LLM calls.
 """
 
-import hashlib
 import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from google.adk.models import BaseLlm
 
 from ....agent.adk.models.lite_llm import LiteLlm
+from ....common.agent_registry import AgentRegistry
 
 log = logging.getLogger(__name__)
+
+# URI for the SAM tools extension in agent capabilities
+TOOLS_EXTENSION_URI = "https://solace.com/a2a/extensions/sam/tools"
+
+
+def extract_agent_data(agent_registry: AgentRegistry) -> list[dict[str, Any]]:
+    """
+    Extract simplified agent data from the registry for the suggestions service.
+
+    Returns a list of dicts with keys: name, description, tools.
+    """
+    agent_names = agent_registry.get_agent_names()
+    agents_data = []
+
+    for name in agent_names:
+        agent = agent_registry.get_agent(name)
+        if not agent:
+            continue
+
+        tools = []
+        if agent.capabilities and agent.capabilities.extensions:
+            for ext in agent.capabilities.extensions:
+                if ext.uri == TOOLS_EXTENSION_URI and ext.params:
+                    for tool in ext.params.get("tools", []):
+                        if isinstance(tool, dict):
+                            tools.append(
+                                {
+                                    "name": tool.get("name", ""),
+                                    "description": tool.get("description", ""),
+                                }
+                            )
+
+        agents_data.append(
+            {
+                "name": agent.name,
+                "description": agent.description or "",
+                "tools": tools,
+            }
+        )
+
+    return agents_data
 
 # Cache TTL in seconds (10 minutes)
 CACHE_TTL_SECONDS = 600
@@ -134,10 +175,9 @@ class StarterSuggestionsService:
     def _build_cache_key(self, agent_names: list[str]) -> str:
         """Build a cache key based on the sorted set of available agent names."""
         sorted_names = sorted(set(agent_names))
-        key_str = "|".join(sorted_names)
-        return hashlib.md5(key_str.encode()).hexdigest()
+        return "|".join(sorted_names)
 
-    def _get_cached(self, cache_key: str) -> Optional[list[dict[str, Any]]]:
+    def _get_cached(self, cache_key: str) -> list[dict[str, Any]] | None:
         """Return cached suggestions if still valid, otherwise None."""
         if cache_key in self._cache:
             timestamp, suggestions = self._cache[cache_key]
@@ -305,7 +345,7 @@ Valid icon names: BarChart3, Users, ShieldCheck, TrendingUp, FileSearch, Lightbu
 Example of valid JSON:
 {{"categories": [{{"icon": "Lightbulb", "label": "Planning", "description": "Organize and plan tasks", "options": [{{"label": "Help me plan a project", "prompt": "Help me create a project plan. Ask me about the scope and timeline."}}]}}]}}"""
 
-    async def _send_llm_request(self, prompt: str) -> Optional[str]:
+    async def _send_llm_request(self, prompt: str) -> str | None:
         """Send a prompt to the LLM and return the raw text response."""
         try:
             from google.genai import types
@@ -323,17 +363,16 @@ Example of valid JSON:
                 ),
             )
 
-            content = None
+            parts = []
             async for llm_response in self.llm.generate_content_async(
                 llm_request
             ):
                 if llm_response.content and llm_response.content.parts:
                     for part in llm_response.content.parts:
                         if part.text:
-                            content = part.text
-                            break
+                            parts.append(part.text)
 
-            return content
+            return "".join(parts) if parts else None
 
         except Exception as e:
             log.error(
@@ -345,7 +384,7 @@ Example of valid JSON:
 
     async def _call_litellm(
         self, agent_descriptions: str
-    ) -> Optional[list[dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """
         Call LiteLLM to generate starter suggestions with retry on JSON parse failure.
 
@@ -398,7 +437,7 @@ Example of valid JSON:
 
     def _parse_llm_response(
         self, content: str
-    ) -> tuple[Optional[list[dict[str, Any]]], str]:
+    ) -> tuple[list[dict[str, Any]] | None, str]:
         """
         Parse and validate the LLM JSON response.
 
@@ -412,7 +451,9 @@ Example of valid JSON:
             text = content.strip()
             if text.startswith("```"):
                 # Remove opening fence (with optional language tag)
-                first_newline = text.index("\n")
+                first_newline = text.find("\n")
+                if first_newline == -1:
+                    return None, "Code fence has no newline delimiter"
                 text = text[first_newline + 1 :]
             if text.endswith("```"):
                 text = text[: -len("```")]
@@ -515,13 +556,9 @@ Example of valid JSON:
 
         except json.JSONDecodeError as e:
             reason = f"Invalid JSON syntax: {e}"
-            log.error(
-                "Failed to parse LLM response as JSON: %s", e, exc_info=True
-            )
+            log.warning("Failed to parse LLM response as JSON: %s", e)
             return None, reason
         except ValueError as e:
             reason = f"Value error during parsing: {e}"
-            log.error(
-                "Failed to parse LLM response: %s", e, exc_info=True
-            )
+            log.warning("Failed to parse LLM response: %s", e)
             return None, reason
