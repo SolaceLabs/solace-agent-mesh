@@ -30,7 +30,7 @@ export const sessionTitleStyles = cva(["truncate", "text-sm", "transition-opacit
     variants: {
         active: {
             true: "font-bold text-(--primary-text-wMain)",
-            false: "font-medium text-(--primary-text-wMain)",
+            false: "font-bold text-(--primary-text-wMain)",
         },
         animation: {
             pulseGenerate: "animate-pulse-slow",
