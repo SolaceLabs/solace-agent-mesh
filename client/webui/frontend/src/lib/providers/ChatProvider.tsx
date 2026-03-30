@@ -936,17 +936,29 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return;
             }
 
-            // Helper: append a progress update to the last AI message for the given task,
-            // or create a new AI message if none exists. Reduces duplication across
-            // agent_progress_update and tool_invocation_start cases.
-            const appendProgressUpdate = (update: ProgressUpdate, extraFields?: Partial<(typeof messages)[number]>) => {
+            // Helper: find-or-create the last AI message for the current task and apply
+            // progress/message mutations. Used by thinking_content, agent_progress_update,
+            // and tool_invocation_start handlers to avoid duplicating the scaffold.
+            const appendProgressUpdate = (
+                update: ProgressUpdate,
+                extraFields?: Partial<(typeof messages)[number]>,
+                options?: {
+                    /** Custom mutator for the progress updates array on an existing message */
+                    progressUpdater?: (existing: ProgressUpdate[]) => ProgressUpdate[];
+                    /** Extra fields to merge onto an existing message (beyond progressUpdates) */
+                    messageUpdater?: (msg: (typeof messages)[number]) => Partial<(typeof messages)[number]>;
+                }
+            ) => {
                 setMessages(prev => {
                     const newMessages = [...prev];
                     const lastMsg = newMessages[newMessages.length - 1];
                     if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                        const updatedProgressUpdates = options?.progressUpdater ? options.progressUpdater(lastMsg.progressUpdates || []) : [...(lastMsg.progressUpdates || []), update];
+                        const msgExtra = options?.messageUpdater ? options.messageUpdater(lastMsg) : {};
                         newMessages[newMessages.length - 1] = {
                             ...lastMsg,
-                            progressUpdates: [...(lastMsg.progressUpdates || []), update],
+                            progressUpdates: updatedProgressUpdates,
+                            ...msgExtra,
                             ...extraFields,
                         };
                     } else {
@@ -982,72 +994,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         is_complete: boolean;
                                     };
 
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        const lastMsg = newMessages[newMessages.length - 1];
+                                    const thinkingUpdate: ProgressUpdate = {
+                                        type: "thinking" as const,
+                                        text: "Thinking",
+                                        timestamp: Date.now(),
+                                        expandableContent: thinkingText,
+                                        isExpandableComplete: isThinkingComplete,
+                                    };
 
-                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
-                                            // Append thinking content to existing AI message
-                                            const existingThinking = lastMsg.thinkingContent || "";
-                                            const updatedThinking = existingThinking + thinkingText;
+                                    appendProgressUpdate(
+                                        thinkingUpdate,
+                                        { thinkingContent: thinkingText, isThinkingComplete: isThinkingComplete },
+                                        {
+                                            progressUpdater: existing => {
+                                                const updates = [...existing];
+                                                const lastThinkingIdx = updates.findLastIndex(p => p.type === "thinking");
+                                                const lastThinkingEntry = lastThinkingIdx >= 0 ? updates[lastThinkingIdx] : null;
 
-                                            // Update or create a "thinking" progress update in the timeline
-                                            // Find the LAST thinking entry that is NOT yet complete (active reasoning block)
-                                            const updatedProgressUpdates = [...(lastMsg.progressUpdates || [])];
-                                            const lastThinkingIdx = updatedProgressUpdates.findLastIndex(p => p.type === "thinking");
-                                            const lastThinkingEntry = lastThinkingIdx >= 0 ? updatedProgressUpdates[lastThinkingIdx] : null;
-
-                                            if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
-                                                // Append to the active (incomplete) reasoning block
-                                                updatedProgressUpdates[lastThinkingIdx] = {
-                                                    ...lastThinkingEntry,
-                                                    expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
-                                                    isExpandableComplete: isThinkingComplete,
-                                                };
-                                            } else {
-                                                // Previous reasoning block is complete or doesn't exist — create a new one
-                                                updatedProgressUpdates.push({
-                                                    type: "thinking" as const,
-                                                    text: "Thinking",
-                                                    timestamp: Date.now(),
-                                                    expandableContent: thinkingText,
-                                                    isExpandableComplete: isThinkingComplete,
-                                                });
-                                            }
-
-                                            newMessages[newMessages.length - 1] = {
-                                                ...lastMsg,
-                                                thinkingContent: updatedThinking,
-                                                isThinkingComplete: isThinkingComplete,
-                                                progressUpdates: updatedProgressUpdates,
-                                            };
-                                        } else {
-                                            // Create new AI message with thinking content
-                                            newMessages.push({
-                                                role: "agent",
-                                                parts: [],
-                                                taskId: currentTaskIdFromResult,
-                                                isUser: false,
-                                                isComplete: false,
-                                                thinkingContent: thinkingText,
-                                                isThinkingComplete: isThinkingComplete,
-                                                progressUpdates: [
-                                                    {
-                                                        type: "thinking" as const,
-                                                        text: "Thinking",
-                                                        timestamp: Date.now(),
-                                                        expandableContent: thinkingText,
+                                                if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
+                                                    updates[lastThinkingIdx] = {
+                                                        ...lastThinkingEntry,
+                                                        expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
                                                         isExpandableComplete: isThinkingComplete,
-                                                    },
-                                                ],
-                                                metadata: {
-                                                    messageId: `msg-${v4()}`,
-                                                    lastProcessedEventSequence: currentEventSequence,
-                                                },
-                                            });
+                                                    };
+                                                } else {
+                                                    updates.push(thinkingUpdate);
+                                                }
+                                                return updates;
+                                            },
+                                            messageUpdater: msg => ({
+                                                thinkingContent: (msg.thinkingContent || "") + thinkingText,
+                                                isThinkingComplete: isThinkingComplete,
+                                            }),
                                         }
-                                        return newMessages;
-                                    });
+                                    );
 
                                     // If this is a thinking-only event, don't process further
                                     const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
@@ -1066,48 +1046,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         timestamp: Date.now(),
                                     };
 
-                                    // Auto-close any open thinking block and push progress update in a single pass
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        const lastMsg = newMessages[newMessages.length - 1];
-                                        if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
-                                            let updatedProgressUpdates = [...(lastMsg.progressUpdates || [])];
-                                            let isThinkingComplete = lastMsg.isThinkingComplete;
-
-                                            // Auto-close any open thinking block
-                                            const lastThinkingIdx = updatedProgressUpdates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
-                                            if (lastThinkingIdx >= 0 && !updatedProgressUpdates[lastThinkingIdx].isExpandableComplete) {
-                                                updatedProgressUpdates[lastThinkingIdx] = {
-                                                    ...updatedProgressUpdates[lastThinkingIdx],
-                                                    isExpandableComplete: true,
-                                                };
-                                                isThinkingComplete = true;
-                                            }
-
-                                            updatedProgressUpdates = [...updatedProgressUpdates, progressUpdate];
-
-                                            newMessages[newMessages.length - 1] = {
-                                                ...lastMsg,
-                                                progressUpdates: updatedProgressUpdates,
-                                                isThinkingComplete,
-                                            };
-                                        } else {
-                                            newMessages.push({
-                                                role: "agent",
-                                                parts: [],
-                                                taskId: currentTaskIdFromResult,
-                                                isUser: false,
-                                                isComplete: false,
-                                                isStatusBubble: false,
-                                                progressUpdates: [progressUpdate],
-                                                metadata: {
-                                                    messageId: `msg-${v4()}`,
-                                                    lastProcessedEventSequence: currentEventSequence,
-                                                },
-                                            });
+                                    // Auto-close any open thinking block and push progress update
+                                    appendProgressUpdate(
+                                        progressUpdate,
+                                        { isStatusBubble: false },
+                                        {
+                                            progressUpdater: existing => {
+                                                const updates = [...existing];
+                                                const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                if (lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete) {
+                                                    updates[lastThinkingIdx] = {
+                                                        ...updates[lastThinkingIdx],
+                                                        isExpandableComplete: true,
+                                                    };
+                                                }
+                                                updates.push(progressUpdate);
+                                                return updates;
+                                            },
+                                            messageUpdater: msg => {
+                                                const updates = msg.progressUpdates || [];
+                                                const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                const needsClose = lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete;
+                                                return needsClose ? { isThinkingComplete: true } : {};
+                                            },
                                         }
-                                        return newMessages;
-                                    });
+                                    );
 
                                     const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
                                     if (otherParts.length === 0) {

@@ -6,11 +6,12 @@
  * After completion: collapses into "Timeline >" that can be expanded to see the full history.
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { MarkdownWrapper } from "@/lib/components";
+import { cn } from "@/lib/utils";
 import type { ProgressUpdate } from "@/lib/types";
 
 interface InlineProgressUpdatesProps {
@@ -25,7 +26,7 @@ interface InlineProgressUpdatesProps {
 /** Maximum number of updates to show before collapsing the list */
 const COLLAPSE_THRESHOLD = 10;
 
-export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ updates, isActive = false, onViewWorkflow }) => {
+export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflow }: InlineProgressUpdatesProps) => {
     const [isTimelineOpen, setIsTimelineOpen] = useState(true);
     const [isListExpanded, setIsListExpanded] = useState(false);
     const [expandedThinkingIds, setExpandedThinkingIds] = useState<Set<number>>(new Set());
@@ -67,10 +68,10 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
     if (!isTimelineOpen) {
         return (
             <div className="mb-3 -ml-2 flex items-center gap-2">
-                <button type="button" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(true)}>
+                <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(true)}>
                     <span className="font-medium">Timeline</span>
                     <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+                </Button>
             </div>
         );
     }
@@ -80,27 +81,17 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
             {/* Collapse header when task is complete */}
             {!isActive && (
                 <div className="mb-1 -ml-[17px]">
-                    <button type="button" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(false)}>
+                    <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(false)}>
                         <span className="font-medium">Timeline</span>
                         <ChevronDown className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                 </div>
             )}
 
             {/* Timeline items wrapper - line is relative to this container only */}
             <div className="relative">
                 {/* Vertical connecting line - stops before the last dot center */}
-                {visibleUpdates.length > 1 && (
-                    <div
-                        className="absolute left-[-12px] z-0 w-[2px] rounded-full opacity-30"
-                        style={{
-                            top: "21px",
-                            /* End line just touching the top of the last dot/spinner */
-                            bottom: isActive ? "33px" : "21px",
-                            backgroundColor: "currentColor",
-                        }}
-                    />
-                )}
+                {visibleUpdates.length > 1 && <div className={cn("absolute top-[21px] left-[-12px] z-0 w-[2px] rounded-full bg-current opacity-30", isActive ? "bottom-[33px]" : "bottom-[21px]")} />}
 
                 {visibleUpdates.map((update, index) => {
                     const dedupedIndex = visibleIndices[index];
@@ -113,7 +104,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                     const showExpandButton = shouldCollapseList && !isListExpanded && index === 0;
 
                     return (
-                        <React.Fragment key={`${update.timestamp}-${dedupedIndex}`}>
+                        <Fragment key={`${update.timestamp}-${dedupedIndex}`}>
                             <div
                                 className="relative py-3"
                                 style={{
@@ -131,10 +122,14 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                                 {isThinking ? (
                                     /* Thinking/Reasoning item - collapsible */
                                     <div>
-                                        <button type="button" className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => toggleThinking(dedupedIndex)}>
+                                        <Button
+                                            variant="ghost"
+                                            className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)"
+                                            onClick={() => toggleThinking(dedupedIndex)}
+                                        >
                                             <span className="font-medium">{update.text}</span>
                                             {isThinkingExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                        </button>
+                                        </Button>
 
                                         {/* Expandable thinking content */}
                                         {isThinkingExpanded && update.expandableContent && (
@@ -160,7 +155,7 @@ export const InlineProgressUpdates: React.FC<InlineProgressUpdatesProps> = ({ up
                                     </Button>
                                 </div>
                             )}
-                        </React.Fragment>
+                        </Fragment>
                     );
                 })}
             </div>

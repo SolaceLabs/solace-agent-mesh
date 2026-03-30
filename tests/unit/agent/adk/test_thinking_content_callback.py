@@ -40,7 +40,8 @@ class TestProcessThinkingContentCallback:
     """Tests for process_thinking_content_callback."""
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_custom_metadata(self):
+    @patch("solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update", new_callable=AsyncMock)
+    async def test_returns_none_when_no_custom_metadata(self, mock_publish):
         """Early return when custom_metadata is None."""
         ctx, _ = _make_callback_context()
         resp = _make_llm_response(custom_metadata=None)
@@ -48,10 +49,11 @@ class TestProcessThinkingContentCallback:
 
         result = await process_thinking_content_callback(ctx, resp, host)
         assert result is None
-        host.publish_data_signal_from_thread.assert_not_called()
+        mock_publish.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_a2a_context(self):
+    @patch("solace_agent_mesh.agent.adk.callbacks._publish_data_part_status_update", new_callable=AsyncMock)
+    async def test_returns_none_when_no_a2a_context(self, mock_publish):
         """Early return when a2a_context is missing from state."""
         ctx = MagicMock(spec=CallbackContext)
         ctx.state = {}
@@ -60,7 +62,7 @@ class TestProcessThinkingContentCallback:
 
         result = await process_thinking_content_callback(ctx, resp, host)
         assert result is None
-        host.publish_data_signal_from_thread.assert_not_called()
+        mock_publish.assert_not_called()
 
     @pytest.mark.asyncio
     @patch("solace_agent_mesh.agent.adk.callbacks.get_session_from_callback_context")

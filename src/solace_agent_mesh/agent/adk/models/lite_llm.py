@@ -1067,6 +1067,25 @@ class LiteLlm(BaseLlm):
         """
         self._set_status("none")
 
+    async def _acompletion_with_thinking_fallback(self, completion_args: dict):
+        """Call acompletion, retrying without thinking params if the model rejects them."""
+        try:
+            return await self.llm_client.acompletion(**completion_args)
+        except BadRequestError as err:
+            err_msg = str(err).lower()
+            if self._thinking_config and "unsupported parameter: thinking" in err_msg:
+                logger.warning(
+                    "Model does not support thinking tokens, retrying without: %s",
+                    str(err)[:200],
+                )
+                completion_args.pop("thinking", None)
+                if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
+                    completion_args["extra_body"].pop("thinking", None)
+                    if not completion_args["extra_body"]:
+                        completion_args.pop("extra_body", None)
+                return await self.llm_client.acompletion(**completion_args)
+            raise
+
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse, None]:
@@ -1182,24 +1201,7 @@ class LiteLlm(BaseLlm):
 
             # Try with thinking params first; if the model doesn't support them,
             # catch the error and retry without thinking
-            try:
-                stream_response = await self.llm_client.acompletion(**completion_args)
-            except Exception as thinking_err:
-                err_msg = str(thinking_err).lower()
-                if self._thinking_config and ("thinking" in err_msg or "unsupported" in err_msg or "unexpected keyword" in err_msg):
-                    logger.warning(
-                        "Model does not support thinking tokens, retrying without: %s",
-                        str(thinking_err)[:200],
-                    )
-                    # Remove thinking params and retry
-                    completion_args.pop("thinking", None)
-                    if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
-                        completion_args["extra_body"].pop("thinking", None)
-                        if not completion_args["extra_body"]:
-                            completion_args.pop("extra_body", None)
-                    stream_response = await self.llm_client.acompletion(**completion_args)
-                else:
-                    raise
+            stream_response = await self._acompletion_with_thinking_fallback(completion_args)
 
             async for part in stream_response:
                 for chunk, finish_reason in _model_response_to_chunk(part):
@@ -1348,23 +1350,7 @@ class LiteLlm(BaseLlm):
                 yield aggregated_llm_response_with_tool_call
 
         else:
-            try:
-                response = await self.llm_client.acompletion(**completion_args)
-            except Exception as thinking_err:
-                err_msg = str(thinking_err).lower()
-                if self._thinking_config and ("thinking" in err_msg or "unsupported" in err_msg or "unexpected keyword" in err_msg):
-                    logger.warning(
-                        "Model does not support thinking tokens (non-streaming), retrying without: %s",
-                        str(thinking_err)[:200],
-                    )
-                    completion_args.pop("thinking", None)
-                    if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
-                        completion_args["extra_body"].pop("thinking", None)
-                        if not completion_args["extra_body"]:
-                            completion_args.pop("extra_body", None)
-                    response = await self.llm_client.acompletion(**completion_args)
-                else:
-                    raise
+            response = await self._acompletion_with_thinking_fallback(completion_args)
             yield _model_response_to_generate_content_response(response)
 
     @staticmethod

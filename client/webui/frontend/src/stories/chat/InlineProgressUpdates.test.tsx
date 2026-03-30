@@ -107,27 +107,28 @@ describe("InlineProgressUpdates", () => {
         expect(screen.getByText("Step 2")).toBeTruthy();
     });
 
-    it("renders all steps when count is above threshold", () => {
-        // With 8 updates, the component should still render (either collapsed or expanded)
-        const updates = Array.from({ length: 8 }, (_, i) => makeUpdate(`UniqueStep${i + 1}`));
+    it("renders first and last steps when count is above threshold (collapsed)", () => {
+        const updates = Array.from({ length: 12 }, (_, i) => makeUpdate(`UniqueStep${i + 1}`));
         render(<InlineProgressUpdates updates={updates} isActive={true} />);
         // First and last steps should be visible
         expect(screen.getByText("UniqueStep1")).toBeTruthy();
-        expect(screen.getByText("UniqueStep8")).toBeTruthy();
+        expect(screen.getByText("UniqueStep12")).toBeTruthy();
+        // Middle steps should NOT be visible when collapsed
+        expect(screen.queryByText("UniqueStep5")).toBeNull();
     });
 
     it("shows all steps after expanding", () => {
-        const updates = Array.from({ length: 7 }, (_, i) => makeUpdate(`Step ${i + 1}`));
+        const updates = Array.from({ length: 12 }, (_, i) => makeUpdate(`Step ${i + 1}`));
         const { container } = render(<InlineProgressUpdates updates={updates} isActive={true} />);
 
-        // Find and click the expand button (contains "more step" text)
+        // Find the expand button (contains "more step" text)
         const buttons = container.querySelectorAll("button");
         const expandButton = Array.from(buttons).find(b => b.textContent?.includes("more step"));
-        if (expandButton) {
-            fireEvent.click(expandButton);
-            for (let i = 1; i <= 7; i++) {
-                expect(screen.getByText(`Step ${i}`)).toBeTruthy();
-            }
+        expect(expandButton).toBeTruthy();
+
+        fireEvent.click(expandButton!);
+        for (let i = 1; i <= 12; i++) {
+            expect(screen.getByText(`Step ${i}`)).toBeTruthy();
         }
     });
 

@@ -4,6 +4,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from litellm.exceptions import BadRequestError
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
@@ -354,3 +355,117 @@ class TestStreamingThinkingChunkYield:
         text = [r for r in responses if not (r.custom_metadata and r.custom_metadata.get("is_thinking_content"))]
         assert len(thinking) >= 1
         assert len(text) >= 1
+
+
+class TestAcompletionWithThinkingFallback:
+    """Tests for _acompletion_with_thinking_fallback retry logic."""
+
+    @pytest.mark.asyncio
+    async def test_retries_without_thinking_on_unsupported_parameter_error(self):
+        """BadRequestError with 'unsupported parameter: thinking' strips thinking and retries."""
+        llm = _make_lite_llm(model="anthropic/claude-sonnet-4-20250514", thinking={"budget_tokens": 5000})
+
+        call_count = 0
+
+        async def fake_acompletion(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise BadRequestError(
+                    message="litellm.BadRequestError: unsupported parameter: thinking",
+                    model="test-model",
+                    llm_provider="test-provider",
+                )
+            return {"choices": [{"message": {"content": "ok", "role": "assistant"}, "finish_reason": "stop"}]}
+
+        llm.llm_client.acompletion = fake_acompletion
+
+        completion_args = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "thinking": {"budget_tokens": 5000},
+        }
+
+        result = await llm._acompletion_with_thinking_fallback(completion_args)
+
+        assert call_count == 2
+        assert "thinking" not in completion_args
+        assert result["choices"][0]["message"]["content"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_retries_strips_extra_body_thinking(self):
+        """BadRequestError strips thinking from extra_body when present."""
+        llm = _make_lite_llm(model="openai/gpt-4", thinking={"budget_tokens": 5000})
+
+        call_count = 0
+
+        async def fake_acompletion(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise BadRequestError(
+                    message="litellm.BadRequestError: unsupported parameter: thinking",
+                    model="test-model",
+                    llm_provider="test-provider",
+                )
+            return {"choices": [{"message": {"content": "ok", "role": "assistant"}, "finish_reason": "stop"}]}
+
+        llm.llm_client.acompletion = fake_acompletion
+
+        completion_args = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "extra_body": {"thinking": {"budget_tokens": 5000}},
+        }
+
+        result = await llm._acompletion_with_thinking_fallback(completion_args)
+
+        assert call_count == 2
+        assert "extra_body" not in completion_args
+        assert result["choices"][0]["message"]["content"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_propagates_non_matching_bad_request_error(self):
+        """BadRequestError without 'unsupported parameter: thinking' is re-raised."""
+        llm = _make_lite_llm(model="anthropic/claude-sonnet-4-20250514", thinking={"budget_tokens": 5000})
+
+        async def fake_acompletion(**kwargs):
+            raise BadRequestError(
+                message="litellm.BadRequestError: invalid model specified",
+                model="test-model",
+                llm_provider="test-provider",
+            )
+
+        llm.llm_client.acompletion = fake_acompletion
+
+        completion_args = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "thinking": {"budget_tokens": 5000},
+        }
+
+        with pytest.raises(BadRequestError, match="invalid model specified"):
+            await llm._acompletion_with_thinking_fallback(completion_args)
+
+    @pytest.mark.asyncio
+    async def test_no_retry_when_thinking_config_is_none(self):
+        """BadRequestError propagates when _thinking_config is None (no fallback)."""
+        llm = _make_lite_llm(model="anthropic/claude-sonnet-4-20250514")
+        assert llm._thinking_config is None
+
+        async def fake_acompletion(**kwargs):
+            raise BadRequestError(
+                message="litellm.BadRequestError: unsupported parameter: thinking",
+                model="test-model",
+                llm_provider="test-provider",
+            )
+
+        llm.llm_client.acompletion = fake_acompletion
+
+        completion_args = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}],
+        }
+
+        with pytest.raises(BadRequestError):
+            await llm._acompletion_with_thinking_fallback(completion_args)
