@@ -38,3 +38,4 @@ export * from "./useSSEContext";
 export * from "./useIndexingSSE";
 export * from "./useNavigationItems";
 export * from "./useFeatureFlag";
+export { useListKeyboardNavigation } from "./useListKeyboardNavigation";
