@@ -117,11 +117,13 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                                         index === activeIndex ? "bg-(--secondary-w40) text-(--secondary-text-wMain)" : !isKeyboardMode ? "hover:bg-(--secondary-w40) hover:text-(--secondary-text-wMain)" : ""
                                     )}
                                 >
-                                    <div className="mb-1 flex items-center justify-between gap-2">
-                                        <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate font-medium">{session.name || "Untitled Session"}</div>
+                                            <div className="text-xs text-(--secondary-text-wMain)">{new Date(session.updatedTime).toLocaleDateString()}</div>
+                                        </div>
                                         {session.projectName && <ProjectBadge text={session.projectName} />}
                                     </div>
-                                    <div className="text-xs text-(--secondary-text-wMain)">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>
                             ))}
                         </div>
