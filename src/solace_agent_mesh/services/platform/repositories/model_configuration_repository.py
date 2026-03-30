@@ -88,6 +88,21 @@ class ModelConfigurationRepository:
         db.delete(model)
         db.flush()
 
+    def get_by_id(self, db: Session, model_id: str) -> Optional[ModelConfiguration]:
+        """
+        Retrieve a model configuration by ID.
+
+        Args:
+            db: SQLAlchemy database session
+            model_id: Model UUID to look up
+
+        Returns:
+            ModelConfiguration ORM model if found, None otherwise
+        """
+        return db.query(ModelConfiguration).filter(
+            cast(ModelConfiguration.id, String) == model_id
+        ).first()
+
     def get_by_alias_or_id(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
         """
         Retrieve a model configuration by alias or ID.

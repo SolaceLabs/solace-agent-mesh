@@ -7,14 +7,14 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelByAlias, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
+import { fetchModelById, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
 
 export const ModelEditPage = () => {
     const navigate = useNavigate();
-    const { alias: modelAlias } = useParams<{ alias?: string }>();
-    const isNew = !modelAlias;
+    const { id: modelId } = useParams<{ id?: string }>();
+    const isNew = !modelId;
 
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
@@ -27,28 +27,28 @@ export const ModelEditPage = () => {
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
-        if (!isNew && modelAlias) {
+        if (!isNew && modelId) {
             setModelLoading(true);
-            fetchModelByAlias(modelAlias)
+            fetchModelById(modelId)
                 .then(model => {
                     setModelToEdit(model);
                 })
                 .catch((error: Error) => {
-                    console.error(`Error fetching model ${modelAlias}:`, error);
+                    console.error(`Error fetching model ${modelId}:`, error);
                     setModelToEdit(null);
                 })
                 .finally(() => {
                     setModelLoading(false);
                 });
         }
-    }, [isNew, modelAlias]);
+    }, [isNew, modelId]);
 
     // When editing an existing model, fetch models for its provider using stored credentials
     useEffect(() => {
         if (!isNew && modelToEdit) {
-            const cacheKey = `${modelToEdit.provider}:${modelToEdit.alias}`;
+            const cacheKey = `${modelToEdit.provider}:${modelToEdit.id}`;
 
-            // Skip if we've already fetched this exact provider:alias combo
+            // Skip if we've already fetched this exact provider:id combo
             if (fetchedRef.current.has(cacheKey)) {
                 return;
             }
@@ -56,7 +56,7 @@ export const ModelEditPage = () => {
             fetchedRef.current.add(cacheKey);
             setIsFetchingModels(true);
 
-            fetchSupportedModelsByProvider(modelToEdit.provider, modelToEdit.alias)
+            fetchSupportedModelsByProvider(modelToEdit.provider, modelToEdit.id)
                 .then(models => {
                     setModelsByProvider(prev => ({
                         ...prev,
@@ -85,15 +85,15 @@ export const ModelEditPage = () => {
         try {
             const payload = buildModelPayload(data);
 
-            let createdAlias: string | undefined;
+            let createdId: string | undefined;
             if (isNew) {
                 const result = await createModelConfig(payload);
-                createdAlias = result.alias;
+                createdId = result.id;
             } else {
-                await updateModelConfig(modelToEdit!.alias, payload);
+                await updateModelConfig(modelToEdit!.id, payload);
             }
 
-            navigate("/agents?tab=models", { state: { highlightModelAlias: createdAlias } });
+            navigate("/agents?tab=models", { state: { highlightModelId: createdId } });
         } catch (error) {
             const message = error instanceof Error ? error.message : "An unknown error occurred while saving the model.";
             setErrorMessage(message);

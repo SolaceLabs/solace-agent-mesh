@@ -10,11 +10,11 @@ import type { ModelFormData } from "./modelProviderUtils";
 interface TestConnectionSectionProps {
     getFormData: () => ModelFormData;
     isNew: boolean;
-    modelAlias?: string;
+    modelId?: string;
     disabled?: boolean;
 }
 
-export const TestConnectionSection = ({ getFormData, isNew, modelAlias, disabled }: TestConnectionSectionProps) => {
+export const TestConnectionSection = ({ getFormData, isNew, modelId, disabled }: TestConnectionSectionProps) => {
     const [isTesting, setIsTesting] = useState(false);
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
@@ -41,8 +41,8 @@ export const TestConnectionSection = ({ getFormData, isNew, modelAlias, disabled
                 authType: payload.authType,
                 authConfig: payload.authConfig,
                 modelParams: payload.modelParams,
-                // For editing, include alias so backend can use stored credentials as fallback
-                ...(!isNew && modelAlias ? { alias: modelAlias } : {}),
+                // For editing, include modelId so backend can use stored credentials as fallback
+                ...(!isNew && modelId ? { modelId } : {}),
             };
 
             const response = await testModelConnection(testPayload);
@@ -53,7 +53,7 @@ export const TestConnectionSection = ({ getFormData, isNew, modelAlias, disabled
         } finally {
             setIsTesting(false);
         }
-    }, [getFormData, isNew, modelAlias]);
+    }, [getFormData, isNew, modelId]);
 
     return (
         <div className="border-t pt-4">

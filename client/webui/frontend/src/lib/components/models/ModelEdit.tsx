@@ -555,7 +555,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </details>
 
                                 {/* Test Connection */}
-                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelAlias={modelToEdit?.alias} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
+                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelId={modelToEdit?.id} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
                             </>
                         )}
                     </PageSection>

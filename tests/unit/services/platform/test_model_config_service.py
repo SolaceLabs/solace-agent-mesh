@@ -273,7 +273,7 @@ class TestTestConnection:
             assert "litellm" in message.lower()
 
     def test_test_connection_uses_stored_config_as_fallback(self):
-        """Test that stored config is used as fallback when alias is provided."""
+        """Test that stored config is used as fallback when model_id is provided."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
         service = ModelConfigService()
@@ -286,10 +286,10 @@ class TestTestConnection:
             model_name="gpt-4",
             model_auth_config={"type": "apikey", "api_key": "sk-stored-secret"},
         )
-        service.repository.get_by_alias.return_value = stored_config
+        service.repository.get_by_id.return_value = stored_config
 
-        # Request with only alias
-        request = ModelConfigurationTestRequest(alias="my-model")
+        # Request with only model_id
+        request = ModelConfigurationTestRequest(model_id="01234567-0123-0123-0123-0123456789ab")
 
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
             mock_response = Mock()
@@ -323,16 +323,16 @@ class TestTestConnection:
         assert success is False
         assert "provider" in message.lower() or "required" in message.lower()
 
-    def test_test_connection_nonexistent_alias(self):
-        """Test connection fails when alias is not found in database."""
+    def test_test_connection_nonexistent_model_id(self):
+        """Test connection fails when model_id is not found in database."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
         service = ModelConfigService()
         service.repository = Mock()
-        service.repository.get_by_alias.return_value = None
+        service.repository.get_by_id.return_value = None
         mock_db = Mock()
 
-        request = ModelConfigurationTestRequest(alias="nonexistent-model")
+        request = ModelConfigurationTestRequest(model_id="nonexistent-uuid")
 
         success, message = service.test_connection(mock_db, request)
 
