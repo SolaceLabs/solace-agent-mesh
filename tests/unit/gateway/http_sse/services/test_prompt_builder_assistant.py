@@ -5,10 +5,42 @@ import json
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
+from litellm.exceptions import (
+    AuthenticationError,
+    BadRequestError,
+    RateLimitError,
+    ServiceUnavailableError,
+    Timeout,
+    NotFoundError,
+    APIConnectionError,
+    ContextWindowExceededError,
+    ContentPolicyViolationError,
+)
+
+from solace_agent_mesh.common.error_handlers import (
+    AUTHENTICATION_ERROR_MESSAGE,
+    RATE_LIMIT_ERROR_MESSAGE,
+    TIMEOUT_ERROR_MESSAGE,
+    NOT_FOUND_ERROR_MESSAGE,
+    API_CONNECTION_ERROR_MESSAGE,
+    CONTEXT_LIMIT_ERROR_MESSAGE,
+    CONTENT_POLICY_VIOLATION_MESSAGE,
+)
 from solace_agent_mesh.gateway.http_sse.services.prompt_builder_assistant import (
     PromptBuilderAssistant,
     PromptBuilderResponse,
 )
+
+
+def _make_litellm_exception(cls, message="test error"):
+    """Helper to create litellm exception instances."""
+    try:
+        return cls(message=message, model="test-model", llm_provider="test")
+    except TypeError:
+        try:
+            return cls(message=message)
+        except TypeError:
+            return cls(message)
 
 
 def _mock_llm_response(text):
@@ -163,7 +195,7 @@ class TestPromptBuilderAssistantProcessMessage:
 
     @pytest.mark.asyncio
     async def test_process_message_fallback_on_llm_error(self):
-        """Test that an LLM error returns a fallback response."""
+        """Test that an LLM error returns a fallback response with is_error=True."""
         mock_llm = MagicMock()
 
         async def _raise_error(*args, **kwargs):
@@ -180,12 +212,13 @@ class TestPromptBuilderAssistantProcessMessage:
         )
 
         assert isinstance(result, PromptBuilderResponse)
-        assert result.confidence <= 0.3
+        assert result.confidence == 0.0
         assert result.ready_to_save is False
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_process_message_handles_invalid_json(self):
-        """Test that invalid JSON from LLM triggers fallback."""
+        """Test that invalid JSON from LLM triggers fallback with is_error=True."""
         mock_resp = _mock_llm_response("not valid json at all")
         assistant = _create_assistant(llm_return=mock_resp)
 
@@ -196,7 +229,8 @@ class TestPromptBuilderAssistantProcessMessage:
         )
 
         assert isinstance(result, PromptBuilderResponse)
-        assert result.confidence <= 0.3
+        assert result.confidence == 0.0
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_process_message_handles_generic_message(self):
@@ -242,3 +276,210 @@ class TestPromptBuilderAssistantProcessMessage:
         assert result.message == "Here is your template."
         assert result.template_updates["name"] == "Test"
         assert result.ready_to_save is True
+
+
+class TestPromptBuilderResponseIsError:
+    """Tests for the is_error field on PromptBuilderResponse."""
+
+    def test_is_error_defaults_to_false(self):
+        """is_error should default to False for normal responses."""
+        resp = PromptBuilderResponse(message="Hello", confidence=1.0)
+        assert resp.is_error is False
+
+    def test_is_error_can_be_set_true(self):
+        """is_error should be settable to True."""
+        resp = PromptBuilderResponse(message="Error", confidence=0.0, is_error=True)
+        assert resp.is_error is True
+
+    @pytest.mark.asyncio
+    async def test_successful_response_is_not_error(self):
+        """A successful LLM response should have is_error=False."""
+        llm_response_json = json.dumps({
+            "message": "Great template!",
+            "template_updates": {"name": "Test"},
+            "confidence": 0.9,
+            "ready_to_save": True,
+        })
+        mock_resp = _mock_llm_response(llm_response_json)
+        assistant = _create_assistant(llm_return=mock_resp)
+
+        result = await assistant.process_message(
+            user_message="Create a template",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.is_error is False
+
+    def test_initial_greeting_is_not_error(self):
+        """The initial greeting should have is_error=False."""
+        assistant = _create_assistant()
+        greeting = assistant.get_initial_greeting()
+        assert greeting.is_error is False
+
+
+class TestPromptBuilderLlmExceptionHandling:
+    """Tests for LLM exception-specific error handling in _llm_response()."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exc_class, expected_message",
+        [
+            (AuthenticationError, AUTHENTICATION_ERROR_MESSAGE),
+            (RateLimitError, RATE_LIMIT_ERROR_MESSAGE),
+            (Timeout, TIMEOUT_ERROR_MESSAGE),
+            (NotFoundError, NOT_FOUND_ERROR_MESSAGE),
+            (APIConnectionError, API_CONNECTION_ERROR_MESSAGE),
+            (ContextWindowExceededError, CONTEXT_LIMIT_ERROR_MESSAGE),
+            (ContentPolicyViolationError, CONTENT_POLICY_VIOLATION_MESSAGE),
+        ],
+    )
+    async def test_llm_exception_returns_descriptive_message(
+        self, exc_class, expected_message
+    ):
+        """Each litellm exception should produce its specific error message."""
+        exc = _make_litellm_exception(exc_class)
+        mock_llm = MagicMock()
+
+        async def _raise_exc(*args, **kwargs):
+            raise exc
+            yield  # noqa: unreachable
+
+        mock_llm.generate_content_async = MagicMock(side_effect=_raise_exc)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="Create something",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.message == expected_message
+        assert result.is_error is True
+
+    @pytest.mark.asyncio
+    async def test_llm_exception_sets_is_error_true(self):
+        """LLM exceptions should set is_error=True."""
+        exc = _make_litellm_exception(AuthenticationError)
+        mock_llm = MagicMock()
+
+        async def _raise_exc(*args, **kwargs):
+            raise exc
+            yield  # noqa: unreachable
+
+        mock_llm.generate_content_async = MagicMock(side_effect=_raise_exc)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="Create something",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.is_error is True
+        assert result.confidence == 0.0
+        assert result.ready_to_save is False
+
+    @pytest.mark.asyncio
+    async def test_non_llm_exception_returns_generic_message(self):
+        """Non-litellm exceptions should return a generic fallback message."""
+        mock_llm = MagicMock()
+
+        async def _raise_error(*args, **kwargs):
+            raise RuntimeError("something broke")
+            yield  # noqa: unreachable
+
+        mock_llm.generate_content_async = MagicMock(side_effect=_raise_error)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="Create something",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.is_error is True
+        assert "trouble processing" in result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_non_llm_exception_does_not_leak_details(self):
+        """Non-litellm exceptions should not expose raw error details."""
+        mock_llm = MagicMock()
+
+        async def _raise_error(*args, **kwargs):
+            raise RuntimeError("SECRET_KEY=abc123")
+            yield  # noqa: unreachable
+
+        mock_llm.generate_content_async = MagicMock(side_effect=_raise_error)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="Create something",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert "SECRET_KEY" not in result.message
+
+    @pytest.mark.asyncio
+    async def test_llm_exception_does_not_include_template_updates(self):
+        """Error responses should not include template updates."""
+        exc = _make_litellm_exception(RateLimitError)
+        mock_llm = MagicMock()
+
+        async def _raise_exc(*args, **kwargs):
+            raise exc
+            yield  # noqa: unreachable
+
+        mock_llm.generate_content_async = MagicMock(side_effect=_raise_exc)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="Create something",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.template_updates == {}
+
+
+class TestProcessMessageOuterCatch:
+    """Tests for the outer exception handler in process_message()."""
+
+    @pytest.mark.asyncio
+    async def test_outer_catch_with_llm_exception(self):
+        """If _llm_response itself raises a litellm exception, it should be handled."""
+        exc = _make_litellm_exception(ServiceUnavailableError)
+        mock_llm = MagicMock()
+
+        # Make _llm_response raise before even calling the LLM
+        # by making generate_content_async raise synchronously
+        mock_llm.generate_content_async = MagicMock(side_effect=exc)
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="test",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.is_error is True
+        assert "administrator" in result.message or "rephrase" in result.message
+
+    @pytest.mark.asyncio
+    async def test_outer_catch_with_generic_exception(self):
+        """If _llm_response raises a non-litellm exception, generic message is returned."""
+        mock_llm = MagicMock()
+        mock_llm.generate_content_async = MagicMock(
+            side_effect=TypeError("bad argument")
+        )
+        assistant = PromptBuilderAssistant(llm=mock_llm)
+
+        result = await assistant.process_message(
+            user_message="test",
+            conversation_history=[],
+            current_template={},
+        )
+
+        assert result.is_error is True
+        assert "bad argument" not in result.message
