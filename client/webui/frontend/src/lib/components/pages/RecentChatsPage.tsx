@@ -4,10 +4,11 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { Loader2, Check, X, Plus } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -82,8 +83,12 @@ export const RecentChatsPage: React.FC = () => {
     const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const inputRef = useRef<HTMLInputElement>(null);
+    const isFetchingRef = useRef(false);
     const regeneratingRef = useRef<string | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
     // Track which session started the response
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
@@ -117,6 +122,8 @@ export const RecentChatsPage: React.FC = () => {
     });
 
     const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
+        if (isFetchingRef.current) return;
+        isFetchingRef.current = true;
         setIsLoading(true);
 
         try {
@@ -134,6 +141,7 @@ export const RecentChatsPage: React.FC = () => {
             console.error("An error occurred while fetching sessions:", error);
         } finally {
             setIsLoading(false);
+            isFetchingRef.current = false;
         }
     }, []);
 
@@ -195,19 +203,28 @@ export const RecentChatsPage: React.FC = () => {
     // Periodic refresh when there are sessions with running background tasks
     useEffect(() => {
         const hasBackgroundTasks = sessions.some(s => s.hasRunningBackgroundTask);
+        if (!hasBackgroundTasks) return;
 
-        if (!hasBackgroundTasks) {
-            return;
-        }
-
-        const intervalId = setInterval(() => {
-            fetchSessions(1, false);
+        const intervalId = setInterval(async () => {
+            try {
+                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=1&pageSize=${PAGE_SIZE}`);
+                setSessions(prev => {
+                    // Update existing sessions with fresh data from page 1
+                    const updated = prev.map(s => {
+                        const fresh = result.data.find((n: Session) => n.id === s.id);
+                        return fresh ?? s;
+                    });
+                    // Add any brand new sessions that aren't already in the list
+                    const brandNew = result.data.filter((s: Session) => !prev.some(p => p.id === s.id));
+                    return [...brandNew, ...updated];
+                });
+            } catch (error) {
+                console.error("Polling error:", error);
+            }
         }, BACKGROUND_TASK_POLL_MS);
 
-        return () => {
-            clearInterval(intervalId);
-        };
-    }, [sessions, fetchSessions]);
+        return () => clearInterval(intervalId);
+    }, [sessions]);
 
     useEffect(() => {
         if (inView && hasMore && !isLoading) {
@@ -255,6 +272,11 @@ export const RecentChatsPage: React.FC = () => {
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
         navigate(`/projects/${session.projectId}`);
+    };
+
+    const handleShareClick = (session: Session) => {
+        setSessionToShare(session);
+        setIsShareDialogOpen(true);
     };
 
     const handleRenameWithAI = useCallback(
@@ -469,6 +491,7 @@ export const RecentChatsPage: React.FC = () => {
                                                 onMove={handleMoveClick}
                                                 onDelete={handleDeleteClick}
                                                 onGoToProject={handleGoToProject}
+                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
                                                 isRegeneratingTitle={regeneratingTitleForSession === session.id}
                                             />
                                         </div>
@@ -509,6 +532,19 @@ export const RecentChatsPage: React.FC = () => {
                 )}
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
+            {sessionToShare && (
+                <ShareDialog
+                    sessionId={sessionToShare.id}
+                    sessionTitle={sessionToShare.name || "Untitled Chat"}
+                    open={isShareDialogOpen}
+                    onOpenChange={open => {
+                        setIsShareDialogOpen(open);
+                        if (!open) {
+                            setSessionToShare(null);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };
