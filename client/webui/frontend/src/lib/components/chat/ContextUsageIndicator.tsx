@@ -154,8 +154,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const formattedCurrent = formatTokenCount(usage?.currentContextTokens ?? 0);
     const formattedLimit = usage?.maxInputTokens ? formatTokenCount(usage.maxInputTokens) : null;
 
-    // Show compress button when 15+ messages OR 70%+ token usage
-    const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 25, [messageCount, pct]);
+    // Show compress button when 15+ messages OR 2%+ token usage
+    const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 2, [messageCount, pct]);
 
     const handleCompress = async () => {
         if (compactingRef.current) return;
@@ -166,6 +166,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         try {
             const result = await compactSession(sessionId);
             setCompactSuccess(`Compacted ${result.eventsCompacted} events. ${result.remainingTokens > 0 ? `${formatTokenCount(result.remainingTokens)} tokens remaining.` : ""}`);
+            // Auto-expand the panel so the user sees the success/summary message
+            setIsExpanded(true);
 
             // Immediately update the usage state with compaction response data.
             // The backend context-usage endpoint reads from the tasks table, but

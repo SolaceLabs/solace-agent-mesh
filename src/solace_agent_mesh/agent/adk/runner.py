@@ -498,8 +498,11 @@ Conversation history:
 
 Create a progressive summary that emphasizes recent activity while compressing historical context:"""
 
+        # Pass the LiteLlm model object (not the agent) — LlmEventSummarizer
+        # accesses llm.model (expects a string) and llm.generate_content_async.
+        # component.adk_agent.model is the LiteLlm wrapper which satisfies both.
         summarizer = LlmEventSummarizer(
-            llm=component.adk_agent,
+            llm=component.adk_agent.model,
             prompt_template=progressive_prompt_template
         )
         compaction_event = await summarizer.maybe_summarize_events(events=events_to_compact)
