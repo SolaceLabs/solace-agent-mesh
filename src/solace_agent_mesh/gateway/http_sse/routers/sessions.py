@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from ....common.utils.embeds import (
@@ -1050,4 +1050,124 @@ async def trigger_title_generation(
         ) from e
 
 
+# --- Context Transfer ---
 
+class TransferContextRequest(BaseModel):
+    """Request body for transferring conversation context between agents."""
+    source_agent_name: str = Field(..., description="Name of the source agent to transfer context from")
+    target_agent_name: str = Field(..., description="Name of the target agent to transfer context to")
+    source_agent_display_name: str = Field(
+        default="previous agent",
+        description="Human-readable display name of the source agent",
+    )
+
+
+class TransferContextResponse(BaseModel):
+    """Response body for context transfer."""
+    context_transferred: bool = Field(..., description="Whether context was successfully transferred")
+    message: str = Field(..., description="Human-readable status message")
+
+
+@router.post(
+    "/sessions/{session_id}/transfer-context",
+    response_model=TransferContextResponse,
+)
+async def transfer_context(
+    session_id: str,
+    request_body: TransferContextRequest,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Transfer conversation context from one agent's ADK session to another.
+
+    When a user switches agents mid-session via the agent selector, this endpoint
+    copies the filtered conversation history (text-only, no tool calls) from the
+    source agent's ADK session to the target agent's ADK session.
+
+    This preserves conversation context across agent switches so the new agent
+    understands what was previously discussed.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s requesting context transfer for session %s: %s -> %s",
+        user_id,
+        session_id,
+        request_body.source_agent_name,
+        request_body.target_agent_name,
+    )
+
+    # Validate inputs
+    if not session_id or session_id.strip() == "" or session_id in ["null", "undefined"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session_id.",
+        )
+
+    if request_body.source_agent_name == request_body.target_agent_name:
+        return TransferContextResponse(
+            context_transferred=False,
+            message="Source and target agents are the same. No transfer needed.",
+        )
+
+    # Get the ADK session service from the gateway component
+    from ..dependencies import get_sac_component
+    component = get_sac_component()
+    adk_session_service = component.get_adk_session_service()
+
+    if adk_session_service is None:
+        log.warning(
+            "Context transfer unavailable: ADK session service not initialized "
+            "(requires SQL session storage)."
+        )
+        return TransferContextResponse(
+            context_transferred=False,
+            message="Context transfer unavailable: requires SQL session storage.",
+        )
+
+    try:
+        from ....agent.adk.services import transfer_session_context
+
+        success = await transfer_session_context(
+            session_service=adk_session_service,
+            source_agent_name=request_body.source_agent_name,
+            target_agent_name=request_body.target_agent_name,
+            user_id=user_id,
+            session_id=session_id,
+            source_agent_display_name=request_body.source_agent_display_name,
+            log_identifier=f"[ContextTransfer:{session_id}]",
+        )
+
+        if success:
+            log.info(
+                "Context transfer successful for session %s: %s -> %s",
+                session_id,
+                request_body.source_agent_name,
+                request_body.target_agent_name,
+            )
+            return TransferContextResponse(
+                context_transferred=True,
+                message=f"Context transferred from {request_body.source_agent_display_name}.",
+            )
+        else:
+            log.info(
+                "No context to transfer for session %s: %s -> %s",
+                session_id,
+                request_body.source_agent_name,
+                request_body.target_agent_name,
+            )
+            return TransferContextResponse(
+                context_transferred=False,
+                message="No conversation context found to transfer.",
+            )
+
+    except Exception as e:
+        log.error(
+            "Error during context transfer for session %s: %s",
+            session_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to transfer conversation context.",
+        ) from e

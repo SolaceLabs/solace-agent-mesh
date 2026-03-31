@@ -148,6 +148,7 @@ export interface MessageFE {
     };
     senderDisplayName?: string; // Display name of the sender (for collaborative sessions)
     senderEmail?: string; // Email of the sender (for collaborative sessions)
+    isAgentSwitchIndicator?: boolean; // True if this message indicates an agent switch mid-session
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
