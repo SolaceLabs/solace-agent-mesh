@@ -41,8 +41,15 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
         }
     }, [isActive, updates.length]);
 
+    // Show a placeholder spinner while waiting for the first update to arrive
     if (!updates || updates.length === 0) {
-        return null;
+        if (!isActive) return null;
+        return (
+            <div className="mb-3 flex items-center gap-2 pl-5">
+                <Loader2 className="h-[14px] w-[14px] animate-spin text-(--secondary-text-wMain) opacity-60" />
+                <span className="text-sm text-(--secondary-text-wMain) opacity-60">Processing...</span>
+            </div>
+        );
     }
 
     // Deduplicate consecutive identical updates (by text), but never deduplicate thinking items
@@ -65,13 +72,13 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
         });
     };
 
-    // Collapsed state: show "Activity Timeline >"
+    // Collapsed state: show "< Activity Timeline"
     if (!isTimelineOpen) {
         return (
-            <div className="mb-3 -ml-2 flex items-center gap-2">
+            <div className="mb-3 flex items-center gap-2">
                 <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(true)}>
-                    <span className="font-medium">Activity Timeline</span>
                     <ChevronRight className="h-3.5 w-3.5" />
+                    <span className="font-medium">Activity Timeline</span>
                 </Button>
                 {onViewWorkflow && <ViewWorkflowButton onClick={onViewWorkflow} text="Show Full Activity" />}
             </div>
@@ -79,13 +86,13 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
     }
 
     return (
-        <div className="mb-3 ml-[9px] pl-5">
+        <div className="mb-3">
             {/* Header with title and workflow button */}
-            <div className="mb-1 -ml-[17px] flex items-center gap-1">
+            <div className="mb-1 flex items-center gap-1">
                 {!isActive ? (
                     <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(false)}>
-                        <span className="font-medium">Activity Timeline</span>
                         <ChevronDown className="h-3.5 w-3.5" />
+                        <span className="font-medium">Activity Timeline</span>
                     </Button>
                 ) : (
                     <span className="px-2 py-1 text-sm font-medium text-(--secondary-text-wMain)">Activity Timeline</span>
@@ -93,10 +100,10 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
                 {onViewWorkflow && <ViewWorkflowButton onClick={onViewWorkflow} text="Show Full Activity" />}
             </div>
 
-            {/* Timeline items wrapper - line is relative to this container only */}
+            {/* Timeline items wrapper - uses flex layout for guaranteed dot/line alignment */}
             <div className="relative">
-                {/* Vertical connecting line - stops before the last dot center */}
-                {visibleUpdates.length > 1 && <div className={cn("absolute top-[21px] left-[-12px] z-0 w-[2px] rounded-full bg-current opacity-30", isActive ? "bottom-[33px]" : "bottom-[21px]")} />}
+                {/* Vertical connecting line - positioned in the center of the 20px dot column */}
+                {visibleUpdates.length > 1 && <div className={cn("absolute top-[21px] left-[9px] z-0 w-[2px] rounded-full bg-current opacity-30", isActive ? "bottom-[33px]" : "bottom-[21px]")} />}
 
                 {visibleUpdates.map((update, index) => {
                     const dedupedIndex = visibleIndices[index];
@@ -111,40 +118,44 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
                     return (
                         <Fragment key={`${update.timestamp}-${dedupedIndex}`}>
                             <div
-                                className="relative py-3"
+                                className="flex items-start gap-3 py-2"
                                 style={{
                                     animation: "progressSlideIn 0.3s ease-out both",
                                     animationDelay: `${Math.min(index * 50, 200)}ms`,
                                 }}
                             >
-                                {/* Dot or spinner indicator */}
-                                {isActiveStep ? (
-                                    <Loader2 className="absolute top-[13px] left-[-20px] z-10 h-[16px] w-[16px] animate-spin text-(--primary-wMain)" />
-                                ) : (
-                                    <div className="absolute top-[16px] left-[-17px] z-10 h-[10px] w-[10px] rounded-full bg-(--success-wMain)" />
-                                )}
+                                {/* Dot or spinner indicator - fixed 20px wide column, centered */}
+                                <div className="relative z-10 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                                    {isActiveStep ? <Loader2 className="h-[14px] w-[14px] animate-spin text-(--primary-wMain)" /> : <div className="h-[10px] w-[10px] rounded-full bg-(--success-wMain)" />}
+                                </div>
 
-                                {isThinking ? (
-                                    /* Thinking/Reasoning item - collapsible */
-                                    <div>
-                                        <button type="button" className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => toggleThinking(dedupedIndex)}>
-                                            <span className="font-medium">{update.text}</span>
-                                            {isThinkingExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                        </button>
+                                <div className="min-w-0 flex-1">
+                                    {isThinking ? (
+                                        /* Thinking/Reasoning item - collapsible */
+                                        <div>
+                                            <button
+                                                type="button"
+                                                className="flex items-center gap-1 text-sm leading-relaxed text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)"
+                                                onClick={() => toggleThinking(dedupedIndex)}
+                                            >
+                                                <span className="font-medium">{update.text}</span>
+                                                {isThinkingExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                            </button>
 
-                                        {/* Expandable thinking content */}
-                                        {isThinkingExpanded && update.expandableContent && (
-                                            <div className="mt-2 rounded-lg px-3 py-2">
-                                                <div className="max-h-96 overflow-y-auto text-sm text-(--secondary-text-wMain) opacity-70">
-                                                    <MarkdownWrapper content={update.expandableContent} />
+                                            {/* Expandable thinking content */}
+                                            {isThinkingExpanded && update.expandableContent && (
+                                                <div className="mt-2 rounded-lg px-3 py-2">
+                                                    <div className="max-h-96 overflow-y-auto text-sm text-(--secondary-text-wMain) opacity-70">
+                                                        <MarkdownWrapper content={update.expandableContent} />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    /* Regular status text */
-                                    <span className={`text-sm leading-relaxed ${isActiveStep ? "text-(--primary-text-wMain)" : "text-(--secondary-text-wMain)"}`}>{update.text}</span>
-                                )}
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Regular status text */
+                                        <span className={`text-sm leading-relaxed ${isActiveStep ? "text-(--primary-text-wMain)" : "text-(--secondary-text-wMain)"}`}>{update.text}</span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Expand button between first and last items when list is collapsed */}
