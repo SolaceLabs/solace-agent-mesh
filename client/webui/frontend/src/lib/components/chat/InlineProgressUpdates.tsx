@@ -3,7 +3,8 @@
  *
  * Displays a vertical timeline of progress updates inline within the AI response message.
  * During streaming: shows full timeline with dots, spinner, and connecting line.
- * After completion: collapses into "Timeline >" that can be expanded to see the full history.
+ * After completion: collapses into "Activity Timeline >" that can be expanded to see the full history.
+ * The "Show Full Activity" workflow button is displayed next to the header in all states.
  */
 
 import { useState, useEffect, useRef, Fragment } from "react";
@@ -64,29 +65,33 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
         });
     };
 
-    // Collapsed state: show "Timeline >"
+    // Collapsed state: show "Activity Timeline >"
     if (!isTimelineOpen) {
         return (
             <div className="mb-3 -ml-2 flex items-center gap-2">
                 <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(true)}>
-                    <span className="font-medium">Timeline</span>
+                    <span className="font-medium">Activity Timeline</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
+                {onViewWorkflow && <ViewWorkflowButton onClick={onViewWorkflow} text="Show Full Activity" />}
             </div>
         );
     }
 
     return (
         <div className="mb-3 ml-[9px] pl-5">
-            {/* Collapse header when task is complete */}
-            {!isActive && (
-                <div className="mb-1 -ml-[17px]">
+            {/* Header with title and workflow button */}
+            <div className="mb-1 -ml-[17px] flex items-center gap-1">
+                {!isActive ? (
                     <Button variant="ghost" className="flex items-center gap-1 text-sm text-(--secondary-text-wMain) transition-colors hover:text-(--primary-text-wMain)" onClick={() => setIsTimelineOpen(false)}>
-                        <span className="font-medium">Timeline</span>
+                        <span className="font-medium">Activity Timeline</span>
                         <ChevronDown className="h-3.5 w-3.5" />
                     </Button>
-                </div>
-            )}
+                ) : (
+                    <span className="px-2 py-1 text-sm font-medium text-(--secondary-text-wMain)">Activity Timeline</span>
+                )}
+                {onViewWorkflow && <ViewWorkflowButton onClick={onViewWorkflow} text="Show Full Activity" />}
+            </div>
 
             {/* Timeline items wrapper - line is relative to this container only */}
             <div className="relative">
@@ -163,13 +168,6 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
                         <ChevronUp className="h-3 w-3" />
                         Show less
                     </Button>
-                </div>
-            )}
-
-            {/* View Workflow button during active streaming (when no header is shown) */}
-            {isActive && onViewWorkflow && (
-                <div className="mt-1">
-                    <ViewWorkflowButton onClick={onViewWorkflow} />
                 </div>
             )}
         </div>

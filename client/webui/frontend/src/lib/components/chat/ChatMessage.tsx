@@ -719,7 +719,9 @@ const getChatBubble = (
     const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
     // For alignment: current user's messages are right-aligned, other users' and agent messages are left-aligned
     const isRightAligned = message.isUser && !isOtherUser;
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
+    // Only show workflow button in MessageActions if there are no inline progress updates
+    // (when progress updates exist, the button is shown in the InlineProgressUpdates header instead)
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId && !hasProgressUpdates;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
     // Debug logging for error messages
