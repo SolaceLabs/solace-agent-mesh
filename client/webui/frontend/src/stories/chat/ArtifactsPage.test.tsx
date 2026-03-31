@@ -194,6 +194,8 @@ const mockFetch = vi.fn().mockImplementation((url: string) => {
         const responseData = {
             artifacts: mockArtifactsList,
             totalCount: mockArtifactsList.length,
+            hasMore: false,
+            nextPage: null,
         };
         return Promise.resolve({
             ok: true,

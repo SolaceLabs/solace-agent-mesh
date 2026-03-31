@@ -1,37 +1,79 @@
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { skipToken, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
 import { validIdOrUndefined } from "@/lib/utils/file";
 import { artifactKeys } from "./keys";
 import * as artifactService from "./service";
 import type { ArtifactWithSession, BulkArtifactsResponse } from "./types";
 
+// Must match the backend default in artifacts.py list_all_artifacts (page_size Query param)
+const ARTIFACTS_PAGE_SIZE = 50;
+
 /**
- * Hook to fetch all artifacts across all sessions and projects.
- * Uses the bulk /api/v1/artifacts/all endpoint to fetch all artifacts in a single request,
- * eliminating the N+1 API call pattern.
- * Note: web_content_ artifacts are now tagged with __working on the backend and hidden
- * via the tag-based filter in ArtifactsPage rather than filename matching.
+ * Transform a single page of bulk artifacts response into ArtifactWithSession[].
  */
-export function useAllArtifacts() {
-    return useQuery({
-        queryKey: artifactKeys.lists(),
-        queryFn: artifactService.getAllArtifacts,
+function transformArtifacts(artifacts: BulkArtifactsResponse["artifacts"]): ArtifactWithSession[] {
+    return artifacts.map(artifact => ({
+        filename: artifact.filename,
+        size: artifact.size,
+        mime_type: artifact.mimeType ?? "application/octet-stream",
+        last_modified: artifact.lastModified ?? new Date().toISOString(),
+        uri: artifact.uri ?? "",
+        sessionId: artifact.sessionId,
+        sessionName: artifact.sessionName,
+        projectId: artifact.projectId ?? undefined,
+        projectName: artifact.projectName,
+        source: artifact.source ?? undefined,
+        tags: artifact.tags ?? undefined,
+    }));
+}
+
+/**
+ * Hook to fetch all artifacts across all sessions and projects with pagination.
+ * Uses the paginated /api/v1/artifacts/all endpoint with useInfiniteQuery
+ * to support "Load More" functionality.
+ *
+ * @param search - Optional server-side search query. When provided, the backend
+ *   disables early termination and searches across ALL sessions/projects.
+ * @returns Flattened artifacts from all loaded pages, plus pagination controls.
+ */
+export function useAllArtifacts(search?: string) {
+    const query = useInfiniteQuery({
+        // Include search in the query key so changing the search resets pagination
+        queryKey: [...artifactKeys.lists(), { search: search || undefined }],
+        queryFn: ({ pageParam = 1 }) => artifactService.getAllArtifacts(pageParam, ARTIFACTS_PAGE_SIZE, search || undefined),
+        initialPageParam: 1,
+        getNextPageParam: lastPage => lastPage.nextPage ?? undefined,
         refetchOnMount: "always",
-        select: (data: BulkArtifactsResponse): ArtifactWithSession[] =>
-            data.artifacts.map(artifact => ({
-                filename: artifact.filename,
-                size: artifact.size,
-                mime_type: artifact.mimeType ?? "application/octet-stream",
-                last_modified: artifact.lastModified ?? new Date().toISOString(),
-                uri: artifact.uri ?? "",
-                sessionId: artifact.sessionId,
-                sessionName: artifact.sessionName,
-                projectId: artifact.projectId ?? undefined,
-                projectName: artifact.projectName,
-                source: artifact.source ?? undefined,
-                tags: artifact.tags ?? undefined,
-            })),
     });
+
+    // Flatten all pages into a single deduplicated array of artifacts.
+    // useMemo avoids creating a new array reference on every render (issue: unnecessary
+    // re-renders of ArtifactGridCard children). Cross-page dedup by filename+sessionId
+    // guards against offset drift when artifacts are added/removed between page fetches.
+    const pages = query.data?.pages;
+    const artifacts = useMemo<ArtifactWithSession[]>(() => {
+        if (!pages) return [];
+        const all = pages.flatMap(page => transformArtifacts(page.artifacts));
+        const seen = new Set<string>();
+        return all.filter(a => {
+            const key = `${a.filename}::${a.sessionId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [pages]);
+
+    const totalCount = pages?.[pages.length - 1]?.totalCount ?? 0;
+
+    return {
+        ...query,
+        data: artifacts,
+        totalCount,
+        hasMore: query.hasNextPage ?? false,
+        loadMore: query.fetchNextPage,
+        isLoadingMore: query.isFetchingNextPage,
+    };
 }
 
 /**
