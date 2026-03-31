@@ -823,8 +823,19 @@ function isInternalArtifact(artifact: ArtifactWithSession): boolean {
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
-    const { data: artifacts = [], isLoading, error: fetchError, refetch, hasMore, loadMore, isLoadingMore } = useAllArtifacts();
+    // Debounced search: immediate typing updates the local filter, while the
+    // debounced value triggers a server-side search across ALL sessions.
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery.trim());
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    const { data: artifacts = [], isLoading, error: fetchError, refetch, hasMore, loadMore, isLoadingMore } = useAllArtifacts(debouncedSearch || undefined);
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortField>("date");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");

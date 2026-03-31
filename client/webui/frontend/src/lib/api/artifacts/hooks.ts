@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { skipToken, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
 import { validIdOrUndefined } from "@/lib/utils/file";
@@ -5,6 +6,7 @@ import { artifactKeys } from "./keys";
 import * as artifactService from "./service";
 import type { ArtifactWithSession, BulkArtifactsResponse } from "./types";
 
+// Must match the backend default in artifacts.py list_all_artifacts (page_size Query param)
 const ARTIFACTS_PAGE_SIZE = 50;
 
 /**
@@ -31,20 +33,38 @@ function transformArtifacts(artifacts: BulkArtifactsResponse["artifacts"]): Arti
  * Uses the paginated /api/v1/artifacts/all endpoint with useInfiniteQuery
  * to support "Load More" functionality.
  *
- * Returns flattened artifacts from all loaded pages, plus pagination controls.
+ * @param search - Optional server-side search query. When provided, the backend
+ *   disables early termination and searches across ALL sessions/projects.
+ * @returns Flattened artifacts from all loaded pages, plus pagination controls.
  */
-export function useAllArtifacts() {
+export function useAllArtifacts(search?: string) {
     const query = useInfiniteQuery({
-        queryKey: artifactKeys.lists(),
-        queryFn: ({ pageParam = 1 }) => artifactService.getAllArtifacts(pageParam, ARTIFACTS_PAGE_SIZE),
+        // Include search in the query key so changing the search resets pagination
+        queryKey: [...artifactKeys.lists(), { search: search || undefined }],
+        queryFn: ({ pageParam = 1 }) => artifactService.getAllArtifacts(pageParam, ARTIFACTS_PAGE_SIZE, search || undefined),
         initialPageParam: 1,
         getNextPageParam: lastPage => lastPage.nextPage ?? undefined,
         refetchOnMount: "always",
     });
 
-    // Flatten all pages into a single array of artifacts
-    const artifacts: ArtifactWithSession[] = query.data?.pages.flatMap(page => transformArtifacts(page.artifacts)) ?? [];
-    const totalCount = query.data?.pages[query.data.pages.length - 1]?.totalCount ?? 0;
+    // Flatten all pages into a single deduplicated array of artifacts.
+    // useMemo avoids creating a new array reference on every render (issue: unnecessary
+    // re-renders of ArtifactGridCard children). Cross-page dedup by filename+sessionId
+    // guards against offset drift when artifacts are added/removed between page fetches.
+    const pages = query.data?.pages;
+    const artifacts = useMemo<ArtifactWithSession[]>(() => {
+        if (!pages) return [];
+        const all = pages.flatMap(page => transformArtifacts(page.artifacts));
+        const seen = new Set<string>();
+        return all.filter(a => {
+            const key = `${a.filename}::${a.sessionId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [pages]);
+
+    const totalCount = pages?.[pages.length - 1]?.totalCount ?? 0;
 
     return {
         ...query,

@@ -67,6 +67,14 @@ export async function fetchPdfBlob(url: string): Promise<string> {
  * @param pageSize - Number of artifacts per page (defaults to 50)
  * @returns Promise with the paginated bulk artifacts response
  */
-export async function getAllArtifacts(pageNumber: number = 1, pageSize: number = 50): Promise<BulkArtifactsResponse> {
-    return api.webui.get<BulkArtifactsResponse>(`/api/v1/artifacts/all?pageNumber=${pageNumber}&pageSize=${pageSize}`);
+// pageSize default must match backend artifacts.py list_all_artifacts (page_size Query param)
+export async function getAllArtifacts(pageNumber: number = 1, pageSize: number = 50, search?: string): Promise<BulkArtifactsResponse> {
+    const params = new URLSearchParams({
+        pageNumber: String(pageNumber),
+        pageSize: String(pageSize),
+    });
+    if (search) {
+        params.set("search", search);
+    }
+    return api.webui.get<BulkArtifactsResponse>(`/api/v1/artifacts/all?${params.toString()}`);
 }
