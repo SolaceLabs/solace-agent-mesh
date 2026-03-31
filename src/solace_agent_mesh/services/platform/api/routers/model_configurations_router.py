@@ -216,13 +216,13 @@ async def update_model(
 
 
 @router.get(
-    "/models/{alias}/dependents",
+    "/models/{model_id}/dependents",
     response_model=DataResponse[list[ModelDependentResponse]],
     summary="Get agents that depend on a model",
-    description="Return deployed agents whose model_provider references the given model alias or ID. Requires enterprise package.",
+    description="Return deployed agents whose model_provider references the given model ID. Requires enterprise package.",
 )
 async def get_model_dependents(
-    alias: str,
+    model_id: str,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
@@ -232,7 +232,7 @@ async def get_model_dependents(
     Attempts to import the enterprise ModelDependentsService. If the enterprise
     package is not installed, returns an empty list.
     """
-    config = service.get_by_alias(db, alias)
+    config = service.get_by_id(db, model_id)
 
     try:
         from solace_agent_mesh_enterprise.platform_service.services.model_dependents_service import (

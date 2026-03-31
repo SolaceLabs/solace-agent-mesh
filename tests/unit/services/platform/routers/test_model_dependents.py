@@ -68,7 +68,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "general"
         mock_config.id = "uuid-123"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_db = Mock()
 
@@ -83,14 +83,14 @@ class TestGetModelDependentsEndpoint:
 
         with patch("builtins.__import__", side_effect=mock_import):
             result = await get_model_dependents(
-                alias="general",
+                model_id="uuid-123",
                 _=None,
                 db=mock_db,
                 service=mock_service,
             )
 
         assert result.data == []
-        mock_service.get_by_alias.assert_called_once_with(mock_db, "general")
+        mock_service.get_by_id.assert_called_once_with(mock_db, "uuid-123")
 
     @pytest.mark.asyncio
     async def test_returns_dependents_when_enterprise_available(self):
@@ -103,7 +103,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "general"
         mock_config.id = "uuid-123"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_agent = Mock()
         mock_agent.id = "agent-1"
@@ -137,7 +137,7 @@ class TestGetModelDependentsEndpoint:
             },
         ):
             result = await get_model_dependents(
-                alias="general",
+                model_id="uuid-123",
                 _=None,
                 db=Mock(),
                 service=mock_service,
@@ -150,8 +150,8 @@ class TestGetModelDependentsEndpoint:
         assert result.data[0].deployment_status == "deployed"
 
     @pytest.mark.asyncio
-    async def test_looks_up_config_by_alias(self):
-        """Verifies the alias is resolved to config before querying dependents."""
+    async def test_looks_up_config_by_id(self):
+        """Verifies the model_id is resolved to config before querying dependents."""
         from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
             get_model_dependents,
         )
@@ -160,7 +160,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "planning"
         mock_config.id = "uuid-456"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_db = Mock()
 
@@ -175,13 +175,13 @@ class TestGetModelDependentsEndpoint:
 
         with patch("builtins.__import__", side_effect=mock_import):
             await get_model_dependents(
-                alias="planning",
+                model_id="uuid-456",
                 _=None,
                 db=mock_db,
                 service=mock_service,
             )
 
-        mock_service.get_by_alias.assert_called_once_with(mock_db, "planning")
+        mock_service.get_by_id.assert_called_once_with(mock_db, "uuid-456")
 
 
 class TestDeleteModelCallsHandler:
