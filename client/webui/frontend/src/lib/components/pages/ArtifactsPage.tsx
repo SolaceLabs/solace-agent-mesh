@@ -26,7 +26,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useDebounce } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, getArtifactUrl, getArtifactContent, createSemaphore, createPersistentCache } from "@/lib/utils";
@@ -823,8 +823,12 @@ function isInternalArtifact(artifact: ArtifactWithSession): boolean {
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
-    const { data: artifacts = [], isLoading, error: fetchError, refetch } = useAllArtifacts();
+    // Debounced search: immediate typing updates the local filter, while the
+    // debounced value triggers a server-side search across ALL sessions.
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const debouncedSearch = useDebounce(searchQuery.trim(), 400);
+
+    const { data: artifacts = [], isLoading, error: fetchError, refetch, hasMore, loadMore, isLoadingMore } = useAllArtifacts(debouncedSearch || undefined);
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortField>("date");
     const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -849,6 +853,24 @@ export function ArtifactsPage() {
             return next;
         });
     }, []);
+
+    // Infinite scroll: observe a sentinel element at the bottom of the grid
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel || !hasMore || isLoadingMore) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    loadMore();
+                }
+            },
+            { rootMargin: "200px" } // trigger 200px before the sentinel is visible
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, isLoadingMore, loadMore]);
 
     // Get feature flags from config context
     const config = useContext(ConfigContext);
@@ -1162,20 +1184,29 @@ export function ArtifactsPage() {
                             )}
 
                             {!isLoading && filteredArtifacts.length > 0 && (
-                                <div className="flex flex-wrap gap-4">
-                                    {filteredArtifacts.map(artifact => (
-                                        <ArtifactGridCard
-                                            key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
-                                            artifact={artifact}
-                                            onDownload={handleDownload}
-                                            onDelete={handleDeleteRequest}
-                                            onPreview={handlePreview}
-                                            onGoToChat={handleGoToChat}
-                                            onGoToProject={handleGoToProject}
-                                            isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
-                                            binaryArtifactPreviewEnabled={binaryArtifactPreviewEnabled}
-                                        />
-                                    ))}
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-wrap gap-4">
+                                        {filteredArtifacts.map(artifact => (
+                                            <ArtifactGridCard
+                                                key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
+                                                artifact={artifact}
+                                                onDownload={handleDownload}
+                                                onDelete={handleDeleteRequest}
+                                                onPreview={handlePreview}
+                                                onGoToChat={handleGoToChat}
+                                                onGoToProject={handleGoToProject}
+                                                isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
+                                                binaryArtifactPreviewEnabled={binaryArtifactPreviewEnabled}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Infinite scroll sentinel + loading indicator */}
+                                    {hasMore && (
+                                        <div ref={sentinelRef} className="flex justify-center py-4">
+                                            {isLoadingMore && <Spinner size="small" variant="muted" />}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

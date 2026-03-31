@@ -110,6 +110,8 @@ def add_plugin_component_cmd(
         target_dir = pathlib.Path("configs/agents")
     elif plugin_type == "gateway":
         target_dir = pathlib.Path("configs/gateways")
+    elif plugin_type == "workflow":
+        target_dir = pathlib.Path("configs/workflows")
     else:
         target_dir = pathlib.Path("configs/plugins")
 
