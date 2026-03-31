@@ -1081,14 +1081,17 @@ async def _wait_for_plan_response(
             return {"action": "start", "steps": steps}
         
         cache_key = f"deep_research_plan_{plan_id}"
-        timeout = auto_approve_seconds + 5  # Extra buffer for network latency
         poll_interval = 0.5  # seconds
+
+        # Auto-approve timeout disabled - poll indefinitely until user responds.
+        # To re-enable auto-approve, uncomment the timeout logic below:
+        # timeout = auto_approve_seconds + 5  # Extra buffer for network latency
+        # elapsed = 0.0
+
+        log.info("%s Waiting for plan response: plan_id=%s (blocking until user responds)",
+                log_identifier, plan_id)
         
-        log.info("%s Waiting for plan response: plan_id=%s, timeout=%ds",
-                log_identifier, plan_id, timeout)
-        
-        elapsed = 0.0
-        while elapsed < timeout:
+        while True:
             response = host_component.cache_service.get_data(cache_key)
             if response:
                 host_component.cache_service.remove_data(cache_key)
@@ -1096,12 +1099,12 @@ async def _wait_for_plan_response(
                         log_identifier, response.get("action", "unknown"))
                 return response
             await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-        
-        # Timeout reached - auto-approve with original steps
-        log.info("%s Plan verification timed out after %ds, auto-approving",
-                log_identifier, auto_approve_seconds)
-        return {"action": "start", "steps": steps}
+            # Auto-approve timeout (disabled):
+            # elapsed += poll_interval
+            # if elapsed >= timeout:
+            #     log.info("%s Plan verification timed out after %ds, auto-approving",
+            #             log_identifier, auto_approve_seconds)
+            #     return {"action": "start", "steps": steps}
         
     except Exception as e:
         log.error("%s Error waiting for plan response: %s, auto-approving", log_identifier, str(e))
