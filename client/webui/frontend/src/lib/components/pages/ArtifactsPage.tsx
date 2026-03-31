@@ -861,6 +861,24 @@ export function ArtifactsPage() {
         });
     }, []);
 
+    // Infinite scroll: observe a sentinel element at the bottom of the grid
+    const sentinelRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel || !hasMore || isLoadingMore) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    loadMore();
+                }
+            },
+            { rootMargin: "200px" } // trigger 200px before the sentinel is visible
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, isLoadingMore, loadMore]);
+
     // Get feature flags from config context
     const config = useContext(ConfigContext);
     const artifactsPageEnabled = config?.configFeatureEnablement?.artifactsPage ?? false;
@@ -1190,19 +1208,10 @@ export function ArtifactsPage() {
                                         ))}
                                     </div>
 
-                                    {/* Load More button for pagination */}
+                                    {/* Infinite scroll sentinel + loading indicator */}
                                     {hasMore && (
-                                        <div className="flex justify-center py-4">
-                                            <Button variant="outline" onClick={() => loadMore()} disabled={isLoadingMore} className="min-w-[140px]">
-                                                {isLoadingMore ? (
-                                                    <>
-                                                        <Spinner size="small" className="mr-2" />
-                                                        Loading...
-                                                    </>
-                                                ) : (
-                                                    "Load More"
-                                                )}
-                                            </Button>
+                                        <div ref={sentinelRef} className="flex justify-center py-4">
+                                            {isLoadingMore && <Spinner size="small" variant="muted" />}
                                         </div>
                                     )}
                                 </div>
