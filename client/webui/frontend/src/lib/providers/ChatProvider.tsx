@@ -1292,46 +1292,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     return;
                                 }
                                 case "tool_invocation_start": {
-                                    // Capture tool invocation as a progress update
+                                    // Use the backend-provided status_text for user-friendly display.
+                                    // The backend generates objective, contextual text without
+                                    // exposing tool names or internal implementation details.
                                     const toolName = String((data as any)?.tool_name ?? "unknown");
+                                    const statusText = (data as any)?.status_text as string | undefined;
 
-                                    // Skip internal/system tools that shouldn't be shown to users
-                                    const internalTools = ["_notify_artifact_save", "_continue_generation", "_save_artifact"];
-                                    if (internalTools.some(t => toolName.startsWith(t) || toolName === t)) {
+                                    // Skip internal/system tools (prefixed with _)
+                                    if (toolName.startsWith("_")) {
                                         break;
                                     }
 
-                                    // Check if this is a peer agent delegation (tool name starts with "peer_")
-                                    const isPeerDelegation = toolName.startsWith("peer_");
-                                    // Check if this is a workflow delegation
-                                    const isWorkflowDelegation = toolName.startsWith("workflow_");
-
-                                    // Format tool name for human-friendly display
-                                    const formatToolName = (name: string): string => {
-                                        // Remove common prefixes and format
-                                        return name
-                                            .replace(/^(peer_|workflow_)/, "")
-                                            .replace(/_/g, " ")
-                                            .replace(/\b\w/g, c => c.toUpperCase()); // Title case
-                                    };
-
-                                    let progressType: ProgressUpdate["type"];
-                                    let progressText: string;
-
-                                    if (isPeerDelegation) {
-                                        progressType = "delegation";
-                                        progressText = `Asking ${formatToolName(toolName)} for help`;
-                                    } else if (isWorkflowDelegation) {
-                                        progressType = "delegation";
-                                        progressText = `Running ${formatToolName(toolName)}`;
-                                    } else {
-                                        progressType = "tool_call";
-                                        progressText = `Using ${formatToolName(toolName)}`;
+                                    // Skip if no status text (shouldn't happen, but be safe)
+                                    if (!statusText) {
+                                        break;
                                     }
 
                                     appendProgressUpdate({
-                                        type: progressType,
-                                        text: progressText,
+                                        type: "status",
+                                        text: statusText,
                                         timestamp: Date.now(),
                                     });
                                     break;

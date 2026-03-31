@@ -2494,6 +2494,67 @@ def solace_llm_response_callback(
     return None
 
 
+def _generate_tool_status_text(tool_name: str, tool_args: Dict[str, Any]) -> str:
+    """Generate objective, user-centric status text for a tool invocation.
+
+    Produces concise text that describes *what is happening* from the user's
+    perspective, without exposing internal tool names, agent names, or
+    implementation details.
+
+    Examples:
+      - "Searching for current weather in Ottawa..."
+      - "Looking something up..."
+      - "Processing your request..."
+
+    Args:
+        tool_name: Raw tool name (e.g. "peer_ResearchAgent", "web_search_google").
+        tool_args: The arguments passed to the tool.
+
+    Returns:
+        A short, human-readable status string.
+    """
+
+    # Extract a short context hint from the first short string arg
+    context_hint = ""
+    for val in tool_args.values():
+        if isinstance(val, str) and 0 < len(val.strip()) < 120:
+            context_hint = val.strip()
+            break
+    if len(context_hint) > 80:
+        context_hint = context_hint[:77] + "..."
+
+    lower_name = tool_name.lower()
+
+    # Peer agent delegation — describe the action, not the agent
+    if tool_name.startswith("peer_") or tool_name.startswith("workflow_"):
+        if context_hint:
+            return f"Looking into: {context_hint}"
+        return "Processing your request..."
+
+    # Search-related tools
+    if "search" in lower_name:
+        if context_hint:
+            return f"Searching for {context_hint}..."
+        return "Searching..."
+
+    # Read/fetch/get tools
+    if any(kw in lower_name for kw in ("read", "fetch", "get", "retrieve", "lookup", "load")):
+        if context_hint:
+            return f"Looking up {context_hint}..."
+        return "Looking something up..."
+
+    # Save/write/create tools
+    if any(kw in lower_name for kw in ("save", "write", "create", "update", "delete")):
+        if context_hint:
+            return f"Working on {context_hint}..."
+        return "Working on it..."
+
+    # Generic fallback — use context if available
+    if context_hint:
+        return f"Working on: {context_hint}"
+    return "Processing..."
+
+
 def notify_tool_invocation_start_callback(
     tool: BaseTool,
     args: Dict[str, Any],
@@ -2536,11 +2597,15 @@ def notify_tool_invocation_start_callback(
         # Get parallel_group_id from callback state if this is part of a parallel batch
         parallel_group_id = tool_context.state.get("parallel_group_id")
 
+        # Generate human-friendly status text for the progress timeline
+        status_text = _generate_tool_status_text(tool.name, serializable_args)
+
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
             parallel_group_id=parallel_group_id,
+            status_text=status_text,
         )
         host_component.publish_data_signal_from_thread(
             a2a_context=a2a_context,
