@@ -37,6 +37,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+import litellm
 from litellm.exceptions import BadRequestError
 from litellm import (
     ChatCompletionAssistantMessage,
@@ -57,6 +58,15 @@ from litellm import (
     completion,
     token_counter,
 )
+
+# Disable litellm's aiohttp transport to prevent memory leaks.
+#
+# litellm's default aiohttp transport (LiteLLMAiohttpTransport) creates new
+# aiohttp.ClientSession + TCPConnector objects when the asyncio event loop changes
+# (see _get_valid_client_session() in litellm/llms/custom_httpx/aiohttp_transport.py),
+# but NEVER closes the old sessions
+litellm.disable_aiohttp_transport = True
+
 from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 
@@ -858,11 +868,10 @@ class LiteLlm(BaseLlm):
     """The LLM client to use for the model."""
 
     _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
-
-    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = None
-    _cache_strategy: str = "5m"  # Default to 5-minute ephemeral cache
-    _status: str = "ready"  # "none" | "initializing" | "ready"
-    _on_status_change: Optional[Callable] = None  # Callback: (old_status, new_status) -> None
+    _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = PrivateAttr(default=None)
+    _cache_strategy: str = PrivateAttr(default="5m") # Default to 5-minute ephemeral cache
+    _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
+    _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
 
     def __init__(
         self,
@@ -1037,7 +1046,7 @@ class LiteLlm(BaseLlm):
                 self._status,
             )
             raise BadRequestError(
-                "Error: This component's LLM model has not been configured yet.", None, None
+                "Unable to access the LLM model. This component's LLM model has not been configured yet.", None, None
             )
 
         if not llm_request.contents or llm_request.contents[-1].role not in [

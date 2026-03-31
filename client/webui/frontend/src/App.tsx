@@ -1,7 +1,7 @@
 import { RouterProvider } from "react-router-dom";
 
 import { TextSelectionProvider } from "@/lib/components/chat/selection";
-import { AuthProvider, ConfigProvider, CsrfProvider, ProjectProvider, TaskProvider, ThemeProvider, AudioSettingsProvider, QueryProvider, SSEProvider } from "@/lib/providers";
+import { AuthProvider, ConfigProvider, CsrfProvider, FeatureFlagProvider, ProjectProvider, TaskProvider, ThemeProvider, AudioSettingsProvider, QueryProvider, SSEProvider } from "@/lib/providers";
 
 import { createRouter } from "./router";
 
@@ -14,21 +14,23 @@ function App() {
         <QueryProvider>
             <ThemeProvider>
                 <CsrfProvider>
-                    <ConfigProvider>
-                        <AuthProvider>
-                            <SSEProvider>
-                                <ProjectProvider>
-                                    <AudioSettingsProvider>
-                                        <TaskProvider>
-                                            <TextSelectionProvider>
-                                                <AppContent />
-                                            </TextSelectionProvider>
-                                        </TaskProvider>
-                                    </AudioSettingsProvider>
-                                </ProjectProvider>
-                            </SSEProvider>
-                        </AuthProvider>
-                    </ConfigProvider>
+                    <FeatureFlagProvider>
+                        <ConfigProvider>
+                            <AuthProvider>
+                                <SSEProvider>
+                                    <ProjectProvider>
+                                        <AudioSettingsProvider>
+                                            <TaskProvider>
+                                                <TextSelectionProvider>
+                                                    <AppContent />
+                                                </TextSelectionProvider>
+                                            </TaskProvider>
+                                        </AudioSettingsProvider>
+                                    </ProjectProvider>
+                                </SSEProvider>
+                            </AuthProvider>
+                        </ConfigProvider>
+                    </FeatureFlagProvider>
                 </CsrfProvider>
             </ThemeProvider>
         </QueryProvider>

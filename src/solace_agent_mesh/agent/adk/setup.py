@@ -34,7 +34,6 @@ from mcp import StdioServerParameters
 from solace_ai_connector.common.utils import import_module
 
 from ...agent.adk import callbacks as adk_callbacks
-from ...agent.adk.models.lite_llm import LiteLlm
 from ...common.utils.type_utils import is_subclass_by_name
 # DynamicTool and DynamicToolProvider are loaded via PythonToolLoader
 from ..tools.registry import tool_registry

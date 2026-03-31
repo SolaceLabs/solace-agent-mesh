@@ -31,9 +31,9 @@ from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from .repository import SessionRepository
 from .repository.interfaces import ITaskRepository
-from .repository.project_repository import ProjectRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
+from .services.title_generation_service import TitleGenerationService
 from ...shared.api import get_current_user
 
 log = logging.getLogger(__name__)
@@ -762,16 +762,16 @@ def get_audio_service(
 
 def get_title_generation_service(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
-) -> "TitleGenerationService":
+) -> TitleGenerationService:
     """FastAPI dependency to get an instance of TitleGenerationService."""
-    from .services.title_generation_service import TitleGenerationService
-    
+
     log.debug("get_title_generation_service called")
-    
-    # Get model configuration from component (same pattern as prompt_builder_assistant)
+
+    # Get LiteLlm instance from the component
     model_config = component.get_config("model", {})
-    
-    return TitleGenerationService(model_config=model_config)
+    llm = component.get_lite_llm_model()
+
+    return TitleGenerationService(model_config=model_config, llm=llm)
 
 
 

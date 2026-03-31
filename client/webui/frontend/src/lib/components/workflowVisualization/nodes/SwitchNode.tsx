@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { GitBranch } from "lucide-react";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, type NodeProps } from "../utils/types";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 /**
  * Switch node - Shows conditional branching with case rows inside
@@ -18,10 +19,7 @@ const SwitchNode: FC<NodeProps> = ({ node, isSelected, isHighlighted, onClick })
             style={{
                 width: `${node.width}px`,
             }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
+            {...clickableNodeProps(() => onClick?.(node))}
         >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3">

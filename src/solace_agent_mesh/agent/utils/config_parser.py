@@ -3,7 +3,7 @@ Parses and validates configuration for the SamAgentComponent and its App.
 """
 
 import logging
-from typing import Any, Union, Callable
+from typing import Any, Callable
 from google.adk.agents.readonly_context import ReadonlyContext
 
 log = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ InstructionProvider = Callable[[ReadonlyContext], str]
 
 def resolve_instruction_provider(
     component, config_value: Any
-) -> Union[str, InstructionProvider]:
+) -> str | InstructionProvider:
     """
     Resolves instruction config which can be a string or an invoke block
     handled by SAC's get_config.
@@ -34,8 +34,6 @@ def resolve_instruction_provider(
                 "%s Resolved instruction to a callable provider.",
                 component.log_identifier,
             )
-            return config_value
-        elif isinstance(config_value, str):
             return config_value
         else:
             raise ValueError(

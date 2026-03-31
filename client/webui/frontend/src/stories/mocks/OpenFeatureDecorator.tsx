@@ -1,29 +1,10 @@
-import React from "react";
-import { OpenFeature, OpenFeatureProvider } from "@openfeature/react-sdk";
-import { SamFeatureProvider } from "@/lib/providers/openfeature";
+import type { Decorator, StoryFn, StoryContext } from "@storybook/react";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 interface OpenFeatureDecoratorOptions {
     flags?: Record<string, boolean>;
 }
 
-/**
- * Shared decorator to provide OpenFeature context in Storybook stories.
- * Initializes the feature provider with the given flags.
- */
-export function createOpenFeatureDecorator(options: OpenFeatureDecoratorOptions = {}) {
-    const { flags = {} } = options;
-
-    // Initialize OpenFeature
-    const initializeOpenFeature = async () => {
-        const provider = new SamFeatureProvider(flags);
-        await OpenFeature.setProviderAndWait(provider);
-    };
-
-    initializeOpenFeature().catch(console.error);
-
-    return (Story: React.ComponentType) => (
-        <OpenFeatureProvider>
-            <Story />
-        </OpenFeatureProvider>
-    );
+export function createOpenFeatureDecorator(options: OpenFeatureDecoratorOptions = {}): Decorator {
+    return (Story: StoryFn, context: StoryContext) => <OpenFeatureTestProvider flagValueMap={options.flags ?? {}}>{Story(context.args, context)}</OpenFeatureTestProvider>;
 }

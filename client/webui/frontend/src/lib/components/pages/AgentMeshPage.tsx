@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { Button, EmptyState, Header } from "@/lib/components";
@@ -8,11 +8,12 @@ import { WorkflowList } from "@/lib/components/workflows";
 import { ModelsView } from "@/lib/components/models";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent } from "@/lib/utils/agentUtils";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, Plus } from "lucide-react";
 
 type AgentMeshTab = "agents" | "workflows" | "models";
 
 export function AgentMeshPage() {
+    const navigate = useNavigate();
     const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
     const [searchParams, setSearchParams] = useSearchParams();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
@@ -68,6 +69,14 @@ export function AgentMeshPage() {
                 title="Agent Mesh"
                 tabs={tabs}
                 buttons={[
+                    ...(activeTab === "models" && modelConfigUiEnabled
+                        ? [
+                              <Button key="add-model" variant="ghost" title="Add Model" onClick={() => navigate("/models/new/edit")}>
+                                  <Plus className="size-4" />
+                                  Add Model
+                              </Button>,
+                          ]
+                        : []),
                     <Button key="refresh" data-testid="refreshAgents" disabled={agentsLoading} variant="ghost" title="Refresh Agents" onClick={() => agentsRefetch()}>
                         <RefreshCcw className="size-4" />
                         Refresh

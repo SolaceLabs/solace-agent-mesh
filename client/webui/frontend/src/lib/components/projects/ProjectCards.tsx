@@ -34,7 +34,7 @@ interface ProjectCardsProps {
 
 export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare, onTogglePin, isPinToggling }: ProjectCardsProps) => {
     return (
-        <div className="flex h-full flex-col bg-(--background-w20)">
+        <div className="flex h-full flex-col">
             <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                 <OnboardingBanner
                     storageKey={PROJECTS_ONBOARDING_DISMISSED_KEY}

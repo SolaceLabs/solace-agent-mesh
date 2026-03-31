@@ -329,6 +329,7 @@ class ToolResultProcessor:
                 metadata_dict=metadata_dict,
                 timestamp=datetime.now(timezone.utc),
                 schema_max_keys=DEFAULT_SCHEMA_MAX_KEYS,
+                tags=data_obj.tags or None,
                 tool_context=tool_context,
             )
 

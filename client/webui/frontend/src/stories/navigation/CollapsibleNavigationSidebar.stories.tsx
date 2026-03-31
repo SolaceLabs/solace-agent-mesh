@@ -4,7 +4,6 @@ import { http, HttpResponse } from "msw";
 import { FolderOpen, BookOpenText, Bot, User, LogOut, Files } from "lucide-react";
 
 import { CollapsibleNavigationSidebar } from "@/lib/components/navigation/CollapsibleNavigationSidebar";
-import { LifecycleBadge } from "@/lib/components/ui";
 import type { NavItemConfig } from "@/lib/types/fe";
 import { sessions } from "../data/sessions";
 
@@ -29,7 +28,7 @@ const defaultItems: NavItemConfig[] = [
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
             },
             {
                 id: "artifacts",
@@ -37,7 +36,7 @@ const defaultItems: NavItemConfig[] = [
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
             },
         ],
     },

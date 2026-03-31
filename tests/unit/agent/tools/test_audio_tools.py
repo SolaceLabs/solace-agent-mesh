@@ -10,7 +10,7 @@ Tests the audio tools functionality including:
 - Edge cases and error conditions
 """
 
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 import pytest
 
 from src.solace_agent_mesh.agent.tools.audio_tools import (
@@ -881,6 +881,63 @@ class TestMultiSpeakerTextToSpeech:
             assert result.data_objects is not None
             assert len(result.data_objects) == 1
             assert result.data_objects[0].mime_type == "audio/mpeg"
+
+
+class TestTranscribeAudio:
+    """Tests for transcribe_audio async function"""
+
+    def _make_mock_artifact(self, filename="audio.mp3", mime_type="audio/mpeg"):
+        mock_artifact = MagicMock()
+        mock_artifact.filename = filename
+        mock_artifact.version = 1
+        mock_artifact.mime_type = mime_type
+        mock_artifact.as_bytes.return_value = b"fake_audio_bytes"
+        mock_artifact.metadata = {}
+        return mock_artifact
+
+    @pytest.mark.asyncio
+    async def test_transcribe_audio_json_decode_error(self):
+        """Test that JSONDecodeError from API response is handled correctly"""
+        import json
+
+        mock_artifact = self._make_mock_artifact()
+
+        tool_config = {
+            "model": "whisper-1",
+            "api_key": "test_key",
+            "api_base": "https://api.example.com",
+        }
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+
+        mock_http_client = AsyncMock()
+        mock_http_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("src.solace_agent_mesh.agent.tools.audio_tools.httpx.AsyncClient") as mock_client_cls, \
+             patch("src.solace_agent_mesh.agent.tools.audio_tools.tempfile.NamedTemporaryFile") as mock_temp, \
+             patch("builtins.open", create=True) as mock_open, \
+             patch("os.path.exists", return_value=False):
+
+            mock_temp.return_value.__enter__ = MagicMock(return_value=MagicMock(name="/tmp/test.mp3"))
+            mock_temp.return_value.__exit__ = MagicMock(return_value=False)
+            mock_temp.return_value.name = "/tmp/test.mp3"
+
+            mock_file_handle = MagicMock()
+            mock_open.return_value.__enter__ = MagicMock(return_value=mock_file_handle)
+            mock_open.return_value.__exit__ = MagicMock(return_value=False)
+
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_http_client)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await transcribe_audio(
+                input_audio=mock_artifact,
+                tool_config=tool_config,
+            )
+
+        assert result.status == "error"
+        assert "Invalid JSON response from API" in result.message
 
 
 class TestConcatenateAudio:

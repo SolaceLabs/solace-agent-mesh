@@ -12,6 +12,7 @@ export * from "./common";
 export * from "./header";
 export * from "./pages";
 export * from "./agents";
+export * from "./models";
 export * from "./workflows";
 // Export workflow visualization components (selective to avoid conflicts with activities)
 export {
@@ -37,3 +38,4 @@ export type { WorkflowPanelView, NodeProps, WorkflowVisualNodeType } from "./wor
 // Note: LayoutNode, Edge, LayoutResult types not exported here to avoid conflicts with activities
 export * from "./jsonViewer";
 export * from "./projects";
+export * from "./models";

@@ -55,10 +55,9 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
             "model": model_config,
             "model_provider": model_provider,
         }
-        env = {"SAM_FEATURE_MODEL_CONFIG_UI": "true"} if lazy else {}
-        with patch.dict(os.environ, env, clear=False):
-            if not lazy:
-                os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = lazy
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -131,6 +130,49 @@ class TestSamComponentBaseModelInit(unittest.TestCase):
         assert isinstance(model, LiteLlm)
         assert model.status == "initializing"
 
+    def test_initialize_model_lazy_mode_with_string_config(self):
+        """In lazy mode with string config, LiteLlm should be created with model=string."""
+        component = self._make_component(
+            model_config="gpt-4", model_provider=["dynamic-provider"], lazy=True
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        # With a real model name, configure_model sets status to "ready"
+        assert model._model_config.get("model") == "gpt-4"
+
+    def test_initialize_model_lazy_mode_with_dict_config(self):
+        """In lazy mode with dict config, LiteLlm should unpack the dict."""
+        component = self._make_component(
+            model_config={"model": "gpt-4", "timeout": 300},
+            model_provider=["dynamic-provider"],
+            lazy=True,
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        # Dict config should be unpacked, preserving extra settings
+        assert model._model_config["timeout"] == 300
+        assert model._model_config.get("model") == "gpt-4"
+
+    def test_initialize_model_lazy_mode_dict_preserves_model_name(self):
+        """In lazy mode with dict config, the model name should be preserved."""
+        component = self._make_component(
+            model_config={"model": "claude-3-opus"},
+            model_provider=["dynamic-provider"],
+            lazy=True,
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        assert model._model_config.get("model") == "claude-3-opus"
+
+    def test_initialize_model_lazy_mode_no_config_starts_initializing(self):
+        """In lazy mode with no model config, LiteLlm starts in 'initializing' state."""
+        component = self._make_component(
+            model_config=None, model_provider=["dynamic-provider"], lazy=True
+        )
+        model = component._initialize_model()
+        assert isinstance(model, LiteLlm)
+        assert model.status == "initializing"
+
     def test_get_lite_llm_model_returns_cached_instance(self):
         """get_lite_llm_model should return the same instance on repeated calls."""
         component = self._make_component(model_config="gpt-4")
@@ -176,13 +218,15 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
         }
 
     def test_lazy_mode_enabled_when_env_true(self):
-        """_lazy_model_mode should be True when SAM_FEATURE_MODEL_CONFIG_UI=true."""
+        """_lazy_model_mode should be True when MODEL_CONFIG_UI=true."""
         config_map = {
             "namespace": "test/namespace",
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {"SAM_FEATURE_MODEL_CONFIG_UI": "true"}):
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = True
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -200,8 +244,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -219,8 +264,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": ["provider-a", "provider-b"],
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -238,8 +284,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": [],
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",
@@ -257,8 +304,9 @@ class TestSamComponentBaseLazyModelMode(unittest.TestCase):
             "max_message_size_bytes": 1024000,
             "model_provider": None,
         }
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SAM_FEATURE_MODEL_CONFIG_UI", None)
+        with patch("openfeature.api.get_client") as mock_get_client:
+            mock_client = mock_get_client.return_value
+            mock_client.get_boolean_value.return_value = False
             with patch.object(
                 SamComponentBase,
                 "get_config",

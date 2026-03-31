@@ -7,7 +7,7 @@ name = "solace-agent-mesh"
 dynamic = ["version"]
 description = "Solace Agent Mesh is an open-source framework for building event-driven, multi-agent AI systems where specialized agents collaborate on complex tasks."
 readme = "README.md"
-requires-python = ">=3.10.16"
+requires-python = ">=3.10.16,<3.14"
 license = { file = "LICENSE" }
 authors = [
   { name="SolaceLabs", email="solacelabs@solace.com" },
@@ -63,7 +63,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.3.4",
+    "solace_ai_connector==3.3.6",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",

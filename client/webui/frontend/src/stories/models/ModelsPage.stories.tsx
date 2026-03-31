@@ -1,25 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { within, expect } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
-import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { AgentMeshPage } from "@/lib/components/pages";
-import { modelKeys } from "@/lib/api/models";
 import { mockModelConfigs } from "../data/models";
 import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+import { InvalidateModelCacheDecorator } from "../decorators/InvalidateModelCacheDecorator";
 
 const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: true } });
-
-const InvalidateCacheDecorator = (Story: React.ComponentType) => {
-    const queryClient = useQueryClient();
-
-    React.useLayoutEffect(() => {
-        queryClient.removeQueries({ queryKey: modelKeys.lists() });
-    }, [queryClient]);
-
-    return <Story />;
-};
 
 const successHandlers = [
     http.get("*/api/v1/platform/models", () => {
@@ -59,7 +47,7 @@ const meta = {
     },
     decorators: [
         OpenFeatureDecorator,
-        InvalidateCacheDecorator,
+        InvalidateModelCacheDecorator,
         Story => (
             <div style={{ height: "100vh", width: "100vw" }}>
                 <Story />
@@ -80,10 +68,10 @@ export const Default: Story = {
         const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
         modelsTab.click();
 
-        // Verify table renders with data
-        await canvas.findByText("planning");
-        await canvas.findByText("general");
-        await canvas.findByText("image_gen");
+        // Verify table renders with data (system-created aliases are title-cased via getDisplayAliasName)
+        await canvas.findByText("Planning");
+        await canvas.findByText("General");
+        await canvas.findByText("Image Gen");
 
         // Verify columns exist
         expect(canvas.getByText("Name")).toBeInTheDocument();
@@ -174,9 +162,10 @@ export const WithPagination: Story = {
         modelsTab.click();
 
         // Verify pagination renders with first page of 45 models
-        await canvas.findByText("model-0");
-        await canvas.findByText("model-19");
-        expect(canvas.getByText("model-0")).toBeInTheDocument();
+        // system-created aliases are title-cased, but hyphens are preserved (only underscores split)
+        await canvas.findByText("Model-0");
+        await canvas.findByText("Model-19");
+        expect(canvas.getByText("Model-0")).toBeInTheDocument();
 
         // Verify pagination controls ARE visible (45 models exceed one page)
         const paginationNav = canvas.getByRole("navigation", { name: /pagination/i });

@@ -39,3 +39,29 @@ class ModelConfigurationResponse(CamelCaseModel):
     updated_by: str = Field(..., description="User who last updated this configuration")
     created_time: int = Field(..., description="Creation timestamp (epoch ms)")
     updated_time: int = Field(..., description="Last update timestamp (epoch ms)")
+
+class ModelConfigStatusResponse(CamelCaseModel):
+    """Response model for model configuration status check."""
+
+    configured: bool = Field(
+        ..., description="Whether default LLM models (general, planning) are properly configured"
+    )
+
+class ModelConfigurationTestResponse(CamelCaseModel):
+    """Response model for model configuration test connection result."""
+
+    success: bool = Field(
+        ..., description="Whether the test connection was successful"
+    )
+    message: str = Field(
+        ..., description="Test result message (error details if failed, response content if succeeded)"
+    )
+
+
+class ModelDependentResponse(CamelCaseModel):
+    """Response model for an agent that depends on a model configuration."""
+
+    id: str = Field(..., description="Unique identifier of the agent")
+    name: str = Field(..., description="Name of the agent")
+    type: str = Field(..., description="Type of the agent")
+    deployment_status: str = Field(..., description="Current deployment status of the agent")

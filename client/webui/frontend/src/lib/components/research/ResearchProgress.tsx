@@ -57,7 +57,7 @@ export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, is
     const phaseColor = phaseColors[progress.phase];
 
     return (
-        <Card className="w-full bg-(--background-w10)">
+        <Card className="w-full">
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-lg">

@@ -4,7 +4,6 @@ Dynamic Model Provider for enterprise model configuration.
 
 from typing import Any, Dict, Union
 import asyncio
-from solace_ai_connector.components.component_base import ComponentBase as SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
@@ -17,6 +16,9 @@ from .dynamic_model_provider_topics import (
 )
 
 log = logging.getLogger(__name__)
+
+_MAX_BOOTSTRAP_RETRIES = 3
+_BOOTSTRAP_RETRY_INTERVAL_SECONDS = 5
 
 
 # SAC Component Info for ModelConfigReceiverComponent
@@ -126,7 +128,7 @@ class ModelConfigReceiverComponent(ComponentBase):
 
 class DynamicModelProvider:
 
-    def __init__(self, component: SamComponentBase, litellm_instance: LiteLlm, model_id: str):
+    def __init__(self, component: ComponentBase, litellm_instance: LiteLlm, model_id: str):
         self._component = component
         self._litellm_instance = litellm_instance
         self._model_id = model_id
@@ -146,9 +148,9 @@ class DynamicModelProvider:
         await self.listen_for_model_config_change()
 
         # Call request_model_config up to 3 times, once every 5 seconds, until initialized
-        for i in range(3):
+        for i in range(_MAX_BOOTSTRAP_RETRIES):
             await self.request_model_config()
-            await asyncio.sleep(5)
+            await asyncio.sleep(_BOOTSTRAP_RETRY_INTERVAL_SECONDS)
             if self._initialized:
                 break
         
@@ -361,7 +363,7 @@ class DynamicModelProvider:
         self._broker_input = None
 
 
-async def start_model_listener(litellm_instance: LiteLlm, component: SamComponentBase, model_provider_id: str):
+async def start_model_listener(litellm_instance: LiteLlm, component: ComponentBase, model_provider_id: str):
     """
     Start a model configuration listener for the given LiteLlm instance.
 

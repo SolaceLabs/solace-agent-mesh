@@ -5,3 +5,4 @@ export * from "./projects";
 export * from "./projectShares";
 export * from "./prompts";
 export * from "./sessions";
+export * from "./visualizerSteps";

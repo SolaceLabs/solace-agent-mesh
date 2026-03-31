@@ -3,11 +3,62 @@
 Unit tests for the SamAgentAppConfig class
 """
 
-import pytest
-from pydantic import ValidationError
 from unittest.mock import MagicMock, patch
 
-from src.solace_agent_mesh.agent.sac.app import SamAgentAppConfig, AgentIdentityConfig, SamAgentApp
+import pytest
+from pydantic import ValidationError
+
+from src.solace_agent_mesh.agent.sac.app import (
+    AgentIdentityConfig,
+    ArtifactServiceConfig,
+    SamAgentApp,
+    SamAgentAppConfig,
+)
+
+class TestArtifactServiceConfig:
+    """Test cases for the ArtifactServiceConfig class."""
+
+    def test_azure_fields_default_to_none(self):
+        config = ArtifactServiceConfig(type="memory")
+        assert config.container_name is None
+        assert config.account_name is None
+        assert config.connection_string is None
+        assert config.account_key is None
+
+    def test_azure_fields_survive_pydantic_validation(self):
+        config = ArtifactServiceConfig(
+            type="azure",
+            container_name="my-container",
+            account_name="mystorageaccount",
+            connection_string="DefaultEndpointsProtocol=https;AccountName=x;AccountKey=y",
+            account_key="my-account-key",
+        )
+        assert config.container_name == "my-container"
+        assert config.account_name == "mystorageaccount"
+        assert config.connection_string == "DefaultEndpointsProtocol=https;AccountName=x;AccountKey=y"
+        assert config.account_key == "my-account-key"
+
+    def test_azure_fields_accessible_via_get(self):
+        config = ArtifactServiceConfig(
+            type="azure",
+            container_name="my-container",
+            account_name="mystorageaccount",
+        )
+        assert config.get("container_name") == "my-container"
+        assert config.get("account_name") == "mystorageaccount"
+        assert config.get("connection_string") is None
+        assert config.get("account_key") is None
+
+    def test_model_validate_and_clean_preserves_azure_fields(self):
+        raw = {
+            "type": "azure",
+            "container_name": "my-container",
+            "account_name": "mystorageaccount",
+        }
+        config = ArtifactServiceConfig.model_validate_and_clean(raw)
+        assert config.get("container_name") == "my-container"
+        assert config.get("account_name") == "mystorageaccount"
+
 
 class TestAgentIdentityConfig:
     """Test cases for the AgentIdentityConfig class."""
