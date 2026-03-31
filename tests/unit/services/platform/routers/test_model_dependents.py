@@ -144,10 +144,10 @@ class TestGetModelDependentsEndpoint:
             )
 
         assert len(result.data) == 1
-        assert result.data[0]["id"] == "agent-1"
-        assert result.data[0]["name"] == "Test Agent"
-        assert result.data[0]["type"] == "standard"
-        assert result.data[0]["deploymentStatus"] == "deployed"
+        assert result.data[0].id == "agent-1"
+        assert result.data[0].name == "Test Agent"
+        assert result.data[0].type == "standard"
+        assert result.data[0].deployment_status == "deployed"
 
     @pytest.mark.asyncio
     async def test_looks_up_config_by_alias(self):
@@ -201,7 +201,7 @@ class TestDeleteModelCallsHandler:
         existing_config = Mock()
         existing_config.id = "uuid-789"
         existing_config.alias = "my-alias"
-        mock_service.get_by_alias.return_value = existing_config
+        mock_service.get_by_id.return_value = existing_config
 
         mock_handler = AsyncMock(spec=ModelDependentsHandler)
         mock_handler.undeploy_dependents.return_value = [{"id": "agent-1", "name": "Agent"}]
@@ -213,7 +213,7 @@ class TestDeleteModelCallsHandler:
         mock_component = Mock()
 
         await delete_model(
-            alias="my-alias",
+            model_id="uuid-789",
             _=None,
             db=Mock(),
             user={"id": "user-1"},
@@ -242,14 +242,14 @@ class TestDeleteModelCallsHandler:
         config = Mock()
         config.id = "model-uuid-abc"
         config.alias = "general"
-        mock_service.get_by_alias.return_value = config
+        mock_service.get_by_id.return_value = config
 
         mock_handler = AsyncMock(spec=ModelDependentsHandler)
         mock_handler.undeploy_dependents.return_value = []
         mock_component = Mock()
 
         await delete_model(
-            alias="general",
+            model_id="model-uuid-abc",
             _=None,
             db=Mock(),
             user={"id": "u1"},
@@ -276,12 +276,12 @@ class TestDeleteModelCallsHandler:
         config = Mock()
         config.id = "uuid-1"
         config.alias = "test"
-        mock_service.get_by_alias.return_value = config
+        mock_service.get_by_id.return_value = config
 
         mock_db = Mock()
 
         await delete_model(
-            alias="test",
+            model_id="uuid-1",
             _=None,
             db=mock_db,
             user={"id": "u1"},
@@ -290,4 +290,4 @@ class TestDeleteModelCallsHandler:
             dependents_handler=ModelDependentsHandler(),
         )
 
-        mock_service.delete.assert_called_once_with(mock_db, "test")
+        mock_service.delete.assert_called_once_with(mock_db, "uuid-1")

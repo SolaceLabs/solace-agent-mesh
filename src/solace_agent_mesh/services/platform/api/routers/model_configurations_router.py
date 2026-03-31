@@ -278,8 +278,8 @@ async def delete_model(
 ) -> None:
     config = service.get_by_id(db, model_id)
     await dependents_handler.undeploy_dependents(config.alias, config.id, component)
-    service.delete(db, alias)
-    _emit_model_config_update(component, config.id, alias, None)
+    service.delete(db, model_id)
+    _emit_model_config_update(component, config.id, config.alias, None)
 
 @router.post(
     "/supported-models",
