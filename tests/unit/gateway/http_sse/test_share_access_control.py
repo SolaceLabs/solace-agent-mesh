@@ -317,7 +317,6 @@ class TestViewSharedSessionEndpoint:
             user_id="other-owner"
         )
         mock_share_repo.find_share_user_by_email.return_value = None
-        mock_component = MagicMock()
 
         with (
             patch(
@@ -328,8 +327,9 @@ class TestViewSharedSessionEndpoint:
         ):
             await view_shared_session(
                 share_id="abc123",
-                caller_email="stranger@example.com",
-                component=mock_component,
+                request=MagicMock(),
+                user_id=None,
+                user_email="stranger@example.com",
                 db=mock_db,
                 share_service=mock_share_service,
             )
@@ -435,11 +435,13 @@ class TestGetSharedArtifactEndpoint:
         ):
             await get_shared_artifact_content(
                 share_id="abc123",
-                artifact_name="doc.pdf",
-                caller_email=None,
-                component=mock_component,
+                filename="doc.pdf",
+                request=MagicMock(),
+                user_id=None,
+                user_email=None,
                 db=mock_db,
                 share_service=mock_share_service,
+                component=mock_component,
             )
 
         assert exc_info.value.status_code == 401
@@ -469,11 +471,13 @@ class TestGetSharedArtifactEndpoint:
         ):
             await get_shared_artifact_content(
                 share_id="abc123",
-                artifact_name="doc.pdf",
-                caller_email="bob@example.com",
-                component=mock_component,
+                filename="doc.pdf",
+                request=MagicMock(),
+                user_id=None,
+                user_email="bob@example.com",
                 db=mock_db,
                 share_service=mock_share_service,
+                component=mock_component,
             )
 
         assert exc_info.value.status_code in (401, 403)
@@ -500,11 +504,13 @@ class TestGetSharedArtifactEndpoint:
         ):
             await get_shared_artifact_content(
                 share_id="nonexistent",
-                artifact_name="doc.pdf",
-                caller_email="alice@example.com",
-                component=mock_component,
+                filename="doc.pdf",
+                request=MagicMock(),
+                user_id=None,
+                user_email="alice@example.com",
                 db=mock_db,
                 share_service=mock_share_service,
+                component=mock_component,
             )
 
         assert exc_info.value.status_code == 404
