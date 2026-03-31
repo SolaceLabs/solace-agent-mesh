@@ -187,6 +187,48 @@ gateway_id: __COMPONENT_SNAKE_CASE_NAME__
         config_file = Path("configs/gateways/my-gateway.yaml")
         assert config_file.exists()
     
+    def test_add_workflow_component(self, temp_project_dir, mocker):
+        """Test adding a workflow component goes to configs/workflows/"""
+        workflow_plugin_path = temp_project_dir / "workflow_plugin"
+        workflow_plugin_path.mkdir()
+
+        pyproject_content = """
+[project]
+name = "workflow-plugin"
+
+[tool.workflow_plugin.metadata]
+type = "workflow"
+"""
+        (workflow_plugin_path / "pyproject.toml").write_text(pyproject_content)
+
+        config_content = """
+namespace: __COMPONENT_KEBAB_CASE_NAME__
+workflow_id: __COMPONENT_SNAKE_CASE_NAME__
+"""
+        (workflow_plugin_path / "config.yaml").write_text(config_content)
+
+        mocker.patch(
+            "cli.commands.plugin_cmd.add_cmd.install_plugin",
+            return_value=("workflow_plugin", workflow_plugin_path)
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(
+            add_plugin_component_cmd,
+            ["my-workflow", "--plugin", "workflow-plugin"]
+        )
+
+        assert result.exit_code == 0
+
+        # Verify component config was created in workflows directory
+        config_file = Path("configs/workflows/my-workflow.yaml")
+        assert config_file.exists()
+
+        # Verify placeholder replacement
+        config_content = config_file.read_text()
+        assert "my-workflow" in config_content
+        assert "my_workflow" in config_content
+
     def test_add_custom_component(self, temp_project_dir, mocker):
         """Test adding a custom component"""
         # Create mock custom plugin

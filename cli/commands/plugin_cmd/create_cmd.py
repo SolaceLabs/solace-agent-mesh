@@ -9,7 +9,7 @@ from cli.utils import (
 from cli import __version__ as cli_version
 from .official_registry import is_official_plugin
 
-PLUGIN_TYPES = ["agent", "gateway", "tool", "custom"]
+PLUGIN_TYPES = ["agent", "gateway", "tool", "workflow", "custom"]
 
 DEFAULT_PLUGIN_TYPE = "agent"
 DEFAULT_AUTHOR_NAME = "Your Name"
@@ -107,6 +107,22 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
         except IOError as e:
             error_exit(f"Error writing {src_path / 'component.py'}: {e}")
 
+    elif plugin_type == "workflow":
+        # Workflows are declarative YAML-only; no additional Python source needed.
+        # The src/ directory and __init__.py are still created because the plugin
+        # packaging/install mechanism requires a valid Python package structure.
+        # We override the empty __init__.py with a comment explaining this.
+        src_init_py_content = (
+            "# This file is required for the plugin packaging/install mechanism.\n"
+            "# Workflow plugins are declarative YAML-only — no Python code is needed.\n"
+            "# See config.yaml for the workflow definition.\n"
+        )
+        try:
+            with open(src_path / "__init__.py", "w", encoding="utf-8") as f:
+                f.write(src_init_py_content)
+        except IOError as e:
+            error_exit(f"Error writing {src_path / '__init__.py'}: {e}")
+
     elif plugin_type == "custom":
         # --- generate app.py ---
         placeholders = {
@@ -132,7 +148,7 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
 
 @click.command("create")
 @click.argument("plugin_name_arg")
-@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, tool, custom")
+@click.option("--type", "type_opt", help="Plugin type. Options: agent, gateway, tool, workflow, custom")
 @click.option("--author-name", "author_name_opt", help="Author's name.")
 @click.option("--author-email", "author_email_opt", help="Author's email.")
 @click.option("--description", "description_opt", help="Plugin description.")
