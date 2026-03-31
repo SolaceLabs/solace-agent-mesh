@@ -5,6 +5,7 @@ import { useTransferContext } from "@/lib/api/sessions/hooks";
 // Generation counter to implement "latest wins" for rapid agent switching.
 // If user switches A->B->C rapidly, only the last transfer's indicator message
 // is shown — earlier transfers are silently discarded.
+// NOTE: Module-level counter assumes a single useAgentSelection instance per app.
 let transferGeneration = 0;
 
 export const useAgentSelection = () => {
@@ -17,6 +18,9 @@ export const useAgentSelection = () => {
 
     const messagesRef = useRef(messages);
     messagesRef.current = messages;
+
+    const selectedAgentNameRef = useRef(selectedAgentName);
+    selectedAgentNameRef.current = selectedAgentName;
 
     const handleAgentSelection = useCallback(
         async (agentName: string, startNewChat = false) => {
@@ -49,7 +53,8 @@ export const useAgentSelection = () => {
             }
 
             // Mid-session agent switch: transfer context if there's an active session
-            const previousAgentName = selectedAgentName;
+            // Use ref for consistency with other refs (avoids stale closure)
+            const previousAgentName = selectedAgentNameRef.current;
 
             // Guard against re-selecting the same agent
             if (agentName === previousAgentName) return;
@@ -58,12 +63,12 @@ export const useAgentSelection = () => {
             // Use ref to get fresh messages.length (avoids stale closure)
             const hasConversation = !!(currentSessionId && previousAgentName && previousAgentName !== agentName && messagesRef.current.length > 1);
 
+            // Increment generation counter BEFORE state update for clearer ordering
+            const thisGeneration = ++transferGeneration;
+
             // Update selection immediately — this prevents race conditions where
             // a message is sent to the old agent while transfer is in progress
             setSelectedAgentName(agentName);
-
-            // Increment generation counter for "latest wins" pattern
-            const thisGeneration = ++transferGeneration;
 
             let contextTransferred = false;
 
@@ -114,7 +119,7 @@ export const useAgentSelection = () => {
                 },
             ]);
         },
-        [agents, selectedAgentName, setMessages, setSelectedAgentName, handleNewSession, transferContext]
+        [agents, setMessages, setSelectedAgentName, handleNewSession, transferContext]
     );
 
     return { handleAgentSelection };
