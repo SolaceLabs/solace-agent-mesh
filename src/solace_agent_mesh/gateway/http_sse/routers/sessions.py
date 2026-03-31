@@ -1077,7 +1077,11 @@ def _resolve_agent_display_name(agent_registry, agent_name: str) -> str:
 
     return agent_name
 
-_transfer_context_semaphore = asyncio.BoundedSemaphore(10)
+# Simple concurrency limiter for context transfer requests.
+# asyncio is single-threaded, so a plain counter is safe (no race between
+# the check and increment within a single synchronous code path).
+_MAX_CONCURRENT_TRANSFERS = 10
+_active_transfer_count = 0
 
 
 class TransferContextRequest(BaseModel):
@@ -1179,14 +1183,16 @@ async def transfer_context(
             message="Context transfer unavailable: no agent session service found.",
         )
 
-    # Rate limit using public asyncio API (wait_for with timeout=0)
-    try:
-        await asyncio.wait_for(_transfer_context_semaphore.acquire(), timeout=0)
-    except asyncio.TimeoutError:
+    # Rate limit using a simple counter (safe in asyncio's single-threaded event loop —
+    # no await between the check and increment, so no interleaving is possible)
+    global _active_transfer_count
+    if _active_transfer_count >= _MAX_CONCURRENT_TRANSFERS:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many context transfer requests. Please try again shortly.",
         )
+
+    _active_transfer_count += 1
     try:
         from ....agent.adk.services import transfer_session_context
 
@@ -1238,4 +1244,4 @@ async def transfer_context(
             detail="Failed to transfer conversation context.",
         ) from e
     finally:
-        _transfer_context_semaphore.release()
+        _active_transfer_count -= 1
