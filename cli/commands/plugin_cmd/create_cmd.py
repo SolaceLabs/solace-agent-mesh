@@ -111,7 +111,17 @@ def setup_plugin_type_src(plugin_type: str, src_path: pathlib.Path, replacements
         # Workflows are declarative YAML-only; no additional Python source needed.
         # The src/ directory and __init__.py are still created because the plugin
         # packaging/install mechanism requires a valid Python package structure.
-        pass
+        # We override the empty __init__.py with a comment explaining this.
+        src_init_py_content = (
+            "# This file is required for the plugin packaging/install mechanism.\n"
+            "# Workflow plugins are declarative YAML-only — no Python code is needed.\n"
+            "# See config.yaml for the workflow definition.\n"
+        )
+        try:
+            with open(src_path / "__init__.py", "w", encoding="utf-8") as f:
+                f.write(src_init_py_content)
+        except IOError as e:
+            error_exit(f"Error writing {src_path / '__init__.py'}: {e}")
 
     elif plugin_type == "custom":
         # --- generate app.py ---
