@@ -578,7 +578,7 @@ class _ArtifactListCache:
         # Prune orphaned locks periodically (cheap: only iterates lock dict)
         orphaned = [
             uid for uid, lk in self._locks.items()
-            if uid not in self._store and not lk.locked()
+            if uid != user_id and uid not in self._store and not lk.locked()
         ]
         for uid in orphaned:
             del self._locks[uid]
