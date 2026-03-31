@@ -26,7 +26,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useDebounce } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, getArtifactUrl, getArtifactContent, createSemaphore, createPersistentCache } from "@/lib/utils";
@@ -826,14 +826,7 @@ export function ArtifactsPage() {
     // Debounced search: immediate typing updates the local filter, while the
     // debounced value triggers a server-side search across ALL sessions.
     const [searchQuery, setSearchQuery] = useState<string>("");
-    const [debouncedSearch, setDebouncedSearch] = useState<string>("");
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(searchQuery.trim());
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
+    const debouncedSearch = useDebounce(searchQuery.trim(), 400);
 
     const { data: artifacts = [], isLoading, error: fetchError, refetch, hasMore, loadMore, isLoadingMore } = useAllArtifacts(debouncedSearch || undefined);
     const [selectedProject, setSelectedProject] = useState<string>("all");
