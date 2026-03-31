@@ -304,7 +304,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                         <div className={cn("max-w-[80%] rounded-2xl px-4 py-3", message.role === "user" && "bg-(--secondary-w20)", message.isError && "border border-(--error-wMain) bg-(--error-w10)")}>
                             <div className={cn("text-sm leading-relaxed whitespace-pre-wrap", message.isError && "text-(--error-wMain)")}>
-                                {message.isError && <AlertCircle className="-mt-0.5 mr-1.5 inline-block h-4 w-4" />}
+                                {message.isError && <AlertCircle className="mr-1.5 -mt-0.5 inline-block h-4 w-4" />}
                                 {message.content}
                             </div>
                         </div>

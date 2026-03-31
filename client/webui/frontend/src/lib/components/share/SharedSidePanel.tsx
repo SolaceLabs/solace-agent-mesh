@@ -26,7 +26,19 @@ interface SharedSidePanelProps {
     ragData: RAGSearchResult[];
 }
 
-export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle, onOpenTab, hasRagSources, handleSharedArtifactDownload, session, selectedTaskId, onTaskSelect, ragData }: SharedSidePanelProps) {
+export function SharedSidePanel({
+    isCollapsed,
+    activeTab,
+    onTabChange,
+    onToggle,
+    onOpenTab,
+    hasRagSources,
+    handleSharedArtifactDownload,
+    session,
+    selectedTaskId,
+    onTaskSelect,
+    ragData,
+}: SharedSidePanelProps) {
     if (isCollapsed) {
         return (
             <div className="bg-background flex h-full w-full flex-col items-center border-l py-4">
@@ -73,13 +85,20 @@ export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle,
                             <TabsTrigger
                                 value="workflow"
                                 title="Workflow"
-                                className={cn("border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10", hasRagSources ? "border-r-0" : "rounded-r-md")}
+                                className={cn(
+                                    "border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10",
+                                    hasRagSources ? "border-r-0" : "rounded-r-md",
+                                )}
                             >
                                 <Network className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Workflow</span>
                             </TabsTrigger>
                             {hasRagSources && (
-                                <TabsTrigger value="sources" title="Sources" className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10">
+                                <TabsTrigger
+                                    value="sources"
+                                    title="Sources"
+                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10"
+                                >
                                     <Link2 className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
                                 </TabsTrigger>
