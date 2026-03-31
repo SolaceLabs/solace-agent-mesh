@@ -497,6 +497,8 @@ class BulkArtifactsResponse(BaseModel):
     
     artifacts: list[ArtifactWithContext]
     total_count: int = Field(..., alias="totalCount")
+    has_more: bool = Field(False, alias="hasMore")
+    next_page: Optional[int] = Field(None, alias="nextPage")
     
     model_config = {"populate_by_name": True}
 
@@ -509,7 +511,7 @@ _ARTIFACT_FETCH_SEMAPHORE = asyncio.Semaphore(10)
     "/all",
     response_model=BulkArtifactsResponse,
     summary="List All User Artifacts",
-    description="Retrieves all artifacts across all sessions and projects for the current user in a single request.",
+    description="Retrieves artifacts across all sessions and projects for the current user with pagination.",
 )
 async def list_all_artifacts(
     artifact_service: BaseArtifactService = Depends(get_shared_artifact_service),
@@ -519,19 +521,22 @@ async def list_all_artifacts(
     project_service: ProjectService | None = Depends(get_project_service_optional),
     db: Session | None = Depends(get_db_optional),
     user_config: dict = Depends(ValidatedUserConfig(["tool:artifact:list"])),
-    limit: int = Query(default=500, ge=1, le=1000, description="Maximum number of artifacts to return"),
+    page: int = Query(default=1, ge=1, alias="pageNumber", description="Page number (1-based)"),
+    page_size: int = Query(default=50, ge=1, le=200, alias="pageSize", description="Number of artifacts per page"),
 ):
     """
-    Lists all artifacts across all sessions and projects for the current user.
-    This bulk endpoint fetches all artifacts in a single request instead of
-    requiring separate calls per session/project.
+    Lists artifacts across all sessions and projects for the current user.
     
-    Uses parallel fetching with a semaphore to limit concurrent requests.
+    Uses progressive fetching: processes sessions in small batches and stops
+    once enough artifacts are collected for the requested page. This prevents
+    overwhelming the artifact service with hundreds of concurrent S3 requests.
     
-    Returns artifacts with their session/project context for display in the artifacts page.
+    Pagination is session-based: each page fetches artifacts from a batch of
+    sessions until the page is filled. The `nextPage` field indicates if more
+    artifacts are available.
     """
     log_prefix = f"[ArtifactRouter:ListAll] User={user_id} -"
-    log.info("%s Request received (limit=%d).", log_prefix, limit)
+    log.info("%s Request received (page=%d, page_size=%d).", log_prefix, page, page_size)
     
     if artifact_service is None:
         log.error("%s Artifact service is not configured or available.", log_prefix)
@@ -549,7 +554,6 @@ async def list_all_artifacts(
             return "project"
         if filename.endswith('.converted.txt') or filename == 'project_bm25_index.zip':
             return "generated"
-        # Default to upload for user-uploaded files
         return "upload"
     
     # Helper function to fetch artifacts for a session with semaphore
@@ -570,7 +574,6 @@ async def list_all_artifacts(
                     session_id=session_id,
                 )
                 
-                # Filter out generated files and convert to ArtifactWithContext
                 result = []
                 for artifact in artifacts:
                     if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
@@ -595,92 +598,104 @@ async def list_all_artifacts(
                 return []
     
     try:
-        # Collect all fetch tasks
-        fetch_tasks: list[asyncio.Task] = []
+        from solace_agent_mesh.shared.api.pagination import PaginationParams
         
-        # Fetch artifacts from all user sessions
-        if session_service and db:
-            try:
-                # Get all sessions for the user (paginate through all pages)
-                from solace_agent_mesh.shared.api.pagination import PaginationParams
-                all_sessions = []
-                page_number = 1
-                page_size = 100  # Max allowed by PaginationParams
-                
-                while True:
-                    pagination = PaginationParams(page_number=page_number, page_size=page_size)
-                    sessions_response = session_service.get_user_sessions(db, user_id, pagination)
-                    all_sessions.extend(sessions_response.data)
-                    
-                    # Check if there are more pages
-                    if sessions_response.meta.pagination.next_page is None:
-                        break
-                    page_number += 1
-                    
-                    # Safety limit to prevent infinite loops
-                    if page_number > 100:
-                        log.warning("%s Reached safety limit of 100 pages for sessions", log_prefix)
-                        break
-                
-                log.info("%s Found %d sessions for user", log_prefix, len(all_sessions))
-                
-                # Create fetch tasks for all sessions
-                for session in all_sessions:
-                    task = asyncio.create_task(_fetch_session_artifacts(
-                        session_id=session.id,
-                        session_name=session.name,
-                        project_id=session.project_id,
-                        project_name=session.project_name,
-                        fetch_user_id=user_id,
-                    ))
-                    fetch_tasks.append(task)
-                        
-            except Exception as e:
-                log.warning("%s Error fetching sessions: %s", log_prefix, e)
+        # ----------------------------------------------------------------
+        # Step 1: Collect all session/project IDs (lightweight DB queries)
+        # ----------------------------------------------------------------
+        all_source_entries: list[dict] = []  # [{session_id, session_name, project_id, project_name, fetch_user_id}]
         
-        # Fetch artifacts from all user projects
+        # Collect project entries first (they take priority in dedup)
         if project_service and db:
             try:
                 projects = project_service.get_user_projects(db, user_id)
-                log.info("%s Found %d projects for user", log_prefix, len(projects))
-                
-                # Create fetch tasks for all projects
                 for project in projects:
-                    project_session_id = f"project-{project.id}"
-                    task = asyncio.create_task(_fetch_session_artifacts(
-                        session_id=project_session_id,
-                        session_name=None,
-                        project_id=project.id,
-                        project_name=project.name,
-                        fetch_user_id=project.user_id,  # Use project owner's user_id
-                    ))
-                    fetch_tasks.append(task)
-                        
+                    all_source_entries.append({
+                        "session_id": f"project-{project.id}",
+                        "session_name": None,
+                        "project_id": project.id,
+                        "project_name": project.name,
+                        "fetch_user_id": project.user_id,
+                    })
             except Exception as e:
                 log.warning("%s Error fetching projects: %s", log_prefix, e)
         
-        # Execute all fetch tasks in parallel
-        if fetch_tasks:
+        # Collect session entries
+        if session_service and db:
+            try:
+                session_page = 1
+                while True:
+                    pagination = PaginationParams(page_number=session_page, page_size=100)
+                    sessions_response = session_service.get_user_sessions(db, user_id, pagination)
+                    for session in sessions_response.data:
+                        all_source_entries.append({
+                            "session_id": session.id,
+                            "session_name": session.name,
+                            "project_id": session.project_id,
+                            "project_name": session.project_name,
+                            "fetch_user_id": user_id,
+                        })
+                    if sessions_response.meta.pagination.next_page is None:
+                        break
+                    session_page += 1
+                    if session_page > 100:
+                        log.warning("%s Reached safety limit of 100 pages for sessions", log_prefix)
+                        break
+            except Exception as e:
+                log.warning("%s Error fetching sessions: %s", log_prefix, e)
+        
+        total_sources = len(all_source_entries)
+        log.info("%s Found %d total sources (sessions + projects)", log_prefix, total_sources)
+        
+        # ----------------------------------------------------------------
+        # Step 2: Progressive fetch — process sources in batches until we
+        #         have enough artifacts to fill the requested page.
+        #         We need (page * page_size) artifacts total to serve page N,
+        #         then return only the slice for the requested page.
+        # ----------------------------------------------------------------
+        target_count = page * page_size  # Total artifacts needed to serve this page
+        # Fetch a buffer beyond target to improve dedup accuracy
+        fetch_target = target_count + page_size
+        
+        all_artifacts: list[ArtifactWithContext] = []
+        source_idx = 0
+        batch_size = 20  # Process 20 sessions at a time
+        
+        while source_idx < total_sources:
+            # Check if we already have enough artifacts (with buffer for dedup)
+            if len(all_artifacts) >= fetch_target:
+                break
+            
+            # Get next batch of sources
+            batch_end = min(source_idx + batch_size, total_sources)
+            batch = all_source_entries[source_idx:batch_end]
+            source_idx = batch_end
+            
+            # Create fetch tasks for this batch
+            fetch_tasks = [
+                asyncio.create_task(_fetch_session_artifacts(
+                    session_id=entry["session_id"],
+                    session_name=entry["session_name"],
+                    project_id=entry["project_id"],
+                    project_name=entry["project_name"],
+                    fetch_user_id=entry["fetch_user_id"],
+                ))
+                for entry in batch
+            ]
+            
+            # Execute batch in parallel
             results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
             
-            # Flatten results, handling any exceptions
-            all_artifacts: list[ArtifactWithContext] = []
             for result in results:
                 if isinstance(result, Exception):
                     log.warning("%s Task failed with exception: %s", log_prefix, result)
                     continue
                 all_artifacts.extend(result)
-        else:
-            all_artifacts = []
         
-        # Deduplicate artifacts using O(n) dict-based approach:
-        # If the same filename appears multiple times for the same project,
-        # prefer the one from the project itself (session_id starts with "project-") over
-        # artifacts from chat sessions within that project.
-        #
-        # We use a dict to track seen artifacts and build the final list at the end,
-        # avoiding O(n^2) list.remove() operations.
-        seen_project_artifacts: dict[tuple[str, str], ArtifactWithContext] = {}  # (project_id, filename) -> artifact
+        # ----------------------------------------------------------------
+        # Step 3: Deduplicate
+        # ----------------------------------------------------------------
+        seen_project_artifacts: dict[tuple[str, str], ArtifactWithContext] = {}
         non_project_artifacts: list[ArtifactWithContext] = []
         
         for artifact in all_artifacts:
@@ -689,34 +704,43 @@ async def list_all_artifacts(
                 existing = seen_project_artifacts.get(key)
                 
                 if existing is None:
-                    # First time seeing this artifact for this project
                     seen_project_artifacts[key] = artifact
                 elif artifact.session_id.startswith("project-") and not existing.session_id.startswith("project-"):
-                    # Current artifact is from project knowledge, existing is from a chat session
-                    # Replace with the project knowledge version
                     seen_project_artifacts[key] = artifact
-                # else: keep the existing one (either both are from project, or existing is from project)
             else:
-                # Non-project artifact, always include
                 non_project_artifacts.append(artifact)
         
-        # Build final deduplicated list from dict values + non-project artifacts
         deduplicated_artifacts = list(seen_project_artifacts.values()) + non_project_artifacts
         
-        # Sort by last_modified (newest first), handling None values
+        # Sort by last_modified (newest first)
         deduplicated_artifacts.sort(key=lambda a: a.last_modified or "", reverse=True)
         
-        # Apply limit
+        # ----------------------------------------------------------------
+        # Step 4: Apply pagination slice
+        # ----------------------------------------------------------------
         total_count = len(deduplicated_artifacts)
-        if len(deduplicated_artifacts) > limit:
-            deduplicated_artifacts = deduplicated_artifacts[:limit]
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        page_artifacts = deduplicated_artifacts[start_idx:end_idx]
         
-        log.info("%s Returning %d artifacts (limit=%d, total=%d, before_dedup=%d)",
-                 log_prefix, len(deduplicated_artifacts), limit, total_count, len(all_artifacts))
+        # Determine if there are more artifacts available
+        # There are more if: we have more deduplicated artifacts beyond this page,
+        # OR we didn't process all sources (more sessions to fetch from)
+        has_more = end_idx < total_count or source_idx < total_sources
+        next_page = page + 1 if has_more else None
+        
+        log.info(
+            "%s Returning %d artifacts (page=%d, page_size=%d, total_deduped=%d, "
+            "sources_processed=%d/%d, has_more=%s)",
+            log_prefix, len(page_artifacts), page, page_size, total_count,
+            source_idx, total_sources, has_more,
+        )
         
         return BulkArtifactsResponse(
-            artifacts=deduplicated_artifacts,
+            artifacts=page_artifacts,
             total_count=total_count,
+            has_more=has_more,
+            next_page=next_page,
         )
         
     except Exception as e:

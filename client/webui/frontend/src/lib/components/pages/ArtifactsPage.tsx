@@ -823,7 +823,7 @@ function isInternalArtifact(artifact: ArtifactWithSession): boolean {
 export function ArtifactsPage() {
     const navigate = useNavigate();
     const { addNotification, displayError, handleSwitchSession } = useChatContext();
-    const { data: artifacts = [], isLoading, error: fetchError, refetch } = useAllArtifacts();
+    const { data: artifacts = [], isLoading, error: fetchError, refetch, hasMore, loadMore, isLoadingMore } = useAllArtifacts();
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [sortBy, setSortBy] = useState<SortField>("date");
@@ -1162,20 +1162,38 @@ export function ArtifactsPage() {
                             )}
 
                             {!isLoading && filteredArtifacts.length > 0 && (
-                                <div className="flex flex-wrap gap-4">
-                                    {filteredArtifacts.map(artifact => (
-                                        <ArtifactGridCard
-                                            key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
-                                            artifact={artifact}
-                                            onDownload={handleDownload}
-                                            onDelete={handleDeleteRequest}
-                                            onPreview={handlePreview}
-                                            onGoToChat={handleGoToChat}
-                                            onGoToProject={handleGoToProject}
-                                            isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
-                                            binaryArtifactPreviewEnabled={binaryArtifactPreviewEnabled}
-                                        />
-                                    ))}
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-wrap gap-4">
+                                        {filteredArtifacts.map(artifact => (
+                                            <ArtifactGridCard
+                                                key={`${artifact.sessionId}-${artifact.filename}-${artifact.version || 0}`}
+                                                artifact={artifact}
+                                                onDownload={handleDownload}
+                                                onDelete={handleDeleteRequest}
+                                                onPreview={handlePreview}
+                                                onGoToChat={handleGoToChat}
+                                                onGoToProject={handleGoToProject}
+                                                isSelected={previewArtifact?.filename === artifact.filename && previewArtifact?.sessionId === artifact.sessionId}
+                                                binaryArtifactPreviewEnabled={binaryArtifactPreviewEnabled}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* Load More button for pagination */}
+                                    {hasMore && (
+                                        <div className="flex justify-center py-4">
+                                            <Button variant="outline" onClick={() => loadMore()} disabled={isLoadingMore} className="min-w-[140px]">
+                                                {isLoadingMore ? (
+                                                    <>
+                                                        <Spinner size="small" className="mr-2" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    "Load More"
+                                                )}
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
