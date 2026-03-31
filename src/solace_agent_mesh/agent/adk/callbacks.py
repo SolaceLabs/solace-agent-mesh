@@ -51,6 +51,7 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
 from ...common.a2a.types import ArtifactInfo
+from ...common.constants import ARTIFACT_TAG_WORKING
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
@@ -87,6 +88,20 @@ A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
+
+
+def _parse_tags_param(tags_str: Optional[str]) -> List[str]:
+    """Parse comma-separated tags string into a list.
+
+    Args:
+        tags_str: Comma-separated string of tags, or None/empty string
+
+    Returns:
+        List of trimmed, non-empty tag strings (empty list if no valid tags)
+    """
+    if not tags_str:
+        return []
+    return [t.strip() for t in tags_str.split(",") if t.strip()]
 
 
 async def _publish_data_part_status_update(
@@ -255,6 +270,8 @@ async def process_artifact_blocks_callback(
                                 "%s Fenced artifact block started without a 'filename' parameter.",
                                 log_identifier,
                             )
+                        # Extract tags from params (comma-separated string to list)
+                        tags = _parse_tags_param(event.params.get("tags")) or None
                         if a2a_context:
                             status_text = f"Receiving artifact `{filename}`..."
                             if description:
@@ -274,6 +291,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=0,
                                 artifact_chunk=None,
+                                tags=tags,
                             )
 
                             await _publish_data_part_status_update(
@@ -306,6 +324,8 @@ async def process_artifact_blocks_callback(
                                 host_component=host_component,
                                 log_identifier=f"{log_identifier}[ResolveChunk]",
                             )
+                            # Extract tags from params (comma-separated string to list)
+                            tags = _parse_tags_param(params.get("tags")) or None
 
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
@@ -313,6 +333,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
                                 artifact_chunk=resolved_chunk,  # Resolved chunk
+                                tags=tags,
                             )
 
                             # Track the cumulative character count of what we've sent
@@ -395,6 +416,20 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     params["schema_max_keys"],
                                 )
+                        # Extract tags from params (comma-separated string to list)
+                        tags_list = _parse_tags_param(params.get("tags"))
+
+                        # Auto-tag artifacts as internal when created during structured invocation
+                        logical_task_id_for_tags = a2a_context.get("logical_task_id")
+                        if logical_task_id_for_tags:
+                            with host_component.active_tasks_lock:
+                                task_ctx = host_component.active_tasks.get(logical_task_id_for_tags)
+                            if task_ctx and task_ctx.get_flag("is_structured_invocation"):
+                                if ARTIFACT_TAG_WORKING not in tags_list:
+                                    tags_list.append(ARTIFACT_TAG_WORKING)
+
+                        if tags_list:
+                            kwargs_for_call["tags"] = tags_list
                         wrapped_creator = ADKToolWrapper(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool
@@ -478,6 +513,8 @@ async def process_artifact_blocks_callback(
 
                             # Publish completion status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                completion_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
@@ -485,6 +522,7 @@ async def process_artifact_blocks_callback(
                                     bytes_transferred=len(event.content),
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
+                                    tags=completion_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -494,11 +532,14 @@ async def process_artifact_blocks_callback(
                             version_for_tool = 0
                             # Publish failure status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                failure_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
                                     status="failed",
                                     bytes_transferred=len(event.content),
+                                    tags=failure_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -513,6 +554,7 @@ async def process_artifact_blocks_callback(
                                 "mime_type": params.get("mime_type"),
                                 "bytes_transferred": len(event.content),
                                 "original_text": original_text,
+                                "tags": kwargs_for_call.get("tags"),
                             }
                         )
 
@@ -1188,6 +1230,10 @@ Parameters for `{open_delim}save_artifact: ...`:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
+- `tags="tag1,tag2"` (optional, comma-separated list of tags for categorization)
+
+Tagging Working Files:
+Add `tags="{ARTIFACT_TAG_WORKING}"` to artifacts that are intermediate or internal (e.g., scratch data, temp files, intermediate results used as input to further processing). These are hidden from the user's file list by default. Do NOT tag artifacts that are the final deliverable for the user.
 
 The system will automatically save the content and confirm it in the next turn.
 """
@@ -1238,6 +1284,9 @@ Use {{ issue.fields.description | truncate: 200 }} instead of slicing with [:200
 Do not use Jekyll-specific tags or filters (e.g., `{{% assign %}}`, `{{% capture %}}`, `where`, `sort`, `where_exp`, etc.)
 
 The rendered output will appear inline in your response automatically.
+
+**IMPORTANT - No Math Embeds Inside template_liquid:**
+Never place math embeds (e.g., `{open_delim}math:...{close_delim}`) inside a `template_liquid` block. Math embeds are resolved at a different stage and will not work correctly within Liquid templates. If you need to perform calculations on data, do the math outside the template_liquid block using separate math embeds, or use Liquid's built-in arithmetic filters (e.g., `| plus:`, `| minus:`, `| times:`, `| divided_by:`).
 """
 
 
@@ -1374,8 +1423,16 @@ def _generate_examples_instruction() -> str:
 def _generate_embed_instruction(
     include_artifact_content: bool,
     log_identifier: str,
+    suppress_artifact_return: bool = False,
 ) -> Optional[str]:
-    """Generates the instruction text for using embeds."""
+    """Generates the instruction text for using embeds.
+
+    Args:
+        include_artifact_content: Whether to include artifact_content embed instructions.
+        log_identifier: Logging prefix.
+        suppress_artifact_return: If True, omit artifact_return directives (used in SI mode
+            where only the result embed matters).
+    """
     open_delim = EMBED_DELIMITER_OPEN
     close_delim = EMBED_DELIMITER_CLOSE
     chain_delim = EMBED_CHAIN_DELIMITER
@@ -1404,7 +1461,10 @@ This host resolves the following embed types *early* (before sending to the LLM 
 Examples:
 - `{open_delim}status_update:Analyzing data...{close_delim}` (Shows 'Analyzing data...' as a status update)
 - `The result of 23.5 * 4.2 is {open_delim}math:23.5 * 4.2 | .2f{close_delim}` (Embeds calculated result with 2 decimal places)
+"""
 
+    if not suppress_artifact_return:
+        base_instruction += f"""\
 The following embeds are resolved *late* (by the gateway before final display):
 - `{open_delim}artifact_return:filename[:version]{close_delim}`: Attaches an artifact to your message so the user receives the file. The embed itself is removed from the text.
 
@@ -1631,6 +1691,23 @@ If a plan is created:
 """
     injected_instructions.append(planning_instruction)
 
+    # Inject LLM self-awareness: tell the agent which model it is running as.
+    _model_config = host_component.get_config("model", {})
+    if isinstance(_model_config, dict):
+        _llm_model_name = _model_config.get("model", "")
+    elif isinstance(_model_config, str):
+        _llm_model_name = _model_config
+    else:
+        _llm_model_name = ""
+    if _llm_model_name:
+        _llm_model_name_display = _llm_model_name.rsplit("/", 1)[-1]
+        injected_instructions.append(
+            f"**Your LLM Identity:**\n"
+            f"You are running as the `{_llm_model_name_display}` language model. "
+            "If a user asks which AI model or LLM you are, you may truthfully state this."
+        )
+        log.debug("%s Injected LLM self-awareness instruction (model: %s).", log_identifier, _llm_model_name_display)
+
     # Add the consolidated block instructions
     injected_instructions.append(_generate_fenced_artifact_instruction())
     injected_instructions.append(_generate_inline_template_instruction())
@@ -1691,8 +1768,20 @@ If a plan is created:
         include_artifact_content_instr = host_component.get_config(
             "enable_artifact_content_instruction", True
         )
+        # In structured invocation mode, suppress artifact_return directives
+        # since only the result embed matters
+        is_si_mode = False
+        a2a_context = callback_context.state.get("a2a_context")
+        if a2a_context:
+            logical_task_id = a2a_context.get("logical_task_id")
+            if logical_task_id:
+                with host_component.active_tasks_lock:
+                    task_context = host_component.active_tasks.get(logical_task_id)
+                if task_context:
+                    is_si_mode = task_context.get_flag("structured_invocation", False)
         instruction = _generate_embed_instruction(
-            include_artifact_content_instr, log_identifier
+            include_artifact_content_instr, log_identifier,
+            suppress_artifact_return=is_si_mode,
         )
         if instruction:
             injected_instructions.append(instruction)

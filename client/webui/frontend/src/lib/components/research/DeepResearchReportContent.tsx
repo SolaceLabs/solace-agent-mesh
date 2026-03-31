@@ -108,11 +108,11 @@ export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps>
     }
 
     if (isLoading) {
-        return <div className="text-muted-foreground py-2 text-sm">Loading report...</div>;
+        return <div className="py-2 text-sm text-(--secondary-text-wMain)">Loading report...</div>;
     }
 
     if (error) {
-        return <div className="text-destructive py-2 text-sm">{error}</div>;
+        return <div className="py-2 text-sm text-(--error-wMain)">{error}</div>;
     }
 
     if (!filteredContent) {

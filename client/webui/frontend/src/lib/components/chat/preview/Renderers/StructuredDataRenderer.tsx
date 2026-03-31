@@ -43,7 +43,7 @@ export const StructuredDataRenderer: React.FC<StructuredDataRendererProps> = ({ 
     }, [content, rendererType, setRenderError]);
 
     return (
-        <div className="bg-background relative flex h-full flex-col overflow-hidden">
+        <div className="relative flex h-full flex-col overflow-hidden bg-(--background-w10)">
             <div className="absolute top-4 right-4 z-10">
                 <Button onClick={() => setShowRawTextView(!showRawTextView)} title={showRawTextView ? "Show Structured View" : "Show Raw Text"}>
                     {showRawTextView ? (

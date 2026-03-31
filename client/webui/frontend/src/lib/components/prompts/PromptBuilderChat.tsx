@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, Send, Loader2, Sparkles } from "lucide-react";
 
 import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 import type { TemplateConfig } from "@/lib/types";
 import { api } from "@/lib/api";
 
@@ -10,6 +11,7 @@ interface Message {
     role: "user" | "assistant";
     content: string;
     timestamp: Date;
+    isError?: boolean;
 }
 
 interface ChatResponse {
@@ -17,6 +19,7 @@ interface ChatResponse {
     template_updates: Record<string, unknown>;
     confidence: number;
     ready_to_save: boolean;
+    is_error?: boolean;
 }
 
 interface PromptBuilderChatProps {
@@ -110,14 +113,15 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                                 role: "assistant",
                                 content: chatData.message,
                                 timestamp: new Date(),
+                                isError: chatData.is_error,
                             };
                             setMessages(prev => [...prev, assistantMessage]);
 
-                            if (Object.keys(chatData.template_updates).length > 0) {
+                            if (!chatData.is_error && Object.keys(chatData.template_updates).length > 0) {
                                 onConfigUpdate(chatData.template_updates);
                             }
 
-                            onReadyToSave(chatData.ready_to_save);
+                            if (!chatData.is_error) onReadyToSave(chatData.ready_to_save);
 
                             // Scroll to bottom after AI response
                             setTimeout(() => scrollToBottom(), 100);
@@ -129,6 +133,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                                 role: "assistant",
                                 content: "The conversation history is too long for automatic processing. Please describe your task manually, and I'll help you create a template.",
                                 timestamp: new Date(),
+                                isError: true,
                             };
                             setMessages(prev => [...prev, errorMessage]);
                         }
@@ -138,6 +143,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                             role: "assistant",
                             content: "I encountered an error processing your request. Please try describing your task manually.",
                             timestamp: new Date(),
+                            isError: true,
                         };
                         setMessages(prev => [...prev, errorMessage]);
                     } finally {
@@ -238,22 +244,24 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                 role: "assistant",
                 content: data.message,
                 timestamp: new Date(),
+                isError: data.is_error,
             };
             setMessages(prev => [...prev, assistantMessage]);
 
-            // Update config if there are updates
-            if (Object.keys(data.template_updates).length > 0) {
+            // Update config if there are updates (skip on error responses)
+            if (!data.is_error && Object.keys(data.template_updates).length > 0) {
                 onConfigUpdate(data.template_updates);
             }
 
             // Notify parent if ready to save
-            onReadyToSave(data.ready_to_save);
+            if (!data.is_error) onReadyToSave(data.ready_to_save);
         } catch (error) {
             console.error("Error sending message:", error);
             const errorMessage: Message = {
                 role: "assistant",
                 content: "I encountered an error. Could you please try again?",
                 timestamp: new Date(),
+                isError: true,
             };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
@@ -271,8 +279,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
         return (
             <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="text-primary h-8 w-8 animate-spin" />
-                    <p className="text-muted-foreground text-sm">Initializing AI assistant...</p>
+                    <Loader2 className="h-8 w-8 animate-spin text-(--primary-wMain)" />
+                    <p className="text-sm text-(--secondary-text-wMain)">Initializing AI assistant...</p>
                 </div>
             </div>
         );
@@ -283,8 +291,8 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
-                        <Sparkles className="text-primary h-4 w-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--primary-w10)">
+                        <Sparkles className="h-4 w-4 text-(--primary-wMain)" />
                     </div>
                     <h3 className="text-sm font-semibold">AI Builder</h3>
                 </div>
@@ -294,8 +302,11 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-[var(--message-background)]" : ""}`}>
-                            <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>
+                        <div className={cn("max-w-[80%] rounded-2xl px-4 py-3", message.role === "user" && "bg-(--secondary-w20)", message.isError && "border border-(--error-wMain) bg-(--error-w10)")}>
+                            <div className={cn("text-sm leading-relaxed whitespace-pre-wrap", message.isError && "text-(--error-wMain)")}>
+                                {message.isError && <AlertCircle className="mr-1.5 -mt-0.5 inline-block h-4 w-4" />}
+                                {message.content}
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -305,7 +316,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
                     <div className="flex justify-start">
                         <div className="flex items-center gap-2 rounded-2xl px-4 py-3">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-muted-foreground text-sm">Thinking...</span>
+                            <span className="text-sm text-(--secondary-text-wMain)">Thinking...</span>
                         </div>
                     </div>
                 )}
@@ -314,7 +325,7 @@ export const PromptBuilderChat: React.FC<PromptBuilderChatProps> = ({ onConfigUp
             </div>
 
             {/* Input Area */}
-            <div className="bg-background border-t p-4">
+            <div className="border-t bg-(--background-w10) p-4">
                 {/* STT Error Banner */}
                 {sttError && (
                     <div className="mb-3">

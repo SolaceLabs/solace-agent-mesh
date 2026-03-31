@@ -53,24 +53,33 @@ def _run_community_migrations(database_url: str) -> None:
     Args:
         database_url: Database connection string.
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    # Verify SQLite version before running migrations
+    # This will raise RuntimeError if version is incompatible
+    check_sqlite_version(database_url, "Platform Service")
+
     try:
         from sqlalchemy import create_engine
 
         log.info("Starting community platform migrations...")
         engine = create_engine(database_url)
-        inspector = sa.inspect(engine)
-        existing_tables = inspector.get_table_names()
+        try:
+            inspector = sa.inspect(engine)
+            existing_tables = inspector.get_table_names()
 
-        if not existing_tables:
-            log.info("Running initial community platform database setup")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community platform database migrations completed")
-        else:
-            log.info("Checking for community platform schema updates")
-            alembic_cfg = _setup_alembic_config(database_url)
-            command.upgrade(alembic_cfg, "head")
-            log.info("Community platform database schema is current")
+            if not existing_tables:
+                log.info("Running initial community platform database setup")
+                alembic_cfg = _setup_alembic_config(database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Community platform database migrations completed")
+            else:
+                log.info("Checking for community platform schema updates")
+                alembic_cfg = _setup_alembic_config(database_url)
+                command.upgrade(alembic_cfg, "head")
+                log.info("Community platform database schema is current")
+        finally:
+            engine.dispose()
     except Exception as e:
         log.warning(
             "Community platform migration check failed: %s - attempting to run migrations",
@@ -111,8 +120,17 @@ def _run_enterprise_migrations(database_url: str) -> None:
 
 
 def _setup_database(database_url: str) -> None:
-    """Initialize database and run migrations."""
+    """
+    Initialize database and run migrations.
+
+    Args:
+        database_url: Database connection string.
+    """
+    from . import dependencies
+
+    dependencies.init_database(database_url)
     log.info("[Platform Service] Initializing database and running migrations...")
+    _run_community_migrations(database_url)
     _run_enterprise_migrations(database_url)
     log.info("[Platform Service] Database initialization complete")
 

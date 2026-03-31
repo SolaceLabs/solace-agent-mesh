@@ -4,6 +4,7 @@ import { Wrench } from "lucide-react";
 import { Badge } from "@/lib/components/ui";
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS } from "../utils/nodeStyles";
+import { clickableNodeProps } from "@/lib/components/utils";
 
 interface ToolNodeProps {
     node: LayoutNode;
@@ -18,15 +19,13 @@ const ToolNode: FC<ToolNodeProps> = ({ node, isSelected, onClick }) => {
 
     return (
         <div
+            {...clickableNodeProps(() => onClick?.(node))}
+            data-testid={`tool-node-${node.data.label}`}
             className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} flex flex-col justify-center ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
             style={{ width: "225px", minHeight: "50px" }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
         >
             <div className="flex items-center gap-2 px-4 py-2">
-                <Wrench className="h-4 w-4 flex-shrink-0 text-(--color-accent-n7-wMain) dark:text-(--color-accent-n7-w100)" />
+                <Wrench className="h-4 w-4 flex-shrink-0 text-(--accent-n7-wMain)" />
                 <div className="truncate text-sm font-semibold">{node.data.label}</div>
             </div>
             {artifactCount > 0 && (

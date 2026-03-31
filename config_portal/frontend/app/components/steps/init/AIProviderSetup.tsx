@@ -22,11 +22,24 @@ export default function AIProviderSetup({
   onNext,
   onPrevious,
 }: StepComponentProps) {
-  const { llm_provider, llm_endpoint_url, llm_api_key, llm_model_name } = data as {
+  const {
+    llm_provider,
+    llm_endpoint_url,
+    llm_api_key,
+    llm_model_name,
+    aws_model_id,
+    aws_access_key,
+    aws_secret_access_key,
+    aws_session_token,
+  } = data as {
     llm_provider?: string;
     llm_endpoint_url?: string;
     llm_api_key?: string;
     llm_model_name?: string;
+    aws_model_id?: string;
+    aws_access_key?: string;
+    aws_secret_access_key?: string;
+    aws_session_token?: string;
   };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,7 +70,7 @@ export default function AIProviderSetup({
       if (previousProvider !== null && previousProvider !== llm_provider) {
         updates.llm_model_name = "";
 
-        if (llm_provider !== "openai_compatible") {
+        if (llm_provider !== "openai_compatible" && llm_provider !== "aws_bedrock") {
           const endpointUrl = PROVIDER_ENDPOINTS[llm_provider as keyof typeof PROVIDER_ENDPOINTS] || "";
           updates.llm_endpoint_url = endpointUrl;
         } else {
@@ -74,7 +87,7 @@ export default function AIProviderSetup({
   }, [llm_provider, previousProvider, updateData]);
 
   useEffect(() => {
-    if (llm_provider && llm_provider !== "openai_compatible") {
+    if (llm_provider && llm_provider !== "openai_compatible" && llm_provider !== "aws_bedrock") {
       setLlmModelSuggestions(PROVIDER_MODELS[llm_provider as keyof typeof PROVIDER_MODELS] || []);
     } else {
       setLlmModelSuggestions([]);
@@ -123,13 +136,32 @@ export default function AIProviderSetup({
       isValid = false;
     }
 
-    if (!llm_model_name) {
-      newErrors.llm_model_name = "LLM model name is required";
-      isValid = false;
-    }
-    if (!llm_api_key) {
-      newErrors.llm_api_key = "LLM API key is required";
-      isValid = false;
+    if (llm_provider === "aws_bedrock") {
+      if (!aws_model_id) {
+        newErrors.aws_model_id = "AWS Model ID is required";
+        isValid = false;
+      }
+      if (!llm_model_name) {
+        newErrors.llm_model_name = "AWS Model Name is required";
+        isValid = false;
+      }
+      if (!aws_access_key) {
+        newErrors.aws_access_key = "AWS Access Key is required";
+        isValid = false;
+      }
+      if (!aws_secret_access_key) {
+        newErrors.aws_secret_access_key = "AWS Secret Access Key is required";
+        isValid = false;
+      }
+    } else {
+      if (!llm_model_name) {
+        newErrors.llm_model_name = "LLM model name is required";
+        isValid = false;
+      }
+      if (!llm_api_key) {
+        newErrors.llm_api_key = "LLM API key is required";
+        isValid = false;
+      }
     }
 
     setErrors(newErrors);
@@ -187,7 +219,12 @@ export default function AIProviderSetup({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      testLLMConfig();
+      // Skip LLM connection test for AWS Bedrock
+      if (llm_provider === "aws_bedrock") {
+        onNext();
+      } else {
+        testLLMConfig();
+      }
     }
   };
 
@@ -237,21 +274,108 @@ export default function AIProviderSetup({
             </FormField>
           )}
 
-          <FormField
-            label="LLM API Key"
-            htmlFor="llm_api_key"
-            error={errors.llm_api_key}
-            required
-          >
-            <Input
-              id="llm_api_key"
-              name="llm_api_key"
-              type="password"
-              value={llm_api_key || ""}
-              onChange={handleChange}
-              placeholder="Enter your API key"
-            />
-          </FormField>
+          {llm_provider !== "aws_bedrock" && (
+            <FormField
+              label="LLM API Key"
+              htmlFor="llm_api_key"
+              error={errors.llm_api_key}
+              required
+            >
+              <Input
+                id="llm_api_key"
+                name="llm_api_key"
+                type="password"
+                value={llm_api_key || ""}
+                onChange={handleChange}
+                placeholder="Enter your API key"
+              />
+            </FormField>
+          )}
+
+          {llm_provider === "aws_bedrock" && (
+            <>
+              <FormField
+                label="AWS Model Name"
+                htmlFor="llm_model_name"
+                error={errors.llm_model_name}
+                helpText="The AWS Model Name (e.g., 'bedrock/anthropic.claude-sonnet-4-20250514-v1:0')"
+                required
+              >
+                <Input
+                  id="llm_model_name"
+                  name="llm_model_name"
+                  value={llm_model_name || ""}
+                  onChange={handleChange}
+                  placeholder="Enter a model name"
+                />
+              </FormField>
+
+              <FormField
+                label="AWS Model ID"
+                htmlFor="aws_model_id"
+                error={errors.aws_model_id}
+                helpText="The Bedrock model identifier (e.g., 'arn:aws:bedrock:us-west-2:{AWS_ACCOUNT_ID}:inference-profile/global.anthropic.claude-sonnet-4-20250514-v1:0')"
+                required
+              >
+                <AutocompleteInput
+                  id="aws_model_id"
+                  name="aws_model_id"
+                  value={aws_model_id || ""}
+                  onChange={handleChange}
+                  placeholder="Select or type a model ID"
+                  suggestions={llmModelSuggestions}
+                />
+              </FormField>
+
+              <FormField
+                label="AWS Access Key"
+                htmlFor="aws_access_key"
+                error={errors.aws_access_key}
+                required
+              >
+                <Input
+                  id="aws_access_key"
+                  name="aws_access_key"
+                  type="password"
+                  value={aws_access_key || ""}
+                  onChange={handleChange}
+                  placeholder="Enter your AWS Access Key"
+                />
+              </FormField>
+
+              <FormField
+                label="AWS Secret Access Key"
+                htmlFor="aws_secret_access_key"
+                error={errors.aws_secret_access_key}
+                required
+              >
+                <Input
+                  id="aws_secret_access_key"
+                  name="aws_secret_access_key"
+                  type="password"
+                  value={aws_secret_access_key || ""}
+                  onChange={handleChange}
+                  placeholder="Enter your AWS Secret Access Key"
+                />
+              </FormField>
+
+              <FormField
+                label="AWS Session Token"
+                htmlFor="aws_session_token"
+                error={errors.aws_session_token}
+                helpText="Optional: Required only if using temporary credentials (e.g. running in AWS Workshop Studio)"
+              >
+                <Input
+                  id="aws_session_token"
+                  name="aws_session_token"
+                  type="password"
+                  value={aws_session_token || ""}
+                  onChange={handleChange}
+                  placeholder="Enter your AWS Session Token (optional)"
+                />
+              </FormField>
+            </>
+          )}
 
           {llm_provider === "azure" && (
             <WarningBox className="mb-4">
@@ -271,28 +395,30 @@ export default function AIProviderSetup({
               .
             </WarningBox>
           )}
-          <FormField
-            label="LLM Model Name"
-            htmlFor="llm_model_name"
-            error={errors.llm_model_name}
-            helpText="Select or type a model name"
-            required
-          >
-            <AutocompleteInput
-              id="llm_model_name"
-              name="llm_model_name"
-              value={llm_model_name || ""}
-              onChange={handleChange}
-              placeholder="Select or type a model name"
-              suggestions={llmModelSuggestions}
-              onFocus={
-                llm_provider === "openai_compatible"
-                  ? fetchCustomModels
-                  : undefined
-              }
-              showLoadingIndicator={isLoadingModels}
-            />
-          </FormField>
+          {llm_provider !== "aws_bedrock" && (
+            <FormField
+              label="LLM Model Name"
+              htmlFor="llm_model_name"
+              error={errors.llm_model_name}
+              helpText="Select or type a model name"
+              required
+            >
+              <AutocompleteInput
+                id="llm_model_name"
+                name="llm_model_name"
+                value={llm_model_name || ""}
+                onChange={handleChange}
+                placeholder="Select or type a model name"
+                suggestions={llmModelSuggestions}
+                onFocus={
+                  llm_provider === "openai_compatible"
+                    ? fetchCustomModels
+                    : undefined
+                }
+                showLoadingIndicator={isLoadingModels}
+              />
+            </FormField>
+          )}
         </div>
       </div>
 

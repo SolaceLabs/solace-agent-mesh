@@ -23,14 +23,9 @@ class TestHasPendingProjectContext:
         service.list_artifact_versions = AsyncMock()
         return service
 
-    @pytest.fixture
-    def mock_db(self):
-        """Mock database session for testing."""
-        return Mock()
-
     @pytest.mark.asyncio
     async def test_has_pending_project_context_finds_flag(
-        self, mock_artifact_service, mock_db
+        self, mock_artifact_service
     ):
         """Test that function detects artifacts with project_context_pending=True."""
         # Mock artifact info list
@@ -60,7 +55,6 @@ class TestHasPendingProjectContext:
                 session_id="session456",
                 artifact_service=mock_artifact_service,
                 app_name="testapp",
-                db=mock_db,
             )
 
             assert result is True
@@ -69,7 +63,7 @@ class TestHasPendingProjectContext:
 
     @pytest.mark.asyncio
     async def test_has_pending_project_context_no_flag(
-        self, mock_artifact_service, mock_db
+        self, mock_artifact_service
     ):
         """Test that function returns False when no flag exists."""
         # Mock artifact info list
@@ -96,14 +90,13 @@ class TestHasPendingProjectContext:
                 session_id="session456",
                 artifact_service=mock_artifact_service,
                 app_name="testapp",
-                db=mock_db,
             )
 
             assert result is False
 
     @pytest.mark.asyncio
     async def test_has_pending_project_context_no_artifacts(
-        self, mock_artifact_service, mock_db
+        self, mock_artifact_service
     ):
         """Test that function returns False when session has no artifacts."""
         with patch(
@@ -116,14 +109,13 @@ class TestHasPendingProjectContext:
                 session_id="session456",
                 artifact_service=mock_artifact_service,
                 app_name="testapp",
-                db=mock_db,
             )
 
             assert result is False
 
     @pytest.mark.asyncio
     async def test_has_pending_project_context_handles_errors(
-        self, mock_artifact_service, mock_db
+        self, mock_artifact_service
     ):
         """Test that function handles errors gracefully."""
         with patch(
@@ -136,7 +128,6 @@ class TestHasPendingProjectContext:
                 session_id="session456",
                 artifact_service=mock_artifact_service,
                 app_name="testapp",
-                db=mock_db,
             )
 
             assert result is False

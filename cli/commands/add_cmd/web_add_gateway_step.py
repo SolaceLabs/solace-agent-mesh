@@ -5,9 +5,6 @@ from pathlib import Path
 from cli.utils import wait_for_server
 
 
-from config_portal.backend.server import run_flask
-
-
 def launch_add_gateway_web_portal(cli_options: dict):
     """
     Launches the web-based configuration portal for adding a new gateway.
@@ -21,6 +18,9 @@ def launch_add_gateway_web_portal(cli_options: dict):
         tuple | None: A tuple (gateway_name, gateway_options, project_root) if successful,
                       otherwise None.
     """
+    # Lazy import to avoid loading Flask at CLI startup
+    from config_portal.backend.server import run_flask
+
     click.echo(
         click.style("Attempting to start web-based 'Add Gateway' portal...", fg="blue")
     )

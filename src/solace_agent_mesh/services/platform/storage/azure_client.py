@@ -37,18 +37,37 @@ class AzureBlobStorageClient(ObjectStorageClient):
         self._account_key = account_key
 
         if connection_string:
-            self._service_client = BlobServiceClient.from_connection_string(connection_string)
+            self._service_client = BlobServiceClient.from_connection_string(
+                connection_string
+            )
             if not self._account_key:
-                self._account_key = self._extract_key_from_connection_string(connection_string)
+                self._account_key = self._extract_key_from_connection_string(
+                    connection_string
+                )
         elif account_name and account_key:
             account_url = f"https://{account_name}.blob.core.windows.net"
-            self._service_client = BlobServiceClient(account_url=account_url, credential=account_key)
+            self._service_client = BlobServiceClient(
+                account_url=account_url, credential=account_key
+            )
+        elif account_name:
+            from azure.identity import DefaultAzureCredential
+
+            account_url = f"https://{account_name}.blob.core.windows.net"
+            self._credential = DefaultAzureCredential()
+            self._service_client = BlobServiceClient(
+                account_url=account_url, credential=self._credential
+            )
         else:
-            raise ValueError("Azure Blob Storage requires either connection_string or account_name + account_key")
+            raise ValueError(
+                "Azure Blob Storage requires either connection_string, "
+                "account_name + account_key, or account_name alone (for workload identity)"
+            )
 
         if not self._account_name:
             self._account_name = self._service_client.account_name
-        self._container_client = self._service_client.get_container_client(container_name)
+        self._container_client = self._service_client.get_container_client(
+            container_name
+        )
 
     def put_object(
         self,
@@ -76,7 +95,8 @@ class AzureBlobStorageClient(ObjectStorageClient):
             properties = download.properties
             return StorageObject(
                 content=download.readall(),
-                content_type=properties.content_settings.content_type or "application/octet-stream",
+                content_type=properties.content_settings.content_type
+                or "application/octet-stream",
                 metadata=properties.metadata or {},
             )
         except Exception as e:
@@ -105,25 +125,38 @@ class AzureBlobStorageClient(ObjectStorageClient):
 
     def list_objects(self, prefix: str) -> list[str]:
         try:
-            return [blob.name for blob in self._container_client.list_blobs(name_starts_with=prefix)]
+            return [
+                blob.name
+                for blob in self._container_client.list_blobs(name_starts_with=prefix)
+            ]
         except Exception as e:
             raise self._translate_error(e) from e
 
     def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
-        if not self._account_key:
-            raise StoragePermissionError(
-                "Account key is required to generate presigned URLs",
-                key=key,
-            )
         try:
-            sas_token = generate_blob_sas(
-                account_name=self._account_name,
-                container_name=self._container_name,
-                blob_name=key,
-                account_key=self._account_key,
-                permission=BlobSasPermissions(read=True),
-                expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
-            )
+            if self._account_key:
+                sas_token = generate_blob_sas(
+                    account_name=self._account_name,
+                    container_name=self._container_name,
+                    blob_name=key,
+                    account_key=self._account_key,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
+                )
+            else:
+                delegation_key = self._service_client.get_user_delegation_key(
+                    key_start_time=datetime.now(timezone.utc),
+                    key_expiry_time=datetime.now(timezone.utc)
+                    + timedelta(seconds=expires_in),
+                )
+                sas_token = generate_blob_sas(
+                    account_name=self._account_name,
+                    container_name=self._container_name,
+                    blob_name=key,
+                    user_delegation_key=delegation_key,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=datetime.now(timezone.utc) + timedelta(seconds=expires_in),
+                )
             return (
                 f"https://{self._account_name}.blob.core.windows.net"
                 f"/{self._container_name}/{key}?{sas_token}"
@@ -141,7 +174,9 @@ class AzureBlobStorageClient(ObjectStorageClient):
                 return part.split("=", 1)[1]
         return None
 
-    def _translate_error(self, error: Exception, key: str | None = None) -> StorageError:
+    def _translate_error(
+        self, error: Exception, key: str | None = None
+    ) -> StorageError:
         if isinstance(error, ResourceNotFoundError):
             return StorageNotFoundError(str(error), key=key, cause=error)
         if isinstance(error, HttpResponseError) and error.status_code == 403:

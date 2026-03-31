@@ -100,18 +100,14 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     await fetchCsrfToken();
                 }
 
-                // Compute projectsEnabled from feature flags
                 const projectsEnabled = data.frontend_feature_enablement?.projects ?? false;
-
-                // Extract background tasks config from feature enablement
                 const backgroundTasksEnabled = data.frontend_feature_enablement?.background_tasks ?? false;
                 const backgroundTasksDefaultTimeoutMs = data.background_tasks_config?.default_timeout_ms ?? 3600000;
-
-                // Check if platform service is configured
                 const platformConfigured = Boolean(data.frontend_platform_server_url);
-
-                // Extract auto title generation config from feature enablement
                 const autoTitleGenerationEnabled = data.frontend_feature_enablement?.auto_title_generation ?? false;
+
+                // Extract binary artifact preview config from feature enablement
+                const binaryArtifactPreviewEnabled = data.frontend_feature_enablement?.binaryArtifactPreview ?? false;
 
                 // Map backend fields to ConfigContextValue fields
                 const mappedConfig: ConfigContextValue = {
@@ -134,6 +130,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     platformConfigured,
                     autoTitleGenerationEnabled,
                     identityServiceType: data.identity_service_type,
+                    binaryArtifactPreviewEnabled,
                 };
                 if (isMounted) {
                     RETAINED_CONFIG = mappedConfig;

@@ -51,15 +51,13 @@ export interface IndexingSSEEvent {
  * Options for the useIndexingSSE hook.
  * @property resourceId - Resource ID to find existing tasks (e.g., projectId)
  * @property metadataKey - Metadata key to search for existing tasks
- * @property onComplete - Called when indexing completes successfully
- * @property onError - Called when indexing fails
+ * @property onComplete - Called when the task finishes. Receives filenames that failed conversion and error messages from indexing/task failures (both empty = full success).
  * @property onEvent - Called for each SSE event (for custom handling)
  */
 export interface UseIndexingSSEOptions {
     resourceId: string;
     metadataKey?: string;
-    onComplete?: () => void;
-    onError?: (error: string) => void;
+    onComplete?: (failedFiles: string[], errors: string[]) => void;
     onEvent?: (event: IndexingSSEEvent) => void;
 }
 
@@ -92,7 +90,11 @@ export interface UseIndexingSSEReturn {
  * ```tsx
  * const { isIndexing, startIndexing, connectionState } = useIndexingSSE({
  *     resourceId: project.id,
- *     onComplete: () => refetchArtifacts(),
+ *     onComplete: (failedFiles, errors) => {
+ *         if (failedFiles.length > 0) console.warn("Failed files:", failedFiles);
+ *         if (errors.length > 0) console.warn("Errors:", errors);
+ *         refetchArtifacts();
+ *     },
  * });
  *
  * const handleUpload = async (files) => {
@@ -104,20 +106,20 @@ export interface UseIndexingSSEReturn {
  * ```
  */
 export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSEReturn {
-    const { resourceId, metadataKey = "resourceId", onComplete, onError, onEvent } = options;
+    const { resourceId, metadataKey = "resourceId", onComplete, onEvent } = options;
 
     const { unregisterTask, getTasksByMetadata } = useSSEContext();
     const startIndexing = useStartIndexing(metadataKey);
 
     const [latestEvent, setLatestEvent] = useState<IndexingSSEEvent | null>(null);
+    const failedFilesRef = useRef<string[]>([]);
+    const errorsRef = useRef<string[]>([]);
 
     // Store callbacks in refs to avoid stale closures
     const onCompleteRef = useRef(onComplete);
-    const onErrorRef = useRef(onError);
     const onEventRef = useRef(onEvent);
     useEffect(() => {
         onCompleteRef.current = onComplete;
-        onErrorRef.current = onError;
         onEventRef.current = onEvent;
     });
 
@@ -127,17 +129,14 @@ export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSERe
     const sseUrl = existingTask?.sseUrl ?? null;
 
     const handleTaskComplete = useCallback(
-        (success: boolean, errorMessage?: string) => {
+        (failedFiles: string[], errors: string[]) => {
             setLatestEvent(null);
             if (taskId) {
                 unregisterTask(taskId);
             }
-
-            if (success) {
-                onCompleteRef.current?.();
-            } else if (errorMessage) {
-                onErrorRef.current?.(errorMessage);
-            }
+            onCompleteRef.current?.(failedFiles, errors);
+            failedFilesRef.current = [];
+            errorsRef.current = [];
         },
         [taskId, unregisterTask]
     );
@@ -152,13 +151,19 @@ export function useIndexingSSE(options: UseIndexingSSEOptions): UseIndexingSSERe
                 setLatestEvent(data);
                 onEventRef.current?.(data);
 
-                // Handle terminal events
                 if (data.type === "task_completed") {
-                    handleTaskComplete(true);
-                } else if (data.type === "conversion_failed" || data.type === "indexing_failed") {
+                    handleTaskComplete(failedFilesRef.current, errorsRef.current);
+                } else if (data.type === "task_error") {
+                    const errorMsg = typeof data.error === "string" ? data.error : "File processing failed";
+                    handleTaskComplete(failedFilesRef.current, [...errorsRef.current, errorMsg]);
+                } else if (data.type === "conversion_failed") {
+                    // Non-terminal per-file error: accumulate filename only
+                    const filename = typeof data.file === "string" ? data.file : "Unknown";
+                    failedFilesRef.current = [...failedFilesRef.current, filename];
+                } else if (data.type === "indexing_failed") {
+                    // Non-terminal error: accumulate error messages only
                     const errorMsg = typeof data.error === "string" ? data.error : "Indexing failed";
-                    console.error("[useIndexingSSE] Task error:", errorMsg);
-                    handleTaskComplete(false, errorMsg);
+                    errorsRef.current = [...errorsRef.current, errorMsg];
                 }
             } catch (e) {
                 console.error("[useIndexingSSE] Failed to parse event:", e);

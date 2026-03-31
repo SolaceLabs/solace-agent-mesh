@@ -18,6 +18,7 @@ from ...constants import (
     DEFAULT_MAX_PROJECT_SIZE_BYTES,
     DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH,
 )
+from ..services.document_conversion_service import get_document_conversion_service
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -188,6 +189,82 @@ def _determine_mentions_enabled(
     return True
 
 
+def _determine_binary_artifact_preview_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if binary artifact preview (DOCX, PPTX, XLSX to PDF conversion) should be enabled.
+    
+    Logic:
+    1. Check if explicitly enabled in frontend_feature_enablement.binaryArtifactPreview
+    2. Check if LibreOffice is available on the system
+    
+    Returns:
+        bool: True if binary artifact preview should be enabled
+    """
+    # Check explicit feature flag - defaults to False (LibreOffice not installed by default)
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    explicitly_enabled = feature_flags.get("binaryArtifactPreview", False)
+    
+    if not explicitly_enabled:
+        log.debug("%s Binary artifact preview disabled: not enabled in config (set binaryArtifactPreview: true to enable)", log_prefix)
+        return False
+    
+    # Check if LibreOffice is available
+    try:
+        conversion_service = get_document_conversion_service()
+        if not conversion_service.is_available:
+            log.warning(
+                "%s Binary artifact preview enabled in config but LibreOffice not available. "
+                "Build with INSTALL_LIBREOFFICE=true to enable this feature.",
+                log_prefix
+            )
+            return False
+    except Exception as e:
+        log.debug("%s Binary artifact preview disabled: error checking LibreOffice: %s", log_prefix, e)
+        return False
+    
+    log.debug("%s Binary artifact preview enabled: LibreOffice available and feature enabled", log_prefix)
+    return True
+
+
+def _determine_chat_sharing_enabled(
+    component: "WebUIBackendComponent",
+    log_prefix: str
+) -> bool:
+    """
+    Determines if chat sharing feature should be enabled.
+
+    Requirements:
+    1. Identity service must be configured (for user management)
+    2. SQL persistence must be enabled (for share records)
+    3. Explicit enablement via frontend_feature_enablement.chatSharing
+
+    Returns:
+        bool: True if chat sharing should be enabled
+    """
+    # Check if identity service is configured
+    if component.identity_service is None:
+        log.debug("%s Chat sharing disabled: no identity_service configured", log_prefix)
+        return False
+
+    # Check if SQL persistence is available
+    session_config = component.get_config("session_service", {})
+    if session_config.get("type") != "sql":
+        log.debug("%s Chat sharing disabled: SQL persistence not available", log_prefix)
+        return False
+
+    # Check explicit feature enablement
+    feature_flags = component.get_config("frontend_feature_enablement", {})
+    enabled = feature_flags.get("chatSharing", False)
+    if enabled:
+        log.debug("%s Chat sharing enabled: explicitly enabled in config", log_prefix)
+    else:
+        log.debug("%s Chat sharing disabled: not explicitly enabled in config", log_prefix)
+    return enabled
+
+
 def _determine_projects_enabled(
     component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
@@ -284,9 +361,12 @@ async def get_app_config(
                 if ai_assisted_enabled:
                     # Verify LLM is configured through the model config
                     model_config = component.get_config("model", {})
+                    model_provider_config = component.get_config("model_provider", [])
                     
                     llm_model = None
-                    if isinstance(model_config, dict):
+                    if isinstance(model_provider_config, list) and len(model_provider_config) > 0:
+                        llm_model = model_provider_config[0]
+                    elif isinstance(model_config, dict):
                         llm_model = model_config.get("model")
                     
                     if llm_model:
@@ -373,7 +453,23 @@ async def get_app_config(
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Auto title generation feature flag is disabled.", log_prefix)
+
+        # Determine if binary artifact preview (DOCX, PPTX, XLSX to PDF) should be enabled
+        binary_artifact_preview_enabled = _determine_binary_artifact_preview_enabled(component, log_prefix)
+        feature_enablement["binaryArtifactPreview"] = binary_artifact_preview_enabled
+        if binary_artifact_preview_enabled:
+            log.debug("%s Binary artifact preview feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Binary artifact preview feature flag is disabled.", log_prefix)
         
+        # Determine if chat sharing should be enabled
+        chat_sharing_enabled = _determine_chat_sharing_enabled(component, log_prefix)
+        feature_enablement["chatSharing"] = chat_sharing_enabled
+        if chat_sharing_enabled:
+            log.debug("%s Chat sharing feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Chat sharing feature flag is disabled.", log_prefix)
+
         # Check tool configuration status
         tool_config_status = {}
         

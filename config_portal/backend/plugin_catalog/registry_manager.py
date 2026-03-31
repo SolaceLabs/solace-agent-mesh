@@ -2,7 +2,7 @@ import json
 import os
 import hashlib
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from pydantic import ValidationError
 
 from .models import Registry
@@ -82,7 +82,19 @@ class RegistryManager:
 
         return list(registries_map.values())
 
-    def add_registry(self, path_or_url: str, name: Optional[str] = None) -> bool:
+    def add_registry(self, path_or_url: str, name: Optional[str] = None) -> Tuple[bool, bool]:
+        """
+        Add or update a registry.
+        
+        Args:
+            path_or_url: Path or URL to the registry
+            name: Optional name for the registry
+            
+        Returns:
+            Tuple[bool, bool]: (success, is_update)
+                - success: True if registry was added/updated successfully
+                - is_update: True if existing registry was updated, False if new
+        """
         original_path_or_url = path_or_url
 
         if path_or_url.startswith(("http://", "https://", "git@")):
@@ -95,11 +107,11 @@ class RegistryManager:
                     print(
                         f"Error: Local path for registry does not exist or is not a directory: {expanded_path}"
                     )
-                    return False
+                    return False, False
                 path_or_url = str(expanded_path.resolve())
             except Exception as e_path:
                 print(f"Error processing local path '{original_path_or_url}': {e_path}")
-                return False
+                return False, False
 
         registry_id = self._generate_registry_id(path_or_url)
    
@@ -125,7 +137,7 @@ class RegistryManager:
             )
         except ValidationError as ve:
             print(f"Invalid registry data for '{path_or_url}': {ve}")
-            return False
+            return False, False
 
         current_registries_data: List[Dict[str, Any]] = []
         if self.user_registries_file.exists():
@@ -145,22 +157,34 @@ class RegistryManager:
                     f"An unexpected error occurred while reading {self.user_registries_file} before adding: {e}"
                 )
 
-        if any(
-            r_data.get("id") == new_registry.id for r_data in current_registries_data
-        ):
-            print(
-                f"Registry with path/URL '{path_or_url}' (ID: {new_registry.id}) already exists."
-            )
-            return False
+        # Check if registry already exists and update it instead of rejecting
+        existing_index = None
+        for idx, r_data in enumerate(current_registries_data):
+            if r_data.get("id") == new_registry.id:
+                existing_index = idx
+                break
 
-        current_registries_data.append(new_registry.model_dump())
+        if existing_index is not None:
+            # Update existing registry
+            current_registries_data[existing_index] = new_registry.model_dump()
+            print(
+                f"Updated existing registry '{path_or_url}' (ID: {new_registry.id})"
+            )
+            is_update = True
+        else:
+            # Add new registry
+            current_registries_data.append(new_registry.model_dump())
+            print(
+                f"Added new registry '{path_or_url}' (ID: {new_registry.id})"
+            )
+            is_update = False
 
         try:
             with open(self.user_registries_file, "w", encoding="utf-8") as f:
                 json.dump(current_registries_data, f, indent=2)
-            return True
+            return True, is_update
         except Exception as e:
             print(
                 f"Error writing to user registries file {self.user_registries_file}: {e}"
             )
-            return False
+            return False, False

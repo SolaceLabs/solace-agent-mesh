@@ -24,10 +24,10 @@ const loaderVariants = cva("animate-spin", {
             large: "size-12",
         },
         variant: {
-            primary: "text-[var(--color-brand-wMain)]", // #00C895 (brand main color)
-            secondary: "text-[var(--color-primary-wMain)]", // #015B82 (primary main)
-            muted: "text-[var(--color-secondary-text-wMain)] dark:text-[var(--color-secondary-text-w50)]", // Muted text colors
-            foreground: "text-foreground", // Standard foreground color
+            primary: "text-(--brand-wMain)", // #00C895 (brand main color)
+            secondary: "text-(--primary-wMain)", // #015B82 (primary main)
+            muted: "text-(--secondary-text-wMain)", // Muted text colors
+            foreground: "text-(--primary-text-wMain)", // Standard foreground color
         },
     },
     defaultVariants: {

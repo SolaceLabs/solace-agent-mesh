@@ -12,7 +12,7 @@ export const LoadingMessageRow = React.memo<LoadingMessageRowProps>(({ statusTex
             {onViewWorkflow ? <ViewWorkflowButton onClick={onViewWorkflow} /> : <MessageLoading className="mr-3 ml-2" />}
             <div className="flex min-w-0 flex-1 items-center gap-1">
                 {statusText && (
-                    <span className="text-muted-foreground animate-pulse truncate text-sm" title={statusText}>
+                    <span className="animate-pulse truncate text-sm text-(--secondary-text-wMain)" title={statusText}>
                         {statusText}
                     </span>
                 )}

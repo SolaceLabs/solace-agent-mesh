@@ -2,11 +2,18 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch } from "lucide-react";
+import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
+import { useSharedWithMe } from "@/lib/api/share";
+import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+import type { SharedWithMeItem } from "@/lib/types/share";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
+
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 interface SessionNameProps {
     session: Session;
@@ -60,28 +67,8 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={`truncate font-semibold transition-opacity duration-300 ${animationClass}`}>{animatedName}</span>;
+    return <span className={cn("truncate font-semibold transition-opacity duration-300", animationClass)}>{animatedName}</span>;
 };
-import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/lib/components/ui";
-
 export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
@@ -103,6 +90,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -139,6 +127,12 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
+
+    // Shared-with-me (React Query)
+    const sharedWithMeQuery = useSharedWithMe();
+    const sharedWithMe = sharedWithMeQuery.data ?? [];
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -243,15 +237,28 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
 
+    const handleViewSharedChat = useCallback(
+        (item: SharedWithMeItem) => {
+            // For editors with session_id, switch to the session directly
+            if (item.accessLevel === "RESOURCE_EDITOR" && item.sessionId) {
+                handleSwitchSession(item.sessionId);
+            } else {
+                // Open shared chat view in the same window but preserve session panel state via router state
+                navigate(`/shared-chat/${item.shareId}`, { state: { openSessionsPanel: true } });
+            }
+        },
+        [navigate, handleSwitchSession]
+    );
+
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
             inputRef.current.focus();
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (sessionId: string) => {
-        if (editingSessionId !== sessionId) {
-            await handleSwitchSession(sessionId);
+    const handleSessionClick = async (clickedSessionId: string) => {
+        if (editingSessionId !== clickedSessionId) {
+            await handleSwitchSession(clickedSessionId);
         }
     };
 
@@ -280,6 +287,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleMoveClick = (session: Session) => {
         setSessionToMove(session);
         setIsMoveDialogOpen(true);
+    };
+
+    const handleShareClick = (session: Session) => {
+        setSessionToShare(session);
+        setIsShareDialogOpen(true);
     };
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
@@ -371,7 +383,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             // Dispatch event to notify other components (like ProjectChatsSection) to refresh
             if (typeof window !== "undefined") {
                 window.dispatchEvent(
-                    new CustomEvent("session-moved", {
+                    new CustomEvent("session-updated", {
                         detail: {
                             sessionId: sessionToMove.id,
                             projectId: targetProjectId,
@@ -462,11 +474,45 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto">
+                {/* Shared with me section */}
+                {chatSharingEnabled && sharedWithMe.length > 0 && (
+                    <div className="border-b pr-4 pb-4">
+                        <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
+                            <UserSearch size={14} />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="cursor-default">Shared with me</span>
+                                </TooltipTrigger>
+                                <TooltipContent>Experimental Feature</TooltipContent>
+                            </Tooltip>
+                        </div>
+                        <ul>
+                            {sharedWithMe.map(item => {
+                                const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
+                                return (
+                                    <li key={item.shareId} className="group my-2">
+                                        <button onClick={() => handleViewSharedChat(item)} className="hover:bg-muted/50 flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-left">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate font-semibold">{item.title}</span>
+                                                    {isEditor && <span className="bg-primary/10 text-primary flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">Editor</span>}
+                                                </div>
+                                                <span className="text-muted-foreground truncate text-xs">
+                                                    from {item.ownerEmail} • {formatTimestamp(new Date(item.sharedAt).toISOString())}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
                 {filteredSessions.length > 0 && (
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
+                                <div className={sessionRowStyles({ active: session.id === sessionId })}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -513,67 +559,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                 </Button>
                                             </>
                                         ) : (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-                                                        <MoreHorizontal size={16} />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48">
-                                                    {session.projectId && (
-                                                        <>
-                                                            <DropdownMenuItem
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    handleGoToProject(session);
-                                                                }}
-                                                            >
-                                                                <PanelsTopLeft size={16} className="mr-2" />
-                                                                Go to Project
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                        </>
-                                                    )}
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleEditClick(session);
-                                                        }}
-                                                    >
-                                                        <Pencil size={16} className="mr-2" />
-                                                        Rename
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleRenameWithAI(session);
-                                                        }}
-                                                        disabled={regeneratingTitleForSession === session.id}
-                                                    >
-                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
-                                                        Rename with AI
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleMoveClick(session);
-                                                        }}
-                                                    >
-                                                        <FolderInput size={16} className="mr-2" />
-                                                        Move to Project
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleDeleteClick(session);
-                                                        }}
-                                                    >
-                                                        <Trash2 size={16} className="mr-2" />
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <SessionActionMenu
+                                                session={session}
+                                                onRename={handleEditClick}
+                                                onRenameWithAI={handleRenameWithAI}
+                                                onMove={handleMoveClick}
+                                                onDelete={handleDeleteClick}
+                                                onGoToProject={handleGoToProject}
+                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
+                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                            />
                                         )}
                                     </div>
                                 </div>
@@ -611,6 +606,22 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 projects={projects}
                 currentProjectId={sessionToMove?.projectId}
             />
+
+            {sessionToShare && (
+                <ShareDialog
+                    sessionId={sessionToShare.id}
+                    sessionTitle={sessionToShare.name || "Untitled Chat"}
+                    open={isShareDialogOpen}
+                    onOpenChange={open => {
+                        setIsShareDialogOpen(open);
+                        if (!open) {
+                            setSessionToShare(null);
+                        }
+                    }}
+                    onError={error => displayError({ title: error.title, error: error.message })}
+                    onSuccess={message => addNotification(message, "success")}
+                />
+            )}
         </div>
     );
 };

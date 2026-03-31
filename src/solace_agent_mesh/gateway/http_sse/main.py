@@ -29,9 +29,12 @@ from .routers import (
     artifacts,
     auth,
     config,
+    document_conversion,
+    feature_flags,
     feedback,
     people,
     sse,
+    share,
     speech,
     version,
     visualization,
@@ -166,6 +169,12 @@ def _run_community_migrations(database_url: str) -> None:
     Run Alembic migrations for the community database schema.
     This includes sessions, chat_messages tables and their indexes.
     """
+    from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
+
+    # Verify SQLite version before running migrations
+    # This will raise RuntimeError if version is incompatible
+    check_sqlite_version(database_url, "WebUI Gateway")
+
     try:
         from sqlalchemy import create_engine
 
@@ -265,14 +274,18 @@ def setup_dependencies(component: "WebUIBackendComponent"):
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:
     allowed_origins = component.get_cors_origins()
+    cors_origin_regex = component.get_cors_origin_regex()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
+        allow_origin_regex=cors_origin_regex if cors_origin_regex else None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     log.info("CORSMiddleware added with origins: %s", allowed_origins)
+    if cors_origin_regex:
+        log.info("CORS origin regex pattern: %s", cors_origin_regex)
 
     session_manager = component.get_session_manager()
     app.add_middleware(SessionMiddleware, secret_key=session_manager.secret_key)
@@ -296,6 +309,7 @@ def _setup_routers() -> None:
     app.include_router(user_router, prefix=f"{api_prefix}/users", tags=["Users"])
     app.include_router(config.router, prefix=api_prefix, tags=["Config"])
     app.include_router(version.router, prefix=api_prefix, tags=["Version"])
+    app.include_router(feature_flags.router, prefix=api_prefix, tags=["Config"])
     app.include_router(agent_cards.router, prefix=api_prefix, tags=["Agent Cards"])
     app.include_router(task_router, prefix=api_prefix, tags=["Tasks"])
     app.include_router(sse.router, prefix=f"{api_prefix}/sse", tags=["SSE"])
@@ -313,6 +327,12 @@ def _setup_routers() -> None:
     app.include_router(feedback.router, prefix=api_prefix, tags=["Feedback"])
     app.include_router(prompts.router, prefix=f"{api_prefix}/prompts", tags=["Prompts"])
     app.include_router(speech.router, prefix=f"{api_prefix}/speech", tags=["Speech"])
+    app.include_router(
+        document_conversion.router,
+        prefix=f"{api_prefix}/document-conversion",
+        tags=["Document Conversion"],
+    )
+    app.include_router(share.router, prefix=api_prefix, tags=["Share"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers

@@ -41,7 +41,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                 {items.map(item => (
                     <li key={item.id}>
                         <NavigationButton item={item} isActive={activeItem === item.id} onItemClick={onItemClick} />
-                        {item.showDividerAfter && <div className="mx-4 my-3 border-t border-[var(--color-secondary-w70)]" />}
+                        {item.showDividerAfter && <div className="mx-4 my-3 border-t border-(--darkSurface-border)" />}
                     </li>
                 ))}
             </ul>
@@ -67,7 +67,7 @@ export const NavigationList: React.FC<NavigationListProps> = ({ items, bottomIte
                                     <PopoverTrigger asChild>
                                         <button
                                             type="button"
-                                            className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-[var(--color-primary-w100)] px-3 py-5 text-xs text-[var(--color-primary-text-w10)] transition-colors hover:bg-[var(--color-primary-w90)] hover:text-[var(--color-primary-text-w10)]"
+                                            className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--darkSurface-bg) px-3 py-5 text-xs text-(--darkSurface-text) transition-colors hover:bg-(--darkSurface-bgHover) hover:text-(--darkSurface-text)"
                                             aria-label="Open Menu"
                                         >
                                             <User className="h-6 w-6" />

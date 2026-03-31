@@ -414,6 +414,58 @@ def test_upload_artifact_file_size_validation(
     print("✓ File size validation integration test passed")
 
 
+def test_artifact_upload_basic_functionality(
+    api_client: TestClient, gateway_adapter: GatewayAdapter
+):
+    """
+    Test basic artifact upload functionality via /artifacts/upload.
+
+    Note: Comprehensive tagging verification (including __user_uploaded tag)
+    is tested in test_artifact_services.py::TestArtifactTagging which uses
+    the full in-memory artifact service. This test verifies the HTTP API
+    upload endpoint works correctly.
+    """
+
+    # Create a session for testing
+    session = gateway_adapter.create_session(
+        user_id="sam_dev_user", agent_name="TestAgent"
+    )
+    session_id = session.id
+
+    # Upload an artifact
+    content = b"Content for basic upload test"
+    files = {
+        "upload_file": (
+            "basic_upload.txt",
+            io.BytesIO(content),
+            "text/plain",
+        )
+    }
+    data = {
+        "sessionId": session_id,
+        "filename": "basic_upload.txt",
+    }
+
+    upload_response = api_client.post(
+        "/api/v1/artifacts/upload",
+        files=files,
+        data=data,
+    )
+
+    assert upload_response.status_code == 201
+    upload_result = upload_response.json()
+
+    # Verify response structure
+    assert upload_result["filename"] == "basic_upload.txt"
+    assert upload_result["size"] == len(content)
+    assert upload_result["mimeType"] == "text/plain"
+    assert upload_result["sessionId"] == session_id
+    assert "uri" in upload_result
+    assert upload_result["uri"].startswith("artifact://")
+
+    print("✓ Artifact upload basic functionality works correctly")
+
+
 def test_send_task_to_existing_session(api_client: TestClient):
     """Test sending task to existing session"""
 

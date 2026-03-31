@@ -73,11 +73,25 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Remove indexes in reverse order
+    """Remove indexes (MySQL: some may be FK-protected, handle gracefully)."""
+    # Remove sessions indexes
     op.drop_index("ix_sessions_agent_id", table_name="sessions")
-    op.drop_index("ix_chat_messages_session_id_created_at", table_name="chat_messages")
-    op.drop_index("ix_chat_messages_created_at", table_name="chat_messages")
-    op.drop_index("ix_chat_messages_session_id", table_name="chat_messages")
     op.drop_index("ix_sessions_user_id_updated_at", table_name="sessions")
     op.drop_index("ix_sessions_updated_at", table_name="sessions")
     op.drop_index("ix_sessions_user_id", table_name="sessions")
+
+    # Remove chat_messages indexes (MySQL may protect FK-related indexes)
+    try:
+        op.drop_index("ix_chat_messages_session_id_created_at", table_name="chat_messages")
+    except:
+        pass  # MySQL: index might be FK-protected, will be removed with table drop
+
+    try:
+        op.drop_index("ix_chat_messages_created_at", table_name="chat_messages")
+    except:
+        pass  # MySQL: index might be FK-protected, will be removed with table drop
+
+    try:
+        op.drop_index("ix_chat_messages_session_id", table_name="chat_messages")
+    except:
+        pass  # MySQL: index might be FK-protected, will be removed with table drop

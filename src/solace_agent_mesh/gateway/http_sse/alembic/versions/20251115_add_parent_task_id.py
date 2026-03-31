@@ -18,8 +18,28 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add parent_task_id column to tasks table for efficient task hierarchy queries."""
+    bind = op.get_bind()
+
+    if bind.dialect.name == 'mysql':
+        _upgrade_mysql()
+    else:
+        _upgrade_standard()
+
+
+def _upgrade_standard() -> None:
+    """Standard upgrade for PostgreSQL and SQLite (original working code)."""
     op.add_column(
         "tasks", sa.Column("parent_task_id", sa.String(), nullable=True)
+    )
+    op.create_index(
+        "ix_tasks_parent_task_id", "tasks", ["parent_task_id"], unique=False
+    )
+
+
+def _upgrade_mysql() -> None:
+    """MySQL upgrade with required VARCHAR lengths."""
+    op.add_column(
+        "tasks", sa.Column("parent_task_id", sa.String(64), nullable=True)  # task ID (e.g. gdk-task-<hex>)
     )
     op.create_index(
         "ix_tasks_parent_task_id", "tasks", ["parent_task_id"], unique=False

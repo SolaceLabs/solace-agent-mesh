@@ -19,9 +19,9 @@ export { getCleanDomain, getFaviconUrl } from "@/lib/utils";
  */
 export function FaviconImage({ domain, className = "" }: { domain: string; className?: string }) {
     return (
-        <div className={cn("relative h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-white", className)}>
+        <div className={cn("relative h-4 w-4 flex-shrink-0 overflow-hidden rounded-full bg-(--background-w10)", className)}>
             <img src={getFaviconUrl(domain)} alt={domain} className="relative h-full w-full" />
-            <div className="absolute inset-0 rounded-full border border-gray-200/10 dark:border-transparent" />
+            <div className="absolute inset-0 rounded-full border border-(--secondary-w20)" />
         </div>
     );
 }
@@ -49,28 +49,9 @@ interface SourceHovercardProps {
 function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, isFile = false, isLocalFile = false, children }: SourceHovercardProps) {
     const domain = getCleanDomain(source.link || "");
     const [isOpen, setIsOpen] = useState(false);
-    const [isDark, setIsDark] = useState(false);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showTimeout = 150;
     const hideTimeout = 150;
-
-    // Detect dark mode
-    useEffect(() => {
-        const checkDarkMode = () => {
-            setIsDark(document.documentElement.classList.contains("dark"));
-        };
-
-        checkDarkMode();
-
-        // Watch for theme changes
-        const observer = new MutationObserver(checkDarkMode);
-        observer.observe(document.documentElement, {
-            attributes: true,
-            attributeFilter: ["class"],
-        });
-
-        return () => observer.disconnect();
-    }, []);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -126,7 +107,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 onClick={onClick}
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-blue-600 no-underline transition-colors dark:text-blue-400"
+                                className="ml-1 inline-block h-5 max-w-36 cursor-pointer items-center overflow-hidden rounded-xl border px-2 text-xs font-medium text-ellipsis whitespace-nowrap text-(--info-wMain) no-underline transition-colors"
                                 title={isLocalFile ? "Download unavailable for local files" : undefined}
                             >
                                 {label}
@@ -138,7 +119,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 rel="noopener noreferrer"
                                 onMouseEnter={handleMouseEnter}
                                 onMouseLeave={handleMouseLeave}
-                                className="border-border-heavy bg-surface-secondary hover:bg-surface-hover dark:border-border-medium dark:hover:bg-surface-tertiary ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
+                                className="ml-1 inline-flex h-5 max-w-36 cursor-pointer items-center gap-1 overflow-hidden rounded-xl border px-2 text-xs font-medium no-underline transition-colors"
                             >
                                 <span className="truncate">{label}</span>
                                 <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-60" />
@@ -149,7 +130,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                         onClick={() => setIsOpen(!isOpen)}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
-                        className="text-text-primary focus:ring-ring ml-0.5 rounded-full focus:ring-2 focus:outline-none"
+                        className="ml-0.5 rounded-full focus:ring-2 focus:ring-(--brand-wMain) focus:outline-none"
                         aria-label={`More details about ${label}`}
                     >
                         <VisuallyHidden>More details about {label}</VisuallyHidden>
@@ -162,9 +143,9 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                         onMouseLeave={handleContentMouseLeave}
                         className="z-[999] w-[300px] max-w-[calc(100vw-2rem)] rounded-xl border p-3 shadow-lg"
                         style={{
-                            backgroundColor: isDark ? "#1f2937" : "#ffffff",
-                            borderColor: isDark ? "#4b5563" : "#d1d5db",
-                            color: isDark ? "#f3f4f6" : "#111827",
+                            backgroundColor: "var(--background-w10)",
+                            borderColor: "var(--secondary-w40)",
+                            color: "var(--primary-text-wMain)",
                         }}
                     >
                         {children}
@@ -173,7 +154,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 <span className="mb-2 flex items-center">
                                     {isFile ? (
                                         <div className="mr-2 flex h-4 w-4 items-center justify-center">
-                                            <svg className="text-text-secondary h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="h-3 w-3 text-(--secondary-text-wMain)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                             </svg>
                                         </div>
@@ -181,7 +162,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                         <FaviconImage domain={domain} className="mr-2" />
                                     )}
                                     {isFile ? (
-                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400">
+                                        <button onClick={onClick} className="line-clamp-2 cursor-pointer overflow-hidden text-left text-sm font-bold text-(--info-wMain) hover:underline md:line-clamp-3">
                                             {source.attribution || source.title || "File Source"}
                                         </button>
                                     ) : (
@@ -189,7 +170,7 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                             href={source.link}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-[#0066cc] hover:underline md:line-clamp-3 dark:text-blue-400"
+                                            className="line-clamp-2 inline-flex cursor-pointer items-center gap-1 overflow-hidden text-sm font-bold text-(--info-wMain) hover:underline md:line-clamp-3"
                                         >
                                             <span className="truncate">{source.attribution || domain}</span>
                                             <ExternalLink className="h-3 w-3 flex-shrink-0" />
@@ -198,11 +179,11 @@ function SourceHovercard({ source, label, onMouseEnter, onMouseLeave, onClick, i
                                 </span>
 
                                 {isFile ? (
-                                    <>{source.snippet && <span className="text-text-secondary my-2 text-xs break-all text-ellipsis md:text-sm">{source.snippet}</span>}</>
+                                    <>{source.snippet && <span className="my-2 text-xs break-all text-ellipsis text-(--secondary-text-wMain) md:text-sm">{source.snippet}</span>}</>
                                 ) : (
                                     <>
-                                        <h4 className="text-text-primary mt-0 mb-1.5 text-xs md:text-sm">{source.title || source.link}</h4>
-                                        {source.snippet && <span className="text-text-secondary my-2 text-xs break-all text-ellipsis md:text-sm">{source.snippet}</span>}
+                                        <h4 className="mt-0 mb-1.5 text-xs md:text-sm">{source.title || source.link}</h4>
+                                        {source.snippet && <span className="my-2 text-xs break-all text-ellipsis text-(--secondary-text-wMain) md:text-sm">{source.snippet}</span>}
                                     </>
                                 )}
                             </>

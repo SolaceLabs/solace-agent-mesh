@@ -3,6 +3,8 @@ import { Repeat2 } from "lucide-react";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
+import { NODE_COLORS } from "@/lib/constants";
+import { clickableNodeProps } from "@/lib/components/utils";
 import AgentNode from "./AgentNode";
 
 interface MapNodeProps {
@@ -60,15 +62,9 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
         return (
             <div className="flex flex-col px-4" style={{ width: "fit-content", minWidth: "200px" }}>
                 {/* Solid Header Box - positioned at top */}
-                <div
-                    className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                >
+                <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}>
                     <div className="flex items-center gap-2 px-4 py-2">
-                        <Repeat2 className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                        <Repeat2 className="h-4 w-4 text-(--accent-n0-wMain)" />
                         <span className="text-sm font-semibold">{node.data.label || label}</span>
                     </div>
                 </div>
@@ -98,17 +94,10 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, onClick, onChildClick, on
 
     // No children - render as compact node
     return (
-        <div
-            className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
-            style={{ width: "fit-content", minWidth: "120px" }}
-            onClick={e => {
-                e.stopPropagation();
-                onClick?.(node);
-            }}
-        >
+        <div {...clickableNodeProps(() => onClick?.(node))} className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ width: "fit-content", minWidth: "120px" }}>
             <div className="flex items-center gap-2">
-                <Repeat2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{node.data.label || label}</span>
+                <Repeat2 className={`h-4 w-4 ${NODE_COLORS.map}`} />
+                <span className={`text-sm font-semibold ${NODE_COLORS.mapLabel}`}>{node.data.label || label}</span>
             </div>
         </div>
     );

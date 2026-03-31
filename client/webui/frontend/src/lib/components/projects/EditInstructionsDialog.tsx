@@ -76,9 +76,9 @@ export const EditInstructionsDialog: React.FC<EditInstructionsDialogProps> = ({ 
                             rows={15}
                             disabled={isSaving}
                             maxLength={MAX_INSTRUCTIONS_LENGTH + 1}
-                            className={`resize-none text-sm ${isOverLimit ? "border-destructive" : ""}`}
+                            className={`resize-none text-sm ${isOverLimit ? "border-(--error-wMain)" : ""}`}
                         />
-                        <div className={`text-xs ${isOverLimit ? "text-destructive" : "text-muted-foreground text-right"}`}>
+                        <div className={`text-xs ${isOverLimit ? "text-(--error-wMain)" : "text-right text-(--secondary-text-wMain)"}`}>
                             {isOverLimit && `Instructions must be less than ${MAX_INSTRUCTIONS_LENGTH} characters`}
                             {!isOverLimit && `${characterCount} / ${MAX_INSTRUCTIONS_LENGTH}`}
                         </div>

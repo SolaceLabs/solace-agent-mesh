@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type React from "react";
 import type { LucideIcon } from "lucide-react";
 
 import type { AgentCard, AgentSkill, Part } from "./be";
@@ -80,6 +81,8 @@ export interface ArtifactInfo {
     isDisplayed?: boolean; // Optional: Tracks if artifact is currently visible to user
     needsEmbedResolution?: boolean; // Optional: Tracks if artifact needs download for embed resolution
     source?: string; // Optional: Source of the artifact (e.g., "project")
+    tags?: string[]; // Optional: Tags for categorization (e.g., ["__working"])
+    sourceProjectId?: string; // Optional: ID of the project this artifact came from
 }
 
 /**
@@ -93,6 +96,7 @@ export interface FileAttachment {
     last_modified?: string; // ISO 8601 timestamp
     size?: number;
     uri?: string;
+    url?: string; // URL for direct file access (e.g., for PDF preview)
 }
 
 /**
@@ -121,6 +125,7 @@ export type PartFE = Part | ArtifactPart;
  */
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
+    createdTime?: number; // Epoch ms timestamp from the task that generated this message (for timeline ordering)
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
     isUser: boolean; // True if the message is from the user, false if from the agent/system
@@ -141,6 +146,8 @@ export interface MessageFE {
         authenticationAttempted?: boolean; // Track if auth button was clicked
         rejected?: boolean; // Track if reject button was clicked
     };
+    senderDisplayName?: string; // Display name of the sender (for collaborative sessions)
+    senderEmail?: string; // Email of the sender (for collaborative sessions)
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
@@ -213,14 +220,114 @@ export interface NavigationContextValue {
     setItems: (items: NavigationItem[]) => void;
 }
 
+/**
+ * Configuration for a single navigation item in CollapsibleNavigationSidebar.
+ *
+ * This interface is used by external repos (e.g., solace-chat) to define
+ * custom navigation structures. All properties support the presentational
+ * component pattern where business logic is injected via callbacks.
+ *
+ * @example
+ * ```tsx
+ * const myNavItem: NavItemConfig = {
+ *   id: "settings",
+ *   label: "Settings",
+ *   icon: SettingsIcon,
+ *   onClick: () => openSettingsDialog(),
+ *   badge: <LifecycleBadge>BETA</LifecycleBadge>,
+ * };
+ * ```
+ */
+export interface NavItemConfig {
+    /** Unique identifier for this item, used for active state tracking and event handling */
+    id: string;
+
+    /** Display text shown next to the icon in expanded mode */
+    label: string;
+
+    /** Lucide icon component or any React component that accepts className prop */
+    icon: React.ElementType;
+
+    /**
+     * Route path to navigate to when clicked (e.g., "/agents").
+     * Ignored if `onClick` is provided.
+     */
+    route?: string;
+
+    /**
+     * Pattern(s) to determine active state based on current URL.
+     * Supports string prefix matching, array of prefixes, or RegExp.
+     * @example "/projects" matches "/projects" and "/projects/123"
+     * @example ["/chat", "/conversations"] matches either prefix
+     * @example /^\/users\/\d+$/ matches "/users/123" but not "/users"
+     */
+    routeMatch?: string | string[] | RegExp;
+
+    /**
+     * Custom click handler that overrides default routing behavior.
+     * Use for items that open dialogs, trigger actions, or need custom logic.
+     */
+    onClick?: () => void;
+
+    /**
+     * Optional badge component rendered after the label.
+     * Accepts any React node for full flexibility (e.g., LifecycleBadge, custom pill).
+     * @example badge: <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+     */
+    badge?: React.ReactNode;
+
+    /** Tooltip text shown on hover (both collapsed and expanded modes) */
+    tooltip?: string;
+
+    /** When true, item is rendered but non-interactive */
+    disabled?: boolean;
+
+    /** When true, item is completely hidden from the navigation */
+    hidden?: boolean;
+
+    /**
+     * Child items that create an expandable submenu.
+     * Parent item becomes a toggle button; clicking expands/collapses children.
+     */
+    children?: NavItemConfig[];
+
+    /** When true, submenu starts in expanded state on initial render */
+    defaultExpanded?: boolean;
+
+    /**
+     * Determines whether item renders in the main nav area or bottom section.
+     * Bottom items typically include user account, settings, and logout.
+     * @default "top"
+     */
+    position?: "top" | "bottom";
+}
+
+/** Header configuration for CollapsibleNavigationSidebar */
+export interface HeaderConfig {
+    /** Custom component to render instead of SolaceIcon (full override) */
+    component?: React.ReactNode;
+    /** Hide collapse/expand button */
+    hideCollapseButton?: boolean;
+}
+
+/** New Chat button configuration for CollapsibleNavigationSidebar */
+export interface NewChatConfig {
+    label?: string;
+    icon?: React.ElementType;
+    onClick?: () => void;
+}
+
 export interface Session {
     id: string;
+    userId?: string;
     createdTime: string;
     updatedTime: string;
     name: string | null;
     projectId?: string | null;
     projectName?: string | null;
     hasRunningBackgroundTask?: boolean;
+    ownerDisplayName?: string | null;
+    ownerEmail?: string | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

@@ -302,6 +302,7 @@ class TestPerformSearch:
 
         # Mock BM25 retriever
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 3}
         mock_retriever.retrieve = MagicMock(
             return_value=(
                 np.array([[0, 1, 2]]),  # corpus indices (numpy array)
@@ -376,6 +377,7 @@ class TestPerformSearch:
         import numpy as np
 
         mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 3}
         mock_retriever.retrieve = MagicMock(
             return_value=(
                 np.array([[0, 1, 2]]),
@@ -413,6 +415,73 @@ class TestPerformSearch:
             assert len(results) == 2
             assert results[0]["citation_id"] == "idx0r0"
             assert results[1]["citation_id"] == "idx0r1"
+
+
+    @pytest.mark.asyncio
+    async def test_search_clamps_top_k_to_corpus_size(self):
+        """Test that top_k is clamped when corpus has fewer chunks than requested."""
+        import numpy as np
+
+        mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 2}
+        mock_retriever.retrieve = MagicMock(
+            return_value=(
+                np.array([[0, 1]]),
+                np.array([[10.0, 5.0]])
+            )
+        )
+
+        manifest = {
+            "chunks": [
+                {"chunk_text": "First", "filename": "doc.txt", "source_file": "doc.txt",
+                 "chunk_id": 0, "doc_id": 0, "chunk_start": 0, "chunk_end": 100,
+                 "citation_type": "page", "citation_map": [], "version": 1},
+                {"chunk_text": "Second", "filename": "doc.txt", "source_file": "doc.txt",
+                 "chunk_id": 1, "doc_id": 0, "chunk_start": 100, "chunk_end": 200,
+                 "citation_type": "page", "citation_map": [], "version": 1},
+            ]
+        }
+
+        with patch('solace_agent_mesh.agent.tools.index_search_tools.bm25s') as mock_bm25s:
+            mock_bm25s.tokenize = MagicMock(return_value=["query"])
+
+            results = await _perform_search(
+                mock_retriever,
+                manifest,
+                "test query",
+                top_k=5,  # Requesting 5 but only 2 in corpus
+                min_score=0.0,
+                search_turn=0
+            )
+
+            # Should clamp to k=2 and return both results without error
+            mock_retriever.retrieve.assert_called_once()
+            call_args = mock_retriever.retrieve.call_args
+            assert call_args[1]["k"] == 2 or call_args[0][1] == 2
+            assert len(results) == 2
+
+    @pytest.mark.asyncio
+    async def test_search_returns_empty_for_zero_corpus(self):
+        """Test that an empty corpus returns no results."""
+        mock_retriever = MagicMock()
+        mock_retriever.scores = {"num_docs": 0}
+
+        manifest = {"chunks": []}
+
+        with patch('solace_agent_mesh.agent.tools.index_search_tools.bm25s') as mock_bm25s:
+            mock_bm25s.tokenize = MagicMock(return_value=["query"])
+
+            results = await _perform_search(
+                mock_retriever,
+                manifest,
+                "test query",
+                top_k=5,
+                min_score=0.0,
+                search_turn=0
+            )
+
+            assert results == []
+            mock_retriever.retrieve.assert_not_called()
 
 
 class TestFormatResultsForLLM:

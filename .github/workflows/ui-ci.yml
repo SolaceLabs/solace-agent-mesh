@@ -129,12 +129,19 @@ jobs:
       - name: Run lint
         run: npm run lint
 
-      - name: Run Storybook Tests
-        run: npm run ci:storybook
+      - name: Run Storybook Tests with Coverage
+        run: npm run ci:storybook:coverage
         env:
           # Workaround for Node.js 25 Web Storage API breaking jsdom tests
           # See: https://github.com/vitest-dev/vitest/issues/8757
           NODE_OPTIONS: "--no-webstorage"
+
+      - name: Upload UI Coverage Artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-coverage-standalone
+          path: client/webui/frontend/coverage/
+          retention-days: 1
 
       - name: Build UI package
         run: npm run build-package

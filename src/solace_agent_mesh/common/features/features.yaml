@@ -1,0 +1,70 @@
+# SAM community feature flags
+#
+# SCHEMA
+# ------
+# Each entry under `features` must include the following fields:
+#
+#   key             (string, required)
+#                   Unique identifier used in code. Must be stable across
+#                   releases — renaming a key is a breaking change. Convention
+#                   is snake_case; hyphens are normalised to underscores when
+#                   forming SAM_FEATURE_<KEY> environment variable names.
+#                   Example: background_tasks
+#
+#   name            (string, required)
+#                   Human-readable label, may be shown in the admin UI.
+#                   Example: Background Tasks
+#
+#   release_phase   (string, required)
+#                   Lifecycle stage of the feature. Aligned with Solace Cloud release stages
+#                   (https://docs.solace.com/Cloud/stages_concept.htm). One of:
+#                     experimental          - Limited availability; proof-of-concept only.
+#                     early_access          - Closed group of testers; may change incompatibly.
+#                     beta                  - Broadly available; complete but may have open issues.
+#                     controlled_availability - Fully functional; available on request.
+#                     general_availability  - Open to all; production-ready with full SLA coverage.
+#                     deprecated            - Scheduled for removal.
+#
+#   default         (boolean, required)
+#                   Baseline on/off state. In effect when no SAM_FEATURE_<KEY>
+#                   environment variable is set.
+#
+#   jira            (string, required)
+#                   Jira epic key that owns this feature (e.g. DATAGO-118673).
+#                   Required so that every flag can be traced back to its product work.
+#
+#   description     (string, optional)
+#                   Brief explanation of the feature, may be shown in the admin UI.
+#
+# EVALUATION PRIORITY (highest wins)
+# -----------------------------------
+#   1. SAM_FEATURE_<UPPER_KEY> environment variable  (e.g. SAM_FEATURE_BACKGROUND_TASKS=true)
+#   2. default
+#
+# ENTERPRISE EXTENSIONS
+# ----------------------
+# Enterprise flags are defined in the enterprise repository's features.yaml and merged
+# into this registry at startup. Later definitions win on key conflicts, so enterprise
+# can also override community defaults (e.g. enable a community flag by default in
+# enterprise deployments).
+
+features:
+
+  # Example flag — additional flags are registered in DATAGO-126647 (flag migration story).
+  - key: background_tasks
+    name: Background Tasks
+    release_phase: general_availability
+    default: false
+    jira: DATAGO-126647
+    description: >
+      Run long-running agent tasks in the background and receive results
+      when they complete.
+
+  - key: model_config_ui
+    name: Model Configuration UI
+    release_phase: general_availability
+    default: false
+    jira: DATAGO-109787
+    description: >
+      Enable the Models tab in the Agent Mesh interface to view and manage
+      LLM model configurations. When disabled, the Models tab is hidden.

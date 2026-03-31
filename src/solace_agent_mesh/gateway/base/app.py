@@ -379,7 +379,10 @@ class BaseGatewayApp(SamAppBase):
         component_definition = {
             "name": f"{self.gateway_id}_component",
             "component_class": gateway_component_class,
-            "component_config": {"app_config": resolved_app_config_block},
+            "component_config": {
+                "component_name": f"{self.gateway_id}_component",
+                "app_config": resolved_app_config_block,
+            },
             "subscriptions": subscriptions,
         }
         modified_app_info["components"] = [component_definition]

@@ -317,10 +317,14 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 loadedTasks[tid] = taskFE;
             }
 
-            setMonitoredTasks(prevTasks => ({
-                ...prevTasks,
-                ...loadedTasks,
-            }));
+            setMonitoredTasks(prevTasks => {
+                const updated = { ...prevTasks };
+                for (const [tid, loadedTask] of Object.entries(loadedTasks)) {
+                    const existing = prevTasks[tid];
+                    updated[tid] = existing ? { ...existing, ...loadedTask, initialRequestText: loadedTask.initialRequestText || existing.initialRequestText } : loadedTask;
+                }
+                return updated;
+            });
 
             setMonitoredTaskOrder(prevOrder => {
                 if (prevOrder.includes(taskId)) {

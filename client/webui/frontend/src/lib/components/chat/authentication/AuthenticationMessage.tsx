@@ -48,7 +48,7 @@ export const AuthenticationMessage: React.FC<{ message: MessageFE }> = ({ messag
                             {message.authenticationLink.text}
                         </Button>
                     </div>
-                    <div className="text-muted-foreground text-center text-xs">{authenticationAttempted && <div className="mt-4">Authentication window has been opened. Complete the process in the new window.</div>}</div>
+                    <div className="text-center text-xs text-(--secondary-text-wMain)">{authenticationAttempted && <div className="mt-4">Authentication window has been opened. Complete the process in the new window.</div>}</div>
                 </div>
 
                 {rejected && <MessageBanner message="Authentication request was rejected" />}

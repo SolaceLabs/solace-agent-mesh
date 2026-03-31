@@ -4,7 +4,8 @@ import { Search, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { ProjectBadge } from "@/lib/components/chat";
 import { Button, Input } from "@/lib/components/ui";
-import { useDebounce } from "@/lib/hooks";
+import { useDebounce, useListKeyboardNavigation } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/types";
 
 interface SessionSearchProps {
@@ -28,6 +29,28 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     const [isSearching, setIsSearching] = useState(false);
     const [showResults, setShowResults] = useState(false);
     const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+    const handleClear = useCallback(() => {
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowResults(false);
+    }, []);
+
+    const handleSessionClick = useCallback(
+        (sessionId: string) => {
+            onSessionSelect(sessionId);
+            handleClear();
+        },
+        [onSessionSelect, handleClear]
+    );
+
+    const { activeIndex, isKeyboardMode, handleMouseEnter, handleKeyDown } = useListKeyboardNavigation({
+        itemCount: searchResults.length,
+        isOpen: showResults && searchResults.length > 0,
+        onSelect: index => handleSessionClick(searchResults[index].id),
+        onClose: handleClear,
+        idPrefix: "session-search-",
+    });
 
     const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined) => {
         if (!query.trim()) {
@@ -63,24 +86,13 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         performSearch(debouncedSearchQuery, projectId);
     }, [debouncedSearchQuery, projectId, performSearch]);
 
-    const handleClear = () => {
-        setSearchQuery("");
-        setSearchResults([]);
-        setShowResults(false);
-    };
-
-    const handleSessionClick = (sessionId: string) => {
-        onSessionSelect(sessionId);
-        handleClear();
-    };
-
     const placeholder = "Search chats by title";
 
     return (
         <div className="relative w-full">
             <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                <Input type="text" placeholder={placeholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pr-9 pl-9" />
+                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-(--secondary-text-wMain)" />
+                <Input type="text" placeholder={placeholder} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleKeyDown} className="pr-9 pl-9" />
                 {searchQuery && (
                     <Button variant="ghost" size="sm" className="absolute top-1/2 right-1 h-7 w-7 -translate-y-1/2 p-0" onClick={handleClear}>
                         <X className="h-4 w-4" />
@@ -89,23 +101,34 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
             </div>
 
             {showResults && (
-                <div className="bg-popover absolute z-50 mt-2 w-full rounded-md border p-2 shadow-md">
+                <div className="absolute z-50 mt-2 w-full rounded-md border bg-(--background-w10) p-2 shadow-md">
                     {isSearching ? (
-                        <div className="text-muted-foreground p-4 text-center text-sm">Searching...</div>
+                        <div className="p-4 text-center text-sm text-(--secondary-text-wMain)">Searching...</div>
                     ) : searchResults.length > 0 ? (
                         <div className="max-h-[300px] overflow-y-auto">
-                            {searchResults.map(session => (
-                                <button key={session.id} onClick={() => handleSessionClick(session.id)} className="hover:bg-accent hover:text-accent-foreground w-full rounded-sm px-3 py-2 text-left text-sm">
-                                    <div className="mb-1 flex items-center justify-between gap-2">
-                                        <div className="flex-1 truncate font-medium">{session.name || "Untitled Session"}</div>
+                            {searchResults.map((session, index) => (
+                                <button
+                                    key={session.id}
+                                    id={`session-search-${index}`}
+                                    onClick={() => handleSessionClick(session.id)}
+                                    onMouseEnter={() => handleMouseEnter(index)}
+                                    className={cn(
+                                        "w-full rounded-sm px-3 py-2 text-left text-sm",
+                                        index === activeIndex ? "bg-(--secondary-w40) text-(--secondary-text-wMain)" : !isKeyboardMode ? "hover:bg-(--secondary-w40) hover:text-(--secondary-text-wMain)" : ""
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate font-medium">{session.name || "Untitled Session"}</div>
+                                            <div className="text-xs text-(--secondary-text-wMain)">{new Date(session.updatedTime).toLocaleDateString()}</div>
+                                        </div>
                                         {session.projectName && <ProjectBadge text={session.projectName} />}
                                     </div>
-                                    <div className="text-muted-foreground text-xs">{new Date(session.updatedTime).toLocaleDateString()}</div>
                                 </button>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-muted-foreground p-4 text-center text-sm">No results found</div>
+                        <div className="p-4 text-center text-sm text-(--secondary-text-wMain)">No results found</div>
                     )}
                 </div>
             )}

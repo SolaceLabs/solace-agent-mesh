@@ -50,12 +50,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
     };
 
     return (
-        <div className="bg-background flex h-full w-full flex-col border-l">
+        <div className="flex h-full w-full flex-col border-l bg-(--background-w10)">
             {/* Header */}
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <NotepadText className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <NotepadText className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{prompt.name}</h2>
@@ -101,7 +101,7 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                     </div>
                 </div>
                 {(prompt.productionPrompt?.category || prompt.category) && (
-                    <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-(--primary-w10) px-2.5 py-0.5 text-xs font-medium text-(--primary-wMain)">
                         <Tag size={12} />
                         {prompt.productionPrompt?.category || prompt.category}
                     </span>
@@ -111,19 +111,19 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             {/* Content */}
             <div className="flex-1 space-y-6 overflow-y-auto p-4">
                 {/* Description and Chat Shortcut - with background */}
-                <div className="bg-muted/50 space-y-6 rounded p-4">
+                <div className="space-y-6 rounded bg-(--secondary-w10) p-4">
                     {/* Description */}
                     <div>
-                        <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Description</h3>
+                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Description</h3>
                         <div className="text-sm leading-relaxed">{prompt.productionPrompt?.description || prompt.description || "No description provided."}</div>
                     </div>
 
                     {/* Chat Shortcut */}
                     {(prompt.productionPrompt?.command || prompt.command) && (
                         <div>
-                            <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Chat Shortcut</h3>
+                            <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Chat Shortcut</h3>
                             <div>
-                                <span className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">/{prompt.productionPrompt?.command || prompt.command}</span>
+                                <span className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--info-wMain)">/{prompt.productionPrompt?.command || prompt.command}</span>
                             </div>
                         </div>
                     )}
@@ -140,12 +140,12 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
                 {/* Content - no background */}
                 {prompt.productionPrompt && (
                     <div>
-                        <h3 className="text-muted-foreground mb-2 text-xs font-semibold">Content</h3>
+                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Content</h3>
                         <div className="font-mono text-xs break-words whitespace-pre-wrap">
                             {prompt.productionPrompt.promptText.split(/(\{\{[^}]+\}\})/g).map((part, index) => {
                                 if (part.match(/\{\{[^}]+\}\}/)) {
                                     return (
-                                        <span key={index} className="bg-primary/20 text-primary rounded px-1 font-medium">
+                                        <span key={index} className="rounded bg-(--primary-w20) px-1 font-medium text-(--primary-wMain)">
                                             {part}
                                         </span>
                                     );
@@ -158,13 +158,13 @@ export const PromptDetailSidePanel: React.FC<PromptDetailSidePanelProps> = ({ pr
             </div>
 
             {/* Metadata - Sticky at bottom */}
-            <div className="bg-background space-y-2 border-t p-4">
-                <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <div className="space-y-2 border-t bg-(--background-w10) p-4">
+                <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                     <User size={12} />
                     <span>Created by: {prompt.authorName || prompt.userId}</span>
                 </div>
                 {prompt.updatedAt && (
-                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                         <Calendar size={12} />
                         <span>Last updated: {formatPromptDate(prompt.updatedAt)}</span>
                     </div>

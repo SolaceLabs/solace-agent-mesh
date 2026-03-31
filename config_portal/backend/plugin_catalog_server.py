@@ -139,25 +139,36 @@ def create_plugin_catalog_app(shared_config=None):
                 400,
             )
 
-        if registry_manager.add_registry(path_or_url, name=name):
+        success, is_update = registry_manager.add_registry(path_or_url, name=name)
+        
+        if success:
+            action = "updated" if is_update else "added"
             logger.info(
-                f"Registry '{path_or_url}' (Name: {name if name else 'N/A'}) added by user. Refreshing plugins."
+                f"Registry '{path_or_url}' (Name: {name if name else 'N/A'}) {action} by user."
             )
+            
+            # For re-added registries, clear the git cache to force fresh clone
+            if is_update:
+                registry_id = registry_manager._generate_registry_id(path_or_url)
+                plugin_scraper.clear_git_cache(registry_id)
+                logger.info(f"Cleared git cache for re-added registry: {registry_id}")
+            
+            # Always force refresh plugins, and use fresh clone for re-added registries
             all_regs = registry_manager.get_all_registries()
-            plugin_scraper.get_all_plugins(all_regs, force_refresh=True)
-            return jsonify(
-                {
-                    "message": "Registry added and plugins refreshed.",
-                    "status": "success",
-                }
-            )
+            plugin_scraper.get_all_plugins(all_regs, force_refresh=True, force_fresh_clone=is_update)
+            
+            message = f"Registry {action} and plugins refreshed."
+            return jsonify({
+                "message": message,
+                "status": "success",
+                "is_update": is_update
+            })
         else:
             return (
-                jsonify(
-                    {
-                        "error": "Failed to add registry (possibly duplicate, invalid path/URL, or local path issue)"
-                    }
-                ),
+                jsonify({
+                    "error": "Failed to add registry (invalid path/URL or file system error)",
+                    "status": "failure"
+                }),
                 400,
             )
 

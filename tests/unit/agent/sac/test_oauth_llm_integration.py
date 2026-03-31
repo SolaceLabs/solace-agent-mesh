@@ -80,10 +80,10 @@ class TestOAuthLLMIntegration:
         assert llm._oauth_token_manager.client_secret == "test_client_secret"
         assert llm._oauth_token_manager.scope == "llm.read llm.write"
         
-        # Verify OAuth parameters were removed from additional_args
-        assert "oauth_token_url" not in llm._additional_args
-        assert "oauth_client_id" not in llm._additional_args
-        assert "oauth_client_secret" not in llm._additional_args
+        # Verify OAuth parameters were removed from model_config
+        assert "oauth_token_url" not in llm._model_config
+        assert "oauth_client_id" not in llm._model_config
+        assert "oauth_client_secret" not in llm._model_config
 
     def test_litellm_api_key_initialization(self, api_key_config):
         """Test that LiteLlm works normally with API key configuration."""
@@ -93,7 +93,7 @@ class TestOAuthLLMIntegration:
         assert llm._oauth_token_manager is None
         
         # Verify API key is preserved
-        assert llm._additional_args["api_key"] == "test_api_key_12345"
+        assert llm._model_config["api_key"] == "test_api_key_12345"
 
     @pytest.mark.asyncio
     async def test_oauth_token_injection_in_requests(
@@ -277,9 +277,9 @@ class TestOAuthLLMIntegration:
         # Should not create OAuth token manager with incomplete config
         assert llm._oauth_token_manager is None
         
-        # OAuth parameters should be removed from additional_args
-        assert "oauth_token_url" not in llm._additional_args
-        assert "oauth_client_id" not in llm._additional_args
+        # OAuth parameters should be removed from _model_config
+        assert "oauth_token_url" not in llm._model_config
+        assert "oauth_client_id" not in llm._model_config
 
     @pytest.mark.asyncio
     async def test_concurrent_oauth_requests(

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState, useMemo } from "react";
+import type { ReactNode } from "react";
 import { Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -9,10 +10,21 @@ import { SpeechSettingsPanel } from "./SpeechSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { AboutProduct } from "@/lib/components/settings/AboutProduct";
 
-type SettingsSection = "general" | "speech" | "about";
+type BuiltInSection = "general" | "speech" | "about";
+// NOSONAR typescript:S4335
+type SettingsSection = BuiltInSection | (string & {});
+
+export interface ExtraSettingsTab {
+    id: string;
+    label: string;
+    icon: ReactNode;
+    content: ReactNode;
+    /** "top" = above the divider (default), "bottom" = below divider, above About */
+    position?: "top" | "bottom";
+}
 
 interface SidebarItemProps {
-    icon: React.ReactNode;
+    icon: ReactNode;
     label: string;
     active: boolean;
     onClick: () => void;
@@ -20,7 +32,7 @@ interface SidebarItemProps {
 
 const SidebarItem = ({ icon, label, active, onClick }: SidebarItemProps) => {
     return (
-        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "dark:bg-accent bg-(--color-brand-w10)" : "text-muted-foreground hover:bg-accent/50")}>
+        <button onClick={onClick} className={cn("flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors", active ? "bg-(--secondary-w10) font-semibold" : "text-(--secondary-text-wMain) hover:bg-(--primary-w10)")}>
             {icon}
             <span>{label}</span>
         </button>
@@ -31,9 +43,10 @@ interface SettingsDialogProps {
     iconOnly?: boolean;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    extraTabs?: ExtraSettingsTab[];
 }
 
-export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false, open: controlledOpen, onOpenChange }) => {
+export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: Readonly<SettingsDialogProps>) {
     const { configFeatureEnablement } = useConfigContext();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
@@ -48,12 +61,22 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
     const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
     const speechEnabled = sttEnabled || ttsEnabled;
 
+    const { topTabs, bottomTabs } = useMemo(
+        () => ({
+            topTabs: extraTabs.filter(t => t.position !== "bottom"),
+            bottomTabs: extraTabs.filter(t => t.position === "bottom"),
+        }),
+        [extraTabs]
+    );
+
+    const activeExtraTab = useMemo(() => extraTabs.find(t => t.id === activeSection), [extraTabs, activeSection]);
+
     const renderContent = () => {
+        if (activeExtraTab) return activeExtraTab.content;
+
         switch (activeSection) {
             case "about":
                 return <AboutProduct />;
-            case "general":
-                return <GeneralSettings />;
             case "speech":
                 return <SpeechSettingsPanel />;
             default:
@@ -62,15 +85,15 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
     };
 
     const getSectionTitle = () => {
+        if (activeExtraTab) return activeExtraTab.label;
+
         switch (activeSection) {
             case "about":
                 return "About";
-            case "general":
-                return "General";
             case "speech":
                 return "Speech";
             default:
-                return "Settings";
+                return "General";
         }
     };
 
@@ -84,7 +107,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <DialogTrigger asChild>
                                 <button
                                     type="button"
-                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--color-primary-w100) px-3 py-5 text-xs text-(--color-primary-text-w10) transition-colors hover:bg-(--color-primary-w90) hover:text-(--color-primary-text-w10)"
+                                    className="relative mx-auto flex w-full cursor-pointer flex-col items-center bg-(--darkSurface-bg) px-3 py-5 text-xs text-(--darkSurface-text) transition-colors hover:bg-(--darkSurface-bgHover) hover:text-(--darkSurface-text)"
                                     aria-label="Open Settings"
                                 >
                                     <Settings className="h-6 w-6" />
@@ -108,7 +131,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                 </VisuallyHidden>
                 <div className="flex h-[80vh] overflow-hidden">
                     {/* Sidebar */}
-                    <div className="bg-muted/30 flex w-64 flex-col border-r">
+                    <div className="flex w-64 flex-col border-r">
                         <div className="flex h-15 items-center px-4 text-lg font-semibold">Settings</div>
 
                         <nav className="flex flex-1 flex-col">
@@ -116,12 +139,18 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
                             <div className="flex-1 space-y-1 overflow-y-auto">
                                 <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
                                 {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                {topTabs.map(t => (
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                ))}
                             </div>
                             {/* Bottom items, static */}
                             <div className="space-y-1 pb-2">
                                 {/* Divider */}
                                 <div className="mt-4 border-t pb-2" />
-                                {/* About entry */}
+                                {bottomTabs.map(t => (
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                ))}
+                                {/* About entry — always last */}
                                 <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => setActiveSection("about")} />
                             </div>
                         </nav>
@@ -144,4 +173,4 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ iconOnly = false
             </DialogContent>
         </Dialog>
     );
-};
+}

@@ -10,6 +10,7 @@ import os
 from io import BytesIO
 from fastapi import UploadFile
 from datetime import datetime, timezone
+from sqlalchemy.exc import SQLAlchemyError
 
 from ....agent.utils.artifact_helpers import (
     get_artifact_counts_batch,
@@ -17,6 +18,7 @@ from ....agent.utils.artifact_helpers import (
     is_internal_artifact,
     save_artifact_with_metadata,
 )
+from ....common.utils.mime_helpers import resolve_mime_type
 from ...constants import (
     DEFAULT_MAX_PER_FILE_UPLOAD_SIZE_BYTES,
     DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
@@ -115,6 +117,32 @@ class ProjectService:
         """Create project repository for the given database session."""
         from ..repository.project_repository import ProjectRepository
         return ProjectRepository(db)
+
+    def toggle_pin(self, db, project_id: str, user_id: str) -> Optional[Project]:
+        """
+        Toggle the per-user pin for a project.
+
+        Returns the updated Project entity with refreshed pin state,
+        or None if the project is not found or the user lacks access.
+        """
+        repo = self._get_repositories(db)
+
+        # Check existence first, then access (two separate checks)
+        if repo.get_by_id(project_id) is None:
+            return None
+        if not self._has_view_access(db, project_id, user_id):
+            # Return None so caller cannot distinguish "not found" from "no access"
+            return None
+
+        try:
+            repo.toggle_user_pin(project_id=project_id, user_id=user_id)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise
+
+        # Re-fetch with per-user pin state
+        return repo.get_by_id_for_user(project_id, user_id)
 
     def is_persistence_enabled(self) -> bool:
         """Checks if the service is configured with a persistent backend."""
@@ -360,7 +388,10 @@ class ProjectService:
             )
             project_session_id = f"project-{project_domain.id}"
             for file, content_bytes in validated_files:
-                metadata = {"source": "project"}
+                metadata = {
+                    "source": "project",
+                    "source_project_id": project_domain.id,
+                }
                 desc = file_metadata.get(file.filename) if file_metadata else None
                 if desc:
                     metadata["description"] = desc
@@ -409,9 +440,9 @@ class ProjectService:
         if not self._has_view_access(db, project_id, user_id):
             return None
 
-        # Convert to domain entity
+        # Convert to domain entity with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository._model_to_entity(project_model)
+        return project_repository.get_by_id_for_user(project_id, user_id)
 
     def get_user_projects(self, db, user_email: str) -> List[Project]:
         """
@@ -433,9 +464,10 @@ class ProjectService:
             resource_type=ResourceType.PROJECT
         )
 
-        # Get all accessible projects (owned + shared)
+        # Get all accessible projects (owned + shared) with per-user pin state
         project_repository = self._get_repositories(db)
-        return project_repository.get_accessible_projects(user_email, shared_project_ids)
+        pinned_project_ids = project_repository.get_pinned_project_ids_for_user(user_email)
+        return project_repository.get_accessible_projects(user_email, shared_project_ids, pinned_project_ids)
 
     async def get_user_projects_with_counts(self, db, user_email: str) -> List[tuple[Project, int]]:
         """
@@ -609,7 +641,11 @@ class ProjectService:
         results = []
 
         for file, content_bytes in validated_files:
-            metadata = {"source": "project"}
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+            }
+            mime_type = resolve_mime_type(file.filename, file.content_type)
             desc = file_metadata.get(file.filename) if file_metadata else None
             if desc:
                 metadata["description"] = desc
@@ -617,7 +653,7 @@ class ProjectService:
             # Add line-range citations for text-based files
             # This provides granular location info similar to page numbers for PDFs
             # Generate citations regardless of indexing_enabled (they're just metadata)
-            if self._is_text_file(file.content_type, file.filename):
+            if self._is_text_file(mime_type, file.filename):
                 try:
                     # Decode text content
                     text_content = content_bytes.decode('utf-8', errors='ignore')
@@ -643,7 +679,7 @@ class ProjectService:
                 session_id=storage_session_id,
                 filename=file.filename,
                 content_bytes=content_bytes,
-                mime_type=file.content_type,
+                mime_type=mime_type,
                 metadata_dict=metadata,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -664,7 +700,7 @@ class ProjectService:
 
         for idx, (file, content_bytes) in enumerate(validated_files):
             filename = file.filename
-            mime_type = file.content_type
+            mime_type = resolve_mime_type(filename, file.content_type)
             file_version = results[idx]["data_version"]
 
             if self._should_convert_file(mime_type, filename):
@@ -761,7 +797,10 @@ class ProjectService:
                 return False
 
             # Prepare updated metadata
-            metadata = {"source": "project"}
+            metadata = {
+                "source": "project",
+                "source_project_id": project.id,
+            }
             if description is not None:
                 self._validate_file_descriptions({filename: description})
                 metadata["description"] = description
@@ -931,6 +970,8 @@ class ProjectService:
 
         if updated_project:
             self.logger.info(f"Successfully updated project {project_id}")
+            # Re-fetch with pin state via repository (skip access check — already verified above)
+            return project_repository.get_by_id_for_user(project_id, user_id)
 
         return updated_project
 
@@ -1272,17 +1313,20 @@ class ProjectService:
                                 self.logger.warning(f"{log_prefix} {skip_msg}")
                                 warnings.append(skip_msg)
                                 continue  # Skip this artifact, continue with others
-                            
+
                             # Find metadata from project.json
                             artifact_meta = next(
                                 (a for a in project_data.get('artifacts', [])
                                  if a['filename'] == filename),
                                 None
                             )
-                            
+
                             metadata = artifact_meta.get('metadata', {}) if artifact_meta else {}
                             mime_type = artifact_meta.get('mimeType', 'application/octet-stream') if artifact_meta else 'application/octet-stream'
-                            
+
+                            if metadata.get("source") == "project":
+                                metadata["source_project_id"] = project.id
+
                             # Save artifact
                             from ....agent.utils.artifact_helpers import save_artifact_with_metadata
                             await save_artifact_with_metadata(
@@ -1307,7 +1351,7 @@ class ProjectService:
                 if not indexing_enabled:
                     self.logger.debug("Indexing disabled for import, skipping post-processing")
                 else:
-                    self.logger.info(f"Indexing enabled - post-processing imported files")
+                    self.logger.info("Indexing enabled - post-processing imported files")
 
                     # Classify imported files by type
                     needs_conversion = []  # PDF, DOCX, PPTX

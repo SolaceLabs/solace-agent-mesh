@@ -53,10 +53,10 @@ const SidePanel = React.forwardRef<HTMLDivElement, SidePanelProps>(({ children, 
                         resizeHandlePosition,
                         resizeHandleCursor,
                         // Visual feedback
-                        "hover:bg-[var(--color-primary-wMain)]",
+                        "hover:bg-(--primary-wMain)",
                         "transition-all duration-200",
                         // Active state
-                        isResizing && "bg-[var(--color-primary-wMain)]"
+                        isResizing && "bg-(--primary-wMain)"
                     )}
                     onMouseDown={handleMouseDown}
                     onTouchStart={handleTouchStart}
@@ -76,15 +76,7 @@ const SidePanel = React.forwardRef<HTMLDivElement, SidePanelProps>(({ children, 
                     }}
                 >
                     {/* Visual resize indicator */}
-                    <div
-                        className={cn(
-                            "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transform",
-                            "bg-[var(--color-secondary-w40)] dark:bg-[var(--color-secondary-w70)]",
-                            "group-hover:bg-[var(--color-primary-wMain)]",
-                            "transition-colors duration-200",
-                            isResizing && "bg-[var(--color-primary-wMain)]"
-                        )}
-                    />
+                    <div className={cn("absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transform", "bg-(--secondary-w40)", "group-hover:bg-(--primary-wMain)", "transition-colors duration-200", isResizing && "bg-(--primary-wMain)")} />
                 </div>
             )}
         </div>

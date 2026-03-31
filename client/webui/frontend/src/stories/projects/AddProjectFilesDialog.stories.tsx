@@ -27,7 +27,7 @@ export const Default: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -51,7 +51,7 @@ export const MultipleFiles: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf"), createMockFile("architecture-diagram.png", 204800, "image/png"), createMockFile("package.json", 1024, "application/json")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -74,7 +74,7 @@ export const DescriptionOverLimit: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => {},
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: false,
     },
     play: async () => {
@@ -98,7 +98,7 @@ export const Loading: Story = {
         isOpen: true,
         files: createMockFileList([createMockFile("api-documentation.pdf", 524288, "application/pdf")]),
         onClose: () => alert("Will close the dialog."),
-        onConfirm: () => {},
+        onConfirm: async () => {},
         isSubmitting: true,
     },
     play: async () => {

@@ -11,7 +11,7 @@ interface FileBadgeProps {
 
 export const FileBadge: React.FC<FileBadgeProps> = ({ fileName, onRemove }) => {
     return (
-        <Badge className="bg-muted max-w-50 gap-1.5 rounded-full pr-1">
+        <Badge className="max-w-50 gap-1.5 rounded-full bg-(--secondary-w10) pr-1">
             <span className="min-w-0 flex-1 truncate text-xs md:text-sm" title={fileName}>
                 {fileName}
             </span>

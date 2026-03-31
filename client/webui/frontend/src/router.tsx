@@ -1,11 +1,18 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, SharedChatViewPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
+import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
+import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
     return createHashRouter([
+        // Public share route (outside AppLayout)
+        {
+            path: "/share/:shareId",
+            element: <SharedSessionPage />,
+        },
         {
             path: "/",
             element: <AppLayout />,
@@ -17,6 +24,14 @@ export const createRouter = () => {
                 {
                     path: "chat",
                     element: <ChatPage />,
+                },
+                {
+                    path: "recent-chats",
+                    element: <RecentChatsPage />,
+                },
+                {
+                    path: "shared-chat/:shareId",
+                    element: <SharedChatViewPage />,
                 },
                 {
                     path: "projects",
@@ -33,6 +48,10 @@ export const createRouter = () => {
                             },
                         },
                     ],
+                },
+                {
+                    path: "artifacts",
+                    element: <ArtifactsPage />,
                 },
                 {
                     path: "prompts",
@@ -76,6 +95,23 @@ export const createRouter = () => {
                         {
                             path: "workflows/:workflowName",
                             element: <WorkflowVisualizationPage />,
+                        },
+                    ],
+                },
+                {
+                    path: "models",
+                    children: [
+                        {
+                            path: "new/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":alias",
+                            element: <ModelDetailsPage />,
                         },
                     ],
                 },

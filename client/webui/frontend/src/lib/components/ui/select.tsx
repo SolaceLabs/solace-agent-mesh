@@ -39,7 +39,7 @@ function SelectTrigger({
                 "flex w-fit items-center justify-between gap-2",
 
                 // Border & Background
-                "border-input rounded-xs border bg-transparent",
+                "rounded-xs border bg-transparent",
 
                 // Spacing
                 "px-3 py-2",
@@ -51,16 +51,16 @@ function SelectTrigger({
                 "shadow-xs transition-colors outline-none",
 
                 // Placeholder
-                "data-[placeholder]:text-placeholder",
+                "data-[placeholder]:text-(--secondary-wMain)",
 
                 // Focus State
-                "focus-visible:border-[var(--color-brand-wMain)]",
+                "focus-visible:border-(--brand-wMain)",
 
                 // Disabled/Readonly State
                 readonly ? "cursor-default opacity-80" : "disabled:cursor-not-allowed disabled:opacity-50",
 
                 // Invalid/Error State
-                "aria-invalid:border-[var(--color-error-w100)]",
+                "aria-invalid:border-(--error-w100)",
 
                 // Select Value Styling
                 "*:data-[slot=select-value]:text-left",
@@ -98,7 +98,7 @@ function SelectContent({ className, children, position = "popper", ...props }: R
                     "origin-(--radix-select-content-transform-origin)",
 
                     // Border & Background
-                    "bg-background rounded-sm border",
+                    "rounded-sm border bg-(--background-w10)",
 
                     // Overflow
                     "overflow-x-hidden overflow-y-auto",
@@ -128,7 +128,7 @@ function SelectContent({ className, children, position = "popper", ...props }: R
                 {...props}
             >
                 <SelectScrollUpButton />
-                <SelectPrimitive.Viewport className={cn("p-1", position === "popper" && ["h-[var(--radix-select-trigger-height)]", "w-full", "min-w-[var(--radix-select-trigger-width)]", "scroll-my-1"])}>{children}</SelectPrimitive.Viewport>
+                <SelectPrimitive.Viewport className={cn("p-1", position === "popper" && ["h-(--radix-select-trigger-height)", "w-full", "min-w-(--radix-select-trigger-width)", "scroll-my-1"])}>{children}</SelectPrimitive.Viewport>
                 <SelectScrollDownButton />
             </SelectPrimitive.Content>
         </SelectPrimitive.Portal>
@@ -157,14 +157,13 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
                 "cursor-default select-none",
 
                 // Hover State
-                "hover:bg-[var(--color-primary-w10)] hover:text-[var(--color-primary-text-w60)]",
-                "dark:hover:bg-[var(--color-primary-w60)] dark:hover:text-[var(--color-primary-text-w10)]",
+                "hover:bg-(--primary-w10) hover:text-(--primary-text-w60)",
 
                 // Disabled State
                 "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 
                 // Icon Styling
-                "[&_svg:not([class*='text-'])]:text-muted-foreground",
+                "[&_svg:not([class*='text-'])]:text-(--secondary-text-wMain)",
                 "[&_svg]:pointer-events-none [&_svg]:shrink-0",
                 "[&_svg:not([class*='size-'])]:size-4",
 
@@ -186,7 +185,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
 }
 
 function SelectSeparator({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Separator>) {
-    return <SelectPrimitive.Separator data-slot="select-separator" className={cn("bg-border pointer-events-none -mx-1 my-1 h-px", className)} {...props} />;
+    return <SelectPrimitive.Separator data-slot="select-separator" className={cn("pointer-events-none -mx-1 my-1 h-px bg-(--secondary-w40)", className)} {...props} />;
 }
 
 function SelectScrollUpButton({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>) {

@@ -7,7 +7,9 @@ import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
 import { detectVariables } from "@/lib/utils/promptUtils";
@@ -21,33 +23,33 @@ import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
+import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
-    switch (command) {
-        case "create-template":
-            if (!conversationContext) {
-                return "Help me create a new prompt template.";
-            }
+    if (command === "create-template") {
+        if (!conversationContext) {
+            return "Help me create a new prompt template.";
+        }
 
-            return [
-                "I want to create a reusable prompt template based on this conversation I just had:",
-                "",
-                "<conversation_history>",
-                conversationContext,
-                "</conversation_history>",
-                "",
-                "Please help me create a prompt template by:",
-                "",
-                "1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation",
-                "2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)",
-                "3. **Generalizing**: Make it reusable for similar tasks",
-                "4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut",
-                "",
-                "Focus on capturing what made this conversation successful so it can be reused with different inputs.",
-            ].join("\n");
-        default:
-            return "";
+        return [
+            "I want to create a reusable prompt template based on this conversation I just had:",
+            "",
+            "<conversation_history>",
+            conversationContext,
+            "</conversation_history>",
+            "",
+            "Please help me create a prompt template by:",
+            "",
+            "1. **Analyzing the Pattern**: Identify the core task/question pattern in this conversation",
+            "2. **Extracting Variables**: Determine which parts should be variables (use {{variable_name}} syntax)",
+            "3. **Generalizing**: Make it reusable for similar tasks",
+            "4. **Suggesting Metadata**: Recommend a name, description, category, and chat shortcut",
+            "",
+            "Focus on capturing what made this conversation successful so it can be reused with different inputs.",
+        ].join("\n");
     }
+
+    return "";
 };
 
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
@@ -57,6 +59,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -204,7 +209,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // If a prompt is provided, use the old behavior
             if (prompt) {
                 setContextText(text);
-                setContextSourceId(sourceMessageId || null);
+                setContextSourceId(sourceMessageId ?? null);
                 setInputValue(prompt + " ");
 
                 if (autoSubmit) {
@@ -224,7 +229,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             } else {
                 // No prompt provided - show the selected text as a badge above the input
                 setContextText(text);
-                setContextSourceId(sourceMessageId || null);
+                setContextSourceId(sourceMessageId ?? null);
                 setShowContextBadge(true);
             }
 
@@ -239,6 +244,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             window.removeEventListener("follow-up-question", handleFollowUp);
         };
     }, [handleSubmit, scrollToBottom]);
+
+    // Handle snip-to-chat event from PDF renderer
+    useEffect(() => {
+        const handleSnipToChat = (event: Event) => {
+            console.log("[ChatInputArea] Received snip-to-chat event");
+            const customEvent = event as CustomEvent<SnipToChatEventDetail>;
+            const { file } = customEvent.detail;
+
+            console.log("[ChatInputArea] Adding file to selectedFiles:", file.name);
+
+            // Add the snipped image to selected files
+            // Filter out duplicates based on name, size, and last modified time
+            setSelectedFiles(prev => {
+                const isDuplicate = prev.some(existingFile => existingFile.name === file.name && existingFile.size === file.size && existingFile.lastModified === file.lastModified);
+                if (isDuplicate) {
+                    console.log("[ChatInputArea] File is duplicate, skipping");
+                    return prev;
+                }
+                console.log("[ChatInputArea] File added successfully");
+                return [...prev, file];
+            });
+
+            // Focus the chat input
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+            }, 100);
+        };
+
+        console.log("[ChatInputArea] Setting up snip-to-chat event listener");
+        window.addEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        return () => {
+            console.log("[ChatInputArea] Removing snip-to-chat event listener");
+            window.removeEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
+        };
+    }, []);
 
     const handleFileSelect = () => {
         if (!isResponding) {
@@ -273,14 +313,26 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
         // Handle file pastes (existing logic)
         if (clipboardData.files && clipboardData.files.length > 0) {
-            event.preventDefault(); // Prevent the default paste behavior for files
+            // When copying text from documents (e.g. Word, Google Docs), the clipboard
+            // often contains both text AND an image (PNG) representation of the content.
+            // If text is available alongside image-only files, prefer the text content
+            // so the paste is treated as text rather than showing a PNG artifact.
+            const pastedText = clipboardData.getData("text");
+            const allFilesAreImages = Array.from(clipboardData.files).every(file => file.type.startsWith("image/"));
 
-            // Filter out duplicates based on name, size, and last modified time
-            const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
-            if (newFiles.length > 0) {
-                setSelectedFiles(prev => [...prev, ...newFiles]);
+            if (pastedText && allFilesAreImages) {
+                // Text is available alongside image files — this is likely a rich text copy.
+                // Skip file handling and fall through to text paste handling below.
+            } else {
+                event.preventDefault(); // Prevent the default paste behavior for files
+
+                // Filter out duplicates based on name, size, and last modified time
+                const newFiles = Array.from(clipboardData.files).filter(newFile => !selectedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size && existingFile.lastModified === newFile.lastModified));
+                if (newFiles.length > 0) {
+                    setSelectedFiles(prev => [...prev, ...newFiles]);
+                }
+                return;
             }
-            return;
         }
 
         // Handle text pastes - show badge for large text
@@ -336,7 +388,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const isSubmittingEnabled = useMemo(() => !isResponding && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0), [isResponding, inputValue, selectedFiles, pendingPastedTextItems]);
+    const isSubmittingEnabled = useMemo(
+        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0),
+        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]
+    );
 
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -365,8 +420,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Include both session artifacts and any artifacts we've already uploaded in this batch
             const existingFilenames = new Set(artifacts.map(a => a.filename));
 
-            for (let i = 0; i < pendingPastedTextItems.length; i++) {
-                const item = pendingPastedTextItems[i];
+            for (const item of pendingPastedTextItems) {
                 try {
                     // Use configured metadata if available, otherwise generate defaults
                     let filename: string;
@@ -494,8 +548,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             acceptNode: (node: Node) => {
                 // Skip text nodes inside mention chips (we handle the chip as a whole)
                 if (node.nodeType === Node.TEXT_NODE) {
-                    const parent = node.parentElement;
-                    if (parent && parent.classList.contains("mention-chip")) {
+                    if (node.parentElement?.classList.contains("mention-chip")) {
                         return NodeFilter.FILTER_REJECT;
                     }
                 }
@@ -504,19 +557,20 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         });
 
         let node: Node | null;
-        while ((node = walker.nextNode()) && !found) {
+        node = walker.nextNode();
+        while (node && !found) {
             if (node.nodeType === Node.TEXT_NODE) {
                 if (node === range.startContainer) {
                     position += range.startOffset;
                     found = true;
                 } else {
-                    position += node.textContent?.length || 0;
+                    position += node.textContent?.length ?? 0;
                 }
             } else if (node.nodeType === Node.ELEMENT_NODE) {
                 const el = node as HTMLElement;
                 if (el.classList.contains("mention-chip")) {
                     // Add full internal format length
-                    const internal = el.getAttribute("data-internal") || "";
+                    const internal = el.getAttribute("data-internal") ?? "";
                     position += internal.length;
                     // Check if cursor is inside this chip
                     if (range.startContainer === el || el.contains(range.startContainer)) {
@@ -526,6 +580,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     position += 1; // Newline
                 }
             }
+            node = walker.nextNode();
         }
 
         return position;
@@ -612,7 +667,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (needsDisambiguation && existingPersonId) {
             setDisambiguatedIds(prev => {
                 const updated = new Set(prev);
-                updated.add(existingPersonId!);
+                updated.add(existingPersonId);
                 updated.add(person.id);
                 return updated;
             });
@@ -636,18 +691,15 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const handleChatCommand = (command: ChatCommand, context?: string) => {
         const enhancedMessage = createEnhancedMessage(command, context);
 
-        switch (command) {
-            case "create-template": {
-                // Navigate to prompts page with AI-assisted mode and pass task description
-                navigate("/prompts/new?mode=ai-assisted", {
-                    state: { taskDescription: enhancedMessage },
-                });
+        if (command === "create-template") {
+            // Navigate to prompts page with AI-assisted mode and pass task description
+            navigate("/prompts/new?mode=ai-assisted", {
+                state: { taskDescription: enhancedMessage },
+            });
 
-                // Clear input
-                setInputValue("");
-                setShowPromptsCommand(false);
-                break;
-            }
+            // Clear input
+            setInputValue("");
+            setShowPromptsCommand(false);
         }
     };
 
@@ -681,9 +733,18 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSttError(error);
     }, []);
 
+    let inputPlaceholder: string;
+    if (isRecording) {
+        inputPlaceholder = "Recording...";
+    } else if (mentionsEnabled) {
+        inputPlaceholder = "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)";
+    } else {
+        inputPlaceholder = "How can I help you today? (Type '/' to insert a prompt)";
+    }
+
     return (
         <div
-            className={`bg-card rounded-lg border p-4 shadow-sm ${isDragging ? "border-dotted border-[var(--primary-wMain)] bg-[var(--accent-background)]" : ""}`}
+            className={`rounded-lg border bg-(--background-w10) p-4 shadow-sm ${isDragging ? "border-dotted border-(--primary-wMain) bg-(--background-w20)" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -711,9 +772,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
-                    <div className="bg-muted/50 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border px-3 py-2 text-sm">
-                        <Quote className="text-muted-foreground h-4 w-4 flex-shrink-0" />
-                        <span className="text-muted-foreground min-w-0 flex-1 truncate italic">"{contextText}"</span>
+                    <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
+                        <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                        <span className="min-w-0 flex-1 truncate text-(--secondary-text-wMain) italic">"{contextText}"</span>
                         <Button
                             variant="ghost"
                             className="h-5 w-5 shrink-0"
@@ -774,7 +835,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         return (
                             <PendingPastedTextBadge
                                 key={item.id}
-                                id={item.id}
                                 content={item.content}
                                 onClick={() => handlePendingPasteClick(item.id)}
                                 onRemove={() => handleRemovePendingPaste(item.id)}
@@ -800,7 +860,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // For configured items, use their configured filename
                 // For non-configured items, compute what their default filename would be
                 let tempFilename = "snippet.txt";
-                pendingPastedTextItems.forEach((item, idx) => {
+                pendingPastedTextItems.forEach(item => {
                     if (item.id === selectedPendingPasteId) {
                         // Skip the currently selected item - we don't want to warn about itself
                         return;
@@ -810,44 +870,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         allExistingFilenames.add(item.filename);
                     } else {
                         // We need to track what filenames have been "assigned" to previous items
-                        if (idx < selectedIndex || selectedIndex === -1) {
-                            if (allExistingFilenames.has(tempFilename)) {
-                                let counter = 2;
-                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
-                                    counter++;
-                                }
-                                tempFilename = `snippet-${counter}.txt`;
+                        if (allExistingFilenames.has(tempFilename)) {
+                            let counter = 2;
+                            while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                counter++;
                             }
-                            allExistingFilenames.add(tempFilename);
-                            // Update tempFilename for next iteration
-                            if (allExistingFilenames.has("snippet.txt")) {
-                                let counter = 2;
-                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
-                                    counter++;
-                                }
-                                tempFilename = `snippet-${counter}.txt`;
-                            } else {
-                                tempFilename = "snippet.txt";
+                            tempFilename = `snippet-${counter}.txt`;
+                        }
+                        allExistingFilenames.add(tempFilename);
+                        // Update tempFilename for next iteration
+                        if (allExistingFilenames.has("snippet.txt")) {
+                            let counter = 2;
+                            while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
+                                counter++;
                             }
+                            tempFilename = `snippet-${counter}.txt`;
                         } else {
-                            if (allExistingFilenames.has(tempFilename)) {
-                                let counter = 2;
-                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
-                                    counter++;
-                                }
-                                tempFilename = `snippet-${counter}.txt`;
-                            }
-                            allExistingFilenames.add(tempFilename);
-                            // Update tempFilename for next iteration
-                            if (allExistingFilenames.has("snippet.txt")) {
-                                let counter = 2;
-                                while (allExistingFilenames.has(`snippet-${counter}.txt`)) {
-                                    counter++;
-                                }
-                                tempFilename = `snippet-${counter}.txt`;
-                            } else {
-                                tempFilename = "snippet.txt";
-                            }
+                            tempFilename = "snippet.txt";
                         }
                     }
                 });
@@ -956,7 +995,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 cursorPosition={desiredCursorPosition}
                 mentionMap={mentionMap}
                 disambiguatedIds={disambiguatedIds}
-                placeholder={isRecording ? "Recording..." : mentionsEnabled ? "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)" : "How can I help you today? (Type '/' to insert a prompt)"}
+                placeholder={inputPlaceholder}
                 className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
                 onPaste={handlePaste}
                 disabled={isRecording}

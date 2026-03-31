@@ -20,6 +20,8 @@ from a2a.types import (
     TextPart,
 )
 from .. import a2a
+from ..constants import ARTIFACT_TAG_USER_UPLOADED
+from ..utils.mime_helpers import resolve_mime_type
 
 if TYPE_CHECKING:
     from google.adk.artifacts import BaseArtifactService
@@ -147,7 +149,7 @@ async def prepare_file_part_for_publishing(
             try:
                 filename = part.file.name or f"upload-{uuid.uuid4().hex}"
                 content_bytes = base64.b64decode(part.file.bytes)
-                mime_type = part.file.mime_type or "application/octet-stream"
+                mime_type = resolve_mime_type(filename, part.file.mime_type)
 
                 # Create a concise and accurate metadata dictionary.
                 metadata_to_save = {
@@ -168,6 +170,7 @@ async def prepare_file_part_for_publishing(
                     mime_type=mime_type,
                     metadata_dict=metadata_to_save,
                     timestamp=datetime.now(timezone.utc),
+                    tags=[ARTIFACT_TAG_USER_UPLOADED],
                 )
 
                 if save_result["status"] == "success":

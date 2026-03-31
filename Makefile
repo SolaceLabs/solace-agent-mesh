@@ -1,4 +1,4 @@
-.PHONY: help check-uv dev-setup test-setup test test-all test-eval test-eval-local test-eval-workflow test-eval-remote test-unit test-integration clean ui-test ui-build ui-lint install-playwright
+.PHONY: help check-uv dev-setup test-setup test test-all test-eval test-eval-local test-eval-workflow test-eval-remote test-unit test-integration test-migrations clean ui-test ui-build ui-lint install-playwright
 
 # Check if uv is installed
 check-uv:
@@ -22,6 +22,7 @@ help:
 	@echo "  make test-eval-remote    Run remote evaluation tests"
 	@echo "  make test-unit           Run unit tests only"
 	@echo "  make test-integration    Run integration tests only"
+	@echo "  make test-migrations     Run database migration tests (SQLite, MySQL, PostgreSQL)"
 	@echo ""
 	@echo "Frontend Tests:"
 	@echo "  make ui-test           Run frontend linting and build"
@@ -147,6 +148,16 @@ test-unit:
 test-integration:
 	@echo "Running integration tests..."
 	uv run pytest tests/integration -v
+
+# Run database migration tests (auto-installs deps, auto-manages containers)
+test-migrations: check-uv
+	@echo "Installing migration test dependencies..."
+	@uv pip install pytest testcontainers[postgres] testcontainers[mysql] pymysql psycopg2-binary alembic 2>/dev/null || true
+	@echo ""
+	@echo "Running migration tests (containers start automatically)..."
+	@echo "Testing: SQLite, MySQL, PostgreSQL"
+	@echo ""
+	PYTHONPATH=. uv run pytest tests/integration/migrations/ -v -x
 
 # Frontend linting (mirrors ui-ci.yml)
 ui-lint:

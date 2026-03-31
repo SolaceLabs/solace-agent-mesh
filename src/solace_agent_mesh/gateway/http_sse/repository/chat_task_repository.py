@@ -57,10 +57,26 @@ class ChatTaskRepository(IChatTaskRepository):
         session_id: SessionId,
         user_id: UserId
     ) -> List[ChatTask]:
-        """Find all tasks for a session."""
+        """Find all tasks for a session belonging to a specific user."""
         models = session.query(ChatTaskModel).filter(
             ChatTaskModel.session_id == session_id,
             ChatTaskModel.user_id == user_id
+        ).order_by(ChatTaskModel.created_time.asc()).all()
+
+        return [self._model_to_entity(m) for m in models]
+
+    def find_by_session_all_users(
+        self,
+        session: DBSession,
+        session_id: SessionId
+    ) -> List[ChatTask]:
+        """Find all tasks for a session regardless of which user created them.
+        
+        Used for shared sessions where multiple users (owner + editors) may
+        have created tasks in the same session.
+        """
+        models = session.query(ChatTaskModel).filter(
+            ChatTaskModel.session_id == session_id
         ).order_by(ChatTaskModel.created_time.asc()).all()
 
         return [self._model_to_entity(m) for m in models]

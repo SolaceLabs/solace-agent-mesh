@@ -25,6 +25,7 @@ from a2a.types import (
 )
 
 from .. import a2a
+from ..utils.mime_helpers import resolve_mime_type
 from ...agent.utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ async def _prepare_a2a_filepart_for_adk(
         if isinstance(part.file, FileWithBytes):
             log.debug("%s FilePart contains bytes. Saving to artifact store.", log_id)
             filename = part.file.name or f"upload-{uuid.uuid4().hex}"
-            mime_type = part.file.mime_type or "application/octet-stream"
+            mime_type = resolve_mime_type(filename, part.file.mime_type)
             content_bytes = base64.b64decode(part.file.bytes)
 
             save_result = await save_artifact_with_metadata(

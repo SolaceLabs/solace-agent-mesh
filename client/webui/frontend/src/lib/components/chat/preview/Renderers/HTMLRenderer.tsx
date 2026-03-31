@@ -16,7 +16,7 @@ export const HtmlRenderer: React.FC<BaseRendererProps> = ({ content, setRenderEr
     }, [content]);
 
     return (
-        <div className="h-full w-full overflow-hidden border dark:bg-gray-400">
+        <div className="h-full w-full overflow-hidden border">
             <iframe
                 srcDoc={preparedContent}
                 title="HTML Preview"

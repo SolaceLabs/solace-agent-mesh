@@ -59,16 +59,24 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
      * Helper to get file attachment data
      */
     const getFileAttachment = useCallback(
-        (filename: string, mimeType: string, content: string): FileAttachment => {
+        (filename: string, mimeType: string, content: string, version?: number): FileAttachment => {
             const artifactInfo = artifacts.find(a => a.filename === filename);
+            // Build the URL for direct artifact access (needed for binary files like PDF)
+            const artifactUrl = getArtifactUrl({
+                filename,
+                sessionId,
+                projectId,
+                version,
+            });
             return {
                 name: filename,
                 mime_type: mimeType,
                 content: content,
                 last_modified: artifactInfo?.last_modified || new Date().toISOString(),
+                url: artifactUrl,
             };
         },
-        [artifacts]
+        [artifacts, sessionId, projectId]
     );
 
     /**
@@ -118,7 +126,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                     version: latestVersion,
                 });
 
-                const fileData = getFileAttachment(filename, mimeType, content);
+                const fileData = getFileAttachment(filename, mimeType, content, latestVersion);
                 const isProjectArtifactPreview = !!projectId && (!sessionId || sessionId === "null" || sessionId === "undefined");
 
                 // Update all preview state atomically
@@ -175,7 +183,7 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                     version: targetVersion,
                 });
 
-                const fileData = getFileAttachment(filename, mimeType, content);
+                const fileData = getFileAttachment(filename, mimeType, content, targetVersion);
 
                 // Update version and content
                 setPreview(prev => ({

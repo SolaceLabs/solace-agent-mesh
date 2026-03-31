@@ -215,7 +215,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                     ) : fields.length === 0 && !sharesData?.ownerEmail && displayedViewers.length === 0 ? (
                         <div className={classForEmptyMessage()}>No users have access to this project yet.</div>
                     ) : (
-                        <div className="flex flex-col divide-[var(--border)]">
+                        <div className="flex flex-col divide-(--secondary-w40)">
                             <div className={classForShareRow({ type: "header" })}>
                                 <span className={classForHeaderText()}>Email</span>
                                 <span className={cn(classForHeaderText(), "text-center")}>Access Level</span>
@@ -247,7 +247,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                                             placeholder="Enter email address..."
                                                             value={value || ""}
                                                             onChange={e => onChange(e.target.value || null)}
-                                                            className={`h-9 pr-3 ${fieldError ? "border-[var(--destructive)]" : ""}`}
+                                                            className={`h-9 pr-3 ${fieldError ? "border-(--error-wMain)" : ""}`}
                                                         />
                                                         <Badge variant="secondary" className="justify-self-center">
                                                             Viewer
@@ -258,7 +258,7 @@ export const ShareProjectDialog: React.FC<ShareProjectDialogProps> = ({ isOpen, 
                                                     </>
                                                 )}
                                             </div>
-                                            {fieldError && <p className="mt-1 text-xs text-[var(--destructive)]">{fieldError.message}</p>}
+                                            {fieldError && <p className="mt-1 text-xs text-(--error-wMain)">{fieldError.message}</p>}
                                         </div>
                                     )}
                                 />
@@ -320,4 +320,4 @@ const classForShareRow = cva(["grid", "grid-cols-[1fr_85px_32px]", "items-center
     defaultVariants: { type: "data" },
 });
 
-const classForHeaderText = cva(["text-xs", "font-medium", "text-[var(--muted-foreground)]"]);
+const classForHeaderText = cva(["text-xs", "font-medium", "text-(--secondary-text-wMain)"]);

@@ -29,7 +29,7 @@ export const Default: Story = {
     play: async () => {
         expect(await screen.findByText(weatherProject.name)).toBeInTheDocument();
         expect(await screen.findByText(weatherProject.description!)).toBeInTheDocument();
-        expect(await screen.findByText(String(weatherProject.artifactCount))).toBeInTheDocument();
+        expect(await screen.findByText("5 files")).toBeInTheDocument();
         expect(await screen.findByRole("button", { name: "More options" })).toBeInTheDocument();
     },
 };
@@ -57,7 +57,7 @@ export const WithManyArtifacts: Story = {
     },
     play: async () => {
         expect(await screen.findByText(projectWithManyArtifacts.name)).toBeInTheDocument();
-        expect(await screen.findByText("157")).toBeInTheDocument();
+        expect(await screen.findByText("157 files")).toBeInTheDocument();
     },
 };
 

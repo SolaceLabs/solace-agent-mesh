@@ -5,6 +5,7 @@ import { Button } from "@/lib/components/ui";
 
 import type { LayoutNode } from "../utils/types";
 import { ACTIVITY_NODE_BASE_STYLES, ACTIVITY_NODE_SELECTED_CLASS, ACTIVITY_NODE_PROCESSING_CLASS, CONNECTOR_LINE_CLASSES, CONNECTOR_SIZES, ACTIVITY_NODE_LAYOUT, CONTAINER_CHILDREN_CLASSES } from "../utils/nodeStyles";
+import { clickableNodeProps } from "@/lib/components/utils";
 import LLMNode from "./LLMNode";
 import ToolNode from "./ToolNode";
 import SwitchNode from "./SwitchNode";
@@ -25,8 +26,8 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     // Reusable agent header with icon and label
     const AgentHeader = () => (
         <div className="flex min-w-0 items-center gap-2">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--color-accent-n2-w10) dark:bg-(--color-accent-n2-w100)">
-                <Bot className="h-4 w-4 text-(--color-brand-wMain)" />
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-(--accent-n2-w10)">
+                <Bot className="h-4 w-4 text-(--brand-wMain)" />
             </div>
             <div className="truncate text-sm font-semibold">{node.data.label}</div>
         </div>
@@ -82,9 +83,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
         const isError = node.data.status === "error";
 
         // Color classes based on error status
-        const pillColorClasses = isError
-            ? "border-(--color-error-wMain) bg-(--color-error-w10) text-(--color-error-wMain) dark:border-(--color-error-w80) dark:bg-(--color-error-w100)/50 dark:text-(--color-error-w10)"
-            : "border-(--color-info-wMain) bg-(--color-info-w10) text-(--color-info-wMain) dark:border-(--color-info-w80) dark:bg-(--color-info-w100)/50 dark:text-(--color-info-w10)";
+        const pillColorClasses = isError ? "border-(--error-wMain) bg-(--error-w10) text-(--error-wMain)" : "border-(--info-wMain) bg-(--info-w10) text-(--info-wMain)";
 
         // If it's a simple pill (no parallel branches and no children), render compact version
         if (!hasParallelBranches && !hasChildren) {
@@ -95,10 +94,6 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                         width: `${node.width}px`,
                         minWidth: "80px",
                         textAlign: "center",
-                    }}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
                     }}
                     title={node.data.description}
                 >
@@ -115,14 +110,11 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className={`flex flex-col items-center ${opacityClass}`}>
                     {/* Pill label */}
                     <div
+                        {...clickableNodeProps(() => onClick?.(node))}
                         className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                         style={{
                             minWidth: "80px",
                             textAlign: "center",
-                        }}
-                        onClick={e => {
-                            e.stopPropagation();
-                            onClick?.(node);
                         }}
                         title={node.data.description}
                     >
@@ -151,14 +143,11 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
             <div className={`flex flex-col items-center ${opacityClass}`}>
                 {/* Pill label */}
                 <div
+                    {...clickableNodeProps(() => onClick?.(node))}
                     className={`${ACTIVITY_NODE_BASE_STYLES.PILL} ${pillColorClasses} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`}
                     style={{
                         minWidth: "80px",
                         textAlign: "center",
-                    }}
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
                     }}
                     title={node.data.description}
                 >
@@ -171,7 +160,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 <div className={`my-0 ${CONNECTOR_SIZES.MAIN} ${CONNECTOR_LINE_CLASSES}`} />
 
                 {/* Parallel branches below */}
-                <div className="rounded-md border-2 border-indigo-200 bg-white p-4 dark:border-indigo-800 dark:bg-gray-800">
+                <div className={`rounded-md border-2 border-(--secondary-w20) bg-(--background-w20) p-4`}>
                     <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
                         {node.parallelBranches!.map((branch, branchIndex) => (
                             <div key={branchIndex} className="flex flex-col items-center">
@@ -211,12 +200,9 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     if (isCollapsed || !hasContent) {
         return (
             <div
+                {...clickableNodeProps(() => onClick?.(node))}
                 className={`${ACTIVITY_NODE_BASE_STYLES.RECTANGULAR} ${opacityClass} ${borderStyleClass} ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""} ${haloClass}`}
                 style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px`, minHeight: `${ACTIVITY_NODE_LAYOUT.LEAF_NODE_MIN_HEIGHT}px` }}
-                onClick={e => {
-                    e.stopPropagation();
-                    onClick?.(node);
-                }}
             >
                 <AgentHeader />
                 {/* Expand control */}
@@ -242,20 +228,9 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
     return (
         <div className={`flex flex-col ${opacityClass} ${haloClass}`}>
             {/* Solid Container with Header and Content */}
-            <div
-                className={`rounded border border-transparent bg-(--color-background-w10) shadow transition-all duration-200 hover:shadow-md dark:border-(--color-secondary-w70) dark:bg-(--color-background-wMain) dark:!shadow-none ${
-                    isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""
-                }`}
-                style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}
-            >
+            <div className={`card-surface rounded bg-(--background-w10) transition-all duration-200 ${isSelected ? ACTIVITY_NODE_SELECTED_CLASS : ""}`} style={{ minWidth: `${ACTIVITY_NODE_LAYOUT.CONTAINER_WIDTH}px` }}>
                 {/* Header */}
-                <div
-                    className="group flex cursor-pointer items-center justify-between gap-4 px-4 py-2"
-                    onClick={e => {
-                        e.stopPropagation();
-                        onClick?.(node);
-                    }}
-                >
+                <div {...clickableNodeProps(() => onClick?.(node))} className="group flex cursor-pointer items-center justify-between gap-4 px-4 py-2">
                     <AgentHeader />
 
                     {/* Collapse control */}
@@ -278,10 +253,10 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
                 </div>
 
                 {/* Divider */}
-                <div className="border-t border-(--color-secondary-w40) dark:border-(--color-secondary-w70)" />
+                <div className="border-t border-(--secondary-w20)" />
 
                 {/* Children content */}
-                <div className="bg-(--color-secondary-w20) px-4 py-4 dark:bg-(--color-background-w100)">
+                <div className="bg-(--secondary-w20) p-4">
                     <div className="flex flex-col items-center gap-2">
                         {/* Sequential children */}
                         {hasChildren &&
@@ -295,7 +270,7 @@ const AgentNode = ({ node, isSelected, onClick, onChildClick, onExpand, onCollap
 
                         {/* Parallel Branches */}
                         {hasParallelBranches && node.parallelBranches && (
-                            <div className="mt-2 w-full rounded-md border-2 border-(--color-brand-w20) bg-(--color-background-w10) p-4 dark:border-(--color-brand-w80) dark:bg-(--color-background-wMain)">
+                            <div className="mt-2 w-full rounded-md border-2 border-(--brand-w20) bg-(--background-w10) p-4">
                                 <div className="grid gap-4" style={{ gridAutoFlow: "column", gridAutoColumns: "1fr" }}>
                                     {node.parallelBranches.map((branch, branchIndex) => (
                                         <div key={branchIndex} className="flex flex-col items-center">

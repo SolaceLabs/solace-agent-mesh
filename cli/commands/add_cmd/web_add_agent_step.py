@@ -6,14 +6,14 @@ from pathlib import Path
 from cli.utils import wait_for_server
 
 
-from config_portal.backend.server import run_flask
-
-
 def launch_add_agent_web_portal(cli_options: dict):
     """
     Launches the web-based configuration portal for adding a new agent.
     The actual file writing will happen here after the portal returns data.
     """
+    # Lazy import to avoid loading Flask at CLI startup
+    from config_portal.backend.server import run_flask
+
     click.echo(
         click.style("Attempting to start web-based 'Add Agent' portal...", fg="blue")
     )

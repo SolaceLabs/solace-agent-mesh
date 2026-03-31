@@ -6,24 +6,24 @@ import click
 
 from ...utils import wait_for_server
 
-try:
-    from config_portal.backend.server import run_flask
-except ImportError as e:
-    click.echo(
-        click.style(
-            f"Critical Error: Could not import run_flask from config_portal.backend.server. Error: {e}\n",
-            fg="red",
-        ),
-        err=True,
-    )
-    click.echo(click.style("Aborting web-based initialization.", fg="red"), err=True)
-    sys.exit(1)
-
 
 def perform_web_init(current_cli_params: dict) -> dict:
     """
     Launches the web-based configuration portal and updates params.
     """
+    # Lazy import to avoid loading Flask at CLI startup
+    try:
+        from config_portal.backend.server import run_flask
+    except ImportError as e:
+        click.echo(
+            click.style(
+                f"Critical Error: Could not import run_flask from config_portal.backend.server. Error: {e}\n",
+                fg="red",
+            ),
+            err=True,
+        )
+        click.echo(click.style("Aborting web-based initialization.", fg="red"), err=True)
+        sys.exit(1)
 
     click.echo(
         click.style("Attempting to start web-based configuration portal...", fg="blue")
@@ -79,22 +79,28 @@ def perform_web_init(current_cli_params: dict) -> dict:
                 if old_key in config_from_portal and new_key not in config_from_portal:
                     config_from_portal[new_key] = config_from_portal[old_key]
 
-            # Handle planning and general model names with fallback to single model name
-            config_from_portal["llm_service_planning_model_name"] = (
-                config_from_portal.get("llm_service_planning_model_name")
-                or config_from_portal.get("llm_planning_model_name")
-                or config_from_portal.get("llm_model_name")
-            )
+            # Check if AWS Bedrock provider is being used
+            llm_provider = config_from_portal.get("llm_provider", "")
 
-            config_from_portal["llm_service_general_model_name"] = (
-                config_from_portal.get("llm_service_general_model_name")
-                or config_from_portal.get("llm_general_model_name")
-                or config_from_portal.get("llm_model_name")
-            )
+            # For AWS Bedrock, we don't need planning and general model names
+            # The model info is already in llm_model_name and aws_model_id
+            if llm_provider != "aws_bedrock":
+                # Handle planning and general model names with fallback to single model name
+                config_from_portal["llm_service_planning_model_name"] = (
+                    config_from_portal.get("llm_service_planning_model_name")
+                    or config_from_portal.get("llm_planning_model_name")
+                    or config_from_portal.get("llm_model_name")
+                )
 
-            # Clean up deprecated keys if new keys are present
-            config_from_portal.pop("llm_planning_model_name", None)
-            config_from_portal.pop("llm_general_model_name", None)
+                config_from_portal["llm_service_general_model_name"] = (
+                    config_from_portal.get("llm_service_general_model_name")
+                    or config_from_portal.get("llm_general_model_name")
+                    or config_from_portal.get("llm_model_name")
+                )
+
+                # Clean up deprecated keys if new keys are present
+                config_from_portal.pop("llm_planning_model_name", None)
+                config_from_portal.pop("llm_general_model_name", None)
 
             click.echo(
                 click.style("Configuration received from web portal.", fg="green")

@@ -75,7 +75,7 @@ Set up Solace Agent Mesh in just a few steps.
 
 To run Solace Agent Mesh locally, you'll need:
 
-- **Python 3.10.16+**
+- **Python 3.10.16 – 3.13.x**
 - **pip** (comes with Python)
 - **OS**: MacOS, Linux, or Windows (with [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
 - **LLM API key** (any major provider or custom endpoint)

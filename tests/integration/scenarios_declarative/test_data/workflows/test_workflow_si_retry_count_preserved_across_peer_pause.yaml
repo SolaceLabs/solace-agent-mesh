@@ -1,0 +1,119 @@
+# Test Case: Retry count is preserved when agent pauses for peer calls during a retry.
+#
+# This test exposes a bug where the retry_count resets to 0 when
+# finalize_deferred_structured_invocation() is called after a peer-agent
+# pause during a validation retry. The sequence:
+#
+# 1. Workflow dispatches structured invocation to TestPeerAgentA (node "step_1")
+# 2. Attempt 1: Agent outputs text WITHOUT the result embed
+# 3. Handler detects missing embed, triggers retry (retry_count=1)
+# 4. Attempt 2 (retry 1): Agent calls peer_TestPeerAgentD → pauses
+# 5. TestPeerAgentD responds
+# 6. Agent resumes, outputs text WITHOUT the result embed
+# 7. Handler runs deferred finalization — retry_count should be 1, not 0
+#    With retry_count=1 and max=2: triggers retry (retry_count=2)
+# 8. Attempt 3 (retry 2): Agent outputs text WITHOUT the result embed
+# 9. retry_count=2 >= max_validation_retries=2 → error returned
+# 10. Workflow fails
+#
+# BUG: finalize_deferred_structured_invocation calls _run_si_finalization
+# with default retry_count=0, losing the actual count. This causes the
+# agent to get unlimited retries instead of failing after max.
+
+test_case_id: "workflow_si_retry_count_preserved_across_peer_pause_001"
+description: "Tests that retry count is preserved when agent pauses for peer calls during a validation retry."
+tags: ["all", "workflows", "validation", "delegation"]
+skip_intermediate_events: true
+expected_completion_timeout_seconds: 30
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "SimpleTestWorkflow"
+  user_identity: "retry_peer_pause_test@example.com"
+  external_context:
+    a2a_session_id: "retry_peer_pause_test_session"
+  parts:
+    - type: "data"
+      data:
+        input_text: "Process this data with peer help"
+
+llm_interactions:
+  # ── Attempt 1 (initial, retry_count=0) ──
+  # TestPeerAgentA outputs text without the mandatory result embed.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I have started processing the data."
+    expected_request:
+      tools_present:
+        - "peer_TestPeerAgentD"
+
+  # ── Attempt 2 (retry 1, retry_count=1) ──
+  # Handler sends retry feedback. Agent decides to call a peer for help.
+  # This causes the agent to PAUSE, which is the critical path for the bug.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Let me get more info from my peer."
+            tool_calls:
+              - id: "call_peer_during_retry"
+                type: "function"
+                function:
+                  name: "peer_TestPeerAgentD"
+                  arguments: '{"task_description": "Help me process: Process this data with peer help"}'
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "You failed to provide the mandatory result embed"
+
+  # ── Peer agent turn ──
+  # TestPeerAgentD receives the delegation and responds.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Here is the peer data: result=99."
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "Help me process"
+
+  # ── Attempt 2 continued (after peer response) ──
+  # TestPeerAgentA receives the peer response but STILL doesn't include
+  # the result embed. At this point the deferred finalization fires.
+  # If retry_count is correctly preserved as 1, the handler will see
+  # 1 < 2 (max) and trigger one more retry (retry_count=2).
+  # If the bug exists (count reset to 0), it would trigger retry at count 1
+  # and then ANOTHER retry at count 2, needing a 5th agent turn we don't provide.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Got peer data. Processing complete."
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_call_id_matches_prior_request_index: 0
+          response_contains: "result=99"
+
+  # ── Attempt 3 (retry 2, retry_count=2 — final attempt) ──
+  # Handler sends retry feedback one last time. Agent still fails.
+  # With correct retry_count=2 >= max=2, this is the last chance.
+  # Agent still doesn't provide the embed → error returned → workflow fails.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "I cannot produce the required output format."
+    expected_request:
+      messages_contain:
+        - role: "user"
+          content_contains: "You failed to provide the mandatory result embed"
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "failed"

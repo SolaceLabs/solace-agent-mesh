@@ -106,20 +106,17 @@ function TestIndexingSSE({
     resourceId,
     metadataKey,
     onComplete,
-    onError,
     onEvent,
 }: {
     resourceId: string;
     metadataKey?: string;
-    onComplete?: () => void;
-    onError?: (error: string) => void;
+    onComplete?: (failedFiles: string[], errors: string[]) => void;
     onEvent?: (event: { type: string; [key: string]: unknown }) => void;
 }) {
     const { isIndexing, connectionState, latestEvent, startIndexing } = useIndexingSSE({
         resourceId,
         metadataKey,
         onComplete,
-        onError,
         onEvent,
     });
 
@@ -208,21 +205,20 @@ describe("useIndexingSSE", () => {
 
         act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
 
-        expect(onComplete).toHaveBeenCalledTimes(1);
+        expect(onComplete).toHaveBeenCalledWith([], []);
         await waitFor(() => {
             expect(screen.getByTestId("is-indexing")).toHaveTextContent("false");
             expect(screen.getByTestId("latest-event")).toHaveTextContent("none");
         });
     });
 
-    test("calls onError with error string on conversion_failed", async () => {
+    test("accumulates conversion_failed errors and reports on task_completed", async () => {
         const user = userEvent.setup();
-        const onError = vi.fn();
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const onComplete = vi.fn();
 
         render(
             <SSEProvider>
-                <TestIndexingSSE resourceId="project-1" onError={onError} />
+                <TestIndexingSSE resourceId="project-1" onComplete={onComplete} />
             </SSEProvider>
         );
 
@@ -231,22 +227,25 @@ describe("useIndexingSSE", () => {
 
         const eventSource = MockEventSource.getLatest()!;
         act(() => eventSource.simulateOpen());
-        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "conversion_failed", error: "Failed to convert 'doc.pdf'" })));
 
-        expect(onError).toHaveBeenCalledWith("Failed to convert 'doc.pdf'");
+        // conversion_failed is non-terminal — task stays active, accumulates filename
+        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "conversion_failed", file: "doc.pdf", error: "Failed to convert 'doc.pdf'" })));
+        expect(screen.getByTestId("is-indexing")).toHaveTextContent("true");
+        expect(onComplete).not.toHaveBeenCalled();
+
+        // task_completed finalizes with accumulated filenames
+        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
+        expect(onComplete).toHaveBeenCalledWith(["doc.pdf"], []);
         await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
-
-        consoleSpy.mockRestore();
     });
 
-    test("uses fallback error message when error field is not a string", async () => {
+    test("accumulates indexing_failed with fallback label and reports on task_completed", async () => {
         const user = userEvent.setup();
-        const onError = vi.fn();
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const onComplete = vi.fn();
 
         render(
             <SSEProvider>
-                <TestIndexingSSE resourceId="project-1" onError={onError} />
+                <TestIndexingSSE resourceId="project-1" onComplete={onComplete} />
             </SSEProvider>
         );
 
@@ -255,9 +254,37 @@ describe("useIndexingSSE", () => {
 
         const eventSource = MockEventSource.getLatest()!;
         act(() => eventSource.simulateOpen());
-        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "indexing_failed", error: { code: 500 } })));
 
-        expect(onError).toHaveBeenCalledWith("Indexing failed");
+        // indexing_failed is non-terminal — task_completed follows
+        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "indexing_failed", error: { code: 500 } })));
+        expect(screen.getByTestId("is-indexing")).toHaveTextContent("true");
+
+        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_completed" })));
+        expect(onComplete).toHaveBeenCalledWith([], ["Indexing failed"]);
+        await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
+    });
+
+    test("task_error is terminal and reports error immediately", async () => {
+        const user = userEvent.setup();
+        const onComplete = vi.fn();
+        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+        render(
+            <SSEProvider>
+                <TestIndexingSSE resourceId="project-1" onComplete={onComplete} />
+            </SSEProvider>
+        );
+
+        await user.click(screen.getByTestId("start-indexing"));
+        await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
+
+        const eventSource = MockEventSource.getLatest()!;
+        act(() => eventSource.simulateOpen());
+
+        // task_error is truly terminal — no task_completed follows
+        act(() => eventSource.simulateCustomEvent("index_message", JSON.stringify({ type: "task_error", error: "Background task crashed" })));
+        expect(onComplete).toHaveBeenCalledWith([], ["Background task crashed"]);
+        await waitFor(() => expect(screen.getByTestId("is-indexing")).toHaveTextContent("false"));
 
         consoleSpy.mockRestore();
     });

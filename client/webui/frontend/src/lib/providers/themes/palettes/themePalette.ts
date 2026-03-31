@@ -162,4 +162,27 @@ export type ThemePalette = {
         w10: string;
         w5?: string;
     };
+
+    darkSurface: {
+        bg: string;
+        bgHover: string;
+        bgActive: string;
+        text: string;
+        textMuted: string;
+        brandMain: string;
+        brandAccent: string;
+        border: string;
+    };
+
+    temporary: {
+        primary: {
+            wMain: string;
+        };
+    };
 };
+
+export interface ThemeDefinition {
+    id: string;
+    label: string;
+    palette: ThemePalette;
+}

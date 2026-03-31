@@ -1,6 +1,19 @@
 // This file must be loaded BEFORE vitest.setup.ts to mock localStorage
 // before MSW's CookieStore initializes at module load time
 
+// Polyfill Promise.withResolvers for jsdom (required by pdfjs-dist)
+if (typeof Promise.withResolvers === "undefined") {
+    (Promise as any).withResolvers = function <T>() {
+        let resolve!: (value: T | PromiseLike<T>) => void;
+        let reject!: (reason?: unknown) => void;
+        const promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    };
+}
+
 const localStorageMock = (() => {
     let store: Record<string, string> = {};
     return {

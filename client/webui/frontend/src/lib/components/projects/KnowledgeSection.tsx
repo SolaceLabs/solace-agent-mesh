@@ -19,9 +19,10 @@ import { DeleteProjectFileDialog } from "./DeleteProjectFileDialog";
 interface KnowledgeSectionProps {
     project: Project;
     isDisabled?: boolean;
+    onFileChange?: () => void;
 }
 
-export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSectionProps) => {
+export const KnowledgeSection = ({ project, isDisabled = false, onFileChange }: KnowledgeSectionProps) => {
     const isOwner = useIsProjectOwner(project.userId);
     const { data: artifacts = [], isLoading, error, refetch } = useProjectArtifacts(project.id);
     const { addFilesToProject, removeFileFromProject, updateFileMetadata } = useProjectContext();
@@ -86,8 +87,10 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
     const handleConfirmUpload = async (formData: FormData) => {
         setIsSubmitting(true);
         setUploadError(null);
+
         try {
             const result = await addFilesToProject(project.id, formData);
+            onFileChange?.();
 
             // close dialog and then start indexing if required
             setFilesToUpload(null);
@@ -124,6 +127,7 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
 
         try {
             const result = await removeFileFromProject(project.id, fileToDelete.filename);
+            onFileChange?.();
 
             // close dialog and then start indexing if required
             setFileToDelete(null);
@@ -189,8 +193,8 @@ export const KnowledgeSection = ({ project, isDisabled = false }: KnowledgeSecti
         <div className="flex min-h-80 flex-1 flex-col">
             <div className="mb-3 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2">
-                    <h3 className="text-foreground text-sm font-semibold">Knowledge</h3>
-                    {!isLoading && artifacts.length > 0 && <span className="text-muted-foreground text-xs">({artifacts.length})</span>}
+                    <h3 className="text-sm font-semibold text-(--primary-text-wMain)">Knowledge</h3>
+                    {!isLoading && artifacts.length > 0 && <span className="text-xs text-(--secondary-text-wMain)">({artifacts.length})</span>}
                 </div>
             </div>
 

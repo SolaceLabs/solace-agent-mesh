@@ -656,6 +656,7 @@ async def subscribe_to_visualization_stream(
         )
         async with component._get_visualization_lock():
             component._active_visualization_streams.pop(stream_id, None)
+            component._viz_stream_drop_counts.pop(stream_id, None)
         log.debug(
             "%s Released viz lock after cleaning up failed stream %s",
             log_id_prefix,
@@ -1173,6 +1174,7 @@ async def unsubscribe_from_visualization_stream(
             await sse_manager.close_connection(stream_id, sse_queue)
 
         component._active_visualization_streams.pop(stream_id, None)
+        component._viz_stream_drop_counts.pop(stream_id, None)
         log.info("%s Stream %s unsubscribed and removed.", log_id_prefix, stream_id)
     log.debug(
         "%s Released viz lock after unsubscribing from stream %s",

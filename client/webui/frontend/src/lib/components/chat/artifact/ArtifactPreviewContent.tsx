@@ -13,7 +13,7 @@ import { ArtifactPreviewDownload } from "./ArtifactPreviewDownload";
 import { ArtifactTransitionOverlay } from "./ArtifactTransitionOverlay";
 
 const EmptyState: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-    return <div className="text-muted-foreground flex h-[50vh] items-center justify-center">{children || "No preview available"}</div>;
+    return <div className="flex h-[50vh] items-center justify-center text-(--secondary-text-wMain)">{children || "No preview available"}</div>;
 };
 
 export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ artifact }) => {
@@ -161,7 +161,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     if (isLoading) {
         return (
             <EmptyState>
-                <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin text-(--secondary-text-wMain)" />
             </EmptyState>
         );
     }
@@ -178,6 +178,9 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
     const effectiveMimeType = contentSource?.mime_type || artifact.mime_type;
     const rendererType = getRenderType(artifact.filename, effectiveMimeType);
     const content = getFileContent(contentSource);
+    // For URL-based renderers (like PDF), prefer contentSource URL, fall back to previewFileContent URL
+    // This ensures binary files can be fetched even when using cached content
+    const effectiveUrl = contentSource?.url || previewFileContent?.url;
 
     if (!rendererType || !content) {
         return <EmptyState>No preview available</EmptyState>;
@@ -185,7 +188,7 @@ export const ArtifactPreviewContent: React.FC<{ artifact: ArtifactInfo }> = ({ a
 
     return (
         <div className="relative h-full w-full">
-            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} setRenderError={setError} ragData={artifactRagData} />
+            <ContentRenderer content={content} rendererType={rendererType} mime_type={contentSource?.mime_type} url={effectiveUrl} filename={artifact.filename} setRenderError={setError} ragData={artifactRagData} />
             <ArtifactTransitionOverlay isVisible={isDownloading} message="Resolving embeds..." />
         </div>
     );

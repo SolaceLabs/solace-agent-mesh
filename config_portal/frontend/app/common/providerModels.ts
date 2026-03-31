@@ -11,6 +11,7 @@ export const LLM_PROVIDER_OPTIONS = [
   { value: "anthropic", label: "Anthropic" },
   { value: "google", label: "Google Gemini" },
   { value: "azure", label: "Azure" },
+  { value: "aws_bedrock", label: "AWS Bedrock" },
   { value: "openai_compatible", label: "OpenAI Compatible Provider" },
 ];
 export const PROVIDER_PREFIX_MAP: Record<string, string> = {
@@ -19,6 +20,7 @@ export const PROVIDER_PREFIX_MAP: Record<string, string> = {
   google: "openai", //using googles open ai compatible endpoint
   openai_compatible: "openai",
   azure: "azure",
+  aws_bedrock: "bedrock",
 };
 
 export const PROVIDER_MODELS: Record<string, string[]> = {

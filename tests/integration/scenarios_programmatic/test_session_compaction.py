@@ -87,6 +87,7 @@ async def test_session_compaction_triggers_and_filters(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test that session compaction:
@@ -167,15 +168,16 @@ async def test_session_compaction_triggers_and_filters(
         response_text = aggregated_text or terminal_text
         assert response_text is not None, "Agent should respond after compaction"
 
-        # Verify summary notification was sent
-        assert "summarized" in response_text.lower() or "token limit" in response_text.lower() or "Summary" in response_text, \
-            f"Response should contain compaction summary notification"
+        # Verify the agent's response text matches expected LLM output
+        assert "dell xps 15" in response_text.lower(), \
+            f"Response should contain the LLM's answer about the replacement, got: {response_text}"
 
 
 async def test_compaction_cutoff_before_30_percent(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test cutoff calculation when boundary BEFORE 30% is closer.
@@ -237,6 +239,7 @@ async def test_compaction_cutoff_after_30_percent_varied_sizes(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test cutoff calculation with varied interaction sizes.
@@ -291,6 +294,7 @@ async def test_progressive_summarization_double_compaction(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test progressive summarization: second compaction re-summarizes first summary.
@@ -398,6 +402,7 @@ async def test_compaction_percentage_30_verification(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Verify 30% compaction percentage compacts correct amount.
@@ -446,6 +451,7 @@ async def test_session_compaction_with_binary_content(
     test_llm_server: TestLLMServer,
     test_gateway_app_instance: TestGatewayComponent,
     compaction_agent_app_under_test: SamAgentApp,
+    enable_test_compaction_trigger,
 ):
     """
     Test that compaction correctly accounts for binary content (images).
@@ -597,6 +603,6 @@ async def test_session_compaction_with_binary_content(
         response_text = aggregated_text or terminal_text
         assert response_text is not None, "Agent should respond after compaction with binary content"
 
-        # Verify summary notification includes context about continuation
-        assert "Continuing" in response_text or "summarized" in response_text.lower(), \
-            f"Response should indicate continuation after compaction, got: {response_text}"
+        # Verify the agent's response text matches expected LLM output
+        assert "preferences" in response_text.lower(), \
+            f"Response should contain the LLM's answer about preferences, got: {response_text}"

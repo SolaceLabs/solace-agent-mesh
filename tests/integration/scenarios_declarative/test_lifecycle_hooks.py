@@ -4,10 +4,20 @@ from pathlib import Path
 from typing import Dict, Any, Generator
 
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from solace_ai_connector.common.observability.registry import MetricRegistry
 from tests.integration.test_support.lifecycle_tracker import (
     get_tracked_lines,
     cleanup_tracker,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_metric_registry():
+    """Reset the MetricRegistry singleton before each test to avoid
+    'MetricRegistry already initialized' errors from SAC 3.3.6+."""
+    MetricRegistry.reset()
+    yield
+    MetricRegistry.reset()
 
 
 @pytest.fixture

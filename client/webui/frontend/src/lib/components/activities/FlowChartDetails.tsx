@@ -85,14 +85,14 @@ export const FlowChartDetails: React.FC<{ task: VisualizedTask }> = ({ task }) =
 
     return task ? (
         <div className="grid grid-cols-[auto_1fr_auto] grid-rows-[32px_32px] items-center gap-x-8 border-b p-4">
-            <div className="text-muted-foreground">User</div>
+            <div className="text-(--secondary-text-wMain)">User</div>
             <div className="truncate" title={task.initialRequestText}>
                 {task.initialRequestText}
             </div>
             {/* Empty cell for alignment */}
             <div />
 
-            <div className="text-muted-foreground">Status</div>
+            <div className="text-(--secondary-text-wMain)">Status</div>
             <div className="truncate">{taskStatus}</div>
 
             <div>

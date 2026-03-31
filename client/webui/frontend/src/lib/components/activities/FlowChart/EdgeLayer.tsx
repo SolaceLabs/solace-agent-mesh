@@ -32,18 +32,18 @@ const EdgeLayer: React.FC<EdgeLayerProps> = ({ edges, selectedEdgeId, onEdgeClic
 
         // Priority: Error > Selected > Hover > Default
         if (edge.isError) {
-            return "stroke-(--color-error-wMain)";
+            return "stroke-(--error-wMain)";
         }
 
         if (isSelected) {
-            return "stroke-(--color-accent-n2-wMain)";
+            return "stroke-(--accent-n2-wMain)";
         }
 
         if (isHovered) {
-            return "stroke-(--color-secondary-w70)";
+            return "stroke-(--secondary-w70)";
         }
 
-        return "stroke-(--color-secondary-w40)";
+        return "stroke-(--secondary-w40)";
     };
 
     // Get edge stroke width

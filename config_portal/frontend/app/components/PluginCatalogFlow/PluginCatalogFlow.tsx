@@ -259,9 +259,20 @@ const PluginCatalogFlow: React.FC = () => {
       if (!response.ok || result.status !== "success") {
         throw new Error(result.error || "Failed to add registry");
       }
-      handleShowNotification("success", result.message);
+      
+      // Show appropriate message for new vs updated registry
+      const action = result.is_update ? "updated" : "added";
+      const message = result.is_update
+        ? `Registry ${action} successfully. Plugins refreshed with latest data.`
+        : result.message || "Registry added successfully!";
+      handleShowNotification("success", message);
+      
+      // Refresh registries list
       await fetchRegistries();
-      await fetchPlugins(false);
+      
+      // Force refresh plugins with loading indicator
+      await fetchPlugins(true);
+      
       setIsAddRegistryModalOpen(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

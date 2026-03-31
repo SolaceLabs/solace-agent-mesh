@@ -247,7 +247,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
+                            <Workflow className="h-5 w-5 text-(--brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -265,7 +265,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
+                            <Workflow className="h-5 w-5 text-(--brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -283,7 +283,7 @@ export function WorkflowVisualizationPage() {
                 <Header
                     title={
                         <div className="flex items-center gap-2">
-                            <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
+                            <Workflow className="h-5 w-5 text-(--brand-wMain)" />
                             <span>{workflowName || "Workflow"}</span>
                         </div>
                     }
@@ -299,9 +299,9 @@ export function WorkflowVisualizationPage() {
             <Header
                 title={
                     <div className="flex items-center gap-2">
-                        <Workflow className="h-5 w-5 text-(--color-brand-wMain)" />
+                        <Workflow className="h-5 w-5 text-(--brand-wMain)" />
                         <span>{workflow.displayName || workflow.name}</span>
-                        {config.version && <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">v{config.version}</span>}
+                        {config.version && <span className="rounded bg-(--secondary-w10) px-2 py-0.5 text-xs text-(--secondary-text-wMain)">v{config.version}</span>}
                     </div>
                 }
                 breadcrumbs={breadcrumbs}
@@ -344,7 +344,7 @@ export function WorkflowVisualizationPage() {
                         {/* Resize handle - matches ResizableHandle styling */}
                         <div className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2" onMouseDown={handleResizeStart} />
                         {/* Panel content */}
-                        <div className="bg-background min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 bg-(--background-w10)">
                             <WorkflowDetailsSidePanel workflow={workflow} config={config} view={workflowPanelView} onClose={handleCloseWorkflowPanel} onViewChange={handleSwitchPanelView} />
                         </div>
                     </div>

@@ -4,16 +4,21 @@ FastAPI dependency injection for Platform Service.
 Provides database sessions, component instance access, and user authentication.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Generator
 
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from .routers.dto.responses.model_configuration_responses import ModelDependentResponse
+
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
+    from ..services import ModelConfigService, ModelListService
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +49,7 @@ def init_database(database_url: str):
     Initialize database connection with dialect-specific configuration.
 
     Configures appropriate connection pooling and settings for:
-    - SQLite: StaticPool, foreign key enforcement
+    - SQLite: NullPool with WAL mode for multi-threaded access
     - PostgreSQL/MySQL: Connection pooling with pre-ping
 
     Args:
@@ -59,10 +64,10 @@ def init_database(database_url: str):
 
         if dialect_name == "sqlite":
             engine_kwargs = {
-                "poolclass": pool.StaticPool,
+                "poolclass": pool.NullPool,
                 "connect_args": {"check_same_thread": False},
             }
-            log.info("Configuring SQLite database (single-connection mode)")
+            log.info("Configuring SQLite database with NullPool (per-thread connections)")
 
         elif dialect_name in ("postgresql", "mysql"):
             engine_kwargs = {
@@ -85,6 +90,8 @@ def init_database(database_url: str):
             if dialect_name == "sqlite":
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
                 cursor.close()
 
         PlatformSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -138,6 +145,22 @@ def get_heartbeat_tracker():
         return None
     return platform_component_instance.get_heartbeat_tracker()
 
+def get_component_instance() -> "PlatformServiceComponent":
+    """
+    FastAPI dependency for accessing the PlatformServiceComponent instance.
+
+    Returns:
+        The PlatformServiceComponent instance.
+
+    Raises:
+        HTTPException: 503 if component is not initialized.
+    """
+    if platform_component_instance is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Platform component not initialized.",
+        )
+    return platform_component_instance
 
 def get_agent_registry():
     """
@@ -167,3 +190,66 @@ def get_gateway_registry():
         log.warning("Platform component not initialized - gateway registry unavailable")
         return None
     return platform_component_instance.get_gateway_registry()
+
+
+def get_model_config_service() -> ModelConfigService:
+    """
+    FastAPI dependency for ModelConfigService.
+
+    Provides a service instance for model configuration business logic.
+    The service is stateless and takes db: Session as a parameter to each method,
+    allowing database session lifecycle to be managed independently.
+
+    Returns:
+        ModelConfigService instance for accessing model configurations.
+    """
+    from solace_agent_mesh.services.platform.services import ModelConfigService
+
+    return ModelConfigService()
+
+def get_model_list_service() -> "ModelListService":
+    """
+    FastAPI dependency for ModelListService.
+    Provides a service instance for fetching supported LLM models per provider.
+    Returns:
+        ModelListService instance for accessing model lists.
+    """
+    from solace_agent_mesh.services.platform.services import ModelListService
+
+    return ModelListService()
+
+
+class ModelDependentsHandler:
+    """Interface for handling model-dependent agents on delete.
+
+    The community default is a no-op. Enterprise overrides this to find
+    and undeploy agents that depend on a given model configuration.
+    """
+
+    async def undeploy_dependents(self, model_alias: str, model_id: str, component: "PlatformServiceComponent") -> list[ModelDependentResponse]:
+        """Undeploy agents depending on the given model (by alias or ID).
+
+        Args:
+            model_alias: The model alias being deleted.
+            model_id: The model UUID being deleted.
+            component: PlatformServiceComponent instance for publishing.
+
+        Returns:
+            List of dicts with info about undeployed agents.
+        """
+        return []
+
+
+_model_dependents_handler: ModelDependentsHandler = ModelDependentsHandler()
+
+
+def set_model_dependents_handler(handler: ModelDependentsHandler):
+    """Register an enterprise handler for model-dependent agent management."""
+    global _model_dependents_handler
+    _model_dependents_handler = handler
+    log.info("Model dependents handler registered.")
+
+
+def get_model_dependents_handler() -> ModelDependentsHandler:
+    """FastAPI dependency for the model dependents handler."""
+    return _model_dependents_handler

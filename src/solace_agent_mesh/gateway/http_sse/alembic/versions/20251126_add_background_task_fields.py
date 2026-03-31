@@ -18,21 +18,26 @@ depends_on = None
 
 def upgrade():
     """Add fields to support background task execution."""
+    bind = op.get_bind()
+
     # Add execution_mode column (foreground | background)
     op.add_column('tasks', sa.Column('execution_mode', sa.String(20), nullable=True, server_default='foreground'))
-    
+
     # Add last_activity_time for timeout detection
     op.add_column('tasks', sa.Column('last_activity_time', sa.BigInteger, nullable=True))
-    
-    # Add background_execution_enabled flag
-    op.add_column('tasks', sa.Column('background_execution_enabled', sa.Boolean, nullable=True, server_default='false'))
-    
+
+    # Add background_execution_enabled flag (MySQL needs numeric default)
+    if bind.dialect.name == 'mysql':
+        op.add_column('tasks', sa.Column('background_execution_enabled', sa.Boolean, nullable=True, server_default=sa.text('0')))
+    else:
+        op.add_column('tasks', sa.Column('background_execution_enabled', sa.Boolean, nullable=True, server_default='false'))
+
     # Add max_execution_time_ms for timeout configuration
     op.add_column('tasks', sa.Column('max_execution_time_ms', sa.BigInteger, nullable=True))
-    
+
     # Create index on execution_mode for efficient queries
     op.create_index('idx_tasks_execution_mode', 'tasks', ['execution_mode'])
-    
+
     # Create index on last_activity_time for timeout monitoring
     op.create_index('idx_tasks_last_activity', 'tasks', ['last_activity_time'])
 

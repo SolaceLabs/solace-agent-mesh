@@ -60,6 +60,7 @@ def _create_gcs_client(bucket_name: str) -> ObjectStorageClient:
         bucket_name=bucket_name,
         project=os.getenv("GCS_PROJECT"),
         credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+        credentials_json=os.getenv("GCS_CREDENTIALS_JSON"),
     )
 
 

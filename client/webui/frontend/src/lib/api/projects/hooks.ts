@@ -51,11 +51,11 @@ export function useProjectSessions(projectId: string | null) {
             }
         };
 
-        window.addEventListener("session-moved", handleSessionEvent);
+        window.addEventListener("session-updated", handleSessionEvent);
         window.addEventListener("new-chat-session", handleSessionEvent);
 
         return () => {
-            window.removeEventListener("session-moved", handleSessionEvent);
+            window.removeEventListener("session-updated", handleSessionEvent);
             window.removeEventListener("new-chat-session", handleSessionEvent);
         };
     }, [projectId, queryClient]);
@@ -133,6 +133,17 @@ export function useUpdateFileMetadata() {
         mutationFn: ({ projectId, filename, description }: { projectId: string; filename: string; description: string }) => projectService.updateFileMetadata(projectId, filename, description),
         onSuccess: (_, { projectId }) => {
             queryClient.invalidateQueries({ queryKey: projectKeys.artifacts(projectId) });
+        },
+    });
+}
+
+export function useTogglePinProject() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (projectId: string) => projectService.togglePinProject(projectId),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: projectKeys.lists() });
         },
     });
 }

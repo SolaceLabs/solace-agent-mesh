@@ -21,7 +21,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Create tasks, task_events, feedback, and chat_tasks tables."""
+    bind = op.get_bind()
 
+    if bind.dialect.name == 'mysql':
+        _upgrade_mysql()
+    else:
+        _upgrade_standard()
+
+
+def _upgrade_standard() -> None:
+    """Standard upgrade for PostgreSQL and SQLite (original working code)."""
     # Create feedback table
     op.create_table(
         "feedback",
@@ -117,12 +126,123 @@ def upgrade() -> None:
     op.drop_table("chat_messages")
 
 
+def _upgrade_mysql() -> None:
+    """MySQL upgrade with VARCHAR lengths and TEXT index handling."""
+    # Create feedback table
+    op.create_table(
+        "feedback",
+        sa.Column("id", sa.String(64), nullable=False),
+        sa.Column("session_id", sa.String(255), nullable=False),
+        sa.Column("task_id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=False),
+        sa.Column("rating", sa.String(50), nullable=False),  # Enum-like
+        sa.Column("comment", sa.Text(), nullable=True),
+        sa.Column("created_time", sa.BigInteger(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_feedback_task_id"), "feedback", ["task_id"], unique=False)
+    op.create_index(op.f("ix_feedback_user_id"), "feedback", ["user_id"], unique=False)
+    op.create_index(
+        "ix_feedback_created_time", "feedback", ["created_time"], unique=False
+    )
+
+    # Create tasks table
+    op.create_table(
+        "tasks",
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=False),
+        sa.Column("start_time", sa.BigInteger(), nullable=False),
+        sa.Column("end_time", sa.BigInteger(), nullable=True),
+        sa.Column("status", sa.String(50), nullable=True),  # Enum-like
+        sa.Column("initial_request_text", sa.Text(), nullable=True),
+        sa.Column("total_input_tokens", sa.Integer(), nullable=True),
+        sa.Column("total_output_tokens", sa.Integer(), nullable=True),
+        sa.Column("total_cached_input_tokens", sa.Integer(), nullable=True),
+        sa.Column("token_usage_details", sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # MySQL: TEXT index requires prefix length
+    bind = op.get_bind()
+    bind.execute(sa.text(
+        "CREATE INDEX ix_tasks_initial_request_text ON tasks (initial_request_text(255))"
+    ))
+
+    op.create_index(op.f("ix_tasks_user_id"), "tasks", ["user_id"], unique=False)
+    op.create_index("ix_tasks_start_time", "tasks", ["start_time"], unique=False)
+
+    # Create task_events table
+    op.create_table(
+        "task_events",
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("task_id", sa.String(64), nullable=True),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("user_id", sa.String(255), nullable=True),
+        sa.Column("created_time", sa.BigInteger(), nullable=False),
+        sa.Column("topic", sa.Text(), nullable=False),
+        sa.Column("direction", sa.String(50), nullable=False),
+        sa.Column("payload", sa.JSON(), nullable=True),
+        sa.ForeignKeyConstraint(["task_id"], ["tasks.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_task_events_task_id"), "task_events", ["task_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_task_events_user_id"), "task_events", ["user_id"], unique=False
+    )
+
+    # Create chat_tasks table
+    op.create_table(
+        "chat_tasks",
+        sa.Column("id", sa.String(64), nullable=False),  # task ID (e.g. gdk-task-<hex>)
+        sa.Column("session_id", sa.String(255), nullable=False),  # session ID
+        sa.Column("user_id", sa.String(255), nullable=False),  # user ID
+        sa.Column("user_message", sa.Text(), nullable=True),
+        sa.Column("message_bubbles", sa.Text(), nullable=False),
+        sa.Column("task_metadata", sa.Text(), nullable=True),
+        sa.Column("created_time", sa.BigInteger(), nullable=False),
+        sa.Column("updated_time", sa.BigInteger(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["session_id"], ["sessions.id"], ondelete="CASCADE"),
+    )
+    op.create_index("ix_chat_tasks_session_id", "chat_tasks", ["session_id"])
+    op.create_index("ix_chat_tasks_user_id", "chat_tasks", ["user_id"])
+    op.create_index("ix_chat_tasks_created_time", "chat_tasks", ["created_time"])
+
+    # MySQL: Skip chat_messages index drops (table is being dropped anyway)
+    # MySQL may protect FK-related indexes, and DROP TABLE auto-removes all indexes
+
+    # Drop sessions indexes (sessions table stays, must explicitly drop)
+    op.drop_index(op.f("ix_sessions_agent_id"), table_name="sessions")
+    op.drop_index(op.f("ix_sessions_updated_time"), table_name="sessions")
+    op.drop_index(op.f("ix_sessions_user_id"), table_name="sessions")
+    op.drop_index(op.f("ix_sessions_user_id_updated_time"), table_name="sessions")
+
+    # Drop the chat_messages table - replaced by chat_tasks
+    # (auto-removes all remaining chat_messages indexes)
+    op.drop_table("chat_messages")
+
+
 def downgrade() -> None:
     """Drop tasks, task_events, feedback, and chat_tasks tables."""
+    bind = op.get_bind()
 
-    # Recreate chat_messages table
-    op.create_table(
-        "chat_messages",
+    # Recreate chat_messages table (dialect-specific for MySQL VARCHAR lengths)
+    if bind.dialect.name == 'mysql':
+        op.create_table(
+            "chat_messages",
+            sa.Column("id", sa.String(64), nullable=False),  # message ID
+            sa.Column("session_id", sa.String(64), nullable=False),  # session ID (e.g. web-session-<hex>)
+            sa.Column("message", sa.Text(), nullable=False),
+            sa.Column("created_time", sa.BigInteger(), nullable=False),
+            sa.Column("sender_type", sa.String(50), nullable=True),
+            sa.Column("sender_name", sa.String(255), nullable=True),
+            sa.ForeignKeyConstraint(["session_id"], ["sessions.id"], ondelete="CASCADE"),
+            sa.PrimaryKeyConstraint("id"),
+        )
+    else:
+        op.create_table(
+            "chat_messages",
         sa.Column("id", sa.String(), nullable=False),
         sa.Column("session_id", sa.String(), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
@@ -166,25 +286,30 @@ def downgrade() -> None:
         unique=False,
     )
 
-    # Drop chat_tasks table
-    op.drop_index("ix_chat_tasks_created_time", table_name="chat_tasks")
-    op.drop_index("ix_chat_tasks_user_id", table_name="chat_tasks")
-    op.drop_index("ix_chat_tasks_session_id", table_name="chat_tasks")
+    # Drop chat_tasks table (MySQL: skip FK-protected index drops)
+    if bind.dialect.name != 'mysql':
+        op.drop_index("ix_chat_tasks_created_time", table_name="chat_tasks")
+        op.drop_index("ix_chat_tasks_user_id", table_name="chat_tasks")
+        op.drop_index("ix_chat_tasks_session_id", table_name="chat_tasks")
     op.drop_table("chat_tasks")
 
-    # Drop task_events table
-    op.drop_index(op.f("ix_task_events_user_id"), table_name="task_events")
-    op.drop_index(op.f("ix_task_events_task_id"), table_name="task_events")
+    # Drop task_events table (MySQL: skip FK-protected index drops)
+    if bind.dialect.name != 'mysql':
+        op.drop_index(op.f("ix_task_events_user_id"), table_name="task_events")
+        op.drop_index(op.f("ix_task_events_task_id"), table_name="task_events")
     op.drop_table("task_events")
 
-    # Drop tasks table
-    op.drop_index("ix_tasks_start_time", table_name="tasks")
-    op.drop_index(op.f("ix_tasks_user_id"), table_name="tasks")
-    op.drop_index(op.f("ix_tasks_initial_request_text"), table_name="tasks")
+    # Drop tasks table (MySQL: skip all index drops, FK-protected)
+    if bind.dialect.name != 'mysql':
+        op.drop_index("ix_tasks_start_time", table_name="tasks")
+        op.drop_index(op.f("ix_tasks_user_id"), table_name="tasks")
+        op.drop_index(op.f("ix_tasks_initial_request_text"), table_name="tasks")
+
     op.drop_table("tasks")
 
-    # Drop feedback table
-    op.drop_index("ix_feedback_created_time", table_name="feedback")
-    op.drop_index(op.f("ix_feedback_user_id"), table_name="feedback")
-    op.drop_index(op.f("ix_feedback_task_id"), table_name="feedback")
+    # Drop feedback table (MySQL: skip FK-protected index drops)
+    if bind.dialect.name != 'mysql':
+        op.drop_index("ix_feedback_created_time", table_name="feedback")
+        op.drop_index(op.f("ix_feedback_user_id"), table_name="feedback")
+        op.drop_index(op.f("ix_feedback_task_id"), table_name="feedback")
     op.drop_table("feedback")

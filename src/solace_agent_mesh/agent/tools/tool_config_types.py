@@ -93,6 +93,9 @@ class OpenApiToolConfig(BaseToolConfig):
     # Authentication
     auth: Optional[Dict[str, Any]] = None
 
+    # Custom HTTP headers sent with every request
+    headers: Optional[Dict[str, str]] = None
+
     @model_validator(mode='after')
     def validate_tool_filtering(self):
         """Ensure allow_list and deny_list are mutually exclusive."""

@@ -32,6 +32,9 @@ interface ProjectPreview {
 
 // Default max ZIP upload size (100MB) - fallback if not configured
 const DEFAULT_MAX_ZIP_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+// Zip bomb protection: cap on number of entries and total uncompressed size
+export const MAX_ZIP_FILE_COUNT = 1000;
+export const MAX_ZIP_UNCOMPRESSED_BYTES = 500 * 1024 * 1024; // 500MB
 
 export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, onOpenChange, onImport }) => {
     const { validationLimits } = useConfigContext();
@@ -75,6 +78,12 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             // Use JSZip to read and parse the ZIP file
             const zip = await JSZip.loadAsync(file);
 
+            // Zip bomb protection: check entry count before processing
+            if (Object.keys(zip.files).length > MAX_ZIP_FILE_COUNT) {
+                setError(`ZIP file contains too many entries (max ${MAX_ZIP_FILE_COUNT})`);
+                return false;
+            }
+
             // Check for project.json
             if (!zip.files["project.json"]) {
                 setError("Invalid project export: missing project.json");
@@ -111,6 +120,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
             // Get artifact sizes and check for oversized files
             const artifacts: ArtifactPreviewInfo[] = [];
             const oversizedArtifacts: ArtifactPreviewInfo[] = [];
+            let totalUncompressedSize = 0;
 
             for (const artifactPath of artifactFiles) {
                 const zipEntry = zip.files[artifactPath];
@@ -127,6 +137,13 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                     } catch {
                         size = 0;
                     }
+                }
+
+                // Zip bomb protection: check cumulative uncompressed size
+                totalUncompressedSize += size;
+                if (totalUncompressedSize > MAX_ZIP_UNCOMPRESSED_BYTES) {
+                    setError(`ZIP file uncompressed content exceeds ${MAX_ZIP_UNCOMPRESSED_BYTES / (1024 * 1024)}MB limit`);
+                    return false;
                 }
 
                 const isOversized = maxPerFileUploadSizeBytes ? size > maxPerFileUploadSizeBytes : false;
@@ -232,43 +249,43 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
 
             {/* Project Preview */}
             {projectPreview && (
-                <div className="bg-muted/30 space-y-3 rounded-lg border p-4">
+                <div className="space-y-3 rounded-lg border bg-(--secondary-w10) p-4">
                     <div>
-                        <Label className="text-muted-foreground text-xs">Original Name</Label>
+                        <Label className="text-xs text-(--secondary-text-wMain)">Original Name</Label>
                         <p className="text-sm font-medium">{projectPreview.name}</p>
                     </div>
                     {projectPreview.description && (
                         <div>
-                            <Label className="text-muted-foreground text-xs">Description</Label>
+                            <Label className="text-xs text-(--secondary-text-wMain)">Description</Label>
                             <p className="text-sm">{projectPreview.description}</p>
                         </div>
                     )}
                     {projectPreview.systemPrompt && (
                         <div>
-                            <Label className="text-muted-foreground text-xs">Instructions</Label>
+                            <Label className="text-xs text-(--secondary-text-wMain)">Instructions</Label>
                             <p className="line-clamp-3 text-sm">{projectPreview.systemPrompt}</p>
                         </div>
                     )}
                     {projectPreview.defaultAgentId && (
                         <div>
-                            <Label className="text-muted-foreground text-xs">Default Agent</Label>
+                            <Label className="text-xs text-(--secondary-text-wMain)">Default Agent</Label>
                             <p className="font-mono text-sm">{projectPreview.defaultAgentId}</p>
                         </div>
                     )}
                     <div>
-                        <Label className="text-muted-foreground text-xs">
+                        <Label className="text-xs text-(--secondary-text-wMain)">
                             Artifacts ({projectPreview.artifactCount} {projectPreview.artifactCount === 1 ? "file" : "files"})
                         </Label>
                         {projectPreview.artifacts.length > 0 && (
                             <div className="mt-1 space-y-1">
                                 {projectPreview.artifacts.slice(0, 5).map((artifact, index) => (
-                                    <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-destructive" : ""}`}>
-                                        {artifact.isOversized ? <AlertTriangle className="text-destructive h-3 w-3 flex-shrink-0" /> : <FileJson className="text-muted-foreground h-3 w-3 flex-shrink-0" />}
+                                    <div key={index} className={`flex items-center gap-1.5 text-xs ${artifact.isOversized ? "text-(--error-wMain)" : ""}`}>
+                                        {artifact.isOversized ? <AlertTriangle className="h-3 w-3 flex-shrink-0 text-(--error-wMain)" /> : <FileJson className="h-3 w-3 flex-shrink-0 text-(--secondary-text-wMain)" />}
                                         <span className="truncate">{artifact.name}</span>
-                                        <span className="text-muted-foreground flex-shrink-0">({formatBytes(artifact.size)})</span>
+                                        <span className="flex-shrink-0 text-(--secondary-text-wMain)">({formatBytes(artifact.size)})</span>
                                     </div>
                                 ))}
-                                {projectPreview.artifacts.length > 5 && <p className="text-muted-foreground text-xs italic">+ {projectPreview.artifacts.length - 5} more files</p>}
+                                {projectPreview.artifacts.length > 5 && <p className="text-xs text-(--secondary-text-wMain) italic">+ {projectPreview.artifacts.length - 5} more files</p>}
                             </div>
                         )}
                     </div>
@@ -293,7 +310,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({ open, 
                 <div className="space-y-2">
                     <Label htmlFor="customName">Project Name</Label>
                     <Input id="customName" value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Enter project name" disabled={isImporting} />
-                    <p className="text-muted-foreground text-xs">Name conflicts will be resolved automatically</p>
+                    <p className="text-xs text-(--secondary-text-wMain)">Name conflicts will be resolved automatically</p>
                 </div>
             )}
 
