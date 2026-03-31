@@ -571,6 +571,14 @@ def get_shared_artifact_service(
     return component.get_shared_artifact_service()
 
 
+def get_adk_session_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+):
+    """FastAPI dependency to get the ADK session service for cross-agent context transfer."""
+    log.debug("get_adk_session_service called")
+    return component.get_adk_session_service()
+
+
 def get_embed_config(
     component: "WebUIBackendComponent" = Depends(get_sac_component),
 ) -> dict[str, Any]:

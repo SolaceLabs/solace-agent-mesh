@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "./keys";
 import * as sessionService from "./service";
@@ -33,5 +33,11 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
         queryKey: sessionKeys.recent(maxItems),
         queryFn: () => sessionService.getRecentSessions(maxItems),
         refetchOnMount: "always",
+    });
+}
+
+export function useTransferContext() {
+    return useMutation({
+        mutationFn: ({ sessionId, request }: { sessionId: string; request: sessionService.TransferContextRequest }) => sessionService.transferContext(sessionId, request),
     });
 }

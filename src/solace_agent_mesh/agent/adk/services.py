@@ -5,6 +5,7 @@ Initializes ADK Services based on configuration.
 import logging
 import os
 import re
+import uuid as _uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from google.adk.artifacts import (
@@ -999,3 +1000,455 @@ async def append_event_with_retry(
     if last_error:
         raise last_error
     raise RuntimeError("Unexpected state in append_event_with_retry")
+
+
+def _extract_compaction_summary(event: ADKEvent) -> str | None:
+    """Extract the summary text from a compaction event, handling both dict and object forms."""
+    compacted_content = event.actions.compaction
+    if isinstance(compacted_content, dict):
+        cc = compacted_content.get("compacted_content", {})
+        parts = cc.get("parts", []) if isinstance(cc, dict) else []
+        for part in parts:
+            text = part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
+            if text:
+                return text
+    else:
+        cc = getattr(compacted_content, "compacted_content", None)
+        if cc and hasattr(cc, "parts") and cc.parts:
+            for part in cc.parts:
+                if hasattr(part, "text") and part.text:
+                    return part.text
+    return None
+
+
+def extract_session_text_for_transfer(
+    session: ADKSession,
+    source_agent_display_name: str = "previous agent",
+    log_identifier: str = "",
+) -> str | None:
+    """
+    Extract a clean text transcript from an ADK session for cross-agent context transfer.
+
+    Delegates event filtering to _filter_events_for_transfer, then builds a formatted
+    text transcript from the filtered events. Handles compacted sessions by extracting
+    the compaction summary and prepending it to the transcript.
+
+    The session MUST be loaded through FilteringSessionService (which automatically
+    filters ghost events from compacted sessions) before calling this function.
+
+    Args:
+        session: The ADK session loaded via FilteringSessionService.get_session()
+        source_agent_display_name: Display name of the source agent for context marker
+        log_identifier: Logging prefix
+
+    Returns:
+        A formatted text transcript suitable for injection into a new agent's session,
+        or None if the session has no meaningful text content.
+    """
+    if not session or not session.events:
+        log.info("%s No events in session to extract text from.", log_identifier)
+        return None
+
+    # Step 1: Use shared filtering logic
+    filtered_events = _filter_events_for_transfer(
+        events=session.events,
+        log_identifier=log_identifier,
+    )
+
+    # Step 2: Separate compaction summaries from regular text events
+    compaction_summary = None
+    transcript_lines = []
+
+    for event in filtered_events:
+        if event.actions and event.actions.compaction:
+            summary = _extract_compaction_summary(event)
+            if summary:
+                compaction_summary = summary
+            continue
+
+        if not event.content or not event.content.parts:
+            continue
+
+        role = event.content.role
+        text_parts = []
+        for part in event.content.parts:
+            if hasattr(part, "text") and part.text:
+                text_parts.append(part.text)
+
+        combined_text = "\n".join(text_parts).strip()
+        if not combined_text:
+            continue
+
+        role_label = "User" if role == "user" else "Assistant"
+        transcript_lines.append(f"{role_label}: {combined_text}")
+
+    # Step 3: Build the final transcript
+    if not compaction_summary and not transcript_lines:
+        log.info("%s No text content found in session events.", log_identifier)
+        return None
+
+    parts = []
+
+    if compaction_summary:
+        parts.append(f"[Summary of earlier conversation]\n{compaction_summary}")
+
+    if transcript_lines:
+        if compaction_summary:
+            parts.append("\n[Recent conversation]")
+        parts.append("\n".join(transcript_lines))
+
+    transcript = "\n\n".join(parts)
+
+    # Step 4: Wrap with context markers
+    result = (
+        f"[Context from previous conversation with {source_agent_display_name}]\n"
+        f"{transcript}\n"
+        f"[End of previous context]"
+    )
+
+    log.info(
+        "%s Extracted %d chars of text for context transfer (%d filtered events, compaction=%s).",
+        log_identifier,
+        len(result),
+        len(filtered_events),
+        "yes" if compaction_summary else "no",
+    )
+
+    return result
+
+
+def _filter_events_for_transfer(
+    events: list[ADKEvent],
+    log_identifier: str = "",
+) -> list[ADKEvent]:
+    """
+    Filter ADK session events for cross-agent transfer by stripping tool-only events.
+
+    Keeps:
+    - User text events (user messages)
+    - Model text events (assistant responses with text content)
+    - Compaction events (contain conversation summaries)
+
+    Strips from kept events:
+    - function_call parts (tool invocations the new agent doesn't have)
+    - function_response parts (tool results)
+
+    Removes entirely:
+    - Events with ONLY function_call/function_response parts (no text)
+    - System/context-setting events (state_delta events)
+    - Events with no content
+
+    Args:
+        events: List of ADK events from the source session
+        log_identifier: Logging prefix
+
+    Returns:
+        List of filtered ADKEvent objects safe for the target agent
+    """
+    filtered = []
+    skipped_count = 0
+
+    for event in events:
+        # Keep compaction events as-is (they contain conversation summaries)
+        if event.actions and event.actions.compaction:
+            filtered.append(event)
+            continue
+
+        # Skip events with no content
+        if not event.content or not event.content.parts:
+            skipped_count += 1
+            continue
+
+        # Skip system/context-setting events (state_delta only, no text)
+        if event.actions and event.actions.state_delta:
+            has_text = any(
+                hasattr(p, "text") and p.text for p in event.content.parts
+            )
+            if not has_text:
+                skipped_count += 1
+                continue
+
+        role = event.content.role
+        # Only keep user and model events
+        if role not in ("user", "model"):
+            skipped_count += 1
+            continue
+
+        # Filter parts: keep only text parts, strip function_call/function_response
+        # Deep copy text parts to avoid shared references with source events
+        text_parts = []
+        for part in event.content.parts:
+            if hasattr(part, "text") and part.text:
+                text_parts.append(adk_types.Part(text=part.text))
+            # Explicitly skip function_call and function_response parts
+
+        # If no text parts remain after filtering, skip the entire event
+        if not text_parts:
+            skipped_count += 1
+            continue
+
+        # Create a new event with fresh invocation ID to avoid correlation confusion
+        filtered_event = ADKEvent(
+            invocation_id=f"ctx-transfer-{_uuid.uuid4().hex[:12]}",
+            author=event.author,
+            content=adk_types.Content(
+                role=role,
+                parts=text_parts,
+            ),
+            timestamp=event.timestamp,
+        )
+        filtered.append(filtered_event)
+
+    log.info(
+        "%s Filtered events for transfer: %d kept, %d skipped (tool-only/system).",
+        log_identifier,
+        len(filtered),
+        skipped_count,
+    )
+    return filtered
+
+
+# Maximum number of events to transfer to prevent unbounded clone loops
+MAX_TRANSFER_EVENTS = 200
+
+# Allowlist of session state keys safe to copy across agents
+_SAFE_STATE_KEYS = frozenset({
+    # Add known-safe keys here as needed; empty set means no state is copied
+})
+
+
+class TransferResult:
+    """Result of a context transfer operation with detailed counts."""
+
+    __slots__ = ("success", "transferred_count", "total_count", "message")
+
+    def __init__(self, success: bool, transferred_count: int = 0, total_count: int = 0, message: str = ""):
+        self.success = success
+        self.transferred_count = transferred_count
+        self.total_count = total_count
+        self.message = message
+
+    def __bool__(self) -> bool:
+        return self.success
+
+
+async def transfer_session_context(
+    session_service: BaseSessionService,
+    source_agent_name: str,
+    target_agent_name: str,
+    user_id: str,
+    session_id: str,
+    source_agent_display_name: str = "previous agent",
+    log_identifier: str = "",
+    max_events: int = MAX_TRANSFER_EVENTS,
+) -> TransferResult:
+    """
+    Transfer conversation context from one agent's ADK session to another.
+
+    Uses a filtered clone approach: copies user/model text events from the source
+    session to the target session, stripping tool call/response parts that would
+    confuse the new agent. Compaction events (conversation summaries) are preserved.
+
+    Args:
+        session_service: The ADK session service (should be FilteringSessionService)
+        source_agent_name: The source agent's name (used as app_name)
+        target_agent_name: The target agent's name (used as app_name)
+        user_id: The user ID
+        session_id: The session ID (same for both agents)
+        source_agent_display_name: Human-readable name for context marker
+        log_identifier: Logging prefix
+        max_events: Maximum number of events to transfer (oldest truncated first)
+
+    Returns:
+        TransferResult with success flag, transferred/total counts, and message.
+    """
+    # 1. Load source session (FilteringSessionService handles compaction filtering)
+    source_session = await session_service.get_session(
+        app_name=source_agent_name,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    if not source_session or not source_session.events:
+        log.info(
+            "%s No source session found for agent '%s', session '%s'. Nothing to transfer.",
+            log_identifier,
+            source_agent_name,
+            session_id,
+        )
+        return TransferResult(False, message="No source session found.")
+
+    # 2. Filter events: strip tool calls, keep text + compaction events
+    filtered_events = _filter_events_for_transfer(
+        events=source_session.events,
+        log_identifier=log_identifier,
+    )
+
+    if not filtered_events:
+        log.info(
+            "%s No transferable events from agent '%s' session '%s'.",
+            log_identifier,
+            source_agent_name,
+            session_id,
+        )
+        return TransferResult(False, message="No text content to transfer.")
+
+    # 2b. Truncate from oldest if exceeding max_events limit
+    total_before_truncation = len(filtered_events)
+    if len(filtered_events) > max_events:
+        log.warning(
+            "%s Truncating %d filtered events to max_events=%d (dropping oldest).",
+            log_identifier,
+            len(filtered_events),
+            max_events,
+        )
+        filtered_events = filtered_events[-max_events:]
+
+    # 3. Get or create target session
+    target_session = await session_service.get_session(
+        app_name=target_agent_name,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    if target_session is None:
+        # Use allowlist for state cloning — only copy known-safe keys
+        clone_state = None
+        if hasattr(source_session, "state") and source_session.state:
+            if _SAFE_STATE_KEYS:
+                clone_state = {
+                    k: v for k, v in source_session.state.items()
+                    if k in _SAFE_STATE_KEYS
+                }
+                if not clone_state:
+                    clone_state = None
+            else:
+                log.debug(
+                    "%s _SAFE_STATE_KEYS is empty — skipping state copy (%d keys in source).",
+                    log_identifier,
+                    len(source_session.state),
+                )
+        try:
+            target_session = await session_service.create_session(
+                app_name=target_agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                state=clone_state,
+            )
+        except Exception as exc:
+            # Race condition: another request may have created it
+            log.warning(
+                "%s create_session failed, retrying with get_session: %s",
+                log_identifier, exc,
+            )
+            target_session = await session_service.get_session(
+                app_name=target_agent_name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+    if target_session is None:
+        log.error(
+            "%s Failed to create/get target session for agent '%s', session '%s'.",
+            log_identifier,
+            target_agent_name,
+            session_id,
+        )
+        return TransferResult(False, message="Failed to create target session.")
+
+    # 4. Append a context marker event first
+    marker_text = (
+        f"[The user has switched from {source_agent_display_name}. "
+        f"The following is the conversation history from that agent.]"
+    )
+    marker_event = ADKEvent(
+        invocation_id=f"ctx-transfer-marker-{_uuid.uuid4().hex[:12]}",
+        author="model",
+        content=adk_types.Content(
+            role="model",
+            parts=[adk_types.Part(text=marker_text)],
+        ),
+    )
+
+    try:
+        await append_event_with_retry(
+            session_service=session_service,
+            session=target_session,
+            event=marker_event,
+            app_name=target_agent_name,
+            user_id=user_id,
+            session_id=session_id,
+            log_identifier=f"{log_identifier}[ContextTransfer:Marker]",
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to append context marker event: %s",
+            log_identifier, e, exc_info=True,
+        )
+        return TransferResult(False, message="Failed to append context marker.")
+
+    # 5. Clone filtered events into target session
+    # Refresh target_session before the loop to avoid stale-session retries
+    # on every append (append_event_with_retry doesn't return the refreshed session)
+    target_session = await session_service.get_session(
+        app_name=target_agent_name,
+        user_id=user_id,
+        session_id=session_id,
+    ) or target_session
+
+    cloned_count = 0
+    failed_count = 0
+    for event_to_copy in filtered_events:
+        try:
+            await append_event_with_retry(
+                session_service=session_service,
+                session=target_session,
+                event=event_to_copy,
+                app_name=target_agent_name,
+                user_id=user_id,
+                session_id=session_id,
+                log_identifier=f"{log_identifier}[ContextTransfer:Clone]",
+            )
+            cloned_count += 1
+
+            # Periodically refresh session to reduce stale-session retries
+            if cloned_count % 20 == 0:
+                refreshed = await session_service.get_session(
+                    app_name=target_agent_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                if refreshed:
+                    target_session = refreshed
+        except Exception as e:
+            failed_count += 1
+            log.warning(
+                "%s Failed to clone event %d to target session: %s",
+                log_identifier, cloned_count + failed_count, e,
+            )
+            # Continue cloning remaining events
+
+    total_events = len(filtered_events)
+    log.info(
+        "%s Context transfer complete: %d/%d events cloned (%d failed, %d truncated) "
+        "from '%s' to '%s' for session '%s'.",
+        log_identifier,
+        cloned_count,
+        total_events,
+        failed_count,
+        max(0, total_before_truncation - max_events),
+        source_agent_name,
+        target_agent_name,
+        session_id,
+    )
+
+    if cloned_count == 0:
+        return TransferResult(False, 0, total_events, "All event clones failed.")
+
+    if failed_count > 0:
+        return TransferResult(
+            True, cloned_count, total_events,
+            f"Partial transfer: {cloned_count}/{total_events} events.",
+        )
+
+    return TransferResult(True, cloned_count, total_events, "Transfer complete.")

@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from ....common.utils.embeds import (
@@ -14,7 +14,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_adk_session_service, get_agent_registry
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -1050,4 +1050,198 @@ async def trigger_title_generation(
         ) from e
 
 
+# --- Context Transfer ---
 
+DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
+
+
+def _resolve_agent_display_name(agent_registry, agent_name: str) -> str:
+    """Resolve display name from agent registry, falling back to agent_name."""
+    card = agent_registry.get_agent(agent_name)
+    if not card:
+        return agent_name
+
+    capabilities = getattr(card, "capabilities", None)
+    if not capabilities:
+        return agent_name
+
+    extensions = getattr(capabilities, "extensions", None)
+    if not extensions:
+        return agent_name
+
+    for ext in extensions:
+        if ext.uri == DISPLAY_NAME_EXTENSION_URI:
+            display_name = (ext.params or {}).get("display_name")
+            if display_name:
+                return str(display_name)
+
+    return agent_name
+
+# Simple concurrency limiter for context transfer requests.
+# asyncio is single-threaded, so a plain counter is safe (no race between
+# the check and increment within a single synchronous code path).
+_MAX_CONCURRENT_TRANSFERS = 10
+_active_transfer_count = 0
+
+
+class TransferContextRequest(BaseModel):
+    """Request body for transferring conversation context between agents."""
+    source_agent_name: str = Field(
+        ...,
+        max_length=256,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$',
+        description="Name of the source agent to transfer context from",
+    )
+    target_agent_name: str = Field(
+        ...,
+        max_length=256,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$',
+        description="Name of the target agent to transfer context to",
+    )
+
+
+class TransferContextResponse(BaseModel):
+    """Response body for context transfer."""
+    context_transferred: bool = Field(..., description="Whether context was successfully transferred")
+    message: str = Field(..., description="Human-readable status message")
+
+
+@router.post(
+    "/sessions/{session_id}/transfer-context",
+    response_model=TransferContextResponse,
+)
+async def transfer_context(
+    session_id: str,
+    request_body: TransferContextRequest,
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    session_service: SessionService = Depends(get_session_business_service),
+    adk_session_service=Depends(get_adk_session_service),
+    agent_registry=Depends(get_agent_registry),
+):
+    """
+    Transfer conversation context from one agent's ADK session to another.
+
+    When a user switches agents mid-session via the agent selector, this endpoint
+    copies the filtered conversation history (text-only, no tool calls) from the
+    source agent's ADK session to the target agent's ADK session.
+
+    This preserves conversation context across agent switches so the new agent
+    understands what was previously discussed.
+    """
+    user_id = user.get("id")
+    log.info(
+        "User %s requesting context transfer for session %s: %s -> %s",
+        user_id,
+        session_id,
+        request_body.source_agent_name,
+        request_body.target_agent_name,
+    )
+
+    # Validate inputs
+    if not session_id or session_id.strip() == "" or session_id in ["null", "undefined"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session_id.",
+        )
+
+    # Verify the authenticated user owns this session
+    session_domain = session_service.get_session_details(
+        db=db, session_id=session_id, user_id=user_id
+    )
+    if not session_domain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=SESSION_NOT_FOUND_MSG,
+        )
+
+    if request_body.source_agent_name == request_body.target_agent_name:
+        return TransferContextResponse(
+            context_transferred=False,
+            message="Source and target agents are the same. No transfer needed.",
+        )
+
+    # Validate agent names against the registry
+    if request_body.source_agent_name not in agent_registry or request_body.target_agent_name not in agent_registry:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="One or both specified agents are not registered.",
+        )
+
+    # Resolve display name server-side from the agent registry
+    source_agent_display_name = _resolve_agent_display_name(
+        agent_registry, request_body.source_agent_name
+    )
+
+    # Fail-fast: check ADK session service before acquiring semaphore
+    if adk_session_service is None:
+        log.warning(
+            "Context transfer unavailable: ADK session service not initialized."
+        )
+        return TransferContextResponse(
+            context_transferred=False,
+            message="Context transfer unavailable: no agent session service found.",
+        )
+
+    # Rate limit using a simple counter (safe in asyncio's single-threaded event loop —
+    # no await between the check and increment, so no interleaving is possible)
+    global _active_transfer_count
+    if _active_transfer_count >= _MAX_CONCURRENT_TRANSFERS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many context transfer requests. Please try again shortly.",
+        )
+
+    _active_transfer_count += 1
+    try:
+        from ....agent.adk.services import transfer_session_context
+
+        result = await transfer_session_context(
+            session_service=adk_session_service,
+            source_agent_name=request_body.source_agent_name,
+            target_agent_name=request_body.target_agent_name,
+            user_id=user_id,
+            session_id=session_id,
+            source_agent_display_name=source_agent_display_name,
+            log_identifier=f"[ContextTransfer:{session_id}]",
+        )
+
+        if result.success:
+            log.info(
+                "Context transfer successful for session %s: %s -> %s (%d/%d events)",
+                session_id,
+                request_body.source_agent_name,
+                request_body.target_agent_name,
+                result.transferred_count,
+                result.total_count,
+            )
+            return TransferContextResponse(
+                context_transferred=True,
+                message=result.message or f"Context transferred from {source_agent_display_name}.",
+            )
+        else:
+            log.info(
+                "No context to transfer for session %s: %s -> %s (%s)",
+                session_id,
+                request_body.source_agent_name,
+                request_body.target_agent_name,
+                result.message,
+            )
+            return TransferContextResponse(
+                context_transferred=False,
+                message=result.message or "No conversation context found to transfer.",
+            )
+
+    except Exception as e:
+        log.error(
+            "Error during context transfer for session %s: %s",
+            session_id,
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to transfer conversation context.",
+        ) from e
+    finally:
+        _active_transfer_count -= 1

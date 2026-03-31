@@ -641,6 +641,19 @@ const getChatBubble = (
         return null;
     }
 
+    // Agent switch indicator: render as a centered divider-style message
+    if (message.isAgentSwitchIndicator) {
+        const textPart = message.parts?.find(p => p.kind === "text") as TextPart | undefined;
+        const text = textPart?.text || "Agent switched";
+        return (
+            <div className="flex items-center justify-center gap-3 py-3">
+                <div className="bg-border h-px flex-1" />
+                <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">{text}</span>
+                <div className="bg-border h-px flex-1" />
+            </div>
+        );
+    }
+
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
     }
