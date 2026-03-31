@@ -2,5 +2,6 @@ export { AgentMeshPage } from "./AgentMeshPage";
 export { ArtifactsPage } from "./ArtifactsPage";
 export { ChatPage } from "./ChatPage";
 export { PromptsPage } from "./PromptsPage";
+export { RecentChatsPage } from "./RecentChatsPage";
 export { SharedChatViewPage } from "./SharedChatViewPage";
 export { SharedSessionPage } from "./SharedSessionPage";

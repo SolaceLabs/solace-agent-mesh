@@ -9,4 +9,5 @@ export const sessionKeys = {
     recent: (maxItems: number) => [...sessionKeys.lists(), "recent", maxItems] as const,
     details: () => [...sessionKeys.all, "detail"] as const,
     detail: (id: string) => [...sessionKeys.details(), id] as const,
+    chatTasks: (id: string) => [...sessionKeys.detail(id), "chat-tasks"] as const,
 };
