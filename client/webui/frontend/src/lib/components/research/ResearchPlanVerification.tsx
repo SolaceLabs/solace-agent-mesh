@@ -6,7 +6,7 @@
  * Includes a configurable auto-approve countdown timer on the Start button.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Brain, Loader2, Plus, Trash2, Play } from "lucide-react";
 
 /** Dashed circle icon matching the screenshot's "pending step" indicator */
@@ -44,22 +44,21 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
     const hasRespondedRef = useRef(false);
     const autoApproveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Auto-approve after timeout (no visible countdown)
-    useEffect(() => {
-        if (hasResponded || isEditing) return;
-
-        autoApproveRef.current = setTimeout(() => {
-            if (!hasRespondedRef.current) {
-                handleResponse("start", planData.steps);
-            }
-        }, planData.auto_approve_seconds * 1000);
-
-        return () => {
-            if (autoApproveRef.current) {
-                clearTimeout(autoApproveRef.current);
-            }
-        };
-    }, [hasResponded, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Auto-approve after timeout (disabled for now - user must explicitly confirm)
+    // Uncomment to re-enable auto-approve behavior:
+    // useEffect(() => {
+    //     if (hasResponded || isEditing) return;
+    //     autoApproveRef.current = setTimeout(() => {
+    //         if (!hasRespondedRef.current) {
+    //             handleResponse("start", planData.steps);
+    //         }
+    //     }, planData.auto_approve_seconds * 1000);
+    //     return () => {
+    //         if (autoApproveRef.current) {
+    //             clearTimeout(autoApproveRef.current);
+    //         }
+    //     };
+    // }, [hasResponded, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleResponse = useCallback(
         async (action: "start" | "cancel", steps?: string[]) => {
