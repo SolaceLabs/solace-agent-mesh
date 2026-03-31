@@ -144,10 +144,10 @@ class TestGetModelDependentsEndpoint:
             )
 
         assert len(result.data) == 1
-        assert result.data[0]["id"] == "agent-1"
-        assert result.data[0]["name"] == "Test Agent"
-        assert result.data[0]["type"] == "standard"
-        assert result.data[0]["deploymentStatus"] == "deployed"
+        assert result.data[0].id == "agent-1"
+        assert result.data[0].name == "Test Agent"
+        assert result.data[0].type == "standard"
+        assert result.data[0].deployment_status == "deployed"
 
     @pytest.mark.asyncio
     async def test_looks_up_config_by_alias(self):
