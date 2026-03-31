@@ -730,8 +730,6 @@ async def list_all_artifacts(
         """Determine the source type of an artifact based on filename and session."""
         if session_id.startswith("project-"):
             return "project"
-        if filename.endswith('.converted.txt') or filename == 'project_bm25_index.zip':
-            return "generated"
         return "upload"
     
     # Helper function to fetch artifacts for a session with semaphore
