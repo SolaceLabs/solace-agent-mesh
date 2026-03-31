@@ -149,6 +149,7 @@ export const ModelDetailsPage = () => {
                         navigate("/agents?tab=models");
                     }}
                     isLoading={deleteModel.isPending}
+                    modelId={modelToView.id}
                     modelAlias={modelToView.alias}
                 />
             )}

@@ -41,3 +41,4 @@ export * from "./useIsMentionsEnabled";
 export * from "./useSSEContext";
 export * from "./useIndexingSSE";
 export * from "./useNavigationItems";
+export { useListKeyboardNavigation } from "./useListKeyboardNavigation";

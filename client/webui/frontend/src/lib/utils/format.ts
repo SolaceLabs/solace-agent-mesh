@@ -29,12 +29,18 @@ export const formatRelativeTime = (dateString: string): string => {
         const diffInHours = Math.floor(diffInMinutes / 60);
         const diffInDays = Math.floor(diffInHours / 24);
 
+        const diffInWeeks = Math.floor(diffInDays / 7);
+        const diffInMonths = Math.floor(diffInDays / 30);
+
         if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
         if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
         if (diffInHours < 24) return `${diffInHours}h ago`;
         if (diffInDays === 1) return `Yesterday`;
         if (diffInDays < 7) return `${diffInDays}d ago`;
-        return date.toLocaleDateString();
+        if (diffInWeeks < 5) return `${diffInWeeks} week${diffInWeeks === 1 ? "" : "s"} ago`;
+        if (diffInMonths < 12) return `${diffInMonths} month${diffInMonths === 1 ? "" : "s"} ago`;
+        const diffInYears = Math.floor(diffInDays / 365);
+        return `${diffInYears} year${diffInYears === 1 ? "" : "s"} ago`;
     } catch (e) {
         console.error("Error formatting date:", e);
         return "Invalid date";

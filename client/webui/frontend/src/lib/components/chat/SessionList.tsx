@@ -1,33 +1,19 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2, Share2, UserSearch } from "lucide-react";
+
+import { Check, X, MessageCircle, Loader2, UserSearch } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
+
 import { api } from "@/lib/api";
 import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 interface SessionNameProps {
     session: Session;
@@ -83,7 +69,6 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId 
 
     return <span className={cn("truncate font-semibold transition-opacity duration-300", animationClass)}>{animatedName}</span>;
 };
-
 export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
@@ -527,7 +512,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded-sm px-2 py-2 ${session.id === sessionId ? "bg-muted dark:bg-muted/50" : ""}`}>
+                                <div className={sessionRowStyles({ active: session.id === sessionId })}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -574,78 +559,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                 </Button>
                                             </>
                                         ) : (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-                                                        <MoreHorizontal size={16} />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48">
-                                                    {session.projectId && (
-                                                        <>
-                                                            <DropdownMenuItem
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    handleGoToProject(session);
-                                                                }}
-                                                            >
-                                                                <PanelsTopLeft size={16} className="mr-2" />
-                                                                Go to Project
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                        </>
-                                                    )}
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleEditClick(session);
-                                                        }}
-                                                    >
-                                                        <Pencil size={16} className="mr-2" />
-                                                        Rename
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleRenameWithAI(session);
-                                                        }}
-                                                        disabled={regeneratingTitleForSession === session.id}
-                                                    >
-                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
-                                                        Rename with AI
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleMoveClick(session);
-                                                        }}
-                                                    >
-                                                        <FolderInput size={16} className="mr-2" />
-                                                        Move to Project
-                                                    </DropdownMenuItem>
-                                                    {chatSharingEnabled && (
-                                                        <DropdownMenuItem
-                                                            onClick={e => {
-                                                                e.stopPropagation();
-                                                                handleShareClick(session);
-                                                            }}
-                                                        >
-                                                            <Share2 size={16} className="mr-2" />
-                                                            Share
-                                                        </DropdownMenuItem>
-                                                    )}
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleDeleteClick(session);
-                                                        }}
-                                                    >
-                                                        <Trash2 size={16} className="mr-2" />
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <SessionActionMenu
+                                                session={session}
+                                                onRename={handleEditClick}
+                                                onRenameWithAI={handleRenameWithAI}
+                                                onMove={handleMoveClick}
+                                                onDelete={handleDeleteClick}
+                                                onGoToProject={handleGoToProject}
+                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
+                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                            />
                                         )}
                                     </div>
                                 </div>

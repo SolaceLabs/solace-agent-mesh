@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, SharedChatViewPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, SharedChatViewPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
 import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
 import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
@@ -24,6 +24,10 @@ export const createRouter = () => {
                 {
                     path: "chat",
                     element: <ChatPage />,
+                },
+                {
+                    path: "recent-chats",
+                    element: <RecentChatsPage />,
                 },
                 {
                     path: "shared-chat/:shareId",

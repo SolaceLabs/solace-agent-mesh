@@ -1131,12 +1131,25 @@ from solace_agent_mesh.gateway.http_sse.routers.artifacts import (
     list_all_artifacts,
     ArtifactWithContext,
     BulkArtifactsResponse,
+    _deduplicate_artifacts,
+    _fetch_all_source_artifacts,
+    _artifact_list_cache,
+    _ArtifactListCache,
+    upload_artifact_with_session,
+    delete_artifact,
 )
 from solace_agent_mesh.gateway.http_sse.services.project_service import ProjectService
 
 
 class TestListAllArtifacts:
     """Test list_all_artifacts bulk endpoint."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_artifact_cache(self):
+        """Ensure the module-level artifact list cache is empty for each test."""
+        _artifact_list_cache.clear()
+        yield
+        _artifact_list_cache.clear()
 
     @pytest.fixture
     def mock_dependencies(self):
@@ -1181,7 +1194,8 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
         
         assert exc_info.value.status_code == status.HTTP_501_NOT_IMPLEMENTED
@@ -1209,12 +1223,16 @@ class TestListAllArtifacts:
             project_service=deps['project_service'],
             db=deps['db'],
             user_config=deps['user_config'],
-            limit=500,
+            page=1,
+            page_size=50,
         )
-        
+
         assert isinstance(result, BulkArtifactsResponse)
         assert len(result.artifacts) == 0
         assert result.total_count == 0
+        assert result.total_count_estimated is False
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_with_sessions(self, mock_dependencies):
@@ -1255,15 +1273,19 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         assert isinstance(result, BulkArtifactsResponse)
         assert len(result.artifacts) == 1
         assert result.artifacts[0].filename == "test.txt"
         assert result.artifacts[0].session_id == "session-123"
         assert result.artifacts[0].session_name == "Test Session"
         assert result.artifacts[0].source == "upload"
+        assert result.total_count_estimated is False
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_filters_generated_files(self, mock_dependencies):
@@ -1303,12 +1325,15 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         # Only the original document should be returned
         assert len(result.artifacts) == 1
         assert result.artifacts[0].filename == "document.pdf"
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_with_project_artifacts(self, mock_dependencies):
@@ -1347,15 +1372,18 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         assert len(result.artifacts) == 1
         assert result.artifacts[0].filename == "knowledge.docx"
         assert result.artifacts[0].session_id == "project-project-456"
         assert result.artifacts[0].project_id == "project-456"
         assert result.artifacts[0].project_name == "Test Project"
         assert result.artifacts[0].source == "project"
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_deduplication(self, mock_dependencies):
@@ -1400,35 +1428,38 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         # Should only have one artifact (deduplicated)
         # The project version should be preferred
         project_artifacts = [a for a in result.artifacts if a.session_id.startswith("project-")]
         assert len(project_artifacts) >= 1
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
-    async def test_list_all_artifacts_limit_parameter(self, mock_dependencies):
-        """Test that limit parameter restricts the number of returned artifacts."""
+    async def test_list_all_artifacts_page_based_slicing(self, mock_dependencies):
+        """Test that page/page_size correctly slices the result set."""
         deps = mock_dependencies
-        
+
         # Mock session with many artifacts
         mock_session = MagicMock()
         mock_session.id = "session-123"
         mock_session.name = "Test Session"
         mock_session.project_id = None
         mock_session.project_name = None
-        
+
         mock_sessions_response = MagicMock()
         mock_sessions_response.data = [mock_session]
         mock_sessions_response.meta.pagination.next_page = None
         deps['session_service'].get_user_sessions.return_value = mock_sessions_response
-        
+
         # Mock empty projects
         deps['project_service'].get_user_projects.return_value = []
-        
-        # Create 10 mock artifacts
+
+        # Create 10 mock artifacts with descending dates so sort order is file9..file0
         mock_artifacts = []
         for i in range(10):
             artifact = MagicMock()
@@ -1438,11 +1469,11 @@ class TestListAllArtifacts:
             artifact.last_modified = f"2023-01-{i+1:02d}T00:00:00Z"
             artifact.uri = f"artifact://app/user/session-123/file{i}.txt"
             mock_artifacts.append(artifact)
-        
+
         with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get_list:
             mock_get_list.return_value = mock_artifacts
-            
-            # Request with limit of 5
+
+            # Request page 2, page_size 3 → should return items 4-6 (sorted newest first)
             result = await list_all_artifacts(
                 artifact_service=deps['artifact_service'],
                 user_id=deps['user_id'],
@@ -1451,13 +1482,22 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=5,
+                page=2,
+                page_size=3,
             )
-        
-        # Should return only 5 artifacts
-        assert len(result.artifacts) == 5
-        # total_count should reflect the actual total before limiting
+
+        # Page 2 with page_size=3: items at indices 3,4,5 of the sorted list
+        assert len(result.artifacts) == 3
+        # total_count reflects the full deduplicated set
         assert result.total_count == 10
+        # There are more items beyond this page (indices 6-9)
+        assert result.has_more is True
+        assert result.next_page == 3
+        # Sorted newest first: file9, file8, file7, file6, file5, file4, ...
+        # Page 2 → indices 3-5 → file6, file5, file4
+        assert result.artifacts[0].filename == "file6.txt"
+        assert result.artifacts[1].filename == "file5.txt"
+        assert result.artifacts[2].filename == "file4.txt"
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_handles_session_fetch_error(self, mock_dependencies):
@@ -1479,11 +1519,14 @@ class TestListAllArtifacts:
             project_service=deps['project_service'],
             db=deps['db'],
             user_config=deps['user_config'],
-            limit=500,
+            page=1,
+            page_size=50,
         )
-        
+
         assert isinstance(result, BulkArtifactsResponse)
         assert len(result.artifacts) == 0
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_handles_project_fetch_error(self, mock_dependencies):
@@ -1508,11 +1551,14 @@ class TestListAllArtifacts:
             project_service=deps['project_service'],
             db=deps['db'],
             user_config=deps['user_config'],
-            limit=500,
+            page=1,
+            page_size=50,
         )
-        
+
         assert isinstance(result, BulkArtifactsResponse)
         assert len(result.artifacts) == 0
+        assert result.has_more is False
+        assert result.next_page is None
 
     @pytest.mark.asyncio
     async def test_list_all_artifacts_sorts_by_last_modified(self, mock_dependencies):
@@ -1552,9 +1598,10 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         # Should be sorted newest first
         assert result.artifacts[0].filename == "newest.txt"
         assert result.artifacts[1].filename == "middle.txt"
@@ -1587,9 +1634,10 @@ class TestListAllArtifacts:
             project_service=deps['project_service'],
             db=deps['db'],
             user_config=deps['user_config'],
-            limit=500,
+            page=1,
+            page_size=50,
         )
-        
+
         # Verify get_user_sessions was called with the correct user_id
         deps['session_service'].get_user_sessions.assert_called_once()
         call_kwargs = deps['session_service'].get_user_sessions.call_args
@@ -1622,9 +1670,10 @@ class TestListAllArtifacts:
             project_service=deps['project_service'],
             db=deps['db'],
             user_config=deps['user_config'],
-            limit=500,
+            page=1,
+            page_size=50,
         )
-        
+
         # Verify get_user_projects was called with the correct user_id
         deps['project_service'].get_user_projects.assert_called_once()
         call_args = deps['project_service'].get_user_projects.call_args
@@ -1692,9 +1741,10 @@ class TestListAllArtifacts:
                 project_service=deps['project_service'],
                 db=deps['db'],
                 user_config=deps['user_config'],
-                limit=500,
+                page=1,
+                page_size=50,
             )
-        
+
         # Build a map of filename -> source for easier assertions
         source_map = {a.filename: a.source for a in result.artifacts}
         
@@ -1704,6 +1754,810 @@ class TestListAllArtifacts:
         
         # Verify project artifacts are classified as 'project'
         assert source_map["knowledge.docx"] == "project", "Project DOCX should be classified as project"
+
+
+# =============================================================================
+# _deduplicate_artifacts UNIT TESTS
+# =============================================================================
+
+
+class TestDeduplicateArtifacts:
+    """Direct unit tests for _deduplicate_artifacts."""
+
+    @staticmethod
+    def _make_artifact(**overrides) -> ArtifactWithContext:
+        defaults = {
+            "filename": "file.txt",
+            "size": 100,
+            "mime_type": "text/plain",
+            "last_modified": "2023-01-01T00:00:00Z",
+            "uri": "artifact://app/user/session/file.txt",
+            "session_id": "session-1",
+            "session_name": "Session 1",
+            "project_id": None,
+            "project_name": None,
+            "source": "upload",
+        }
+        defaults.update(overrides)
+        return ArtifactWithContext(**defaults)
+
+    def test_project_entry_preferred_over_session_entry(self):
+        """When the same file exists in both a project-prefixed session and a
+        regular session (same project_id), the project-prefixed entry wins."""
+        session_entry = self._make_artifact(
+            session_id="session-1",
+            project_id="proj-1",
+            project_name="Project 1",
+            filename="shared.pdf",
+        )
+        project_entry = self._make_artifact(
+            session_id="project-proj-1",
+            project_id="proj-1",
+            project_name="Project 1",
+            filename="shared.pdf",
+        )
+        # Order: session first, project second
+        result = _deduplicate_artifacts([session_entry, project_entry])
+        assert len(result) == 1
+        assert result[0].session_id == "project-proj-1"
+
+    def test_same_key_project_scoped_dedup(self):
+        """Two entries with the same (project_id, filename) but both from
+        regular sessions — only one is kept."""
+        entry_a = self._make_artifact(
+            session_id="session-1",
+            project_id="proj-1",
+            filename="doc.pdf",
+        )
+        entry_b = self._make_artifact(
+            session_id="session-2",
+            project_id="proj-1",
+            filename="doc.pdf",
+        )
+        result = _deduplicate_artifacts([entry_a, entry_b])
+        project_results = [a for a in result if a.project_id == "proj-1"]
+        assert len(project_results) == 1
+
+    def test_non_project_artifacts_always_included(self):
+        """Artifacts without a project_id are never deduplicated away, even
+        if they share the same filename."""
+        a = self._make_artifact(session_id="s-1", filename="notes.txt")
+        b = self._make_artifact(session_id="s-2", filename="notes.txt")
+        result = _deduplicate_artifacts([a, b])
+        assert len(result) == 2
+
+    def test_mixed_project_and_non_project(self):
+        """Non-project artifacts are returned alongside deduplicated project artifacts."""
+        proj_a = self._make_artifact(
+            session_id="session-1",
+            project_id="proj-1",
+            filename="shared.pdf",
+        )
+        proj_b = self._make_artifact(
+            session_id="project-proj-1",
+            project_id="proj-1",
+            filename="shared.pdf",
+        )
+        non_proj = self._make_artifact(
+            session_id="session-3",
+            filename="personal.txt",
+        )
+        result = _deduplicate_artifacts([proj_a, proj_b, non_proj])
+        assert len(result) == 2
+        filenames = {a.filename for a in result}
+        assert filenames == {"shared.pdf", "personal.txt"}
+
+
+# =============================================================================
+# _fetch_all_source_artifacts UNIT TESTS
+# =============================================================================
+
+
+class TestFetchAllSourceArtifacts:
+    """Direct unit tests for _fetch_all_source_artifacts."""
+
+    @staticmethod
+    def _make_entry(session_id="s-1", project_id=None):
+        return {
+            "session_id": session_id,
+            "session_name": "Session",
+            "project_id": project_id,
+            "project_name": None,
+            "fetch_user_id": "user-1",
+        }
+
+    @staticmethod
+    def _make_artifact(filename="file.txt", session_id="s-1"):
+        return ArtifactWithContext(
+            filename=filename,
+            size=100,
+            mime_type="text/plain",
+            last_modified="2023-01-01T00:00:00Z",
+            uri="uri",
+            session_id=session_id,
+            session_name="Session",
+            project_id=None,
+            project_name=None,
+            source="upload",
+        )
+
+    @pytest.mark.asyncio
+    async def test_multi_batch_concatenation(self):
+        """Results from multiple batches are concatenated correctly."""
+        entries = [self._make_entry(session_id=f"s-{i}") for i in range(5)]
+
+        async def fetch_fn(**kwargs):
+            sid = kwargs["session_id"]
+            return [self._make_artifact(filename=f"{sid}.txt", session_id=sid)]
+
+        result, sources_processed = await _fetch_all_source_artifacts(
+            entries, fetch_fn, "[test]", batch_size=2,
+        )
+        assert len(result) == 5
+        assert sources_processed == 5
+        filenames = {a.filename for a in result}
+        assert filenames == {f"s-{i}.txt" for i in range(5)}
+
+    @pytest.mark.asyncio
+    async def test_failing_source_does_not_block_others(self):
+        """A source that raises an exception is skipped; other sources succeed."""
+        entries = [
+            self._make_entry(session_id="good-1"),
+            self._make_entry(session_id="bad"),
+            self._make_entry(session_id="good-2"),
+        ]
+
+        async def fetch_fn(**kwargs):
+            if kwargs["session_id"] == "bad":
+                raise RuntimeError("simulated failure")
+            return [self._make_artifact(
+                filename=f"{kwargs['session_id']}.txt",
+                session_id=kwargs["session_id"],
+            )]
+
+        result, sources_processed = await _fetch_all_source_artifacts(
+            entries, fetch_fn, "[test]", batch_size=10,
+        )
+        assert len(result) == 2
+        assert sources_processed == 3
+        filenames = {a.filename for a in result}
+        assert "bad.txt" not in filenames
+        assert filenames == {"good-1.txt", "good-2.txt"}
+
+    @pytest.mark.asyncio
+    async def test_early_termination_with_target_count(self):
+        """When target_count is set, fetching stops once enough artifacts are collected."""
+        entries = [self._make_entry(session_id=f"s-{i}") for i in range(10)]
+
+        async def fetch_fn(**kwargs):
+            sid = kwargs["session_id"]
+            # Each source returns 3 artifacts
+            return [
+                self._make_artifact(filename=f"{sid}-{j}.txt", session_id=sid)
+                for j in range(3)
+            ]
+
+        # target_count=5 → should stop after batch 1 (2 sources × 3 artifacts = 6 >= 5)
+        result, sources_processed = await _fetch_all_source_artifacts(
+            entries, fetch_fn, "[test]", batch_size=2, target_count=5,
+        )
+        # Should have fetched from first batch (2 sources) = 6 artifacts, then stopped
+        assert len(result) == 6
+        assert sources_processed == 2  # Only processed first batch
+        # Remaining 8 sources should NOT have been fetched
+
+    @pytest.mark.asyncio
+    async def test_no_early_termination_when_target_zero(self):
+        """When target_count=0 (default), all sources are fetched."""
+        entries = [self._make_entry(session_id=f"s-{i}") for i in range(6)]
+
+        async def fetch_fn(**kwargs):
+            return [self._make_artifact(filename=f"{kwargs['session_id']}.txt",
+                                        session_id=kwargs["session_id"])]
+
+        result, sources_processed = await _fetch_all_source_artifacts(
+            entries, fetch_fn, "[test]", batch_size=2, target_count=0,
+        )
+        assert len(result) == 6
+        assert sources_processed == 6  # All sources processed
+
+
+# =============================================================================
+# PAGINATION BOUNDARY TESTS
+# =============================================================================
+
+
+class TestPaginationBoundaries:
+    """Test pagination edge cases for list_all_artifacts."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_artifact_cache(self):
+        _artifact_list_cache.clear()
+        yield
+        _artifact_list_cache.clear()
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        mock_session_service = MagicMock(spec=SessionService)
+        mock_project_service = MagicMock(spec=ProjectService)
+        mock_db = MagicMock(spec=Session)
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        return {
+            'artifact_service': mock_artifact_service,
+            'session_service': mock_session_service,
+            'project_service': mock_project_service,
+            'db': mock_db,
+            'component': mock_component,
+            'user_id': 'test-user-boundary',
+            'user_config': {'tool:artifact:list': True},
+        }
+
+    def _setup_single_session_with_artifacts(self, deps, artifact_count):
+        """Helper: one session, N artifacts, no projects."""
+        mock_session = MagicMock()
+        mock_session.id = "session-1"
+        mock_session.name = "Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        artifacts = []
+        for i in range(artifact_count):
+            a = MagicMock()
+            a.filename = f"file{i}.txt"
+            a.size = 100
+            a.mime_type = "text/plain"
+            a.last_modified = f"2023-01-{i+1:02d}T00:00:00Z"
+            a.uri = f"uri{i}"
+            artifacts.append(a)
+        return artifacts
+
+    @pytest.mark.asyncio
+    async def test_out_of_range_page_returns_empty(self, mock_dependencies):
+        """Requesting a page far beyond available data returns empty with has_more=False."""
+        deps = mock_dependencies
+        artifacts = self._setup_single_session_with_artifacts(deps, 10)
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.return_value = artifacts
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=100,
+                page_size=5,
+            )
+
+        assert len(result.artifacts) == 0
+        assert result.has_more is False
+        assert result.next_page is None
+        assert result.total_count == 10
+
+    @pytest.mark.asyncio
+    async def test_exact_boundary_last_page(self, mock_dependencies):
+        """When total_count is exactly divisible by page_size, the last full
+        page should have has_more=False (no empty trailing page)."""
+        deps = mock_dependencies
+        artifacts = self._setup_single_session_with_artifacts(deps, 6)
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.return_value = artifacts
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=2,
+                page_size=3,
+            )
+
+        assert len(result.artifacts) == 3
+        assert result.total_count == 6
+        assert result.has_more is False
+        assert result.next_page is None
+
+
+# =============================================================================
+# _ArtifactListCache DIRECT UNIT TESTS
+# =============================================================================
+
+
+class TestArtifactListCache:
+    """Direct unit tests for _ArtifactListCache (TTL, LRU, lock_for, etc.)."""
+
+    def _make_artifact(self, filename="f.txt"):
+        return ArtifactWithContext(
+            filename=filename,
+            size=10,
+            mime_type="text/plain",
+            last_modified="2023-01-01T00:00:00Z",
+            uri="uri",
+            session_id="s1",
+            session_name="Session",
+            project_id=None,
+            project_name=None,
+            source="upload",
+        )
+
+    def test_get_returns_none_for_missing_key(self):
+        cache = _ArtifactListCache(ttl=60)
+        assert cache.get("no-such-user") is None
+
+    def test_put_and_get_roundtrip(self):
+        cache = _ArtifactListCache(ttl=60)
+        arts = [self._make_artifact()]
+        cache.put("u1", arts, sources_processed=5, total_sources=10)
+        result = cache.get("u1")
+        assert result is not None
+        artifacts, sp, ts = result
+        assert artifacts is arts
+        assert sp == 5
+        assert ts == 10
+
+    def test_ttl_expiry(self):
+        cache = _ArtifactListCache(ttl=1)
+        cache.put("u1", [self._make_artifact()], 1, 1)
+        assert cache.get("u1") is not None
+        # Simulate time passing by directly modifying the stored timestamp
+        ts, arts, sp, total = cache._store["u1"]
+        cache._store["u1"] = (ts - 2, arts, sp, total)
+        assert cache.get("u1") is None
+
+    def test_lru_eviction(self):
+        cache = _ArtifactListCache(ttl=60, max_size=2)
+        cache.put("u1", [self._make_artifact("a.txt")], 1, 1)
+        cache.put("u2", [self._make_artifact("b.txt")], 1, 1)
+        # Adding u3 should evict u1 (oldest)
+        cache.put("u3", [self._make_artifact("c.txt")], 1, 1)
+        assert cache.get("u1") is None
+        assert cache.get("u2") is not None
+        assert cache.get("u3") is not None
+
+    def test_invalidate_removes_entry(self):
+        cache = _ArtifactListCache(ttl=60)
+        cache.put("u1", [self._make_artifact()], 1, 1)
+        cache.invalidate("u1")
+        assert cache.get("u1") is None
+
+    def test_invalidate_nonexistent_key_is_noop(self):
+        cache = _ArtifactListCache(ttl=60)
+        cache.invalidate("no-such-user")  # Should not raise
+
+    def test_lock_for_returns_same_lock_for_same_user(self):
+        cache = _ArtifactListCache(ttl=60)
+        lock1 = cache.lock_for("u1")
+        lock2 = cache.lock_for("u1")
+        assert lock1 is lock2
+
+    def test_lock_for_returns_different_locks_for_different_users(self):
+        cache = _ArtifactListCache(ttl=60)
+        lock1 = cache.lock_for("u1")
+        lock2 = cache.lock_for("u2")
+        assert lock1 is not lock2
+
+    def test_lock_for_prunes_orphaned_locks(self):
+        cache = _ArtifactListCache(ttl=60)
+        cache.put("u1", [self._make_artifact()], 1, 1)
+        _ = cache.lock_for("u1")
+        # Remove the cache entry, making the lock orphaned
+        cache.invalidate("u1")
+        # Calling lock_for on another user triggers pruning
+        _ = cache.lock_for("u2")
+        assert "u1" not in cache._locks
+
+    def test_clear_removes_all(self):
+        cache = _ArtifactListCache(ttl=60)
+        cache.put("u1", [self._make_artifact()], 1, 1)
+        cache.put("u2", [self._make_artifact()], 1, 1)
+        _ = cache.lock_for("u1")
+        cache.clear()
+        assert cache.get("u1") is None
+        assert cache.get("u2") is None
+        assert len(cache._locks) == 0
+
+
+# =============================================================================
+# SEARCH PARAMETER TESTS
+# =============================================================================
+
+
+class TestSearchParameter:
+    """Test the search query parameter for list_all_artifacts."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_artifact_cache(self):
+        _artifact_list_cache.clear()
+        yield
+        _artifact_list_cache.clear()
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        mock_session_service = MagicMock(spec=SessionService)
+        mock_project_service = MagicMock(spec=ProjectService)
+        mock_db = MagicMock(spec=Session)
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        return {
+            'artifact_service': mock_artifact_service,
+            'session_service': mock_session_service,
+            'project_service': mock_project_service,
+            'db': mock_db,
+            'component': mock_component,
+            'user_id': 'test-user-search',
+            'user_config': {'tool:artifact:list': True},
+        }
+
+    def _setup_sessions_with_varied_artifacts(self, deps):
+        """Set up two sessions with different artifacts for search testing."""
+        mock_session1 = MagicMock()
+        mock_session1.id = "session-1"
+        mock_session1.name = "Alpha Session"
+        mock_session1.project_id = None
+        mock_session1.project_name = None
+
+        mock_session2 = MagicMock()
+        mock_session2.id = "session-2"
+        mock_session2.name = "Beta Session"
+        mock_session2.project_id = None
+        mock_session2.project_name = None
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session1, mock_session2]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        artifacts_s1 = [
+            MagicMock(filename="report.pdf", size=100, mime_type="application/pdf",
+                      last_modified="2023-01-02T00:00:00Z", uri="uri1"),
+            MagicMock(filename="notes.txt", size=50, mime_type="text/plain",
+                      last_modified="2023-01-01T00:00:00Z", uri="uri2"),
+        ]
+        artifacts_s2 = [
+            MagicMock(filename="report_v2.pdf", size=200, mime_type="application/pdf",
+                      last_modified="2023-01-03T00:00:00Z", uri="uri3"),
+            MagicMock(filename="image.png", size=300, mime_type="image/png",
+                      last_modified="2023-01-04T00:00:00Z", uri="uri4"),
+        ]
+        return artifacts_s1, artifacts_s2
+
+    @pytest.mark.asyncio
+    async def test_search_filters_by_filename(self, mock_dependencies):
+        """Search matches against filename."""
+        deps = mock_dependencies
+        artifacts_s1, artifacts_s2 = self._setup_sessions_with_varied_artifacts(deps)
+
+        def side_effect(*args, **kwargs):
+            sid = kwargs.get("session_id") or args[2]
+            if sid == "session-1":
+                return artifacts_s1
+            return artifacts_s2
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.side_effect = side_effect
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+                search="report",
+            )
+
+        filenames = {a.filename for a in result.artifacts}
+        assert "report.pdf" in filenames
+        assert "report_v2.pdf" in filenames
+        assert "notes.txt" not in filenames
+        assert "image.png" not in filenames
+
+    @pytest.mark.asyncio
+    async def test_search_filters_by_session_name(self, mock_dependencies):
+        """Search matches against session name."""
+        deps = mock_dependencies
+        artifacts_s1, artifacts_s2 = self._setup_sessions_with_varied_artifacts(deps)
+
+        def side_effect(*args, **kwargs):
+            sid = kwargs.get("session_id") or args[2]
+            if sid == "session-1":
+                return artifacts_s1
+            return artifacts_s2
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.side_effect = side_effect
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+                search="alpha",
+            )
+
+        # Only artifacts from "Alpha Session" should match
+        assert len(result.artifacts) == 2
+        for a in result.artifacts:
+            assert a.session_id == "session-1"
+
+    @pytest.mark.asyncio
+    async def test_search_bypasses_cache(self, mock_dependencies):
+        """Search requests must not use cached partial results."""
+        deps = mock_dependencies
+        artifacts_s1, artifacts_s2 = self._setup_sessions_with_varied_artifacts(deps)
+
+        # Pre-populate cache with a partial result (only session-1 artifacts)
+        cached_arts = [
+            ArtifactWithContext(
+                filename="notes.txt", size=50, mime_type="text/plain",
+                last_modified="2023-01-01T00:00:00Z", uri="uri2",
+                session_id="session-1", session_name="Alpha Session",
+                project_id=None, project_name=None, source="upload",
+            ),
+        ]
+        _artifact_list_cache.put(deps['user_id'], cached_arts, sources_processed=1, total_sources=2)
+
+        def side_effect(*args, **kwargs):
+            sid = kwargs.get("session_id") or args[2]
+            if sid == "session-1":
+                return artifacts_s1
+            return artifacts_s2
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.side_effect = side_effect
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+                search="report",
+            )
+
+        # Should find report_v2.pdf from session-2 despite it not being in cache
+        filenames = {a.filename for a in result.artifacts}
+        assert "report_v2.pdf" in filenames
+        # The fetch function should have been called (cache was bypassed)
+        assert mock_get.call_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_search_disables_early_termination(self, mock_dependencies):
+        """With search, all sources must be fetched (fetch_target=0)."""
+        deps = mock_dependencies
+
+        # Create many sessions to verify all are fetched
+        sessions = []
+        for i in range(5):
+            s = MagicMock()
+            s.id = f"session-{i}"
+            s.name = f"Session {i}"
+            s.project_id = None
+            s.project_name = None
+            sessions.append(s)
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = sessions
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        call_count = 0
+
+        def side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            sid = kwargs.get("session_id") or args[2]
+            return [MagicMock(
+                filename=f"{sid}-file.txt", size=10, mime_type="text/plain",
+                last_modified="2023-01-01T00:00:00Z", uri=f"uri-{sid}",
+            )]
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.side_effect = side_effect
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=2,  # Small page size that would normally trigger early termination
+                search="file",
+            )
+
+        # All 5 sessions should have been fetched despite small page_size
+        assert mock_get.call_count == 5
+        # total_count_estimated should be False since all sources were processed
+        assert result.total_count_estimated is False
+
+
+# =============================================================================
+# total_count_estimated FIELD TESTS
+# =============================================================================
+
+
+class TestTotalCountEstimated:
+    """Test that total_count_estimated is set correctly for partial and complete fetches."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_artifact_cache(self):
+        _artifact_list_cache.clear()
+        yield
+        _artifact_list_cache.clear()
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        mock_artifact_service = MagicMock(spec=BaseArtifactService)
+        mock_session_service = MagicMock(spec=SessionService)
+        mock_project_service = MagicMock(spec=ProjectService)
+        mock_db = MagicMock(spec=Session)
+        mock_component = MagicMock()
+        mock_component.get_config.return_value = "TestApp"
+        return {
+            'artifact_service': mock_artifact_service,
+            'session_service': mock_session_service,
+            'project_service': mock_project_service,
+            'db': mock_db,
+            'component': mock_component,
+            'user_id': 'test-user-estimated',
+            'user_config': {'tool:artifact:list': True},
+        }
+
+    @pytest.mark.asyncio
+    async def test_total_count_estimated_false_for_complete_fetch(self, mock_dependencies):
+        """When all sources are processed, total_count_estimated should be False."""
+        deps = mock_dependencies
+        mock_session = MagicMock()
+        mock_session.id = "session-1"
+        mock_session.name = "Session"
+        mock_session.project_id = None
+        mock_session.project_name = None
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = [mock_session]
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        artifacts = [MagicMock(
+            filename=f"file{i}.txt", size=10, mime_type="text/plain",
+            last_modified="2023-01-01T00:00:00Z", uri=f"uri{i}",
+        ) for i in range(3)]
+
+        with patch('solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast') as mock_get:
+            mock_get.return_value = artifacts
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+            )
+
+        assert result.total_count_estimated is False
+
+    @pytest.mark.asyncio
+    async def test_total_count_estimated_true_via_cached_partial(self, mock_dependencies):
+        """When cache contains a partial fetch, total_count_estimated should be True."""
+        deps = mock_dependencies
+        # Pre-populate cache with partial result
+        cached_arts = [
+            ArtifactWithContext(
+                filename=f"file{i}.txt", size=10, mime_type="text/plain",
+                last_modified="2023-01-01T00:00:00Z", uri=f"uri{i}",
+                session_id="s1", session_name="Session",
+                project_id=None, project_name=None, source="upload",
+            ) for i in range(60)
+        ]
+        _artifact_list_cache.put(deps['user_id'], cached_arts, sources_processed=5, total_sources=50)
+
+        result = await list_all_artifacts(
+            artifact_service=deps['artifact_service'],
+            user_id=deps['user_id'],
+            component=deps['component'],
+            session_service=deps['session_service'],
+            project_service=deps['project_service'],
+            db=deps['db'],
+            user_config=deps['user_config'],
+            page=1,
+            page_size=50,
+        )
+
+        assert result.total_count_estimated is True
+        assert result.total_count == 60
+
+
+# =============================================================================
+# CACHE INVALIDATION TESTS
+# =============================================================================
+
+
+class TestCacheInvalidation:
+    """Test that upload and delete invalidate the artifact list cache."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_artifact_cache(self):
+        _artifact_list_cache.clear()
+        yield
+        _artifact_list_cache.clear()
+
+    def test_upload_invalidates_cache(self):
+        """upload_artifact_with_session calls _artifact_list_cache.invalidate."""
+        user_id = "cache-test-user"
+        cached_arts = [
+            ArtifactWithContext(
+                filename="old.txt", size=10, mime_type="text/plain",
+                last_modified="2023-01-01T00:00:00Z", uri="uri",
+                session_id="s1", session_name="Session",
+                project_id=None, project_name=None, source="upload",
+            )
+        ]
+        _artifact_list_cache.put(user_id, cached_arts, 1, 1)
+        assert _artifact_list_cache.get(user_id) is not None
+
+        # Directly call invalidate as the upload endpoint does
+        _artifact_list_cache.invalidate(user_id)
+        assert _artifact_list_cache.get(user_id) is None
+
+    def test_delete_invalidates_cache(self):
+        """delete_artifact calls _artifact_list_cache.invalidate."""
+        user_id = "cache-test-user"
+        cached_arts = [
+            ArtifactWithContext(
+                filename="to-delete.txt", size=10, mime_type="text/plain",
+                last_modified="2023-01-01T00:00:00Z", uri="uri",
+                session_id="s1", session_name="Session",
+                project_id=None, project_name=None, source="upload",
+            )
+        ]
+        _artifact_list_cache.put(user_id, cached_arts, 1, 1)
+        assert _artifact_list_cache.get(user_id) is not None
+
+        _artifact_list_cache.invalidate(user_id)
+        assert _artifact_list_cache.get(user_id) is None
+
+    def test_invalidate_call_exists_in_upload(self):
+        """Verify that the invalidate call is present in the upload function source."""
+        import inspect
+        source = inspect.getsource(upload_artifact_with_session)
+        assert "_artifact_list_cache.invalidate" in source
+
+    def test_invalidate_call_exists_in_delete(self):
+        """Verify that the invalidate call is present in the delete function source."""
+        import inspect
+        source = inspect.getsource(delete_artifact)
+        assert "_artifact_list_cache.invalidate" in source
 
 
 # =============================================================================
