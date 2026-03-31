@@ -190,6 +190,7 @@ export const ModelsView: React.FC = () => {
                         setModelToDelete(null);
                     }}
                     isLoading={deleteModel.isPending}
+                    modelId={modelToDelete.id}
                     modelAlias={modelToDelete.alias}
                 />
             )}
