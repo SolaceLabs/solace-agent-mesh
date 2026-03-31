@@ -714,8 +714,8 @@ const parallelToolCallEvents: A2AEventSSEPayload[] = [
                 contents: [
                     { role: "user", parts: [{ text: "Get the weather in New York and London simultaneously" }] },
                     { role: "model", parts: [{ function_call: { id: "fc-ny-1", name: "get_weather" } }, { function_call: { id: "fc-london-1", name: "get_weather" } }] },
-                    { role: "user", parts: [{ function_response: { name: "get_weather", response: { temperature: "45°F" } } }] },
-                    { role: "user", parts: [{ function_response: { name: "get_weather", response: { temperature: "50°F" } } }] },
+                    { role: "tool", parts: [{ function_response: { name: "get_weather", response: { temperature: "45°F" } } }] },
+                    { role: "tool", parts: [{ function_response: { name: "get_weather", response: { temperature: "50°F" } } }] },
                 ],
             },
         },
