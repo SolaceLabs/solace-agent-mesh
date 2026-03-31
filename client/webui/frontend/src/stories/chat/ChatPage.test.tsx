@@ -77,7 +77,7 @@ describe("ChatPage", () => {
         mockUseChatContext.mockReturnValue(makeDefaultChatContext());
         mockUseTaskContext.mockReturnValue(makeDefaultTaskContext());
         mockUseTitleAnimation.mockReturnValue({ text: "Test Session", isAnimating: false, isGenerating: false });
-        mockUseConfigContext.mockReturnValue({ autoTitleGenerationEnabled: false });
+        mockUseConfigContext.mockReturnValue({});
         mockUseIsChatSharingEnabled.mockReturnValue(false);
         mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
         mockUseProjectContext.mockReturnValue({ activeProject: null });

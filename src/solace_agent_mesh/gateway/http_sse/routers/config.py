@@ -111,7 +111,6 @@ def _determine_background_tasks_enabled(
 
 
 def _determine_auto_title_generation_enabled(
-    component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
     log_prefix: str
 ) -> bool:
@@ -424,7 +423,7 @@ async def get_app_config(
         feature_enablement["mentions"] = mentions_enabled
         
         # Determine if auto title generation should be enabled
-        auto_title_generation_enabled = _determine_auto_title_generation_enabled(component, api_config, log_prefix)
+        auto_title_generation_enabled = _determine_auto_title_generation_enabled(api_config, log_prefix)
         feature_enablement["auto_title_generation"] = auto_title_generation_enabled
         if auto_title_generation_enabled:
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
