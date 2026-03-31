@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10.16, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -3852,14 +3852,14 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.9.1"
+version = "6.9.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/fb/dc2e8cb006e80b0020ed20d8649106fe4274e82d8e756ad3e24ade19c0df/pypdf-6.9.1.tar.gz", hash = "sha256:ae052407d33d34de0c86c5c729be6d51010bf36e03035a8f23ab449bca52377d", size = 5311551, upload-time = "2026-03-17T10:46:07.876Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/83/691bdb309306232362503083cb15777491045dd54f45393a317dc7d8082f/pypdf-6.9.2.tar.gz", hash = "sha256:7f850faf2b0d4ab936582c05da32c52214c2b089d61a316627b5bfb5b0dab46c", size = 5311837, upload-time = "2026-03-23T14:53:27.983Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/f4/75543fa802b86e72f87e9395440fe1a89a6d149887e3e55745715c3352ac/pypdf-6.9.1-py3-none-any.whl", hash = "sha256:f35a6a022348fae47e092a908339a8f3dc993510c026bb39a96718fc7185e89f", size = 333661, upload-time = "2026-03-17T10:46:06.286Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/7e/c85f41243086a8fe5d1baeba527cb26a1918158a565932b41e0f7c0b32e9/pypdf-6.9.2-py3-none-any.whl", hash = "sha256:662cf29bcb419a36a1365232449624ab40b7c2d0cfc28e54f42eeecd1fd7e844", size = 333744, upload-time = "2026-03-23T14:53:26.573Z" },
 ]
 
 [[package]]
@@ -4224,7 +4224,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.5"
+version = "2.33.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -4232,9 +4232,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/64/8860370b167a9721e8956ae116825caff829224fbca0ca6e7bf8ddef8430/requests-2.33.0.tar.gz", hash = "sha256:c7ebc5e8b0f21837386ad0e1c8fe8b829fa5f544d8df3b2253bff14ef29d7652", size = 134232, upload-time = "2026-03-25T15:10:41.586Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+    { url = "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl", hash = "sha256:3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b", size = 65017, upload-time = "2026-03-25T15:10:40.382Z" },
 ]
 
 [[package]]
@@ -4756,7 +4756,7 @@ requires-dist = [
     { name = "pydub", specifier = "==0.25.1" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
-    { name = "pypdf", specifier = "==6.9.1" },
+    { name = "pypdf", specifier = "==6.9.2" },
     { name = "pystache", specifier = "==0.6.8" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },
@@ -4776,7 +4776,7 @@ requires-dist = [
     { name = "rouge", specifier = "==1.0.1" },
     { name = "ruff", marker = "extra == 'test'" },
     { name = "setuptools", specifier = "==80.10.2" },
-    { name = "solace-ai-connector", specifier = "==3.3.6" },
+    { name = "solace-ai-connector", specifier = "==3.3.8" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -4791,7 +4791,7 @@ provides-extras = ["employee-tools", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "3.3.6"
+version = "3.3.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -4807,9 +4807,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/5c/5488f6cda06b93aa4582dc432ad15bbeeea8e5802dded3d86ca10d210700/solace_ai_connector-3.3.6.tar.gz", hash = "sha256:91a95850220a281980ca201c03efc150384819798320c55461a51aa043edf097", size = 424510, upload-time = "2026-03-30T14:39:57.3Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/5f/fe07430a7981eb4c6d0b605faf00d37353a46fa0c90fd2467393b0f4efb4/solace_ai_connector-3.3.8.tar.gz", hash = "sha256:30f73323a284ab878ea1d4845761ecda3e3a860a500a85e8eb0d7320e420ea2b", size = 428806, upload-time = "2026-03-31T18:39:31.245Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ad/05/86aaf88654a5071461ddb86b633175351f257f15c8fd9c580855e7d06853/solace_ai_connector-3.3.6-py3-none-any.whl", hash = "sha256:0082934f1f270dc7ffea67d2911052b7a8e6acf0fd87d213b211eeef19100dd4", size = 212830, upload-time = "2026-03-30T14:39:55.44Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/2e/814889cff0234c74611058b7beeab761a0bf29e3e8b7ec859e9006eef16a/solace_ai_connector-3.3.8-py3-none-any.whl", hash = "sha256:ca7e5c5336d756945e67c225027c1fe8c1f371302a86e8d63acd400d2f9338a4", size = 213800, upload-time = "2026-03-31T18:39:28.999Z" },
 ]
 
 [[package]]
