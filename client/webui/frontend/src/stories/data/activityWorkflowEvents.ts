@@ -388,7 +388,7 @@ const taskFailedEvents: A2AEventSSEPayload[] = [
         "OrchestratorAgent",
         offsetTime(1100)
     ),
-    makeFailedResponseEvent("Connection timeout: Unable to reach production database at db.prod.internal:5432. Please verify network connectivity and database availability.", "OrchestratorAgent", offsetTime(6000)),
+    makeFailedResponseEvent("Connection timeout: Unable to reach production database at db.example.internal:5432. Please verify network connectivity and database availability.", "OrchestratorAgent", offsetTime(6000)),
 ];
 
 export const taskFailedTask = makeTask({
