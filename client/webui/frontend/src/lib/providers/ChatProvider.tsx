@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
 // This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
@@ -48,6 +49,18 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", true);
+
+    // Keep refs in sync for use inside SSE event handlers (avoids stale closures)
+    const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
+    useEffect(() => {
+        inlineActivityTimelineEnabledRef.current = inlineActivityTimelineEnabled;
+    }, [inlineActivityTimelineEnabled]);
+    const showThinkingContentEnabledRef = useRef(showThinkingContentEnabled);
+    useEffect(() => {
+        showThinkingContentEnabledRef.current = showThinkingContentEnabled;
+    }, [showThinkingContentEnabled]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
@@ -989,6 +1002,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
                                 case "thinking_content": {
+                                    // Skip thinking content accumulation when show-thinking-content flag is disabled
+                                    if (!showThinkingContentEnabledRef.current) {
+                                        const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
+                                        if (otherPartsThinking.length === 0) {
+                                            return;
+                                        }
+                                        break;
+                                    }
+
                                     const { content: thinkingText, is_complete: isThinkingComplete } = data as {
                                         content: string;
                                         is_complete: boolean;
@@ -1002,32 +1024,50 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         isExpandableComplete: isThinkingComplete,
                                     };
 
-                                    appendProgressUpdate(
-                                        thinkingUpdate,
-                                        { thinkingContent: thinkingText, isThinkingComplete: isThinkingComplete },
-                                        {
-                                            progressUpdater: existing => {
-                                                const updates = [...existing];
-                                                const lastThinkingIdx = updates.findLastIndex(p => p.type === "thinking");
-                                                const lastThinkingEntry = lastThinkingIdx >= 0 ? updates[lastThinkingIdx] : null;
+                                    // Only accumulate progress updates when inline-activity-timeline is enabled
+                                    if (inlineActivityTimelineEnabledRef.current) {
+                                        appendProgressUpdate(
+                                            thinkingUpdate,
+                                            { thinkingContent: thinkingText, isThinkingComplete: isThinkingComplete },
+                                            {
+                                                progressUpdater: existing => {
+                                                    const updates = [...existing];
+                                                    const lastThinkingIdx = updates.findLastIndex(p => p.type === "thinking");
+                                                    const lastThinkingEntry = lastThinkingIdx >= 0 ? updates[lastThinkingIdx] : null;
 
-                                                if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
-                                                    updates[lastThinkingIdx] = {
-                                                        ...lastThinkingEntry,
-                                                        expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
-                                                        isExpandableComplete: isThinkingComplete,
-                                                    };
-                                                } else {
-                                                    updates.push(thinkingUpdate);
-                                                }
-                                                return updates;
-                                            },
-                                            messageUpdater: msg => ({
-                                                thinkingContent: (msg.thinkingContent || "") + thinkingText,
-                                                isThinkingComplete: isThinkingComplete,
-                                            }),
-                                        }
-                                    );
+                                                    if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
+                                                        updates[lastThinkingIdx] = {
+                                                            ...lastThinkingEntry,
+                                                            expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
+                                                            isExpandableComplete: isThinkingComplete,
+                                                        };
+                                                    } else {
+                                                        updates.push(thinkingUpdate);
+                                                    }
+                                                    return updates;
+                                                },
+                                                messageUpdater: msg => ({
+                                                    thinkingContent: (msg.thinkingContent || "") + thinkingText,
+                                                    isThinkingComplete: isThinkingComplete,
+                                                }),
+                                            }
+                                        );
+                                    } else {
+                                        // When inline timeline is disabled, still accumulate thinkingContent on the message
+                                        // (for potential future use) but don't create progressUpdates
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const lastMsg = newMessages[newMessages.length - 1];
+                                            if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                                                newMessages[newMessages.length - 1] = {
+                                                    ...lastMsg,
+                                                    thinkingContent: (lastMsg.thinkingContent || "") + thinkingText,
+                                                    isThinkingComplete: isThinkingComplete,
+                                                };
+                                            }
+                                            return newMessages;
+                                        });
+                                    }
 
                                     // If this is a thinking-only event, don't process further
                                     const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
@@ -1040,37 +1080,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     const statusText = String(data?.status_text ?? "Processing...");
                                     latestStatusText.current = statusText;
 
-                                    const progressUpdate: ProgressUpdate = {
-                                        type: "status",
-                                        text: statusText,
-                                        timestamp: Date.now(),
-                                    };
+                                    // Only accumulate progress updates when inline-activity-timeline is enabled
+                                    if (inlineActivityTimelineEnabledRef.current) {
+                                        const progressUpdate: ProgressUpdate = {
+                                            type: "status",
+                                            text: statusText,
+                                            timestamp: Date.now(),
+                                        };
 
-                                    // Auto-close any open thinking block and push progress update
-                                    appendProgressUpdate(
-                                        progressUpdate,
-                                        { isStatusBubble: false },
-                                        {
-                                            progressUpdater: existing => {
-                                                const updates = [...existing];
-                                                const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
-                                                if (lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete) {
-                                                    updates[lastThinkingIdx] = {
-                                                        ...updates[lastThinkingIdx],
-                                                        isExpandableComplete: true,
-                                                    };
-                                                }
-                                                updates.push(progressUpdate);
-                                                return updates;
-                                            },
-                                            messageUpdater: msg => {
-                                                const updates = msg.progressUpdates || [];
-                                                const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
-                                                const needsClose = lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete;
-                                                return needsClose ? { isThinkingComplete: true } : {};
-                                            },
-                                        }
-                                    );
+                                        // Auto-close any open thinking block and push progress update
+                                        appendProgressUpdate(
+                                            progressUpdate,
+                                            { isStatusBubble: false },
+                                            {
+                                                progressUpdater: existing => {
+                                                    const updates = [...existing];
+                                                    const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                    if (lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete) {
+                                                        updates[lastThinkingIdx] = {
+                                                            ...updates[lastThinkingIdx],
+                                                            isExpandableComplete: true,
+                                                        };
+                                                    }
+                                                    updates.push(progressUpdate);
+                                                    return updates;
+                                                },
+                                                messageUpdater: msg => {
+                                                    const updates = msg.progressUpdates || [];
+                                                    const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                    const needsClose = lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete;
+                                                    return needsClose ? { isThinkingComplete: true } : {};
+                                                },
+                                            }
+                                        );
+                                    }
 
                                     const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
                                     if (otherParts.length === 0) {

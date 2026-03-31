@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
+import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -43,6 +45,7 @@ export function ChatPage() {
     const chatSharingEnabled = useIsChatSharingEnabled();
     const location = useLocation();
     const navigate = useNavigate();
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const {
         agents,
         sessionId,
@@ -50,7 +53,10 @@ export function ChatPage() {
         messages,
         isSidePanelCollapsed,
         setIsSidePanelCollapsed,
+        openSidePanelTab,
+        setTaskIdInSidePanel,
         isResponding,
+        latestStatusText,
         isLoadingSession,
         sessionToDelete,
         closeSessionDeleteModal,
@@ -377,6 +383,29 @@ export function ChatPage() {
         });
     }, [shareNotifications, isCollaborativeSession, messages]);
 
+    // --- LoadingMessageRow support (when inline-activity-timeline is disabled) ---
+    const loadingMessage = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return undefined;
+        return messages.find(message => message.isStatusBubble);
+    }, [messages, inlineActivityTimelineEnabled]);
+
+    const backendStatusText = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return null;
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage, inlineActivityTimelineEnabled]);
+
+    const handleViewProgressClick = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return undefined;
+        if (!currentTaskId) return undefined;
+
+        return () => {
+            setTaskIdInSidePanel(currentTaskId);
+            openSidePanelTab("activity");
+        };
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -540,6 +569,7 @@ export function ChatPage() {
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
+                                                {!inlineActivityTimelineEnabled && isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
                                         </>
