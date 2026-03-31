@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Brain, X, Pencil, Loader2, Plus, Trash2 } from "lucide-react";
+import { Brain, Loader2, Plus, Trash2, Play } from "lucide-react";
 
 /** Dashed circle icon matching the screenshot's "pending step" indicator */
 const DashedCircle: React.FC<{ className?: string }> = ({ className }) => (
@@ -39,41 +39,24 @@ interface ResearchPlanVerificationProps {
 export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> = ({ planData, onResponded }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedSteps, setEditedSteps] = useState<string[]>(planData.steps);
-    const [countdown, setCountdown] = useState(planData.auto_approve_seconds);
     const [isResponding, setIsResponding] = useState(false);
     const [hasResponded, setHasResponded] = useState(false);
-    const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const hasRespondedRef = useRef(false);
+    const autoApproveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Cleanup countdown on unmount
-    useEffect(() => {
-        return () => {
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current);
-            }
-        };
-    }, []);
-
-    // Start countdown timer
+    // Auto-approve after timeout (no visible countdown)
     useEffect(() => {
         if (hasResponded || isEditing) return;
 
-        countdownRef.current = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    // Auto-approve when countdown reaches 0
-                    if (!hasRespondedRef.current) {
-                        handleResponse("start", planData.steps);
-                    }
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
+        autoApproveRef.current = setTimeout(() => {
+            if (!hasRespondedRef.current) {
+                handleResponse("start", planData.steps);
+            }
+        }, planData.auto_approve_seconds * 1000);
 
         return () => {
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current);
+            if (autoApproveRef.current) {
+                clearTimeout(autoApproveRef.current);
             }
         };
     }, [hasResponded, isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -85,9 +68,9 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
             setHasResponded(true);
             setIsResponding(true);
 
-            // Stop countdown
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current);
+            // Stop auto-approve timer
+            if (autoApproveRef.current) {
+                clearTimeout(autoApproveRef.current);
             }
 
             try {
@@ -115,9 +98,9 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
     };
 
     const handleEdit = () => {
-        // Pause countdown while editing
-        if (countdownRef.current) {
-            clearInterval(countdownRef.current);
+        // Pause auto-approve while editing
+        if (autoApproveRef.current) {
+            clearTimeout(autoApproveRef.current);
         }
         setIsEditing(true);
         setEditedSteps([...planData.steps]);
@@ -139,12 +122,6 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
         setEditedSteps(newSteps);
     };
 
-    // Calculate countdown progress for circular indicator
-    const TIMER_RADIUS = 14;
-    const circumference = 2 * Math.PI * TIMER_RADIUS;
-    const countdownProgress = (countdown / planData.auto_approve_seconds) * 100;
-    const strokeDashoffset = circumference - (countdownProgress / 100) * circumference;
-
     if (hasResponded && !isResponding) {
         return null; // Hide after response is sent
     }
@@ -152,12 +129,22 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
     return (
         <div className="my-4">
             <div className="rounded-lg border bg-(--background-w10) p-4">
-                {/* Title */}
-                <div className="mb-4 flex items-start gap-3">
-                    <div className="mt-0.5 flex-shrink-0 text-(--primary-wMain)">
-                        <Brain className="h-5 w-5" />
+                {/* Title row with Edit button in top right */}
+                <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <div className="mt-0.5 flex-shrink-0 text-(--primary-wMain)">
+                            <Brain className="h-5 w-5" />
+                        </div>
+                        <h3 className="text-base font-semibold">
+                            <span className="font-normal text-(--secondary-text-wMain)">Research Plan: </span>
+                            {planData.title}
+                        </h3>
                     </div>
-                    <h3 className="text-base font-semibold">{planData.title}</h3>
+                    {!isEditing && !hasResponded && (
+                        <Button variant="ghost" size="sm" onClick={handleEdit} disabled={isResponding} className="flex-shrink-0 text-sm">
+                            Edit
+                        </Button>
+                    )}
                 </div>
 
                 {/* Steps */}
@@ -200,63 +187,25 @@ export const ResearchPlanVerification: React.FC<ResearchPlanVerificationProps> =
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        {!isEditing && !hasResponded && (
-                            <Button variant="outline" size="sm" onClick={handleEdit} disabled={isResponding}>
-                                <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                                Edit
-                            </Button>
-                        )}
-                    </div>
+                <div className="flex items-center justify-end gap-2">
+                    {!hasResponded && (
+                        <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isResponding}>
+                            Cancel
+                        </Button>
+                    )}
 
-                    <div className="flex items-center gap-2">
-                        {!hasResponded && (
-                            <Button variant="outline" size="sm" onClick={handleCancel} disabled={isResponding}>
-                                <X className="mr-1.5 h-3.5 w-3.5" />
-                                Cancel
-                            </Button>
-                        )}
-
-                        {!hasResponded && (
-                            <button
-                                onClick={handleStart}
-                                disabled={isResponding}
-                                className="inline-flex items-center gap-2 rounded-full bg-(--primary-wMain) px-4 py-2 text-sm font-medium text-(--primary-text-on-wMain) transition-colors hover:opacity-90 disabled:opacity-50"
-                            >
-                                {isResponding ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        Start
-                                        {/* Countdown circle with number */}
-                                        {!isEditing && countdown > 0 && (
-                                            <span className="relative inline-flex h-8 w-8 items-center justify-center">
-                                                <svg width="32" height="32" viewBox="0 0 32 32" className="-rotate-90">
-                                                    {/* Background circle */}
-                                                    <circle cx="16" cy="16" r={TIMER_RADIUS} fill="none" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-                                                    {/* Progress circle */}
-                                                    <circle
-                                                        cx="16"
-                                                        cy="16"
-                                                        r={TIMER_RADIUS}
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeWidth="2"
-                                                        strokeDasharray={circumference}
-                                                        strokeDashoffset={strokeDashoffset}
-                                                        strokeLinecap="round"
-                                                        className="transition-all duration-1000 ease-linear"
-                                                    />
-                                                </svg>
-                                                <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold">{countdown}</span>
-                                            </span>
-                                        )}
-                                    </>
-                                )}
-                            </button>
-                        )}
-                    </div>
+                    {!hasResponded && (
+                        <Button size="sm" onClick={handleStart} disabled={isResponding}>
+                            {isResponding ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <>
+                                    <Play className="mr-1.5 h-3.5 w-3.5" />
+                                    Start
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>
