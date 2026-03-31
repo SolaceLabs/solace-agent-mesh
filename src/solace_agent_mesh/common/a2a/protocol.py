@@ -405,15 +405,14 @@ def get_sam_remote_tool_status_subscription(namespace: str, agent_name: str) -> 
 
 def get_sam_remote_tool_init_topic(namespace: str, tool_name: str) -> str:
     """
-    Returns the topic for requesting tool initialization from a sandbox worker.
+    Returns the topic for broadcasting tool init (schema discovery) messages.
 
-    The agent publishes an init request to this topic. The worker subscribes
-    per-tool (for tools with class_name in the manifest) and responds with
-    enriched tool metadata (description, schema).
+    The STR worker publishes init messages here at startup so agents can
+    discover the full parameter schema and instructions for each tool.
 
     Args:
         namespace: SAM namespace
-        tool_name: Name of the tool to initialize
+        tool_name: Name of the tool
 
     Returns:
         Topic: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
@@ -423,6 +422,98 @@ def get_sam_remote_tool_init_topic(namespace: str, tool_name: str) -> str:
     if not tool_name:
         raise ValueError("Tool name cannot be empty.")
     return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/init/{tool_name}"
+
+
+def get_sam_remote_tool_init_subscription(namespace: str) -> str:
+    """
+    Returns the wildcard subscription for all tool init broadcast messages.
+
+    Agents subscribe here to receive proactive schema broadcasts from STR workers.
+
+    Args:
+        namespace: SAM namespace
+
+    Returns:
+        Subscription: {namespace}/a2a/v1/sam_remote_tool/init/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/init/>"
+
+
+def get_sam_remote_tool_init_request_topic(namespace: str, tool_name: str) -> str:
+    """
+    Returns the topic for an agent to request config-aware tool schema from the STR.
+
+    The agent publishes here with tool_config; the STR runs the tool binary
+    with --schema --config and responds on the replyTo topic.
+
+    Args:
+        namespace: SAM namespace
+        tool_name: Name of the tool
+
+    Returns:
+        Topic: {namespace}/a2a/v1/sam_remote_tool/init_request/{tool_name}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not tool_name:
+        raise ValueError("Tool name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/init_request/{tool_name}"
+
+
+def get_sam_remote_tool_init_request_subscription(namespace: str) -> str:
+    """
+    Returns the wildcard subscription for all init_request messages.
+
+    The STR worker subscribes here to handle config-aware schema requests.
+
+    Args:
+        namespace: SAM namespace
+
+    Returns:
+        Subscription: {namespace}/a2a/v1/sam_remote_tool/init_request/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/init_request/>"
+
+
+def get_sam_remote_tool_removed_topic(namespace: str, tool_name: str) -> str:
+    """
+    Returns the topic for publishing a tool removal notification.
+
+    The STR publishes here when a tool is removed from the manifest.
+
+    Args:
+        namespace: SAM namespace
+        tool_name: Name of the removed tool
+
+    Returns:
+        Topic: {namespace}/a2a/v1/sam_remote_tool/removed/{tool_name}
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    if not tool_name:
+        raise ValueError("Tool name cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/removed/{tool_name}"
+
+
+def get_sam_remote_tool_removed_subscription(namespace: str) -> str:
+    """
+    Returns the wildcard subscription for all tool removal notifications.
+
+    Agents subscribe here to know when tools are no longer available.
+
+    Args:
+        namespace: SAM namespace
+
+    Returns:
+        Subscription: {namespace}/a2a/v1/sam_remote_tool/removed/>
+    """
+    if not namespace:
+        raise ValueError("Namespace cannot be empty.")
+    return f"{get_a2a_base_topic(namespace)}/sam_remote_tool/removed/>"
 
 
 # --- Topic Utility Functions ---

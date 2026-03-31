@@ -1189,17 +1189,19 @@ class SandboxRunner:
                 raise RuntimeError(f"Init error: {result_data['error']}")
 
             init_result = result_data.get("result", {})
+            tool_desc = init_result.get("tool_description") or init_result.get("description")
+            params_schema = init_result.get("parameters_schema") or init_result.get("parameters")
             log.info(
                 "%s Init completed: description=%d chars, schema=%s",
                 log_id,
-                len(init_result.get("tool_description") or ""),
-                "yes" if init_result.get("parameters_schema") else "no",
+                len(tool_desc or ""),
+                "yes" if params_schema else "no",
             )
 
             return SandboxToolInitResult(
                 tool_name=manifest_entry.tool_name,
-                tool_description=init_result.get("tool_description"),
-                parameters_schema=init_result.get("parameters_schema"),
+                description=tool_desc,
+                parameters=params_schema,
                 ctx_facade_param_name=init_result.get("ctx_facade_param_name"),
             )
 

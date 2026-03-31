@@ -355,15 +355,15 @@ async def _request_sam_remote_init(
         )
         if init_response and init_response.result:
             init_result = init_response.result
-            new_description = init_result.tool_description
+            new_description = init_result.description
             new_schema = None
 
-            if init_result.parameters_schema:
+            if init_result.parameters:
                 try:
                     from google.genai import types as genai_types
 
                     new_schema = genai_types.Schema.model_validate(
-                        init_result.parameters_schema
+                        init_result.parameters
                     )
                 except Exception as schema_e:
                     log.warning(

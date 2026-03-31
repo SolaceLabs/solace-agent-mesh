@@ -48,6 +48,8 @@ from ...common.a2a import (
     get_sam_events_subscription_topic,
     get_sam_remote_tool_response_subscription,
     get_sam_remote_tool_status_subscription,
+    get_sam_remote_tool_init_subscription,
+    get_sam_remote_tool_removed_subscription,
     get_text_from_message,
     extract_task_id_from_topic,
     is_gateway_card,
@@ -187,6 +189,10 @@ async def process_event(component, event: Event):
             )
             sandbox_response_sub_prefix = sandbox_response_sub[:-2] + "/"
             sandbox_status_sub_prefix = sandbox_status_sub[:-2] + "/"
+            sandbox_init_sub = get_sam_remote_tool_init_subscription(namespace)
+            sandbox_init_sub_prefix = sandbox_init_sub[:-2] + "/"
+            sandbox_removed_sub = get_sam_remote_tool_removed_subscription(namespace)
+            sandbox_removed_sub_prefix = sandbox_removed_sub[:-2] + "/"
             sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
@@ -202,6 +208,10 @@ async def process_event(component, event: Event):
                 handle_sandbox_response(component, message, topic, sandbox_response_sub)
             elif topic.startswith(sandbox_status_sub_prefix):
                 handle_sandbox_status(component, message, topic, sandbox_status_sub)
+            elif topic.startswith(sandbox_init_sub_prefix):
+                handle_sandbox_init_broadcast(component, message, topic)
+            elif topic.startswith(sandbox_removed_sub_prefix):
+                handle_sandbox_tool_removed(component, message, topic)
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
@@ -1343,6 +1353,59 @@ def handle_sandbox_status(component, message: SolaceMessage, topic: str, subscri
     except Exception as e:
         log.exception(
             "%s Error handling sandbox status: %s", component.log_identifier, e
+        )
+    finally:
+        message.call_acknowledgements()
+
+
+def handle_sandbox_init_broadcast(component, message: SolaceMessage, topic: str):
+    """Handle a proactive tool init broadcast from an STR worker.
+
+    The STR publishes these at startup for each tool so agents can discover
+    tool schemas without sending init_request. For now we log and ACK —
+    the agent's tool registry is populated via explicit init_request during
+    setup. Future enhancement: hot-register newly discovered tools.
+    """
+    try:
+        payload = message.get_payload()
+        params = payload.get("params", {}) if isinstance(payload, dict) else {}
+        tool_name = params.get("tool_name", "unknown")
+        log.info(
+            "%s Received tool init broadcast: tool=%s",
+            component.log_identifier,
+            tool_name,
+        )
+    except Exception as e:
+        log.exception(
+            "%s Error handling sandbox init broadcast: %s",
+            component.log_identifier,
+            e,
+        )
+    finally:
+        message.call_acknowledgements()
+
+
+def handle_sandbox_tool_removed(component, message: SolaceMessage, topic: str):
+    """Handle a tool removal notification from an STR worker.
+
+    The STR publishes these when a tool is removed from the manifest.
+    For now we log and ACK. Future enhancement: unregister the tool from
+    the agent's active tool set.
+    """
+    try:
+        payload = message.get_payload()
+        params = payload.get("params", {}) if isinstance(payload, dict) else {}
+        tool_name = params.get("tool_name", "unknown")
+        log.info(
+            "%s Received tool removed notification: tool=%s",
+            component.log_identifier,
+            tool_name,
+        )
+    except Exception as e:
+        log.exception(
+            "%s Error handling sandbox tool removed: %s",
+            component.log_identifier,
+            e,
         )
     finally:
         message.call_acknowledgements()

@@ -23,10 +23,14 @@ from .protocol import (
     SandboxErrorCodes,
     SandboxStatusUpdate,
     SandboxStatusUpdateParams,
+    SandboxToolInitBroadcast,
     SandboxToolInitRequest,
     SandboxToolInitResponse,
+    SandboxToolInitResult,
     SandboxToolInvocationRequest,
     SandboxToolInvocationResponse,
+    SandboxToolRemovedNotification,
+    SandboxToolRemovedParams,
 )
 
 log = logging.getLogger(__name__)
@@ -97,6 +101,7 @@ class SandboxWorkerComponent(SamComponentBase):
         # Track which tool topics we're currently subscribed to
         self._subscribed_tools: Set[str] = set()
         self._subscribed_tools_lock = threading.Lock()
+        self._init_request_sub_active: bool = False
 
         # Sandbox configuration - merge app-level tools_python_dir into runner config
         sandbox_cfg = self.get_config("sandbox", {})
@@ -125,6 +130,7 @@ class SandboxWorkerComponent(SamComponentBase):
 
     async def _async_setup_and_run(self) -> None:
         await super()._async_setup_and_run()
+        self._publish_tool_inits()
         self._manifest_poll_thread.start()
 
     def _get_component_id(self) -> str:
@@ -222,24 +228,24 @@ class SandboxWorkerComponent(SamComponentBase):
             return topic[len(prefix) :]
         return None
 
-    def _extract_init_tool_name_from_topic(self, topic: str) -> Optional[str]:
+    def _extract_init_request_tool_name_from_topic(self, topic: str) -> Optional[str]:
         """
-        Extract the tool name from an init topic.
+        Extract the tool name from an init_request topic.
 
-        Topic format: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+        Topic format: {namespace}/a2a/v1/sam_remote_tool/init_request/{tool_name}
         """
-        prefix = a2a.get_a2a_base_topic(self.namespace) + "/sam_remote_tool/init/"
+        prefix = a2a.get_a2a_base_topic(self.namespace) + "/sam_remote_tool/init_request/"
         if topic.startswith(prefix):
-            return topic[len(prefix) :]
+            return topic[len(prefix):]
         return None
 
     def _sync_subscriptions(self) -> None:
         """
         Synchronize subscriptions with the current manifest.
 
-        Adds subscriptions for new tools and removes subscriptions for
-        tools no longer in the manifest. Also subscribes to init topics
-        for tools that have a class_name (DynamicTool classes).
+        Adds per-tool invoke subscriptions for new tools and removes them
+        for tools no longer in the manifest. Also subscribes once to the
+        init_request wildcard (matching Go STR pattern).
         """
         current_tools = self.manifest.get_tool_names()
 
@@ -266,25 +272,26 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
-            entry = self.manifest.get_tool(tool_name)
-            if entry and entry.class_name:
-                init_topic = a2a.get_sam_remote_tool_init_topic(
-                    self.namespace, tool_name
+        # Subscribe to init_request wildcard once (all init requests
+        # come through here; we only respond for tools we own).
+        if not self._init_request_sub_active:
+            init_req_sub = a2a.get_sam_remote_tool_init_request_subscription(
+                self.namespace
+            )
+            try:
+                self.subscribe(init_req_sub)
+                self._init_request_sub_active = True
+                log.info(
+                    "%s Subscribed to init_request wildcard: %s",
+                    self.log_identifier,
+                    init_req_sub,
                 )
-                try:
-                    self.subscribe(init_topic)
-                    log.info(
-                        "%s Subscribed to init topic: %s",
-                        self.log_identifier,
-                        init_topic,
-                    )
-                except Exception as e:
-                    log.error(
-                        "%s Failed to subscribe to init topic %s: %s",
-                        self.log_identifier,
-                        init_topic,
-                        e,
-                    )
+            except Exception as e:
+                log.error(
+                    "%s Failed to subscribe to init_request: %s",
+                    self.log_identifier,
+                    e,
+                )
 
         for tool_name in tools_to_remove:
             topic = a2a.get_sam_remote_tool_invoke_topic(self.namespace, tool_name)
@@ -305,13 +312,7 @@ class SandboxWorkerComponent(SamComponentBase):
                     e,
                 )
 
-            init_topic = a2a.get_sam_remote_tool_init_topic(
-                self.namespace, tool_name
-            )
-            try:
-                self.unsubscribe(init_topic)
-            except Exception:
-                pass
+            self._publish_tool_removed(tool_name)
 
     async def _handle_message_async(self, message: SolaceMessage, topic: str) -> None:
         """
@@ -330,10 +331,10 @@ class SandboxWorkerComponent(SamComponentBase):
         discovery_topic = a2a.get_discovery_subscription_topic(self.namespace)
 
         try:
-            # Check if this is a tool init request
-            init_tool_name = self._extract_init_tool_name_from_topic(topic)
-            if init_tool_name is not None:
-                await self._handle_tool_init(message, init_tool_name)
+            # Check if this is a config-aware init_request
+            init_req_tool_name = self._extract_init_request_tool_name_from_topic(topic)
+            if init_req_tool_name is not None:
+                await self._handle_tool_init(message, init_req_tool_name)
             # Check if this is a tool invocation request
             elif (tool_name := self._extract_tool_name_from_topic(topic)) is not None:
                 await self._handle_tool_invocation(message, tool_name)
@@ -716,8 +717,8 @@ class SandboxWorkerComponent(SamComponentBase):
                 response = SandboxToolInitResponse.success(
                     request_id=request_id,
                     tool_name=tool_name,
-                    tool_description=init_result.tool_description,
-                    parameters_schema=init_result.parameters_schema,
+                    description=init_result.description,
+                    parameters=init_result.parameters,
                     ctx_facade_param_name=init_result.ctx_facade_param_name,
                 )
 
@@ -790,6 +791,65 @@ class SandboxWorkerComponent(SamComponentBase):
             self.log_identifier,
             topic,
         )
+
+    def _publish_tool_inits(self) -> None:
+        """Broadcast init messages for all tools with schema data.
+
+        Follows the Go STR pattern: proactively publish tool schemas to
+        /init/{tool_name} so agents can discover them without requesting.
+        """
+        for tool_name in self.manifest.get_tool_names():
+            entry = self.manifest.get_tool(tool_name)
+            if entry is None:
+                continue
+
+            init_params = SandboxToolInitResult(
+                tool_name=tool_name,
+                description=entry.description if hasattr(entry, "description") else None,
+            )
+            notification = SandboxToolInitBroadcast(params=init_params)
+            topic = a2a.get_sam_remote_tool_init_topic(self.namespace, tool_name)
+            try:
+                self.publish_a2a_message(
+                    payload=notification.model_dump(exclude_none=True),
+                    topic=topic,
+                )
+                log.info(
+                    "%s Published tool init broadcast: %s",
+                    self.log_identifier,
+                    tool_name,
+                )
+            except Exception as e:
+                log.error(
+                    "%s Failed to publish init for %s: %s",
+                    self.log_identifier,
+                    tool_name,
+                    e,
+                )
+
+    def _publish_tool_removed(self, tool_name: str) -> None:
+        """Publish a tool removal notification (matching Go STR pattern)."""
+        notification = SandboxToolRemovedNotification(
+            params=SandboxToolRemovedParams(tool_name=tool_name),
+        )
+        topic = a2a.get_sam_remote_tool_removed_topic(self.namespace, tool_name)
+        try:
+            self.publish_a2a_message(
+                payload=notification.model_dump(exclude_none=True),
+                topic=topic,
+            )
+            log.info(
+                "%s Published tool removed: %s",
+                self.log_identifier,
+                tool_name,
+            )
+        except Exception as e:
+            log.error(
+                "%s Failed to publish removed for %s: %s",
+                self.log_identifier,
+                tool_name,
+                e,
+            )
 
     def stop_component(self) -> None:
         """Clean up resources when component is stopped."""

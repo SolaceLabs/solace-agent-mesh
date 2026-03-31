@@ -234,8 +234,15 @@ class SandboxErrorCodes:
 # ---------------------------------------------------------------------------
 
 
-class SandboxInitParams(BaseModel):
-    """Parameters for a tool init request."""
+class ArtifactParamInfo(BaseModel):
+    """Describes an artifact-typed parameter in the tool schema."""
+
+    is_list: bool = Field(default=False, description="Whether parameter is a list of artifacts")
+    is_optional: bool = Field(default=False, description="Whether parameter is optional")
+
+
+class SandboxInitRequestParams(BaseModel):
+    """Parameters for a config-aware tool init request (agent → STR)."""
 
     tool_name: str = Field(..., description="Name of the tool to initialize")
     tool_config: Dict[str, Any] = Field(
@@ -243,48 +250,52 @@ class SandboxInitParams(BaseModel):
     )
 
 
+# Keep old name as alias for backward compatibility within Python STR
+SandboxInitParams = SandboxInitRequestParams
+
+
 class SandboxToolInitRequest(BaseModel):
     """
-    JSON-RPC 2.0 request for tool initialization.
+    JSON-RPC 2.0 request for config-aware tool schema (agent → STR).
 
-    Sent by the agent to the worker to request enriched tool metadata.
-    The worker runs the DynamicTool's init() inside bwrap, reads the
-    enriched tool_description and parameters_schema, then responds.
-
-    Published to: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+    Published to: {namespace}/a2a/v1/sam_remote_tool/init_request/{tool_name}
     """
 
     jsonrpc: Literal["2.0"] = "2.0"
     id: str = Field(..., description="Correlation ID")
-    method: Literal["sam_remote_tool/init"] = "sam_remote_tool/init"
-    params: SandboxInitParams
+    method: Literal["sam_remote_tool/init_request"] = "sam_remote_tool/init_request"
+    params: SandboxInitRequestParams
 
 
 class SandboxToolInitResult(BaseModel):
     """
-    Successful result from tool initialization.
-
-    Contains enriched metadata computed by the DynamicTool's init() method
-    running inside the sandbox. No persistent state is retained — connection
-    pools, caches, and singletons are discarded when the subprocess exits.
+    Tool schema/metadata — used as both init broadcast params and init_request
+    response result. Field names match Go's remotetool.InitParams for wire
+    compatibility.
     """
 
-    tool_name: str = Field(..., description="Name of the initialized tool")
-    tool_description: Optional[str] = Field(
-        default=None, description="Enriched tool description from init()"
+    tool_name: str = Field(..., description="Name of the tool")
+    description: Optional[str] = Field(
+        default=None, description="Tool description"
     )
-    parameters_schema: Optional[Dict[str, Any]] = Field(
-        default=None, description="Enriched parameters schema as dict"
+    parameters: Optional[Dict[str, Any]] = Field(
+        default=None, description="JSON Schema for tool parameters"
+    )
+    artifact_params: Optional[Dict[str, ArtifactParamInfo]] = Field(
+        default=None, description="Metadata for artifact-typed parameters"
+    )
+    instructions: Optional[str] = Field(
+        default=None, description="LLM instructions for using this tool"
     )
     ctx_facade_param_name: Optional[str] = Field(
         default=None,
-        description="Parameter name for ToolContextFacade injection",
+        description="Parameter name for ToolContextFacade injection (Python-only)",
     )
 
 
 class SandboxToolInitResponse(BaseModel):
     """
-    JSON-RPC 2.0 response from tool initialization.
+    JSON-RPC 2.0 response to an init_request.
 
     Published to: replyTo topic from request user properties.
     """
@@ -303,8 +314,10 @@ class SandboxToolInitResponse(BaseModel):
         cls,
         request_id: str,
         tool_name: str,
-        tool_description: Optional[str] = None,
-        parameters_schema: Optional[Dict[str, Any]] = None,
+        description: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        artifact_params: Optional[Dict[str, ArtifactParamInfo]] = None,
+        instructions: Optional[str] = None,
         ctx_facade_param_name: Optional[str] = None,
     ) -> "SandboxToolInitResponse":
         """Create a success response."""
@@ -312,8 +325,10 @@ class SandboxToolInitResponse(BaseModel):
             id=request_id,
             result=SandboxToolInitResult(
                 tool_name=tool_name,
-                tool_description=tool_description,
-                parameters_schema=parameters_schema,
+                description=description,
+                parameters=parameters,
+                artifact_params=artifact_params,
+                instructions=instructions,
                 ctx_facade_param_name=ctx_facade_param_name,
             ),
         )
@@ -331,3 +346,34 @@ class SandboxToolInitResponse(BaseModel):
             id=request_id,
             error=SandboxError(code=code, message=message, data=data),
         )
+
+
+class SandboxToolInitBroadcast(BaseModel):
+    """
+    JSON-RPC 2.0 notification for proactive tool schema broadcast (STR → agents).
+
+    Published to: {namespace}/a2a/v1/sam_remote_tool/init/{tool_name}
+    No 'id' field — this is a notification, not a request.
+    """
+
+    jsonrpc: Literal["2.0"] = "2.0"
+    method: Literal["sam_remote_tool/init"] = "sam_remote_tool/init"
+    params: SandboxToolInitResult
+
+
+class SandboxToolRemovedParams(BaseModel):
+    """Parameters for a tool removal notification."""
+
+    tool_name: str = Field(..., description="Name of the removed tool")
+
+
+class SandboxToolRemovedNotification(BaseModel):
+    """
+    JSON-RPC 2.0 notification for tool removal (STR → agents).
+
+    Published to: {namespace}/a2a/v1/sam_remote_tool/removed/{tool_name}
+    """
+
+    jsonrpc: Literal["2.0"] = "2.0"
+    method: Literal["sam_remote_tool/removed"] = "sam_remote_tool/removed"
+    params: SandboxToolRemovedParams

@@ -173,7 +173,7 @@ class TestSandboxToolInitRequestLiterals:
             params=SandboxInitParams(tool_name="tool_a"),
         )
         assert req.jsonrpc == "2.0"
-        assert req.method == "sam_remote_tool/init"
+        assert req.method == "sam_remote_tool/init_request"
 
 
 class TestSandboxToolInitResponseFactories:
@@ -181,8 +181,8 @@ class TestSandboxToolInitResponseFactories:
         resp = SandboxToolInitResponse.success(
             request_id="i1",
             tool_name="tool_a",
-            tool_description="A tool",
-            parameters_schema={"type": "object"},
+            description="A tool",
+            parameters={"type": "object"},
         )
         assert resp.result is not None
         assert resp.result.tool_name == "tool_a"

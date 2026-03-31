@@ -20,7 +20,7 @@ from google.genai import types as genai_types
 
 from .base import ToolExecutor, ToolExecutionResult, register_executor
 from ....common.a2a import (
-    get_sam_remote_tool_init_topic,
+    get_sam_remote_tool_init_request_topic,
     get_sam_remote_tool_invoke_topic,
     get_sam_remote_tool_response_topic,
     get_sam_remote_tool_status_topic,
@@ -506,7 +506,7 @@ class SamRemoteExecutor(ToolExecutor):
                 ),
             )
 
-            request_topic = get_sam_remote_tool_init_topic(
+            request_topic = get_sam_remote_tool_init_request_topic(
                 self._namespace, self._tool_name
             )
             reply_to = get_sam_remote_tool_response_topic(
