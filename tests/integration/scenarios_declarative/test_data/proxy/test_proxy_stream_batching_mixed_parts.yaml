@@ -1,0 +1,98 @@
+test_case_id: "proxy_stream_batching_mixed_parts_001"
+description: >
+  Tests that when an intermediate status update contains non-text parts (e.g. a
+  DataPart), any text accumulated in the streaming buffer is first flushed as its
+  own status update, then the original event with non-text parts is processed
+  and forwarded normally.
+  TestAgent_Proxied_Batched has stream_batching_threshold_bytes=10.
+tags: ["all", "proxy", "streaming", "batching"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied_Batched"
+  user_identity: "proxy_batching_mixed_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Give me a mixed response."
+  external_context:
+    a2a_session_id: "session_proxy_batching_mixed_001"
+
+# Sequence:
+#   "Hi " (3B) -> buffer=3B < 10 -> held
+#   DataPart event (non-text) -> flush buffer "Hi " as its own event first,
+#     then forward the DataPart event unchanged
+#   Final "Done." -> clear buffer (empty), pass through
+downstream_a2a_agent_responses:
+  - id: "downstream-task-id"
+    contextId: "session_proxy_batching_mixed_001"
+    kind: "task"
+    status:
+      state: "submitted"
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_mixed_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Hi "
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_mixed_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-2"
+        kind: "message"
+        parts:
+          - kind: "data"
+            data:
+              type: "agent_progress_update"
+              status_text: "Tool called successfully"
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_mixed_001"
+    final: true
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-final"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Done."
+
+# Buffered "Hi " is flushed as a progress update when the DataPart event arrives.
+# The DataPart event passes through unchanged (DataParts are not converted).
+# The final event passes through with its text unchanged.
+expected_gateway_output:
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "data"
+        data_contains:
+          type: "agent_progress_update"
+          status_text: "Hi "
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "data"
+        data_contains:
+          type: "agent_progress_update"
+          status_text: "Tool called successfully"
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Done."

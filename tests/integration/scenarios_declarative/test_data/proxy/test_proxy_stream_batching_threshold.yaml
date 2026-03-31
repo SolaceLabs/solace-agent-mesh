@@ -1,0 +1,103 @@
+test_case_id: "proxy_stream_batching_threshold_001"
+description: >
+  Tests that stream batching accumulates small text chunks and only flushes them
+  once the configured threshold is reached. The TestAgent_Proxied_Batched agent
+  has stream_batching_threshold_bytes=10, so individual chunks smaller than 10
+  bytes are held in a buffer until enough accumulates to exceed the threshold.
+tags: ["all", "proxy", "streaming", "batching"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent_Proxied_Batched"
+  user_identity: "proxy_batching_tester@example.com"
+  parts:
+    - type: "text"
+      text: "Stream me a batched response."
+  external_context:
+    a2a_session_id: "session_proxy_batching_001"
+
+# Downstream sends three small chunks. Each is < 10 bytes on its own.
+# Expected batching behaviour (threshold=10, convert_progress_updates=true):
+#   - "Hello " (6B)  -> buffer=6B  < 10 → held
+#   - "world!" (6B)  -> buffer=12B >= 10 → flushed as "Hello world!" → forwarded
+#   - "Bye."  (4B)   -> buffer=4B  < 10 → held
+#   - Final event    -> buffer cleared, final text passed through unchanged
+downstream_a2a_agent_responses:
+  - id: "downstream-task-id"
+    contextId: "session_proxy_batching_001"
+    kind: "task"
+    status:
+      state: "submitted"
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-1"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Hello "
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-2"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "world!"
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_001"
+    final: false
+    status:
+      state: "working"
+      message:
+        role: "agent"
+        messageId: "msg-3"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "Bye."
+
+  - kind: "status-update"
+    taskId: "downstream-task-id"
+    contextId: "session_proxy_batching_001"
+    final: true
+    status:
+      state: "completed"
+      message:
+        role: "agent"
+        messageId: "msg-final"
+        kind: "message"
+        parts:
+          - kind: "text"
+            text: "All done."
+
+# "Hello " + "world!" flushed together as one batched agent_progress_update.
+# "Bye." is below threshold and buffered until the final event clears it (not published).
+# The final event passes through with its original text.
+expected_gateway_output:
+  - type: "status_update"
+    final_flag: false
+    content_parts:
+      - type: "data"
+        data_contains:
+          type: "agent_progress_update"
+          status_text: "Hello world!"
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "All done."
