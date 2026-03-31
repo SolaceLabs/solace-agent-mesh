@@ -5,6 +5,7 @@ Provides reusable OAuth2 token validation middleware that works with any
 component that has OAuth configuration.
 """
 
+import re
 import httpx
 import logging
 from fastapi import Request as FastAPIRequest
@@ -16,6 +17,14 @@ from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
 )
 
 log = logging.getLogger(__name__)
+
+# Regex matching share view/artifact GET paths that use soft-auth.
+# Share IDs are 21-char nanoid strings ([A-Za-z0-9_-]{21}).
+# The {21} length constraint prevents false matches on sub-routes
+# like /link/..., /shared-with-me, or /{share_id}/users.
+_SHARE_SOFT_AUTH_RE = re.compile(
+    r"^/api/v1/share/[A-Za-z0-9_-]{21}(?:/artifacts/.+)?$"
+)
 
 
 def _extract_access_token(request: FastAPIRequest) -> str:
@@ -213,6 +222,24 @@ def create_oauth_middleware(component):
                 "/health",
             ]
 
+            # Share view/artifact GET endpoints handle their own access
+            # control via get_optional_user_id / get_optional_user_email.
+            # We attempt authentication (so the user identity is available
+            # for owner checks) but do NOT reject the request on failure —
+            # the share router decides whether auth is required per-link.
+            #
+            # Soft-auth paths (explicitly matched):
+            #   GET /api/v1/share/{share_id}                  (view session)
+            #   GET /api/v1/share/{share_id}/artifacts/...    (download artifact)
+            #
+            # Share IDs are 21-char nanoid strings ([A-Za-z0-9_-]{21}),
+            # so the regex length constraint prevents false matches on
+            # sub-routes like /link/, /shared-with-me, or /{id}/users.
+            share_soft_auth = (
+                request.method == "GET"
+                and _SHARE_SOFT_AUTH_RE.match(request.url.path) is not None
+            )
+
             if any(request.url.path.startswith(path) for path in skip_paths):
                 await self.app(scope, receive, send)
                 return
@@ -224,7 +251,15 @@ def create_oauth_middleware(component):
             use_auth = self.component.get_config("frontend_use_authorization", False)
 
             if use_auth:
-                if await self._handle_authenticated_request(request, scope, receive, send):
+                if share_soft_auth:
+                    # For share view endpoints: attempt auth but don't reject on failure.
+                    # If auth succeeds, user info is set on request.state.
+                    # If auth fails, we proceed without user info — the share
+                    # router will decide whether the link allows anonymous access.
+                    await self._handle_authenticated_request(
+                        request, scope, receive, send, soft=True
+                    )
+                elif await self._handle_authenticated_request(request, scope, receive, send):
                     return
             else:
                 request.state.user = {
@@ -238,7 +273,7 @@ def create_oauth_middleware(component):
 
             await self.app(scope, receive, send)
 
-        async def _handle_authenticated_request(self, request, scope, receive, send) -> bool:
+        async def _handle_authenticated_request(self, request, scope, receive, send, soft: bool = False) -> bool:
             """
             Handle authentication for a request.
 
@@ -246,13 +281,21 @@ def create_oauth_middleware(component):
             for backwards compatibility. Tries sam_access_token validation first
             (fast, local JWT verification), then falls back to IdP validation.
 
+            Args:
+                soft: If True, authentication failures are silently ignored
+                    (request proceeds without user info). Used for share view
+                    endpoints that handle their own access control.
+
             Returns:
                 True if an error response was sent (caller should not continue),
-                False if authentication succeeded (caller should proceed with app).
+                False if authentication succeeded or soft-failed (caller should proceed).
             """
             access_token = _extract_access_token(request)
 
             if not access_token:
+                if soft:
+                    log.debug("AuthMiddleware: No access token (soft-auth, proceeding without user)")
+                    return False
                 log.warning("AuthMiddleware: No access token found. Returning 401.")
                 response = JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -309,6 +352,9 @@ def create_oauth_middleware(component):
             auth_provider = getattr(self.component, "external_auth_provider", "generic")
 
             if not auth_service_url:
+                if soft:
+                    log.debug("AuthMiddleware: Auth service not configured (soft-auth, proceeding)")
+                    return False
                 log.error("Auth service URL not configured.")
                 response = JSONResponse(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -318,6 +364,9 @@ def create_oauth_middleware(component):
                 return True
 
             if not await _validate_token(auth_service_url, auth_provider, access_token):
+                if soft:
+                    log.debug("AuthMiddleware: Token validation failed (soft-auth, proceeding without user)")
+                    return False
                 log.warning("AuthMiddleware: Token validation failed")
                 response = JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -328,6 +377,9 @@ def create_oauth_middleware(component):
 
             user_info = await _get_user_info(auth_service_url, auth_provider, access_token)
             if not user_info:
+                if soft:
+                    log.debug("AuthMiddleware: Failed to get user info (soft-auth, proceeding without user)")
+                    return False
                 log.warning("AuthMiddleware: Failed to get user info")
                 response = JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,

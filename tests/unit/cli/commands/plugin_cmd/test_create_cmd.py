@@ -141,6 +141,23 @@ class TestSetupPluginTypeSrc:
         assert (src_path / "app.py").exists()
         assert (src_path / "component.py").exists()
     
+    def test_setup_workflow_src(self, tmp_path, mock_templates):
+        """Test setting up workflow plugin source directory - only __init__.py, no other files"""
+        src_path = tmp_path / "src"
+        src_path.mkdir()
+
+        replacements = {
+            "__PLUGIN_SNAKE_CASE_NAME__": "test_workflow",
+            "__PLUGIN_PASCAL_CASE_NAME__": "TestWorkflow",
+        }
+
+        setup_plugin_type_src("workflow", src_path, replacements)
+
+        assert (src_path / "__init__.py").exists()
+        assert not (src_path / "tools.py").exists()
+        assert not (src_path / "app.py").exists()
+        assert not (src_path / "component.py").exists()
+
     def test_setup_custom_src(self, tmp_path, mock_templates):
         """Test setting up custom plugin source directory"""
         src_path = tmp_path / "src"
@@ -206,6 +223,33 @@ class TestCreatePluginCmd:
         assert (plugin_dir / "src" / "test_gateway" / "app.py").exists()
         assert (plugin_dir / "src" / "test_gateway" / "component.py").exists()
     
+    def test_create_workflow_plugin_skip_mode(self, temp_project_dir, mock_templates, mock_official_registry):
+        """Test creating workflow plugin in skip mode - YAML only, no Python source files"""
+        runner = CliRunner()
+        result = runner.invoke(
+            create_plugin_cmd,
+            [
+                "test-workflow",
+                "--type", "workflow",
+                "--skip"
+            ]
+        )
+
+        assert result.exit_code == 0
+        assert "created successfully" in result.output.lower()
+
+        plugin_dir = Path("test-workflow")
+        assert plugin_dir.exists()
+        assert (plugin_dir / "config.yaml").exists()
+        assert (plugin_dir / "pyproject.toml").exists()
+        assert (plugin_dir / "README.md").exists()
+        assert (plugin_dir / "src" / "test_workflow" / "__init__.py").exists()
+
+        # Workflow plugins are YAML-only — no tools.py, app.py, or component.py
+        assert not (plugin_dir / "src" / "test_workflow" / "tools.py").exists()
+        assert not (plugin_dir / "src" / "test_workflow" / "app.py").exists()
+        assert not (plugin_dir / "src" / "test_workflow" / "component.py").exists()
+
     def test_create_custom_plugin_skip_mode(self, temp_project_dir, mock_templates, mock_official_registry):
         """Test creating custom plugin in skip mode"""
         runner = CliRunner()

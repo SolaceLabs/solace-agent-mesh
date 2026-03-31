@@ -4,24 +4,26 @@ import { Input } from "@/lib/components/ui";
 import { ConfirmationDialog } from "@/lib/components/common";
 import { Button } from "@/lib/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
+import { pluginRegistry } from "@/lib/plugins";
 import { DEFAULT_MODEL_ALIASES } from "./common";
 
 interface ModelDeleteDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void | Promise<void>;
+    modelId: string;
     modelAlias: string;
     isLoading?: boolean;
 }
 
-export const ModelDeleteDialog = React.memo<ModelDeleteDialogProps>(({ open, onOpenChange, onConfirm, modelAlias, isLoading }) => {
+export const ModelDeleteDialog = React.memo<ModelDeleteDialogProps>(({ open, onOpenChange, onConfirm, modelId, modelAlias, isLoading }) => {
     const isDefaultModel = DEFAULT_MODEL_ALIASES.includes(modelAlias.toLowerCase());
 
     if (isDefaultModel) {
         return <DefaultModelDialog open={open} onOpenChange={onOpenChange} modelAlias={modelAlias} />;
     }
 
-    return <ConfirmDeleteDialog open={open} onOpenChange={onOpenChange} onConfirm={onConfirm} isLoading={isLoading} />;
+    return <ConfirmDeleteDialog open={open} onOpenChange={onOpenChange} onConfirm={onConfirm} isLoading={isLoading} modelId={modelId} modelAlias={modelAlias} />;
 });
 
 /** Default model cannot be deleted - informational dialog with Close button only */
@@ -54,13 +56,15 @@ const DefaultModelDialog: React.FC<{
     );
 };
 
-/** Confirm deletion with DELETE input - uses shared ConfirmationDialog */
+/** Confirm deletion with DELETE input - uses shared ConfirmationDialog or enterprise plugin */
 const ConfirmDeleteDialog: React.FC<{
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void | Promise<void>;
     isLoading?: boolean;
-}> = ({ open, onOpenChange, onConfirm, isLoading }) => {
+    modelId: string;
+    modelAlias: string;
+}> = ({ open, onOpenChange, onConfirm, isLoading, modelId, modelAlias }) => {
     const [confirmText, setConfirmText] = useState("");
 
     const handleOpenChange = (isOpen: boolean) => {
@@ -69,6 +73,12 @@ const ConfirmDeleteDialog: React.FC<{
         }
         onOpenChange(isOpen);
     };
+
+    // Check if enterprise provides a custom delete dialog
+    const customDialog = pluginRegistry.getPluginById("model-delete-dialog");
+    if (customDialog) {
+        return <>{customDialog.render?.({ open, onOpenChange: handleOpenChange, onConfirm, isLoading, modelId, modelAlias })}</>;
+    }
 
     return (
         <ConfirmationDialog
