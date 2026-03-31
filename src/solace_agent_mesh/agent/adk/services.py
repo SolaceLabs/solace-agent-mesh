@@ -1001,6 +1001,25 @@ async def append_event_with_retry(
     raise RuntimeError("Unexpected state in append_event_with_retry")
 
 
+def _extract_compaction_summary(event: ADKEvent) -> str | None:
+    """Extract the summary text from a compaction event, handling both dict and object forms."""
+    compacted_content = event.actions.compaction
+    if isinstance(compacted_content, dict):
+        cc = compacted_content.get("compacted_content", {})
+        parts = cc.get("parts", []) if isinstance(cc, dict) else []
+        for part in parts:
+            text = part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
+            if text:
+                return text
+    else:
+        cc = getattr(compacted_content, "compacted_content", None)
+        if cc and hasattr(cc, "parts") and cc.parts:
+            for part in cc.parts:
+                if hasattr(part, "text") and part.text:
+                    return part.text
+    return None
+
+
 def extract_session_text_for_transfer(
     session: ADKSession,
     source_agent_display_name: str = "previous agent",
@@ -1009,9 +1028,9 @@ def extract_session_text_for_transfer(
     """
     Extract a clean text transcript from an ADK session for cross-agent context transfer.
 
-    Filters out tool call/response events and internal state events, keeping only
-    user/model text content. Handles compacted sessions by extracting the compaction
-    summary and prepending it to the transcript.
+    Delegates event filtering to _filter_events_for_transfer, then builds a formatted
+    text transcript from the filtered events. Handles compacted sessions by extracting
+    the compaction summary and prepending it to the transcript.
 
     The session MUST be loaded through FilteringSessionService (which automatically
     filters ghost events from compacted sessions) before calling this function.
@@ -1029,55 +1048,31 @@ def extract_session_text_for_transfer(
         log.info("%s No events in session to extract text from.", log_identifier)
         return None
 
-    # Step 1: Separate compaction events from regular events
+    # Step 1: Use shared filtering logic
+    filtered_events = _filter_events_for_transfer(
+        events=session.events,
+        log_identifier=log_identifier,
+    )
+
+    # Step 2: Separate compaction summaries from regular text events
     compaction_summary = None
-    regular_events = []
-
-    for event in session.events:
-        if event.actions and event.actions.compaction:
-            # Extract summary text from the compaction event
-            compacted_content = event.actions.compaction
-            # Handle both dict and object forms
-            if isinstance(compacted_content, dict):
-                cc = compacted_content.get("compacted_content", {})
-                parts = cc.get("parts", []) if isinstance(cc, dict) else []
-                for part in parts:
-                    text = part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
-                    if text:
-                        compaction_summary = text
-                        break
-            else:
-                cc = getattr(compacted_content, "compacted_content", None)
-                if cc and hasattr(cc, "parts") and cc.parts:
-                    for part in cc.parts:
-                        if hasattr(part, "text") and part.text:
-                            compaction_summary = part.text
-                            break
-        else:
-            regular_events.append(event)
-
-    # Step 2: Extract text-only content from regular events
     transcript_lines = []
 
-    for event in regular_events:
+    for event in filtered_events:
+        if event.actions and event.actions.compaction:
+            summary = _extract_compaction_summary(event)
+            if summary:
+                compaction_summary = summary
+            continue
+
         if not event.content or not event.content.parts:
             continue
 
         role = event.content.role
-        if role not in ("user", "model"):
-            continue
-
-        # Skip events that contain ONLY function_call or function_response parts
-        has_text = False
         text_parts = []
         for part in event.content.parts:
             if hasattr(part, "text") and part.text:
-                has_text = True
                 text_parts.append(part.text)
-            # Skip function_call and function_response parts entirely
-
-        if not has_text:
-            continue
 
         combined_text = "\n".join(text_parts).strip()
         if not combined_text:
@@ -1111,10 +1106,10 @@ def extract_session_text_for_transfer(
     )
 
     log.info(
-        "%s Extracted %d chars of text for context transfer (%d regular events, compaction=%s).",
+        "%s Extracted %d chars of text for context transfer (%d filtered events, compaction=%s).",
         log_identifier,
         len(result),
-        len(regular_events),
+        len(filtered_events),
         "yes" if compaction_summary else "no",
     )
 
@@ -1163,10 +1158,14 @@ def _filter_events_for_transfer(
             skipped_count += 1
             continue
 
-        # Skip system/context-setting events (state_delta only)
-        if event.actions and event.actions.state_delta and not event.content.parts:
-            skipped_count += 1
-            continue
+        # Skip system/context-setting events (state_delta only, no text)
+        if event.actions and event.actions.state_delta:
+            has_text = any(
+                hasattr(p, "text") and p.text for p in event.content.parts
+            )
+            if not has_text:
+                skipped_count += 1
+                continue
 
         role = event.content.role
         # Only keep user and model events
@@ -1290,8 +1289,12 @@ async def transfer_session_context(
                 session_id=session_id,
                 state=clone_state,
             )
-        except Exception:
+        except Exception as exc:
             # Race condition: another request may have created it
+            log.warning(
+                "%s create_session failed, retrying with get_session: %s",
+                log_identifier, exc,
+            )
             target_session = await session_service.get_session(
                 app_name=target_agent_name,
                 user_id=user_id,

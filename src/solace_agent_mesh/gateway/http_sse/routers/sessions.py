@@ -14,7 +14,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_adk_session_service, get_agent_registry
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -1052,14 +1052,38 @@ async def trigger_title_generation(
 
 # --- Context Transfer ---
 
+DISPLAY_NAME_EXTENSION_URI = "https://solace.com/a2a/extensions/display-name"
+
+
+def _resolve_agent_display_name(agent_registry, agent_name: str) -> str:
+    """Resolve display name from agent registry, falling back to agent_name."""
+    card = agent_registry.get_agent(agent_name)
+    if not card:
+        return agent_name
+
+    capabilities = getattr(card, "capabilities", None)
+    if not capabilities:
+        return agent_name
+
+    extensions = getattr(capabilities, "extensions", None)
+    if not extensions:
+        return agent_name
+
+    for ext in extensions:
+        if ext.uri == DISPLAY_NAME_EXTENSION_URI:
+            display_name = (ext.params or {}).get("display_name")
+            if display_name:
+                return str(display_name)
+
+    return agent_name
+
+_transfer_context_semaphore = asyncio.BoundedSemaphore(10)
+
+
 class TransferContextRequest(BaseModel):
     """Request body for transferring conversation context between agents."""
     source_agent_name: str = Field(..., description="Name of the source agent to transfer context from")
     target_agent_name: str = Field(..., description="Name of the target agent to transfer context to")
-    source_agent_display_name: str = Field(
-        default="previous agent",
-        description="Human-readable display name of the source agent",
-    )
 
 
 class TransferContextResponse(BaseModel):
@@ -1076,6 +1100,10 @@ async def transfer_context(
     session_id: str,
     request_body: TransferContextRequest,
     user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    session_service: SessionService = Depends(get_session_business_service),
+    adk_session_service=Depends(get_adk_session_service),
+    agent_registry=Depends(get_agent_registry),
 ):
     """
     Transfer conversation context from one agent's ADK session to another.
@@ -1103,16 +1131,33 @@ async def transfer_context(
             detail="Invalid session_id.",
         )
 
+    # Verify the authenticated user owns this session
+    session_domain = session_service.get_session_details(
+        db=db, session_id=session_id, user_id=user_id
+    )
+    if not session_domain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=SESSION_NOT_FOUND_MSG,
+        )
+
     if request_body.source_agent_name == request_body.target_agent_name:
         return TransferContextResponse(
             context_transferred=False,
             message="Source and target agents are the same. No transfer needed.",
         )
 
-    # Get the ADK session service from the gateway component
-    from ..dependencies import get_sac_component
-    component = get_sac_component()
-    adk_session_service = component.get_adk_session_service()
+    # Validate agent names against the registry
+    if request_body.source_agent_name not in agent_registry or request_body.target_agent_name not in agent_registry:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="One or both specified agents are not registered.",
+        )
+
+    # Resolve display name server-side from the agent registry
+    source_agent_display_name = _resolve_agent_display_name(
+        agent_registry, request_body.source_agent_name
+    )
 
     if adk_session_service is None:
         log.warning(
@@ -1125,6 +1170,14 @@ async def transfer_context(
         )
 
     try:
+        _transfer_context_semaphore.acquire_nowait()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many context transfer requests. Please try again shortly.",
+        )
+
+    try:
         from ....agent.adk.services import transfer_session_context
 
         success = await transfer_session_context(
@@ -1133,7 +1186,7 @@ async def transfer_context(
             target_agent_name=request_body.target_agent_name,
             user_id=user_id,
             session_id=session_id,
-            source_agent_display_name=request_body.source_agent_display_name,
+            source_agent_display_name=source_agent_display_name,
             log_identifier=f"[ContextTransfer:{session_id}]",
         )
 
@@ -1146,7 +1199,7 @@ async def transfer_context(
             )
             return TransferContextResponse(
                 context_transferred=True,
-                message=f"Context transferred from {request_body.source_agent_display_name}.",
+                message=f"Context transferred from {source_agent_display_name}.",
             )
         else:
             log.info(
@@ -1171,3 +1224,5 @@ async def transfer_context(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to transfer conversation context.",
         ) from e
+    finally:
+        _transfer_context_semaphore.release()
