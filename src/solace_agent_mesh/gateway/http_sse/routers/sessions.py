@@ -1179,14 +1179,14 @@ async def transfer_context(
             message="Context transfer unavailable: no agent session service found.",
         )
 
-    # Rate limit: acquire_nowait returns False (not raises) when exhausted
-    if not _transfer_context_semaphore._value > 0:
+    # Rate limit using public asyncio API (wait_for with timeout=0)
+    try:
+        await asyncio.wait_for(_transfer_context_semaphore.acquire(), timeout=0)
+    except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many context transfer requests. Please try again shortly.",
         )
-
-    await _transfer_context_semaphore.acquire()
     try:
         from ....agent.adk.services import transfer_session_context
 

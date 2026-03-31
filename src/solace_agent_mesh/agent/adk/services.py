@@ -5,6 +5,7 @@ Initializes ADK Services based on configuration.
 import logging
 import os
 import re
+import uuid as _uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from google.adk.artifacts import (
@@ -1187,7 +1188,6 @@ def _filter_events_for_transfer(
             continue
 
         # Create a new event with fresh invocation ID to avoid correlation confusion
-        import uuid as _uuid
         filtered_event = ADKEvent(
             invocation_id=f"ctx-transfer-{_uuid.uuid4().hex[:12]}",
             author=event.author,
@@ -1314,13 +1314,20 @@ async def transfer_session_context(
     if target_session is None:
         # Use allowlist for state cloning — only copy known-safe keys
         clone_state = None
-        if _SAFE_STATE_KEYS and hasattr(source_session, "state") and source_session.state:
-            clone_state = {
-                k: v for k, v in source_session.state.items()
-                if k in _SAFE_STATE_KEYS
-            }
-            if not clone_state:
-                clone_state = None
+        if hasattr(source_session, "state") and source_session.state:
+            if _SAFE_STATE_KEYS:
+                clone_state = {
+                    k: v for k, v in source_session.state.items()
+                    if k in _SAFE_STATE_KEYS
+                }
+                if not clone_state:
+                    clone_state = None
+            else:
+                log.debug(
+                    "%s _SAFE_STATE_KEYS is empty — skipping state copy (%d keys in source).",
+                    log_identifier,
+                    len(source_session.state),
+                )
         try:
             target_session = await session_service.create_session(
                 app_name=target_agent_name,
@@ -1355,7 +1362,7 @@ async def transfer_session_context(
         f"The following is the conversation history from that agent.]"
     )
     marker_event = ADKEvent(
-        invocation_id=f"context-transfer-marker-{session_id}",
+        invocation_id=f"ctx-transfer-marker-{_uuid.uuid4().hex[:12]}",
         author="model",
         content=adk_types.Content(
             role="model",
