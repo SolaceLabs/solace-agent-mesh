@@ -1291,30 +1291,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     // Return immediately to prevent the generic status handler from running
                                     return;
                                 }
-                                case "tool_invocation_start": {
-                                    // Use the backend-provided status_text for user-friendly display.
-                                    // The backend generates objective, contextual text without
-                                    // exposing tool names or internal implementation details.
-                                    const toolName = String((data as any)?.tool_name ?? "unknown");
-                                    const statusText = (data as any)?.status_text as string | undefined;
-
-                                    // Skip internal/system tools (prefixed with _)
-                                    if (toolName.startsWith("_")) {
-                                        break;
-                                    }
-
-                                    // Skip if no status text (shouldn't happen, but be safe)
-                                    if (!statusText) {
-                                        break;
-                                    }
-
-                                    appendProgressUpdate({
-                                        type: "status",
-                                        text: statusText,
-                                        timestamp: Date.now(),
-                                    });
+                                case "tool_invocation_start":
+                                    // Status updates are handled via LLM-generated agent_progress_update
+                                    // events (status_update embeds). No frontend processing needed.
                                     break;
-                                }
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
                                     const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";

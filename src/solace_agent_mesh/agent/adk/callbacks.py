@@ -1650,34 +1650,51 @@ Response Content Rules:
    - Play-by-play commentary on your actions
    - Transitional phrases between tool calls
 
-3. Use invisible status_update embeds for ALL process updates:
-   - "Searching for..."
-   - "Analyzing..."
-   - "Creating..."
-   - "Querying..."
-   - "Calling agent X..."
+3. **MANDATORY: Emit a status_update embed BEFORE EVERY tool call.** This is required — the user sees a progress timeline and needs to know what is happening. The status text must be:
+   - Objective and user-centric (describe what is happening, not what tool is being called)
+   - Contextual (include the specific topic, query, or subject being worked on)
+   - Concise (one short sentence, no more than 80 characters)
+   - NEVER expose internal tool names, agent names, or implementation details
+
+   Good status_update examples:
+   - "{open_delim}status_update:Searching for current TSLA stock price...{close_delim}"
+   - "{open_delim}status_update:Looking up weather in Ottawa...{close_delim}"
+   - "{open_delim}status_update:Analyzing the quarterly sales data...{close_delim}"
+   - "{open_delim}status_update:Creating a summary report...{close_delim}"
+   - "{open_delim}status_update:Checking available flight options...{close_delim}"
+
+   Bad status_update examples (DO NOT use these patterns):
+   - "{open_delim}status_update:Calling web_search_google tool...{close_delim}" (exposes tool name)
+   - "{open_delim}status_update:Delegating to ResearchAgent...{close_delim}" (exposes agent name)
+   - "{open_delim}status_update:Processing...{close_delim}" (too vague, no context)
+   - "{open_delim}status_update:Using peer_ResearchAgent...{close_delim}" (exposes internal name)
 
 4. NEVER mix process narration with status updates - if you use a status_update embed, do NOT repeat that information in visible text.
 
+5. When delegating to another agent (peer_ tools), still emit a status_update describing what you're asking them to do, NOT which agent you're calling.
+
 Examples:
 
-**Excellent (no visible text, just status and tools):**
-"{open_delim}status_update:Retrieving sales data...{close_delim}" [then calls tool, no visible text]
+**Excellent (status update before tool call, no visible text):**
+"{open_delim}status_update:Searching for current TSLA stock price...{close_delim}" [then calls web_search_google tool, no visible text]
+
+**Excellent (status update before peer delegation):**
+"{open_delim}status_update:Researching Tesla stock performance...{close_delim}" [then calls peer_ResearchAgent, no visible text]
 
 **Good (visible text only contains results):**
-"{open_delim}status_update:Analyzing Q4 sales...{close_delim}" [calls tool]
+"{open_delim}status_update:Analyzing Q4 sales data...{close_delim}" [calls tool]
 "Sales increased 23% in Q4, driven primarily by enterprise accounts."
 
-**Bad (unnecessary narration):**
+**Bad (no status_update before tool call):**
+[calls tool directly without any status_update embed]
+
+**Bad (unnecessary narration instead of status_update):**
 "Let me retrieve the sales data for you." [then calls tool]
 
-**Bad (narration mixed with results):**
-"I've analyzed the data and found that sales increased 23% in Q4."
+**Bad (exposes internal names):**
+"{open_delim}status_update:Calling web_search_google...{close_delim}" [then calls tool]
 
-**Bad (play-by-play commentary):**
-"Now I'll search for the information. After that I'll analyze it."
-
-Remember: The user can see status updates and tool calls. You don't need to announce them in visible text.
+Remember: The user sees a progress timeline. Every tool call MUST be preceded by a contextual status_update embed. Never expose tool or agent names in status updates.
 """
 
 
@@ -1752,7 +1769,9 @@ The system is capable of calling multiple tools in parallel to speed up processi
 
 **Response Formatting - CRITICAL**:
 In most cases when calling tools, you should produce NO visible text at all - only status_update embeds and the tool calls themselves.
-The user can see your tool calls and status updates, so narrating your actions is redundant and creates noise.
+The user can see a progress timeline showing your status updates, so narrating your actions is redundant and creates noise.
+
+**MANDATORY: You MUST emit a status_update embed BEFORE EVERY tool call.** The user's progress timeline depends on these. Status text must describe what you're doing in user-friendly terms — never expose tool names or agent names.
 
 If you do include visible text:
 - It must contain actual results, insights, or answers - NOT process narration
@@ -1760,9 +1779,10 @@ If you do include visible text:
 - Prefer ending with a period (".") if you must include visible text
 
 Examples:
- - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
+ - BEST: "{open_delim}status_update:Looking up current TSLA stock price...{close_delim}" [then calls tool, NO visible text]
  - BAD: "Let me search for that information." [then calls tool]
  - BAD: "Searching for information..." [then calls tool]
+ - BAD: [calls tool directly without any status_update embed]
 
 **CRITICAL - No Links From Training Data**:
 - DO NOT include URLs, links, or markdown links from your training data in responses
@@ -2494,67 +2514,6 @@ def solace_llm_response_callback(
     return None
 
 
-def _generate_tool_status_text(tool_name: str, tool_args: Dict[str, Any]) -> str:
-    """Generate objective, user-centric status text for a tool invocation.
-
-    Produces concise text that describes *what is happening* from the user's
-    perspective, without exposing internal tool names, agent names, or
-    implementation details.
-
-    Examples:
-      - "Searching for current weather in Ottawa..."
-      - "Looking something up..."
-      - "Processing your request..."
-
-    Args:
-        tool_name: Raw tool name (e.g. "peer_ResearchAgent", "web_search_google").
-        tool_args: The arguments passed to the tool.
-
-    Returns:
-        A short, human-readable status string.
-    """
-
-    # Extract a short context hint from the first short string arg
-    context_hint = ""
-    for val in tool_args.values():
-        if isinstance(val, str) and 0 < len(val.strip()) < 120:
-            context_hint = val.strip()
-            break
-    if len(context_hint) > 80:
-        context_hint = context_hint[:77] + "..."
-
-    lower_name = tool_name.lower()
-
-    # Peer agent delegation — describe the action, not the agent
-    if tool_name.startswith("peer_") or tool_name.startswith("workflow_"):
-        if context_hint:
-            return f"Looking into: {context_hint}"
-        return "Processing your request..."
-
-    # Search-related tools
-    if "search" in lower_name:
-        if context_hint:
-            return f"Searching for {context_hint}..."
-        return "Searching..."
-
-    # Read/fetch/get tools
-    if any(kw in lower_name for kw in ("read", "fetch", "get", "retrieve", "lookup", "load")):
-        if context_hint:
-            return f"Looking up {context_hint}..."
-        return "Looking something up..."
-
-    # Save/write/create tools
-    if any(kw in lower_name for kw in ("save", "write", "create", "update", "delete")):
-        if context_hint:
-            return f"Working on {context_hint}..."
-        return "Working on it..."
-
-    # Generic fallback — use context if available
-    if context_hint:
-        return f"Working on: {context_hint}"
-    return "Processing..."
-
-
 def notify_tool_invocation_start_callback(
     tool: BaseTool,
     args: Dict[str, Any],
@@ -2597,15 +2556,11 @@ def notify_tool_invocation_start_callback(
         # Get parallel_group_id from callback state if this is part of a parallel batch
         parallel_group_id = tool_context.state.get("parallel_group_id")
 
-        # Generate human-friendly status text for the progress timeline
-        status_text = _generate_tool_status_text(tool.name, serializable_args)
-
         tool_data = ToolInvocationStartData(
             tool_name=tool.name,
             tool_args=serializable_args,
             function_call_id=tool_context.function_call_id,
             parallel_group_id=parallel_group_id,
-            status_text=status_text,
         )
         host_component.publish_data_signal_from_thread(
             a2a_context=a2a_context,

@@ -28,10 +28,6 @@ class ToolInvocationStartData(BaseModel):
         None,
         description="ID grouping tool calls that execute in parallel. Tools with the same ID should be rendered side-by-side.",
     )
-    status_text: Optional[str] = Field(
-        None,
-        description="Human-friendly status text describing the tool invocation for display in progress timelines.",
-    )
 
 
 class LlmInvocationData(BaseModel):
