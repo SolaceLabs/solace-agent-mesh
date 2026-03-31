@@ -84,7 +84,7 @@ describe("InlineProgressUpdates", () => {
         expect(spinner).toBeTruthy();
     });
 
-    it("collapses to Timeline when task completes", () => {
+    it("collapses to Activity Timeline when task completes", () => {
         const updates = [makeUpdate("Step 1"), makeUpdate("Step 2")];
         const { rerender } = render(<InlineProgressUpdates updates={updates} isActive={true} />);
 
@@ -93,16 +93,16 @@ describe("InlineProgressUpdates", () => {
 
         // When task completes, should auto-collapse
         rerender(<InlineProgressUpdates updates={updates} isActive={false} />);
-        expect(screen.getByText("Timeline")).toBeTruthy();
+        expect(screen.getByText("Activity Timeline")).toBeTruthy();
     });
 
-    it("expands timeline when clicking Timeline", () => {
+    it("expands timeline when clicking Activity Timeline", () => {
         const updates = [makeUpdate("Step 1"), makeUpdate("Step 2")];
         const { rerender } = render(<InlineProgressUpdates updates={updates} isActive={true} />);
         rerender(<InlineProgressUpdates updates={updates} isActive={false} />);
 
-        // Click Timeline to expand
-        fireEvent.click(screen.getByText("Timeline"));
+        // Click Activity Timeline to expand
+        fireEvent.click(screen.getByText("Activity Timeline"));
         expect(screen.getByText("Step 1")).toBeTruthy();
         expect(screen.getByText("Step 2")).toBeTruthy();
     });
@@ -168,12 +168,13 @@ describe("InlineProgressUpdates", () => {
         expect(onViewWorkflow).toHaveBeenCalled();
     });
 
-    it("does not show workflow button when task is complete (collapsed)", () => {
+    it("shows workflow button when task is complete (collapsed)", () => {
         const onViewWorkflow = vi.fn();
         const updates = [makeUpdate("Done")];
         const { rerender } = render(<InlineProgressUpdates updates={updates} isActive={true} onViewWorkflow={onViewWorkflow} />);
         rerender(<InlineProgressUpdates updates={updates} isActive={false} onViewWorkflow={onViewWorkflow} />);
-        expect(screen.queryByTestId("viewActivity")).toBeNull();
+        // Workflow button is shown in collapsed state header
+        expect(screen.getByTestId("viewActivity")).toBeTruthy();
     });
 
     it("renders vertical connecting line when multiple updates", () => {
