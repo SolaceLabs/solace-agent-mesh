@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "./keys";
 import * as sessionService from "./service";
@@ -56,5 +56,16 @@ export function useInfiniteSessions(pageSize: number = 20) {
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,
         refetchOnMount: "always",
+    });
+}
+
+/**
+ * Mutation to fetch chat tasks for a session (used in rename-with-AI flow).
+ */
+export function useRenameSessionWithAI() {
+    return useMutation({
+        mutationFn: async (sessionId: string) => {
+            return sessionService.getSessionChatTasks(sessionId);
+        },
     });
 }

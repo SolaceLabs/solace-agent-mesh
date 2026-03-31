@@ -4,8 +4,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { Loader2, Check, X, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api";
-import { useInfiniteSessions, sessionKeys } from "@/lib/api/sessions";
+import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
@@ -75,7 +74,6 @@ export const RecentChatsPage: React.FC = () => {
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
     const inputRef = useRef<HTMLInputElement>(null);
-    const regeneratingRef = useRef<string | null>(null);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
@@ -173,60 +171,58 @@ export const RecentChatsPage: React.FC = () => {
         setIsShareDialogOpen(true);
     };
 
+    const renameWithAIMutation = useRenameSessionWithAI();
+
     const handleRenameWithAI = useCallback(
-        async (session: Session) => {
-            if (regeneratingRef.current) {
+        (session: Session) => {
+            if (renameWithAIMutation.isPending) {
                 addNotification?.("AI rename already in progress", "info");
                 return;
             }
 
             setRegeneratingTitleForSession(session.id);
-            regeneratingRef.current = session.id;
 
-            try {
-                const data = await api.webui.get(`/api/v1/sessions/${session.id}/chat-tasks`);
-                const tasks = data.tasks || [];
+            renameWithAIMutation.mutate(session.id, {
+                onSuccess: async data => {
+                    const tasks = data.tasks || [];
 
-                if (tasks.length === 0) {
-                    addNotification?.("No messages found in this session", "warning");
-                    setRegeneratingTitleForSession(null);
-                    return;
-                }
+                    if (tasks.length === 0) {
+                        addNotification?.("No messages found in this session", "warning");
+                        setRegeneratingTitleForSession(null);
+                        return;
+                    }
 
-                const allMessages: string[] = [];
-
-                for (const task of tasks) {
-                    const messageBubbles = JSON.parse(task.messageBubbles);
-                    for (const bubble of messageBubbles) {
-                        const text = bubble.text || "";
-                        if (text.trim()) {
-                            allMessages.push(text.trim());
+                    const allMessages: string[] = [];
+                    for (const task of tasks) {
+                        const messageBubbles = JSON.parse(task.messageBubbles);
+                        for (const bubble of messageBubbles) {
+                            const text = bubble.text || "";
+                            if (text.trim()) allMessages.push(text.trim());
                         }
                     }
-                }
 
-                if (allMessages.length === 0) {
-                    addNotification?.("No text content found in session", "warning");
+                    if (allMessages.length === 0) {
+                        addNotification?.("No text content found in session", "warning");
+                        setRegeneratingTitleForSession(null);
+                        return;
+                    }
+
+                    const userMessages = allMessages.filter((_, idx) => idx % 2 === 0);
+                    const agentMessages = allMessages.filter((_, idx) => idx % 2 === 1);
+                    const userSummary = userMessages.slice(-3).join(" | ");
+                    const agentSummary = agentMessages.slice(-3).join(" | ");
+
+                    await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
                     setRegeneratingTitleForSession(null);
-                    return;
-                }
-
-                const userMessages = allMessages.filter((_, idx) => idx % 2 === 0);
-                const agentMessages = allMessages.filter((_, idx) => idx % 2 === 1);
-
-                const userSummary = userMessages.slice(-3).join(" | ");
-                const agentSummary = agentMessages.slice(-3).join(" | ");
-
-                await generateTitle(session.id, userSummary, agentSummary, session.name || "New Chat", true);
-            } catch (error) {
-                console.error("Error regenerating title:", error);
-                addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
-            } finally {
-                setRegeneratingTitleForSession(null);
-                regeneratingRef.current = null;
-            }
+                },
+                onError: error => {
+                    console.error("Error regenerating title:", error);
+                    addNotification?.(`Failed to regenerate title: ${error instanceof Error ? error.message : "Unknown error"}`, "warning");
+                    setRegeneratingTitleForSession(null);
+                },
+            });
         },
-        [generateTitle, addNotification]
+        [renameWithAIMutation, generateTitle, addNotification]
     );
 
     const handleSessionSelect = async (sessionId: string) => {
