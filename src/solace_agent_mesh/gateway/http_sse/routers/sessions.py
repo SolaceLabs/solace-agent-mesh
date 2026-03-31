@@ -1082,8 +1082,18 @@ _transfer_context_semaphore = asyncio.BoundedSemaphore(10)
 
 class TransferContextRequest(BaseModel):
     """Request body for transferring conversation context between agents."""
-    source_agent_name: str = Field(..., description="Name of the source agent to transfer context from")
-    target_agent_name: str = Field(..., description="Name of the target agent to transfer context to")
+    source_agent_name: str = Field(
+        ...,
+        max_length=256,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$',
+        description="Name of the source agent to transfer context from",
+    )
+    target_agent_name: str = Field(
+        ...,
+        max_length=256,
+        pattern=r'^[a-zA-Z0-9_\-\.]+$',
+        description="Name of the target agent to transfer context to",
+    )
 
 
 class TransferContextResponse(BaseModel):
@@ -1159,28 +1169,28 @@ async def transfer_context(
         agent_registry, request_body.source_agent_name
     )
 
+    # Fail-fast: check ADK session service before acquiring semaphore
     if adk_session_service is None:
         log.warning(
-            "Context transfer unavailable: ADK session service not initialized "
-            "(requires SQL session storage)."
+            "Context transfer unavailable: ADK session service not initialized."
         )
         return TransferContextResponse(
             context_transferred=False,
-            message="Context transfer unavailable: requires SQL session storage.",
+            message="Context transfer unavailable: no agent session service found.",
         )
 
-    try:
-        _transfer_context_semaphore.acquire_nowait()
-    except ValueError:
+    # Rate limit: acquire_nowait returns False (not raises) when exhausted
+    if not _transfer_context_semaphore._value > 0:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many context transfer requests. Please try again shortly.",
         )
 
+    await _transfer_context_semaphore.acquire()
     try:
         from ....agent.adk.services import transfer_session_context
 
-        success = await transfer_session_context(
+        result = await transfer_session_context(
             session_service=adk_session_service,
             source_agent_name=request_body.source_agent_name,
             target_agent_name=request_body.target_agent_name,
@@ -1190,27 +1200,30 @@ async def transfer_context(
             log_identifier=f"[ContextTransfer:{session_id}]",
         )
 
-        if success:
+        if result.success:
             log.info(
-                "Context transfer successful for session %s: %s -> %s",
+                "Context transfer successful for session %s: %s -> %s (%d/%d events)",
                 session_id,
                 request_body.source_agent_name,
                 request_body.target_agent_name,
+                result.transferred_count,
+                result.total_count,
             )
             return TransferContextResponse(
                 context_transferred=True,
-                message=f"Context transferred from {source_agent_display_name}.",
+                message=result.message or f"Context transferred from {source_agent_display_name}.",
             )
         else:
             log.info(
-                "No context to transfer for session %s: %s -> %s",
+                "No context to transfer for session %s: %s -> %s (%s)",
                 session_id,
                 request_body.source_agent_name,
                 request_body.target_agent_name,
+                result.message,
             )
             return TransferContextResponse(
                 context_transferred=False,
-                message="No conversation context found to transfer.",
+                message=result.message or "No conversation context found to transfer.",
             )
 
     except Exception as e:

@@ -271,6 +271,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
 
         # Lazy-initialized ADK session service for cross-agent context transfer
         self._adk_session_service = None
+        self._adk_session_service_lock = threading.Lock()
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -2161,57 +2162,64 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def get_shared_artifact_service(self) -> BaseArtifactService | None:
         return self.shared_artifact_service
 
-    def get_adk_session_service(self):
+    def get_adk_session_service(self) -> Any:
         """
         Get an ADK session service for cross-agent context transfer.
 
-        Finds the first agent component's session_service by traversing the
-        connector's app list. All agents in the same deployment share the same
-        session service instance (whether InMemory or SQL-backed), so we only
-        need to find one agent's session_service to access all agent sessions.
+        Thread-safe lazy initialization: finds the first agent component's
+        session_service by traversing the connector's app list. All agents in
+        the same deployment share the same session service instance (whether
+        InMemory or SQL-backed), so we only need to find one.
 
         Returns None if no agent components are found or none have a session_service.
         """
+        # Fast path: already cached (no lock needed for reads of immutable reference)
         if self._adk_session_service is not None:
             return self._adk_session_service
 
-        try:
-            main_app = self.get_app()
-            if not main_app or not main_app.connector:
+        # Slow path: thread-safe initialization
+        with self._adk_session_service_lock:
+            # Double-check after acquiring lock
+            if self._adk_session_service is not None:
+                return self._adk_session_service
+
+            try:
+                main_app = self.get_app()
+                if not main_app or not main_app.connector:
+                    log.warning(
+                        "%s Cannot get ADK session service: no connector available.",
+                        self.log_identifier,
+                    )
+                    return None
+
+                # Import SamAgentComponent to identify agent apps
+                from ...agent.sac.component import SamAgentComponent
+
+                # Iterate through all apps in the connector to find an agent component
+                for app in main_app.connector.apps:
+                    if hasattr(app, 'get_component'):
+                        component = app.get_component()
+                        if isinstance(component, SamAgentComponent) and component.session_service:
+                            self._adk_session_service = component.session_service
+                            log.info(
+                                "%s Found ADK session service from agent '%s' for context transfer.",
+                                self.log_identifier,
+                                getattr(component, 'agent_name', 'unknown'),
+                            )
+                            return self._adk_session_service
+
                 log.warning(
-                    "%s Cannot get ADK session service: no connector available.",
+                    "%s No agent components with session_service found in connector apps. "
+                    "Context transfer requires at least one running agent.",
                     self.log_identifier,
                 )
                 return None
-
-            # Import SamAgentComponent to identify agent apps
-            from ...agent.sac.component import SamAgentComponent
-
-            # Iterate through all apps in the connector to find an agent component
-            for app in main_app.connector.apps:
-                if hasattr(app, 'get_component'):
-                    component = app.get_component()
-                    if isinstance(component, SamAgentComponent) and component.session_service:
-                        self._adk_session_service = component.session_service
-                        log.info(
-                            "%s Found ADK session service from agent '%s' for context transfer.",
-                            self.log_identifier,
-                            getattr(component, 'agent_name', 'unknown'),
-                        )
-                        return self._adk_session_service
-
-            log.warning(
-                "%s No agent components with session_service found in connector apps. "
-                "Context transfer requires at least one running agent.",
-                self.log_identifier,
-            )
-            return None
-        except Exception as e:
-            log.error(
-                "%s Failed to get ADK session service for context transfer: %s",
-                self.log_identifier, e, exc_info=True,
-            )
-            return None
+            except Exception as e:
+                log.error(
+                    "%s Failed to get ADK session service for context transfer: %s",
+                    self.log_identifier, e, exc_info=True,
+                )
+                return None
 
     def get_embed_config(self) -> dict[str, Any]:
         """Returns embed-related configuration needed by dependencies."""
