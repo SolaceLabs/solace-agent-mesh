@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate } from "react-router-dom";
 import { Loader2, Check, X, Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import { useInfiniteSessions, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
@@ -15,19 +17,6 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, 
 
 const PAGE_SIZE = 20;
 const BACKGROUND_TASK_POLL_MS = 10_000;
-
-interface PaginatedSessionsResponse {
-    data: Session[];
-    meta: {
-        pagination: {
-            pageNumber: number;
-            count: number;
-            pageSize: number;
-            nextPage: number | null;
-            totalPages: number;
-        };
-    };
-}
 
 interface SessionNameProps {
     session: Session;
@@ -80,12 +69,12 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
 
 export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
     const inputRef = useRef<HTMLInputElement>(null);
-    const isFetchingRef = useRef(false);
     const regeneratingRef = useRef<string | null>(null);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
@@ -107,12 +96,11 @@ export const RecentChatsPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const [sessions, setSessions] = useState<Session[]>([]);
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE);
+    const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
+
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
     const [editingSessionName, setEditingSessionName] = useState<string>("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
 
@@ -121,116 +109,22 @@ export const RecentChatsPage: React.FC = () => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
-        if (isFetchingRef.current) return;
-        isFetchingRef.current = true;
-        setIsLoading(true);
-
-        try {
-            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${PAGE_SIZE}`);
-
-            if (append) {
-                setSessions(prev => [...prev, ...result.data]);
-            } else {
-                setSessions(result.data);
-            }
-
-            setHasMore(result.meta.pagination.nextPage !== null);
-            setCurrentPage(pageNumber);
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        } finally {
-            setIsLoading(false);
-            isFetchingRef.current = false;
-        }
-    }, []);
-
+    // Infinite scroll effect
     useEffect(() => {
-        fetchSessions(1, false);
+        if (inView && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+        }
+    }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-        const handleNewSession = () => {
-            fetchSessions(1, false);
-        };
-
-        const handleSessionUpdated = (event: CustomEvent) => {
-            const { sessionId } = event.detail;
-            setSessions(prevSessions => {
-                const updatedSession = prevSessions.find(s => s.id === sessionId);
-                if (updatedSession) {
-                    const otherSessions = prevSessions.filter(s => s.id !== sessionId);
-                    return [updatedSession, ...otherSessions];
-                }
-                return prevSessions;
-            });
-        };
-
-        const handleTitleUpdated = async (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const { sessionId: updatedSessionId } = customEvent.detail;
-
-            try {
-                const sessionData = await api.webui.get(`/api/v1/sessions/${updatedSessionId}`);
-                const updatedSession = sessionData?.data;
-
-                if (updatedSession) {
-                    setSessions(prevSessions => {
-                        return prevSessions.map(s => (s.id === updatedSessionId ? { ...s, name: updatedSession.name } : s));
-                    });
-                }
-            } catch (error) {
-                console.error("[RecentChatsPage] Error fetching updated session:", error);
-                fetchSessions(1, false);
-            }
-        };
-
-        const handleBackgroundTaskCompleted = () => {
-            fetchSessions(1, false);
-        };
-
-        window.addEventListener("new-chat-session", handleNewSession);
-        window.addEventListener("session-updated", handleSessionUpdated as EventListener);
-        window.addEventListener("session-title-updated", handleTitleUpdated);
-        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
-
-        return () => {
-            window.removeEventListener("new-chat-session", handleNewSession);
-            window.removeEventListener("session-updated", handleSessionUpdated as EventListener);
-            window.removeEventListener("session-title-updated", handleTitleUpdated);
-            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
-        };
-    }, [fetchSessions]);
-
-    // Periodic refresh when there are sessions with running background tasks
+    // Background task polling
     useEffect(() => {
         const hasBackgroundTasks = sessions.some(s => s.hasRunningBackgroundTask);
         if (!hasBackgroundTasks) return;
-
-        const intervalId = setInterval(async () => {
-            try {
-                const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=1&pageSize=${PAGE_SIZE}`);
-                setSessions(prev => {
-                    // Update existing sessions with fresh data from page 1
-                    const updated = prev.map(s => {
-                        const fresh = result.data.find((n: Session) => n.id === s.id);
-                        return fresh ?? s;
-                    });
-                    // Add any brand new sessions that aren't already in the list
-                    const brandNew = result.data.filter((s: Session) => !prev.some(p => p.id === s.id));
-                    return [...brandNew, ...updated];
-                });
-            } catch (error) {
-                console.error("Polling error:", error);
-            }
+        const id = setInterval(() => {
+            queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
         }, BACKGROUND_TASK_POLL_MS);
-
-        return () => clearInterval(intervalId);
-    }, [sessions]);
-
-    useEffect(() => {
-        if (inView && hasMore && !isLoading) {
-            fetchSessions(currentPage + 1, true);
-        }
-    }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
+        return () => clearInterval(id);
+    }, [sessions, queryClient]);
 
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
@@ -503,9 +397,9 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Empty States */}
-                {filteredSessions.length === 0 && sessions.length > 0 && !isLoading && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
 
-                {sessions.length === 0 && !isLoading && (
+                {sessions.length === 0 && !isFetchingNextPage && (
                     <EmptyState
                         variant="noImage"
                         title="No chat sessions available"
@@ -525,9 +419,9 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Infinite Scroll Loader */}
-                {hasMore && (
+                {hasNextPage && (
                     <div ref={loadMoreRef} className="flex justify-center py-4">
-                        {isLoading && <Spinner size="small" variant="muted" />}
+                        {isFetchingNextPage && <Spinner size="small" variant="muted" />}
                     </div>
                 )}
             </div>
