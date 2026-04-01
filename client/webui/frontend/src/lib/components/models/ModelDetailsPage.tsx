@@ -13,25 +13,25 @@ import { ModelDeleteDialog } from "./ModelDeleteDialog";
 
 export const ModelDetailsPage = () => {
     const navigate = useNavigate();
-    const { alias: modelAlias } = useParams<{ alias: string }>();
+    const { id: modelId } = useParams<{ id: string }>();
     const { data: modelConfigs = [], isLoading: modelConfigsLoading } = useModelConfigs();
     const deleteModel = useDeleteModel();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const modelToView = useMemo(() => {
-        if (!modelAlias) return null;
-        return modelConfigs.find(m => m.alias.toLowerCase() === modelAlias.toLowerCase()) || null;
-    }, [modelAlias, modelConfigs]);
+        if (!modelId) return null;
+        return modelConfigs.find(m => m.id === modelId) || null;
+    }, [modelId, modelConfigs]);
 
     const handleBack = useCallback(() => {
         navigate(`/agents?tab=models`);
     }, [navigate]);
 
     const handleEdit = useCallback(() => {
-        if (modelToView?.alias) {
-            navigate(`/models/${modelToView.alias}/edit`);
+        if (modelToView?.id) {
+            navigate(`/models/${modelToView.id}/edit`);
         }
-    }, [modelToView?.alias, navigate]);
+    }, [modelToView?.id, navigate]);
 
     const menuActions = useMemo(() => {
         const actions: MenuAction[] = [
@@ -145,7 +145,7 @@ export const ModelDetailsPage = () => {
                     open={deleteDialogOpen}
                     onOpenChange={setDeleteDialogOpen}
                     onConfirm={async () => {
-                        await deleteModel.mutateAsync(modelToView.alias);
+                        await deleteModel.mutateAsync(modelToView.id);
                         navigate("/agents?tab=models");
                     }}
                     isLoading={deleteModel.isPending}

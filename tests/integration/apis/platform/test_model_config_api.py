@@ -5,7 +5,7 @@ Tests the HTTP layer behavior for model configuration endpoints including:
 - Response shape and camelCase serialization
 - CRUD operations across all supported providers and auth types
 - Credential filtering from HTTP responses
-- 404 errors for non-existent aliases
+- 404 errors for non-existent model IDs
 - 501 errors when feature flag is disabled
 """
 
@@ -63,16 +63,24 @@ def disable_model_config_feature_flag():
         yield
 
 
+class _SeededModel:
+    """Lightweight snapshot of a seeded model's key attributes."""
+    def __init__(self, model):
+        self.id = model.id
+        self.alias = model.alias
+
+
 @pytest.fixture
 def seed_model(platform_db_session_factory):
-    """Insert a ModelConfiguration into the test DB. Returns the ORM instance."""
+    """Insert a ModelConfiguration into the test DB. Returns a snapshot with id and alias."""
     def _seed(**overrides):
         db = platform_db_session_factory()
         model = _make_model_config(**overrides)
         db.add(model)
         db.commit()
+        snapshot = _SeededModel(model)
         db.close()
-        return model
+        return snapshot
     return _seed
 
 
@@ -86,12 +94,12 @@ class TestFeatureFlagDisabled:
 
     @pytest.mark.parametrize("method,path,json_body", [
         ("get", "/api/v1/platform/models", None),
-        ("get", "/api/v1/platform/models/any-alias", None),
+        ("get", f"/api/v1/platform/models/{uuid.uuid4()}", None),
         ("post", "/api/v1/platform/models", {
             "alias": "x", "provider": "openai", "modelName": "gpt-4",
         }),
-        ("put", "/api/v1/platform/models/any-alias", {"description": "x"}),
-        ("delete", "/api/v1/platform/models/any-alias", None),
+        ("put", f"/api/v1/platform/models/{uuid.uuid4()}", {"description": "x"}),
+        ("delete", f"/api/v1/platform/models/{uuid.uuid4()}", None),
         ("post", "/api/v1/platform/supported-models", {
             "provider": "openai", "auth_type": "apikey", "api_key": "sk-x",
         }),
@@ -124,8 +132,8 @@ class TestModelConfigurationAPI:
     def test_get_model_response_shape_and_camel_case(
         self, platform_api_client, seed_model, enable_model_config_feature_flag,
     ):
-        """GET /models/{alias} returns correct shape, camelCase fields, and redacted secrets."""
-        seed_model(
+        """GET /models/{id} returns correct shape, camelCase fields, and redacted secrets."""
+        model = seed_model(
             alias="test-gpt-4",
             provider="openai",
             model_name="gpt-4",
@@ -136,7 +144,7 @@ class TestModelConfigurationAPI:
             description="Test GPT-4 configuration",
         )
 
-        response = platform_api_client.get("/api/v1/platform/models/test-gpt-4")
+        response = platform_api_client.get(f"/api/v1/platform/models/{model.id}")
         assert response.status_code == 200
 
         data = response.json()["data"]
@@ -239,14 +247,13 @@ class TestModelConfigurationAPI:
         auth_type, stored_config, expected_secret_text, expected_config,
     ):
         """Secrets are redacted based on auth type while public fields are preserved."""
-        alias = f"test-cred-{auth_type}"
-        seed_model(
-            alias=alias,
+        model = seed_model(
+            alias=f"test-cred-{auth_type}",
             model_auth_type=auth_type,
             model_auth_config=stored_config,
         )
 
-        response = platform_api_client.get(f"/api/v1/platform/models/{alias}")
+        response = platform_api_client.get(f"/api/v1/platform/models/{model.id}")
         assert response.status_code == 200
 
         if expected_secret_text:
@@ -257,10 +264,10 @@ class TestModelConfigurationAPI:
 
     # -- 404 errors -----------------------------------------------------------
 
-    def test_get_model_returns_404_for_nonexistent_alias(
+    def test_get_model_returns_404_for_nonexistent_id(
         self, platform_api_client, enable_model_config_feature_flag,
     ):
-        response = platform_api_client.get("/api/v1/platform/models/nonexistent-model")
+        response = platform_api_client.get(f"/api/v1/platform/models/{uuid.uuid4()}")
 
         assert response.status_code == 404
         data = response.json()
@@ -271,7 +278,7 @@ class TestModelConfigurationAPI:
         self, platform_api_client, enable_model_config_feature_flag,
     ):
         response = platform_api_client.put(
-            "/api/v1/platform/models/nonexistent",
+            f"/api/v1/platform/models/{uuid.uuid4()}",
             json={"description": "Updated description"},
         )
 
@@ -283,7 +290,7 @@ class TestModelConfigurationAPI:
     def test_delete_model_not_found_returns_404(
         self, platform_api_client, enable_model_config_feature_flag,
     ):
-        response = platform_api_client.delete("/api/v1/platform/models/nonexistent")
+        response = platform_api_client.delete(f"/api/v1/platform/models/{uuid.uuid4()}")
 
         assert response.status_code == 404
         data = response.json()
@@ -429,8 +436,8 @@ class TestModelConfigurationAPI:
     def test_update_model_success(
         self, platform_api_client, seed_model, enable_model_config_feature_flag,
     ):
-        """PUT /models/{alias} updates an existing model configuration."""
-        seed_model(
+        """PUT /models/{id} updates an existing model configuration."""
+        model = seed_model(
             alias="test-update-model",
             model_auth_type="apikey",
             model_auth_config={"api_key": "sk-old-key", "type": "apikey"},
@@ -443,7 +450,7 @@ class TestModelConfigurationAPI:
             "modelParams": {"temperature": 0.7, "max_tokens": 2000},
         }
         response = platform_api_client.put(
-            "/api/v1/platform/models/test-update-model", json=request_data,
+            f"/api/v1/platform/models/{model.id}", json=request_data,
         )
 
         assert response.status_code == 200
@@ -462,10 +469,10 @@ class TestModelConfigurationAPI:
         self, platform_api_client, seed_model, platform_db_session_factory,
         enable_model_config_feature_flag,
     ):
-        """DELETE /models/{alias} deletes a model configuration."""
-        seed_model(alias="test-delete-model")
+        """DELETE /models/{id} deletes a model configuration."""
+        model = seed_model(alias="test-delete-model")
 
-        response = platform_api_client.delete("/api/v1/platform/models/test-delete-model")
+        response = platform_api_client.delete(f"/api/v1/platform/models/{model.id}")
         assert response.status_code == 204
         assert response.text == ""
 
@@ -574,11 +581,11 @@ class TestModelConnectionAPI:
         assert data["success"] is True
         assert "successful" in data["message"].lower()
 
-    def test_connection_with_stored_credentials_via_alias(
+    def test_connection_with_stored_credentials_via_model_id(
         self, platform_api_client, seed_model, enable_model_config_feature_flag,
     ):
-        """test_connection uses stored credentials when alias is provided."""
-        seed_model(
+        """test_connection uses stored credentials when model_id is provided."""
+        model = seed_model(
             alias="test-gpt4-stored",
             api_base="https://api.openai.com/v1",
             model_auth_type="apikey",
@@ -593,7 +600,7 @@ class TestModelConnectionAPI:
 
             response = platform_api_client.post(
                 "/api/v1/platform/models/test",
-                json={"alias": "test-gpt4-stored"},
+                json={"modelId": model.id},
             )
 
             assert response.status_code == 200
@@ -602,7 +609,7 @@ class TestModelConnectionAPI:
             call_kwargs = mock_litellm.completion.call_args[1]
             assert call_kwargs["api_key"] == "sk-stored-key-12345"
 
-    def test_connection_missing_alias_and_auth_returns_error(
+    def test_connection_missing_model_id_and_auth_returns_error(
         self, platform_api_client, enable_model_config_feature_flag,
     ):
         response = platform_api_client.post(
@@ -615,12 +622,12 @@ class TestModelConnectionAPI:
         assert data["success"] is False
         assert "failed" in data["message"].lower()
 
-    def test_connection_nonexistent_alias_returns_error(
+    def test_connection_nonexistent_model_id_returns_error(
         self, platform_api_client, enable_model_config_feature_flag,
     ):
         response = platform_api_client.post(
             "/api/v1/platform/models/test",
-            json={"alias": "nonexistent-model-alias"},
+            json={"modelId": str(uuid.uuid4())},
         )
 
         assert response.status_code == 200

@@ -7,20 +7,7 @@ import { TestConnectionSection } from "./TestConnectionSection";
 import type { ModelConfig } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
 import { PasswordInput } from "@/lib/components/common";
-import {
-    getProviderConfig,
-    AUTH_FIELDS,
-    AUTH_TYPE_LABELS,
-    COMMON_MODEL_PARAMS,
-    REDACTED_CREDENTIAL_PLACEHOLDER,
-    REDACTED_CREDENTIAL_FIELDS,
-    AUTH_CONFIG_TO_FORM_FIELD_MAP,
-    type AuthType,
-    type ProviderField,
-    type SupportedModel,
-    type ModelProvider,
-    type ModelFormData,
-} from "./modelProviderUtils";
+import { getProviderConfig, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type SupportedModel, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
 import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
@@ -30,7 +17,7 @@ import { DEFAULT_MODEL_ALIASES } from "./common";
 interface ModelEditProps {
     isNew: boolean;
     modelToEdit: ModelConfig | null;
-    onSave: (data: ModelFormData) => Promise<void>;
+    onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
     onValidityChange: (isValid: boolean) => void;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
@@ -50,7 +37,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     const [providerConfig, setProviderConfig] = useState<ReturnType<typeof getProviderConfig> | null>(null);
     const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
-    const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+    const [storedCredentialFields, setStoredCredentialFields] = useState<Set<string>>(new Set());
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
     const lastFetchedProviderRef = useRef<string | null>(null);
@@ -58,7 +45,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const {
         register,
         control,
-        formState: { errors, isDirty, isValid },
+        formState: { errors, isDirty, isValid, dirtyFields },
         handleSubmit,
         watch,
         setValue,
@@ -76,16 +63,10 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
-    // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change
-    const clientId = watch("clientId");
-    const clientSecret = watch("clientSecret");
-    const tokenUrl = watch("tokenUrl");
-    const awsAccessKeyId = watch("awsAccessKeyId");
-    const awsSecretAccessKey = watch("awsSecretAccessKey");
-    const awsRegionName = watch("awsRegionName");
-    const gcpServiceAccountJson = watch("gcpServiceAccountJson");
-    const vertexProject = watch("vertexProject");
-    const vertexLocation = watch("vertexLocation");
+    // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change.
+    // Values aren't used directly — isConfigured() reads via getValues() — but the
+    // watch() subscription is needed to trigger a re-render when any field changes.
+    watch(["clientId", "clientSecret", "tokenUrl", "awsAccessKeyId", "awsSecretAccessKey", "awsRegionName", "gcpServiceAccountJson", "vertexProject", "vertexLocation"]);
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -95,15 +76,21 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const isAuthCredentialsConfigured = (() => {
         if (!selectedAuthType) return false;
         if (selectedAuthType === "none") return true;
-        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+
+        // When editing, stored credentials count as "configured"
+        const isConfigured = (fieldName: string) => {
+            return !!getValues(fieldName) || storedCredentialFields.has(fieldName);
+        };
+
+        if (selectedAuthType === "apikey") return isConfigured("apiKey");
         if (selectedAuthType === "oauth2") {
-            return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
+            return isConfigured("clientId") && isConfigured("clientSecret") && !!getValues("tokenUrl");
         }
         if (selectedAuthType === "aws_iam") {
-            return !!awsAccessKeyId && awsAccessKeyId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!awsSecretAccessKey && awsSecretAccessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!awsRegionName;
+            return isConfigured("awsAccessKeyId") && isConfigured("awsSecretAccessKey");
         }
         if (selectedAuthType === "gcp_service_account") {
-            return !!gcpServiceAccountJson && gcpServiceAccountJson !== REDACTED_CREDENTIAL_PLACEHOLDER && !!vertexProject && !!vertexLocation;
+            return isConfigured("gcpServiceAccountJson");
         }
         return false;
     })();
@@ -260,18 +247,24 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
 
-            // Populate auth credential fields from authConfig
+            // Track which credential fields have stored values on the server.
+            // The backend redacts secrets (removes them from the response), so any key
+            // present in authConfig with a truthy value is a non-redacted field (like tokenUrl).
+            // Keys that are absent or have falsy values are redacted secrets — these are
+            // the fields that have stored values server-side.
             if (modelToEdit.authConfig) {
+                const stored = new Set<string>();
                 Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
                     const value = modelToEdit.authConfig[configKey];
                     if (value) {
+                        // Non-redacted field — populate with the actual value
                         setValue(fieldName, String(value));
-                    } else if (REDACTED_CREDENTIAL_FIELDS.includes(fieldName)) {
-                        // Secret was redacted by server — show placeholder so user knows a value exists
-                        setValue(fieldName, REDACTED_CREDENTIAL_PLACEHOLDER);
+                    } else {
+                        // Redacted by server — mark as having a stored value
+                        stored.add(fieldName);
                     }
-                    // Non-secret fields with no value: leave at default (empty)
                 });
+                setStoredCredentialFields(stored);
             }
 
             // Populate provider-specific fields and custom params from modelParams
@@ -330,7 +323,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         if (field.type === "password") {
             return (
                 <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
-                    <PasswordInput name={field.name} register={register} placeholder={field.placeholder} showPassword={showPassword[field.name] || false} onToggle={() => setShowPassword(prev => ({ ...prev, [field.name]: !prev[field.name] }))} />
+                    <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
         }
@@ -403,7 +396,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     };
 
     const onFormSubmit = async (data: ModelFormData) => {
-        await onSave(data);
+        await onSave(data, dirtyFields);
     };
 
     const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
@@ -564,7 +557,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </details>
 
                                 {/* Test Connection */}
-                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelAlias={modelToEdit?.alias} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
+                                <TestConnectionSection
+                                    getFormData={() => getValues() as ModelFormData}
+                                    getDirtyFields={() => dirtyFields}
+                                    isNew={isNew}
+                                    modelId={modelToEdit?.id}
+                                    disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)}
+                                />
                             </>
                         )}
                     </PageSection>

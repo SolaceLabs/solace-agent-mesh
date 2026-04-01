@@ -17,13 +17,13 @@ export function useModelConfigs() {
 }
 
 /**
- * Hook to delete a model configuration by alias.
+ * Hook to delete a model configuration by ID.
  */
 export function useDeleteModel() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (alias: string) => deleteModel(alias),
+        mutationFn: (id: string) => deleteModel(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
         },

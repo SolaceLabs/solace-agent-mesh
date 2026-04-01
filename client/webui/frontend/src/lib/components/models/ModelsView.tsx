@@ -31,14 +31,14 @@ export const ModelsView: React.FC = () => {
     const deleteModel = useDeleteModel();
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
-    const [highlightedModelAlias, setHighlightedModelAlias] = useState<string | null>(null);
+    const [highlightedModelId, setHighlightedModelId] = useState<string | null>(null);
     const highlightedRowRef = useRef<HTMLTableRowElement>(null);
 
     // Check if we're coming back from creating a new model
-    const locationState = location.state as { highlightModelAlias?: string } | null;
+    const locationState = location.state as { highlightModelId?: string } | null;
     useEffect(() => {
-        if (locationState?.highlightModelAlias) {
-            setHighlightedModelAlias(locationState.highlightModelAlias);
+        if (locationState?.highlightModelId) {
+            setHighlightedModelId(locationState.highlightModelId);
             addNotification("Model Added", "success");
 
             // Clear the location state to prevent re-triggering on refresh
@@ -46,7 +46,7 @@ export const ModelsView: React.FC = () => {
 
             // Auto-fade highlight after 4 seconds
             const highlightTimer = setTimeout(() => {
-                setHighlightedModelAlias(null);
+                setHighlightedModelId(null);
             }, 4000);
 
             return () => {
@@ -54,14 +54,14 @@ export const ModelsView: React.FC = () => {
             };
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locationState?.highlightModelAlias]);
+    }, [locationState?.highlightModelId]);
 
     // Scroll highlighted row into view
     useEffect(() => {
         if (highlightedRowRef.current) {
             highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
         }
-    }, [highlightedModelAlias]);
+    }, [highlightedModelId]);
 
     const modelConfigsError = modelConfigsErrorObj ? (modelConfigsErrorObj instanceof Error ? modelConfigsErrorObj.message : "Failed to load models") : null;
 
@@ -76,7 +76,7 @@ export const ModelsView: React.FC = () => {
     const currentModels = modelConfigs?.slice(startIndex, endIndex) || [];
 
     const handleSelectModel = (model: ModelConfig) => {
-        navigate(`/models/${model.alias}`);
+        navigate(`/models/${model.id}`);
     };
 
     const handleCreateModel = () => {
@@ -84,7 +84,7 @@ export const ModelsView: React.FC = () => {
     };
 
     const handleEditModel = (model: ModelConfig) => {
-        navigate(`/models/${model.alias}/edit`);
+        navigate(`/models/${model.id}/edit`);
     };
 
     const getRowMenuActions = (model: ModelConfig): MenuAction[] => [
@@ -141,8 +141,8 @@ export const ModelsView: React.FC = () => {
                                     {currentModels.map(model => (
                                         <TableRow
                                             key={model.id}
-                                            ref={highlightedModelAlias === model.alias ? highlightedRowRef : null}
-                                            className={`transition-colors duration-500 ${highlightedModelAlias === model.alias ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
+                                            ref={highlightedModelId === model.id ? highlightedRowRef : null}
+                                            className={`transition-colors duration-500 ${highlightedModelId === model.id ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
                                         >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
@@ -186,7 +186,7 @@ export const ModelsView: React.FC = () => {
                         if (!open) setModelToDelete(null);
                     }}
                     onConfirm={async () => {
-                        await deleteModel.mutateAsync(modelToDelete.alias);
+                        await deleteModel.mutateAsync(modelToDelete.id);
                         setModelToDelete(null);
                     }}
                     isLoading={deleteModel.isPending}
