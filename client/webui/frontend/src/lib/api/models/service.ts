@@ -38,7 +38,7 @@ export async function fetchModelById(id: string): Promise<ModelConfig> {
  * Fetch supported models for a specific provider.
  *
  * Two modes:
- * 1. Editing (modelAlias provided): Uses stored credentials from database
+ * 1. Editing (modelId provided): Uses stored credentials from database
  * 2. Creating (credentials provided): Uses credentials from request
  */
 export async function fetchSupportedModelsByProvider(
@@ -124,7 +124,7 @@ export interface TestConnectionResponse {
  *
  * Two modes:
  * 1. New configuration: Provide provider, model_name, and credentials
- * 2. Existing model: Provide alias to use stored credentials as fallback
+ * 2. Existing model: Provide modelId to use stored credentials as fallback
  */
 export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
     const response = await api.platform.post("/api/v1/platform/models/test", data);
