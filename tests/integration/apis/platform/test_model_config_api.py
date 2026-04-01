@@ -101,11 +101,11 @@ class TestFeatureFlagDisabled:
         ("patch", f"/api/v1/platform/models/{uuid.uuid4()}", {"description": "x"}),
         ("delete", f"/api/v1/platform/models/{uuid.uuid4()}", None),
         ("post", "/api/v1/platform/supported-models", {
-            "provider": "openai", "auth_type": "apikey", "api_key": "sk-x",
+            "provider": "openai", "authConfig": {"type": "apikey", "api_key": "sk-x"},
         }),
         ("post", "/api/v1/platform/models/test", {
-            "provider": "openai", "model_name": "gpt-4",
-            "auth_type": "apikey", "api_key": "sk-x",
+            "provider": "openai", "modelName": "gpt-4",
+            "authConfig": {"type": "apikey", "api_key": "sk-x"},
         }),
     ])
     def test_returns_501_when_disabled(
@@ -512,7 +512,7 @@ class TestSupportedModelsAPI:
         ):
             response = platform_api_client.post(
                 "/api/v1/platform/supported-models",
-                json={"provider": "openai", "auth_type": "apikey", "api_key": "sk-test-key"},
+                json={"provider": "openai", "authConfig": {"type": "apikey", "api_key": "sk-test-key"}},
             )
 
         assert response.status_code == 200
@@ -541,7 +541,7 @@ class TestSupportedModelsAPI:
         ):
             response = platform_api_client.post(
                 "/api/v1/platform/supported-models",
-                json={"provider": provider, "auth_type": "apikey", "api_key": "sk-test-key"},
+                json={"provider": provider, "authConfig": {"type": "apikey", "api_key": "sk-test-key"}},
             )
 
         assert response.status_code == 200
@@ -570,9 +570,8 @@ class TestModelConnectionAPI:
                 "/api/v1/platform/models/test",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key-valid",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key-valid"},
                 },
             )
 
@@ -614,7 +613,7 @@ class TestModelConnectionAPI:
     ):
         response = platform_api_client.post(
             "/api/v1/platform/models/test",
-            json={"provider": "openai", "model_name": "gpt-4"},
+            json={"provider": "openai", "modelName": "gpt-4"},
         )
 
         assert response.status_code == 200
@@ -643,9 +642,8 @@ class TestModelConnectionAPI:
                 "/api/v1/platform/models/test",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 },
             )
 

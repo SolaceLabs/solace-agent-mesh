@@ -39,36 +39,19 @@ class ModelListService:
         provider: str,
         api_base: Optional[str],
         auth_type: str,
-        api_key: Optional[str] = None,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        token_url: Optional[str] = None,
-        aws_access_key_id: Optional[str] = None,
-        aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None,
-        aws_region_name: Optional[str] = None,
-        gcp_service_account_json: Optional[str] = None,
-        vertex_project: Optional[str] = None,
-        vertex_location: Optional[str] = None,
+        auth_config: Dict[str, Any],
         model_params: Optional[Dict] = None,
     ) -> List[Dict[str, str]]:
         """
         Fetch models from a provider using new (request-provided) credentials.
-        Validates required fields per auth_type, builds auth_config dict, then delegates
-        to get_models_by_provider_with_config().
+        Validates required fields per auth_type, then delegates to
+        get_models_by_provider_with_config().
 
         Args:
             provider: Provider type (e.g., 'openai', 'anthropic', 'custom')
             api_base: Optional API base URL (required for custom providers)
             auth_type: Authentication type ('apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account')
-            api_key: API key for 'apikey' auth
-            client_id: OAuth2 client ID
-            client_secret: OAuth2 client secret
-            token_url: OAuth2 token URL
-            aws_access_key_id: AWS access key ID
-            aws_secret_access_key: AWS secret access key
-            aws_session_token: Optional AWS session token (for temporary credentials)
-            gcp_service_account_json: GCP service account JSON (as string)
+            auth_config: Authentication configuration dict with credentials
             model_params: Provider-specific parameters
 
         Returns:
@@ -78,44 +61,30 @@ class ModelListService:
             ValidationError: If required credentials for auth_type are missing
             RuntimeError: Provider API errors, authentication errors, network issues
         """
-        # Build auth_config based on auth_type, validating required fields
-        auth_config = {}
-
+        # Validate required fields based on auth_type
         if auth_type == "apikey":
-            if not api_key:
+            if not auth_config.get("api_key"):
                 raise ValidationErrorBuilder().message(
                     "API key is required for apikey authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
-            auth_config["api_key"] = api_key
 
         elif auth_type == "oauth2":
-            if not (client_id and client_secret and token_url):
+            if not (auth_config.get("client_id") and auth_config.get("client_secret") and auth_config.get("token_url")):
                 raise ValidationErrorBuilder().message(
                     "client_id, client_secret, and token_url are required for oauth2 authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
-            auth_config["client_id"] = client_id
-            auth_config["client_secret"] = client_secret
-            auth_config["token_url"] = token_url
 
         elif auth_type == "aws_iam":
-            if not (aws_access_key_id and aws_secret_access_key and aws_region_name):
+            if not (auth_config.get("aws_access_key_id") and auth_config.get("aws_secret_access_key") and auth_config.get("aws_region_name")):
                 raise ValidationErrorBuilder().message(
                     "aws_access_key_id, aws_secret_access_key, and aws_region_name are required for aws_iam authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
-            auth_config["aws_access_key_id"] = aws_access_key_id
-            auth_config["aws_secret_access_key"] = aws_secret_access_key
-            auth_config["aws_region_name"] = aws_region_name
-            if aws_session_token:
-                auth_config["aws_session_token"] = aws_session_token
 
         elif auth_type == "gcp_service_account":
-            if not (gcp_service_account_json and vertex_project and vertex_location):
+            if not (auth_config.get("service_account_json") and auth_config.get("vertex_project") and auth_config.get("vertex_location")):
                 raise ValidationErrorBuilder().message(
                     "gcp_service_account_json, vertex_project, and vertex_location are required for gcp_service_account authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
-            auth_config["service_account_json"] = gcp_service_account_json
-            auth_config["vertex_project"] = vertex_project
-            auth_config["vertex_location"] = vertex_location
 
         elif auth_type == "none":
             pass  # No credentials needed

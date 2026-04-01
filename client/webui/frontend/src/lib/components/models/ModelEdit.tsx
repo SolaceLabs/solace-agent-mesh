@@ -7,7 +7,19 @@ import { TestConnectionSection } from "./TestConnectionSection";
 import type { ModelConfig } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
 import { PasswordInput } from "@/lib/components/common";
-import { getProviderConfig, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type SupportedModel, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
+import {
+    getProviderConfig,
+    buildModelPayload,
+    AUTH_FIELDS,
+    AUTH_TYPE_LABELS,
+    COMMON_MODEL_PARAMS,
+    AUTH_CONFIG_TO_FORM_FIELD_MAP,
+    type AuthType,
+    type ProviderField,
+    type SupportedModel,
+    type ModelProvider,
+    type ModelFormData,
+} from "./modelProviderUtils";
 import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
@@ -185,7 +197,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             if (!needsRefetch) return;
 
             setIsLoadingModels(true);
-            const authType: AuthType = (selectedAuthType as AuthType) || "apikey";
 
             const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
             const modelParams: Record<string, unknown> = {};
@@ -197,18 +208,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             }
 
             try {
-                const authCredentials: Record<string, unknown> = {};
-                for (const field of AUTH_FIELDS[authType] ?? []) {
-                    const value = getValues(field.name);
-                    if (value != null) {
-                        authCredentials[field.name] = value;
-                    }
-                }
+                const formData = getValues() as ModelFormData;
+                const payload = buildModelPayload(formData);
 
                 const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
                     apiBase: apiBase || undefined,
-                    authType,
-                    ...authCredentials,
+                    authConfig: payload.authConfig,
                     modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
                 });
                 setDynamicModels(models);

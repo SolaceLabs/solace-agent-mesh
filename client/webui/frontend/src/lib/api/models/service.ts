@@ -3,8 +3,6 @@
  */
 
 import { api } from "@/lib/api";
-import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
-import type { AuthType } from "@/lib/components/models/modelProviderUtils";
 import type { ModelConfig, ModelConfigStatus } from "./types";
 
 interface ModelData {
@@ -46,9 +44,9 @@ export async function fetchSupportedModelsByProvider(
     modelId?: string,
     options?: {
         apiBase?: string;
-        authType?: AuthType;
+        authConfig?: Record<string, unknown>;
         modelParams?: Record<string, unknown>;
-    } & Record<string, unknown>
+    }
 ): Promise<Array<{ id: string; label: string }>> {
     const body: Record<string, unknown> = {
         provider,
@@ -56,9 +54,9 @@ export async function fetchSupportedModelsByProvider(
 
     if (modelId) {
         body.modelId = modelId;
-    } else if (options?.authType) {
-        // Creating mode - pass credentials
-        body.authType = options.authType;
+    } else if (options?.authConfig) {
+        // Creating mode - pass nested auth config
+        body.authConfig = options.authConfig;
 
         if (options.apiBase != null) {
             body.apiBase = options.apiBase;
@@ -66,14 +64,6 @@ export async function fetchSupportedModelsByProvider(
 
         if (options.modelParams != null) {
             body.modelParams = options.modelParams;
-        }
-
-        // Copy auth fields for the selected auth type
-        for (const field of AUTH_FIELDS[options.authType] ?? []) {
-            const value = options[field.name];
-            if (value != null) {
-                body[field.name] = value;
-            }
         }
     }
 
@@ -109,7 +99,6 @@ export interface TestConnectionRequest {
     provider?: string;
     modelName?: string;
     apiBase?: string;
-    authType: string;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
 }

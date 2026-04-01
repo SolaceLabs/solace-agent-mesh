@@ -309,28 +309,18 @@ async def list_supported_models_by_provider(
         return create_data_response(models)
 
     # Mode 2: Creating - use credentials from request
-    # Validate that either model_alias or auth_type is provided
-    if not request.auth_type:
+    auth_type = request.auth_config.get("type")
+    if not auth_type:
         raise ValidationErrorBuilder().message(
-            "Either model_id (for editing) or auth_type with credentials (for creating) is required"
+            "Either model_id (for editing) or auth_config with 'type' (for creating) is required"
         ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
 
-    # Delegate auth validation and config building to service
+    # Delegate auth validation and model fetching to service
     models = service.get_models_with_new_credentials(
         provider=request.provider,
         api_base=request.api_base,
-        auth_type=request.auth_type,
-        api_key=request.api_key,
-        client_id=request.client_id,
-        client_secret=request.client_secret,
-        token_url=request.token_url,
-        aws_access_key_id=request.aws_access_key_id,
-        aws_secret_access_key=request.aws_secret_access_key,
-        aws_session_token=request.aws_session_token,
-        aws_region_name=request.aws_region_name,
-        gcp_service_account_json=request.gcp_service_account_json,
-        vertex_project=request.vertex_project,
-        vertex_location=request.vertex_location,
+        auth_type=auth_type,
+        auth_config=request.auth_config,
         model_params=request.model_params,
     )
 

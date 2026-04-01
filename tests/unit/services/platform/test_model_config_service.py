@@ -235,8 +235,7 @@ class TestTestConnection:
         request = ModelConfigurationTestRequest(
             provider="openai",
             model_name="gpt-4",
-            auth_type="apikey",
-            api_key="sk-test-key",
+            auth_config={"type": "apikey", "api_key": "sk-test-key"},
         )
 
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
@@ -262,8 +261,7 @@ class TestTestConnection:
         request = ModelConfigurationTestRequest(
             provider="openai",
             model_name="gpt-4",
-            auth_type="apikey",
-            api_key="sk-test-key",
+            auth_config={"type": "apikey", "api_key": "sk-test-key"},
         )
 
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
@@ -314,8 +312,7 @@ class TestTestConnection:
         # Request without provider
         request = ModelConfigurationTestRequest(
             model_name="gpt-4",
-            auth_type="apikey",
-            api_key="sk-test-key",
+            auth_config={"type": "apikey", "api_key": "sk-test-key"},
         )
 
         success, message = service.test_connection(mock_db, request)
@@ -350,8 +347,7 @@ class TestTestConnection:
         request = ModelConfigurationTestRequest(
             provider="openai",
             model_name="gpt-4",
-            auth_type="apikey",
-            api_key="sk-very-secret-key-that-should-not-appear",
+            auth_config={"type": "apikey", "api_key": "sk-very-secret-key-that-should-not-appear"},
         )
 
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:

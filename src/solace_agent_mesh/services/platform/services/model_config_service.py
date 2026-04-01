@@ -441,7 +441,6 @@ class ModelConfigService:
             provider = request.provider
             model_name = request.model_name
             auth_config = dict(request.auth_config or {})
-            auth_type = request.auth_type
             api_base = request.api_base
 
             # Load stored config if model_id provided
@@ -456,10 +455,6 @@ class ModelConfigService:
                 if not model_name:
                     model_name = stored_config.model_name
 
-                # Use stored auth_type if not explicitly provided in request
-                if not request.auth_type or request.auth_type == "none":
-                    auth_type = stored_config.model_auth_type or "none"
-
                 # Use stored credentials as fallback for empty fields
                 stored_auth = stored_config.model_auth_config or {}
                 for key, stored_value in stored_auth.items():
@@ -469,6 +464,9 @@ class ModelConfigService:
                 # Use stored api_base if not provided in request
                 if not api_base and stored_config.api_base:
                     api_base = stored_config.api_base
+
+            # Derive auth_type from auth_config
+            auth_type = auth_config.get("type", "none")
 
             # Validate required fields
             if not provider:
