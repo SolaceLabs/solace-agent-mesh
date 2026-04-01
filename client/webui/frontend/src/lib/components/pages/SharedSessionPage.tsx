@@ -98,8 +98,7 @@ export function SharedSessionPage() {
                                     </span>
                                 ) : (
                                     <span>
-                                        Shared by <span className="font-bold">{session.tasks[0]?.userId || "Unknown"}</span> on{" "}
-                                        <span className="font-bold">{formatDateYMD(session.createdTime)}</span>
+                                        Shared by <span className="font-bold">{session.tasks[0]?.userId || "Unknown"}</span> on <span className="font-bold">{formatDateYMD(session.createdTime)}</span>
                                     </span>
                                 )}
                             </div>
@@ -148,12 +147,7 @@ export function SharedSessionPage() {
                         <ResizableHandle />
 
                         {/* Side panel - always visible */}
-                        <ResizablePanel
-                            defaultSize={shared.isSidePanelCollapsed ? 4 : 30}
-                            minSize={shared.isSidePanelCollapsed ? 4 : 20}
-                            maxSize={shared.isSidePanelCollapsed ? 4 : 50}
-                            id="shared-session-side-panel"
-                        >
+                        <ResizablePanel defaultSize={shared.isSidePanelCollapsed ? 4 : 30} minSize={shared.isSidePanelCollapsed ? 4 : 20} maxSize={shared.isSidePanelCollapsed ? 4 : 50} id="shared-session-side-panel">
                             <SharedSidePanel
                                 isCollapsed={shared.isSidePanelCollapsed}
                                 activeTab={shared.activeSidePanelTab}

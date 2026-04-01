@@ -18,6 +18,7 @@ import { addRecentMention } from "@/lib/utils/recentMentions";
 
 import { FileBadge } from "./file/FileBadge";
 import { AudioRecorder } from "./AudioRecorder";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
@@ -1041,6 +1042,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />
+
+                {/* Context usage indicator - shows token usage before the microphone button */}
+                {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
 
                 {/* Microphone button - show if STT feature enabled and STT setting enabled */}
                 {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
