@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.database.database_exceptions import handle_database_errors
+from solace_agent_mesh.shared.exceptions.exceptions import ValidationError
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +19,16 @@ class ModelConfigurationRepository:
     Handles all database operations for model configurations.
     Takes db: Session as a parameter to each method (no instance state).
     """
+
+    def _validate_model_id(self, model_id: str) -> str:
+        """Validate model ID."""
+        if not model_id or not isinstance(model_id, str) or model_id.strip() == '':
+            raise ValidationError(
+                f"Model ID must be a non-empty string, got: {model_id}",
+                validation_details={'model_id': ['Model ID is required and must be a valid string']},
+                entity_type='ModelConfiguration'
+            )
+        return model_id.strip()
 
     def get_all(self, db: Session) -> List[ModelConfiguration]:
         """
@@ -99,6 +110,7 @@ class ModelConfigurationRepository:
         Returns:
             ModelConfiguration ORM model if found, None otherwise
         """
+        model_id = self._validate_model_id(model_id)
         return db.query(ModelConfiguration).filter(
             ModelConfiguration.id == model_id
         ).first()
@@ -114,6 +126,7 @@ class ModelConfigurationRepository:
         Returns:
             ModelConfiguration ORM model if found, None otherwise
         """
+        alias = self._validate_model_id(alias)
         return db.query(ModelConfiguration).filter(
             or_(
                 ModelConfiguration.alias == alias,
