@@ -9,6 +9,7 @@ import type { ModelFormData } from "./modelProviderUtils";
 
 interface TestConnectionSectionProps {
     getFormData: () => ModelFormData;
+    getDirtyFields?: () => Partial<Record<string, boolean>>;
     isNew: boolean;
     modelAlias?: string;
     disabled?: boolean;
