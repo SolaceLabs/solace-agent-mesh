@@ -12,6 +12,8 @@ export { RecentChatsList } from "./RecentChatsList";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
+export { SessionActionMenu } from "./SessionActionMenu";
+export { sessionCardStyles, sessionRowStyles, sessionTitleStyles } from "./sessionCardStyles";
 export { ShareNotification } from "./ShareNotification";
 export { UserPresenceAvatars } from "./UserPresenceAvatars";
 export { ShareNotificationMessage } from "./ShareNotificationMessage";

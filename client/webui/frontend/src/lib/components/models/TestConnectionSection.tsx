@@ -9,12 +9,13 @@ import type { ModelFormData } from "./modelProviderUtils";
 
 interface TestConnectionSectionProps {
     getFormData: () => ModelFormData;
+    getDirtyFields?: () => Partial<Record<string, boolean>>;
     isNew: boolean;
     modelId?: string;
     disabled?: boolean;
 }
 
-export const TestConnectionSection = ({ getFormData, isNew, modelId, disabled }: TestConnectionSectionProps) => {
+export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, modelId, disabled }: TestConnectionSectionProps) => {
     const [isTesting, setIsTesting] = useState(false);
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
@@ -32,7 +33,8 @@ export const TestConnectionSection = ({ getFormData, isNew, modelId, disabled }:
 
         try {
             const formData = getFormData();
-            const payload = buildModelPayload(formData);
+            const dirtyFields = getDirtyFields?.();
+            const payload = buildModelPayload(formData, dirtyFields);
 
             const testPayload = {
                 provider: payload.provider,
@@ -53,7 +55,7 @@ export const TestConnectionSection = ({ getFormData, isNew, modelId, disabled }:
         } finally {
             setIsTesting(false);
         }
-    }, [getFormData, isNew, modelId]);
+    }, [getFormData, getDirtyFields, isNew, modelId]);
 
     return (
         <div className="border-t pt-4">

@@ -177,3 +177,7 @@ data/artifacts/
 CLAUDE.md
 !client/webui/frontend/.claude/
 !client/webui/frontend/.claude/CLAUDE.md
+
+# Superpowers plans and specs
+docs/superpowers/plans/
+docs/superpowers/specs/
