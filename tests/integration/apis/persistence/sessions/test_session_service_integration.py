@@ -5,8 +5,6 @@ Tests actual database updates when moving sessions to/from projects.
 Companion tests to unit tests which mock DB operations and focus on validation logic.
 """
 
-from unittest.mock import Mock
-
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -50,8 +48,7 @@ class TestMoveSessionToProjectIntegration:
 
         # Act
         with db_session_factory() as db_session:
-            mock_component = Mock()
-            service = SessionService(component=mock_component)
+            service = SessionService(component=None)
             result = await service.move_session_to_project(
                 db=db_session,
                 session_id=session.id,
@@ -91,8 +88,7 @@ class TestMoveSessionToProjectIntegration:
             pytest.raises(ValueError, match="not found or access denied"),
             db_session_factory() as db_session,
         ):
-            mock_component = Mock()
-            service = SessionService(component=mock_component)
+            service = SessionService(component=None)
             await service.move_session_to_project(
                 db=db_session,
                 session_id=session.id,
@@ -120,8 +116,7 @@ class TestMoveSessionToProjectIntegration:
 
         # Add to project
         with db_session_factory() as db_session:
-            mock_component = Mock()
-            service = SessionService(component=mock_component)
+            service = SessionService(component=None)
             await service.move_session_to_project(
                 db=db_session,
                 session_id=session.id,
@@ -132,8 +127,7 @@ class TestMoveSessionToProjectIntegration:
 
         # Act: Remove
         with db_session_factory() as db_session:
-            mock_component = Mock()
-            service = SessionService(component=mock_component)
+            service = SessionService(component=None)
             result = await service.move_session_to_project(
                 db=db_session,
                 session_id=session.id,

@@ -359,6 +359,8 @@ class TestUpdateSnapshot:
         assert call_args[0][1] == "share-abc"  # share_id
         assert call_args[0][2] == "viewer@example.com"  # user_email
         assert isinstance(call_args[0][3], int)  # new_time
+        # Verify transaction was committed
+        mock_db.commit.assert_called_once()
 
     def test_owner_can_refresh_another_users_snapshot(self):
         service = _make_service()
@@ -383,6 +385,8 @@ class TestUpdateSnapshot:
         assert call_args[0][1] == "share-abc"  # share_id
         assert call_args[0][2] == "viewer@example.com"  # target_email
         assert isinstance(call_args[0][3], int)  # new_time
+        # Verify transaction was committed
+        mock_db.commit.assert_called_once()
 
     def test_non_owner_cannot_update_another_users_snapshot(self):
         service = _make_service()

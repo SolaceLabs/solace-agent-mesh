@@ -473,14 +473,14 @@ class TestGetSharedArtifactEndpoint:
                 share_id="abc123",
                 filename="doc.pdf",
                 request=MagicMock(),
-                user_id=None,
+                user_id="bob-user-id",
                 user_email="bob@example.com",
                 db=mock_db,
                 share_service=mock_share_service,
                 component=mock_component,
             )
 
-        assert exc_info.value.status_code in (401, 403)
+        assert exc_info.value.status_code == 403
 
     @pytest.mark.asyncio
     async def test_returns_404_when_share_link_does_not_exist(self, mock_db):
