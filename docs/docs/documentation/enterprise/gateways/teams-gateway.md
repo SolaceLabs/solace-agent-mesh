@@ -5,19 +5,24 @@ sidebar_position: 3
 
 # Microsoft Teams Gateway Integration Guide
 
-This guide explains how to configure the Microsoft Teams Gateway in Solace Agent Mesh (SAM). The guide covers both **SAM Cloud** and **SAM Kubernetes** environments.
+This guide explains how to configure the Microsoft Teams Gateway in Agent Mesh Enterprise. The guide covers both **Solace Agent Mesh (SAM) Cloud** and **SAM Kubernetes** environments.
 
 ## Overview
 
-The Teams Gateway connects your SAM agents to Microsoft Teams, allowing users to interact with AI agents directly from Teams chats and channels. The gateway receives messages from Teams via an HTTPS webhook endpoint (`/api/messages`) and routes them to your SAM agents.
+The Teams Gateway connects your agents to Microsoft Teams, allowing users to interact with AI agents directly from Teams chats and channels. The gateway receives messages from Teams via an HTTPS webhook endpoint (`/api/messages`) and routes them to your agents.
 
-**How it works:**
+Teams requires the gateway's webhook endpoint to be **publicly accessible via HTTPS**. The setup differs depending on your deployment environment.
 
-```
-Microsoft Teams --> Azure Bot Service --> HTTPS POST /api/messages --> Teams Gateway Pod --> SAM Agents
-```
+### Supported Features
 
-Teams requires the gateway's webhook endpoint to be **publicly accessible via HTTPS**. The setup differs depending on your SAM deployment environment.
+- **Personal chats**: Direct 1:1 messaging with the bot
+- **Group chats**: The bot responds when @mentioned in group conversations
+- **Team channels**: The bot responds when @mentioned in team channels
+- **File uploads**: Send files to the bot in personal chats (CSV, JSON, PDF, YAML, XML, images, and more)
+- **File downloads**: Receive files from agents via the Teams FileConsentCard approval flow
+- **Streaming responses**: Real-time message updates as agents process requests
+- **Typing indicator**: Shows a typing indicator while processing
+- **Session management**: Sessions reset automatically at midnight UTC daily
 
 ## Prerequisites
 
@@ -26,9 +31,8 @@ Before you begin, make sure you have:
 1. An **Azure account** with:
    - Permission to create **App Registrations** in Microsoft Entra ID (most organizations allow this by default; if disabled, ask your admin for the **Application Developer** role)
    - **Contributor** role (or higher) on an Azure subscription or resource group to create the Bot Service resource
-2. A **Microsoft 365 account** with access to the [Teams Developer Portal](https://dev.teams.microsoft.com)
-3. Access to the **SAM UI** with permissions to create and deploy gateways
-4. Permission to upload custom apps in **Microsoft Teams**:
+2. Access to the **Agent Mesh Enterprise web interface** with permissions to create and deploy gateways
+3. Permission to upload custom apps in **Microsoft Teams**:
    - For personal or team use: Your Teams admin must enable the **"Upload custom apps"** policy for your account
    - For organization-wide deployment: A **Teams Administrator** must upload and approve the app via the [Teams Admin Center](https://admin.teams.microsoft.com)
 
@@ -43,12 +47,12 @@ The App Registration provides authentication credentials for the gateway.
    - **Supported account types**: Select **Accounts in this organizational directory only** (single tenant)
    - **Redirect URI**: Leave blank
 4. Click **Register**
-5. On the overview page, copy the **Application (client) ID** -- this is your **Microsoft App ID** for SAM
-6. Copy the **Directory (tenant) ID** -- this is your **Microsoft App Tenant ID** for SAM
+5. On the overview page, copy the **Application (client) ID** -- this is your **Microsoft App ID** for Agent Mesh
+6. Copy the **Directory (tenant) ID** -- this is your **Microsoft App Tenant ID** for Agent Mesh
 7. Go to **Certificates & secrets** > **Client secrets** > **New client secret**
    - **Description**: e.g., `SAM Bot Secret`
    - **Expires**: Choose an appropriate duration
-8. Copy the secret **Value** immediately (it will not be shown again) -- this is your **Microsoft App Password** for SAM
+8. Copy the secret **Value** immediately (it will not be shown again) -- this is your **Microsoft App Password** for Agent Mesh
 
 ## Step 2: Create an Azure Bot Service
 
@@ -72,9 +76,9 @@ The Bot Service registers your bot with Microsoft Teams.
 7. Ensure **Messaging** is enabled, leave **Calling** disabled
 8. Accept the terms of service and click **Apply**
 
-## Step 3: Create and Deploy the Gateway in SAM
+## Step 3: Create and Deploy the Gateway in Agent Mesh
 
-In the SAM UI, create a new Teams Gateway and provide the Azure credentials:
+In the Agent Mesh Enterprise web interface, create a new Teams Gateway and provide the Azure credentials:
 
 | SAM Field | Value |
 |-----------|-------|
@@ -83,7 +87,7 @@ In the SAM UI, create a new Teams Gateway and provide the Azure credentials:
 | **Microsoft App Tenant ID** | Directory (tenant) ID from Step 1 |
 | **Default Agent** | The agent to handle messages (defaults to OrchestratorAgent) |
 
-After saving, **deploy the gateway** from the SAM UI. SAM creates the gateway pod and networking resources only after you deploy the gateway.
+After saving, **deploy the gateway** from the Agent Mesh Enterprise web interface. SAM creates the gateway pod and networking resources only after you deploy the gateway.
 
 ## Step 4: Obtain the Gateway Webhook URL
 
@@ -95,7 +99,7 @@ This step differs based on your SAM environment.
 
 In SAM Cloud, the platform automatically provisions a public endpoint for your Teams gateway when you deploy it.
 
-1. After deploying the gateway in the SAM UI, the platform provides you with the **gateway webhook URL**
+1. After deploying the gateway in the Agent Mesh Enterprise web interface, the platform provides you with the **gateway webhook URL**
 2. Your webhook URL is:
 
    ```
@@ -197,12 +201,12 @@ Place the gateway behind an existing reverse proxy (e.g., NGINX, Envoy) that han
 Once exposed, your webhook URL will be:
 
 ```
-https://<your-public-domain>/api/messages
+https://<your-gateway-hostname>/api/messages
 ```
 
 > **Important**: The endpoint **must** be accessible via HTTPS. Microsoft Teams will not send messages to HTTP endpoints.
 
-To verify your setup, open `https://<your-public-domain>/health` in a browser. You should see a JSON health response from the gateway, confirming the gateway is publicly accessible.
+To verify your setup, open `https://<your-gateway-hostname>/health` in a browser. You should see a JSON health response from the gateway, confirming the gateway is publicly accessible.
 
 ---
 
@@ -213,7 +217,7 @@ To verify your setup, open `https://<your-public-domain>/health` in a browser. Y
 3. Go to **Configuration**
 4. Set the **Messaging endpoint** to your webhook URL:
    - SAM Cloud: `https://<provided-gateway-hostname>/api/messages`
-   - SAM Kubernetes: `https://<your-public-domain>/api/messages`
+   - SAM Kubernetes: `https://<your-gateway-hostname>/api/messages`
 5. Click **Apply**
 
 ## Step 6: Create and Install the Teams App
@@ -307,21 +311,21 @@ After completing all steps, verify the setup:
 1. Open Microsoft Teams
 2. Find and open your bot app (search by the name you gave it)
 3. Send a message (e.g., "Hello")
-4. You should see a processing indicator followed by a response from your SAM agent
+4. You should see a processing indicator followed by a response from your agent
 
 ## Troubleshooting
 
 ### Bot does not respond to messages
 
 - Verify the **Messaging endpoint** in Azure Bot Service matches your gateway URL exactly (including `/api/messages`)
-- Confirm the gateway pod is running: check the deployment status in the SAM UI
+- Confirm the gateway pod is running: check the deployment status in the Agent Mesh Enterprise web interface
 - For SAM Kubernetes: verify the endpoint is publicly accessible by opening `https://<your-domain>/health` in a browser -- you should see a JSON health response
-- Check that the **Microsoft App ID** and **Microsoft App Password** in SAM match your Azure App Registration credentials
+- Check that the **Microsoft App ID** and **Microsoft App Password** in Agent Mesh match your Azure App Registration credentials
 
 ### Authentication errors
 
 - Ensure the **Microsoft App Password** (client secret) has not expired in Azure -- regenerate in **App registrations** > **Certificates & secrets** if needed
-- Verify the **Tenant ID** is set correctly in both SAM and Azure
+- Verify the **Tenant ID** is set correctly in both Agent Mesh and Azure
 
 ### Webhook URL requirements
 
