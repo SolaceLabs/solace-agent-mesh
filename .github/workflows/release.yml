@@ -294,25 +294,19 @@ jobs:
       MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
       MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
-  # Release to PyPI using Trusted Publishing
-  release:
-    name: Release to PyPI
-    # We need always() here because when security-checks, fossa_scan, or verify-rc is skipped,
-    # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
-    # condition, allowing the release to proceed when checks were either successful OR skipped.
-    # This enables emergency releases when checks need to be bypassed.
+  # Publish to PyPI using Trusted Publishing (only when not skipped)
+  publish-pypi:
+    name: Publish to PyPI
     needs: [prepare-release-metadata, verify-rc, fossa_scan, security-checks]
     if: |
       always() &&
+      !fromJSON(github.event.inputs.skip_pypi_publish) &&
       (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
       (needs.fossa_scan.result == 'success' || needs.fossa_scan.result == 'skipped') &&
       (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ github.event.inputs.skip_pypi_publish == 'true' && '' || 'pypi' }}
-    outputs:
-      new_version: ${{ steps.prep.outputs.new_version }}
-      commit_hash: ${{ steps.prep.outputs.commit_hash }}
+    environment: pypi
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -334,19 +328,53 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build Package
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.cargo/bin:$PATH"
+          uv tool install --with virtualenv==20.26.6 hatch
+          hatch build
+
+      # Publish using Trusted Publishing - must be directly in workflow, not in composite action
+      # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
+        with:
+          verbose: true
+
+  # Release job - prepares version, creates git tag, and GitHub release
+  # This job runs regardless of PyPI publish to allow completing releases when package already exists
+  release:
+    name: Release
+    # We need always() here because when security-checks, fossa_scan, verify-rc, or publish-pypi is skipped,
+    # GitHub Actions would by default skip ALL dependent jobs. The always() forces evaluation of our
+    # condition, allowing the release to proceed when checks were either successful OR skipped.
+    # This enables emergency releases when checks need to be bypassed or PyPI publish is skipped.
+    needs: [prepare-release-metadata, verify-rc, fossa_scan, security-checks, publish-pypi]
+    if: |
+      always() &&
+      (needs.verify-rc.result == 'success' || needs.verify-rc.result == 'skipped') &&
+      (needs.fossa_scan.result == 'success' || needs.fossa_scan.result == 'skipped') &&
+      (needs.security-checks.result == 'success' || needs.security-checks.result == 'skipped') &&
+      (needs.publish-pypi.result == 'success' || needs.publish-pypi.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      new_version: ${{ steps.prep.outputs.new_version }}
+      commit_hash: ${{ steps.prep.outputs.commit_hash }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.COMMIT_KEY }}
+          ref: ${{ github.event.inputs.ref }}
+
       - name: Prepare Release
         id: prep
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-prep@main
         with:
           version: ${{ github.event.inputs.version || github.event.inputs.version_bump_type }}
-
-      # Publish using Trusted Publishing - must be directly in workflow, not in composite action
-      # See: https://docs.pypi.org/trusted-publishers/using-a-publisher/
-      - name: Publish package distributions to PyPI
-        if: ${{ !fromJSON(github.event.inputs.skip_pypi_publish) }}
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
-        with:
-          verbose: true
 
       - name: Finalize Release
         uses: SolaceDev/solace-public-workflows/.github/actions/hatch-release-post@main
