@@ -13,7 +13,7 @@ import {
     artifactCreationMonitoredTasks,
     parallelToolCallMonitoredTasks,
     workflowMapMonitoredTasks,
-} from "../data/activityWorkflowEvents";
+} from "../data/a2aEventSSEPayloads";
 
 const meta = {
     title: "Activities/ActivityWorkflow",

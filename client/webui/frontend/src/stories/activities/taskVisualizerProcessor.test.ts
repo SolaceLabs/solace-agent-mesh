@@ -9,7 +9,7 @@ import {
     makeCompletedResponseEvent,
     makeFailedResponseEvent,
     makeStatusUpdateEvent,
-} from "../data/a2aEventFactories";
+} from "../data/a2aEventSSEPayloadFactories";
 
 describe("processTaskForVisualization", () => {
     // -- Null / empty input handling --

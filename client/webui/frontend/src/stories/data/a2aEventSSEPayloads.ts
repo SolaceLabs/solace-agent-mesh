@@ -9,7 +9,7 @@ import {
     makeCompletedResponseEvent,
     makeFailedResponseEvent,
     makeStatusUpdateEvent,
-} from "./a2aEventFactories";
+} from "./a2aEventSSEPayloadFactories";
 
 // --- Scenario: Simple Tool Call ---
 
