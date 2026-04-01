@@ -28,6 +28,7 @@
   <a href="https://solacelabs.github.io/solace-agent-mesh/">Docs</a>
 </p>
 
+
 ---
 
 **Solace Agent Mesh** is a framework that supports building AI applications where multiple specialized AI agents work together to solve complex problems. It uses the event messaging of [Solace Platform](https://solace.com) for true scalability and reliability.
