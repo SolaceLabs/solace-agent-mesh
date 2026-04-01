@@ -11,11 +11,11 @@ interface TestConnectionSectionProps {
     getFormData: () => ModelFormData;
     getDirtyFields?: () => Partial<Record<string, boolean>>;
     isNew: boolean;
-    modelAlias?: string;
+    modelId?: string;
     disabled?: boolean;
 }
 
-export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, modelAlias, disabled }: TestConnectionSectionProps) => {
+export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, modelId, disabled }: TestConnectionSectionProps) => {
     const [isTesting, setIsTesting] = useState(false);
     const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
@@ -43,8 +43,8 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
                 authType: payload.authType,
                 authConfig: payload.authConfig,
                 modelParams: payload.modelParams,
-                // For editing, include alias so backend can use stored credentials as fallback
-                ...(!isNew && modelAlias ? { alias: modelAlias } : {}),
+                // For editing, include modelId so backend can use stored credentials as fallback
+                ...(!isNew && modelId ? { modelId } : {}),
             };
 
             const response = await testModelConnection(testPayload);
@@ -55,7 +55,7 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
         } finally {
             setIsTesting(false);
         }
-    }, [getFormData, getDirtyFields, isNew, modelAlias]);
+    }, [getFormData, getDirtyFields, isNew, modelId]);
 
     return (
         <div className="border-t pt-4">

@@ -97,34 +97,34 @@ class ModelConfigService:
             return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
-    def get_models_from_provider_by_alias(
+    def get_models_from_provider_by_id(
         self,
         db: Session,
-        alias: str,
+        model_id: str,
         model_list_service: "ModelListService"
     ) -> List[Dict]:
         """
         Fetch supported models from a provider using stored credentials.
 
-        Retrieves the configuration by alias and uses its stored credentials to query
+        Retrieves the configuration by ID and uses its stored credentials to query
         the provider for available models. Orchestrates both the config lookup and
         the model listing in one operation.
 
         Args:
             db: SQLAlchemy database session
-            alias: Model configuration alias to look up
+            model_id: Model configuration UUID to look up
             model_list_service: ModelListService instance for fetching provider models
 
         Returns:
             List of available models from the provider
 
         Raises:
-            EntityNotFoundError: If no configuration found with the given alias
+            EntityNotFoundError: If no configuration found with the given ID
             RuntimeError: If provider API query fails
         """
-        raw_config = self.repository.get_by_alias(db, alias)
+        raw_config = self.repository.get_by_id(db, model_id)
         if not raw_config:
-            raise EntityNotFoundError("ModelConfiguration", alias)
+            raise EntityNotFoundError("ModelConfiguration", model_id)
 
         return model_list_service.get_models_by_provider_with_config(
             provider=raw_config.provider,
@@ -134,6 +134,30 @@ class ModelConfigService:
             model_params=raw_config.model_params or {},
         )
     
+    def get_by_id(self, db: Session, model_id: str, raw=False) -> ModelConfigurationResponse:
+        """
+        Retrieve a model configuration by ID.
+
+        Args:
+            db: SQLAlchemy database session
+            model_id: Model UUID to look up
+            raw: If True, return unredacted LiteLlm config dict instead of response model
+
+        Returns:
+            ModelConfigurationResponse if found, or dict if raw=True
+
+        Raises:
+            EntityNotFoundError: If no configuration found with the given ID
+        """
+        db_config = self.repository.get_by_id(db, model_id)
+
+        if not db_config:
+            raise EntityNotFoundError("ModelConfiguration", model_id)
+
+        if raw:
+            return self._to_raw_litellm_config(db_config)
+        return self._to_response(db_config)
+
     def get_by_alias_or_id(self, db: Session, alias: str, raw=False) -> Optional[Dict]:
         """
         Retrieve a model configuration by alias (case-sensitive exact match) or ID.
@@ -210,12 +234,12 @@ class ModelConfigService:
     def update(
         self,
         db: Session,
-        alias: str,
+        model_id: str,
         request: ModelConfigurationUpdateRequest,
         updated_by: str,
     ) -> ModelConfigurationResponse:
         """
-        Update an existing model configuration.
+        Update an existing model configuration by ID.
 
         Only provided (non-None) fields are updated.
         For auth_config: if provided, it's merged with existing secrets (preserving
@@ -223,7 +247,7 @@ class ModelConfigService:
 
         Args:
             db: SQLAlchemy database session
-            alias: Model alias to update
+            model_id: Model UUID to update
             request: Update request with new values
             updated_by: User or system identifier performing the update
 
@@ -231,16 +255,16 @@ class ModelConfigService:
             ModelConfigurationResponse for the updated configuration
 
         Raises:
-            EntityNotFoundError: If no configuration found with the given alias
+            EntityNotFoundError: If no configuration found with the given ID
             EntityAlreadyExistsError: If new alias already exists (case-sensitive)
         """
-        db_config = self.repository.get_by_alias(db, alias)
+        db_config = self.repository.get_by_id(db, model_id)
 
         if not db_config:
-            raise EntityNotFoundError("ModelConfiguration", alias)
+            raise EntityNotFoundError("ModelConfiguration", model_id)
 
         # If updating alias, check for case-sensitive collision with other configs
-        if request.alias is not None and request.alias != alias:
+        if request.alias is not None and request.alias != db_config.alias:
             if self.repository.exists_by_alias(db, request.alias):
                 raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
 
@@ -276,21 +300,21 @@ class ModelConfigService:
 
         return self._to_response(db_config)
 
-    def delete(self, db: Session, alias: str) -> None:
+    def delete(self, db: Session, model_id: str) -> None:
         """
-        Delete a model configuration by alias.
+        Delete a model configuration by ID.
 
         Args:
             db: SQLAlchemy database session
-            alias: Model alias to delete
+            model_id: Model UUID to delete
 
         Raises:
-            EntityNotFoundError: If no configuration found with the given alias
+            EntityNotFoundError: If no configuration found with the given ID
         """
-        db_config = self.repository.get_by_alias(db, alias)
+        db_config = self.repository.get_by_id(db, model_id)
 
         if not db_config:
-            raise EntityNotFoundError("ModelConfiguration", alias)
+            raise EntityNotFoundError("ModelConfiguration", model_id)
 
         self.repository.delete(db, db_config)
 
@@ -382,11 +406,11 @@ class ModelConfigService:
             auth_type = request.auth_type
             api_base = request.api_base
 
-            # Load stored config if alias provided
-            if request.alias:
-                stored_config = self.repository.get_by_alias(db, request.alias)
+            # Load stored config if model_id provided
+            if request.model_id:
+                stored_config = self.repository.get_by_id(db, request.model_id)
                 if not stored_config:
-                    return False, f"Test connection failed. Model configuration with alias '{request.alias}' not found"
+                    return False, f"Test connection failed. Model configuration with ID '{request.model_id}' not found"
 
                 # Use stored values as defaults if not provided in request
                 if not provider:

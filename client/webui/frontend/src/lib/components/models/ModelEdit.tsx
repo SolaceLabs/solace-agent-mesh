@@ -557,7 +557,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                     getFormData={() => getValues() as ModelFormData}
                                     getDirtyFields={() => dirtyFields}
                                     isNew={isNew}
-                                    modelAlias={modelToEdit?.alias}
+                                    modelId={modelToEdit?.id}
                                     disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)}
                                 />
                             </>
