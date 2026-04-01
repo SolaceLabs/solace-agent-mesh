@@ -8,6 +8,12 @@
 // ============================================================================
 
 /**
+ * Placeholder value displayed for encrypted credential fields.
+ * Used when credentials are stored but not returned by the server.
+ */
+export const CREDENTIAL_PLACEHOLDER = "<encrypted>";
+
+/**
  * Mapping of backend authConfig keys to form field names for sensitive credentials.
  * Used to determine which form fields have stored values during edit,
  * and to check dirtyFields when building payloads.
@@ -417,7 +423,8 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         if (dirtyFields) {
             return !!dirtyFields[fieldName];
         }
-        return !!value;
+        // Don't send placeholder values even in create mode
+        return !!value && value !== CREDENTIAL_PLACEHOLDER;
     };
 
     // Build auth config

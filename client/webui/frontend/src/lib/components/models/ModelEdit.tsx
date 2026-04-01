@@ -13,6 +13,7 @@ import {
     AUTH_TYPE_LABELS,
     COMMON_MODEL_PARAMS,
     AUTH_CONFIG_TO_FORM_FIELD_MAP,
+    CREDENTIAL_PLACEHOLDER,
     type AuthType,
     type ProviderField,
     type SupportedModel,
@@ -83,21 +84,21 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const isAuthCredentialsConfigured = (() => {
         if (!selectedAuthType) return false;
         if (selectedAuthType === "none") return true;
-        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== CREDENTIAL_PLACEHOLDER;
         if (selectedAuthType === "oauth2") {
             const clientId = getValues("clientId");
             const clientSecret = getValues("clientSecret");
             const tokenUrl = getValues("tokenUrl");
-            return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
+            return !!clientId && clientId !== CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== CREDENTIAL_PLACEHOLDER && !!tokenUrl;
         }
         if (selectedAuthType === "aws_iam") {
             const accessKey = getValues("awsAccessKeyId");
             const secretKey = getValues("awsSecretAccessKey");
-            return !!accessKey && accessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return !!accessKey && accessKey !== CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== CREDENTIAL_PLACEHOLDER;
         }
         if (selectedAuthType === "gcp_service_account") {
             const json = getValues("gcpServiceAccountJson");
-            return !!json && json !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return !!json && json !== CREDENTIAL_PLACEHOLDER;
         }
         return false;
     })();
@@ -255,12 +256,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("description", modelToEdit.description || "");
 
             // Populate auth credential fields from authConfig
-            // For password fields that are redacted by the server, populate with REDACTED_CREDENTIAL_PLACEHOLDER
+            // For password fields that are redacted by the server, populate with "<encrypted>"
             if (modelToEdit.authConfig) {
                 Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
                     const value = modelToEdit.authConfig[configKey];
                     // If the value is empty/falsy (redacted by server), use placeholder
-                    setValue(fieldName, value ? String(value) : REDACTED_CREDENTIAL_PLACEHOLDER);
+                    setValue(fieldName, value ? String(value) : CREDENTIAL_PLACEHOLDER);
                 });
             }
 
