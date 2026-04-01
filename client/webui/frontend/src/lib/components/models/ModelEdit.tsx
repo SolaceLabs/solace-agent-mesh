@@ -12,7 +12,6 @@ import {
     AUTH_FIELDS,
     AUTH_TYPE_LABELS,
     COMMON_MODEL_PARAMS,
-    REDACTED_CREDENTIAL_PLACEHOLDER,
     AUTH_CONFIG_TO_FORM_FIELD_MAP,
     type AuthType,
     type ProviderField,
