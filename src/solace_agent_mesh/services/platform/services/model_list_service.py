@@ -5,7 +5,7 @@ Supports both stored credentials (from database) and request-provided credential
 """
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 import httpx
 
 try:
@@ -139,8 +139,8 @@ class ModelListService:
         provider: str,
         api_base: Optional[str],
         auth_type: str,
-        auth_config: Dict[str, any],
-        model_params: Optional[Dict[str, any]] = None,
+        auth_config: Dict[str, Any],
+        model_params: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, str]]:
         """
         Fetch models from a provider by querying their API directly.
@@ -188,7 +188,7 @@ class ModelListService:
             if fallback_models:
                 log.info(f"Returning {len(fallback_models)} models from LiteLLM registry for {provider}")
                 return [{"id": m, "label": m, "provider": provider} for m in fallback_models]
-            raise RuntimeError(f"Failed to fetch models from {provider}: {str(e)}")
+            raise RuntimeError(f"Failed to fetch models from {provider} API and LiteLLM registry: {str(e)}")
 
     def _get_provider_api_base(self, provider: str) -> str:
         """Get the default API base URL for a provider."""
