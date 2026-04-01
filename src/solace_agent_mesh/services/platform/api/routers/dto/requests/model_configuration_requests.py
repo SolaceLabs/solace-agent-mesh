@@ -93,7 +93,7 @@ class ModelConfigurationUpdateRequest(ModelConfigurationBaseRequest):
 class SupportedModelsRequest(CamelCaseModel):
     """Request model for querying supported models from a provider.
     Supports two modes:
-    1. Editing mode: provide model_alias to use stored credentials
+    1. Editing mode: provide model_id to use stored credentials
     2. Creating mode: provide auth_type and appropriate credentials
     """
     provider: str = Field(

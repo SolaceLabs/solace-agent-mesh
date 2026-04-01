@@ -4,7 +4,7 @@ import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import cast, or_, String
+from sqlalchemy import or_
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.database.database_exceptions import handle_database_errors
 
@@ -100,7 +100,7 @@ class ModelConfigurationRepository:
             ModelConfiguration ORM model if found, None otherwise
         """
         return db.query(ModelConfiguration).filter(
-            cast(ModelConfiguration.id, String) == model_id
+            ModelConfiguration.id == model_id
         ).first()
 
     def get_by_alias_or_id(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
@@ -117,7 +117,7 @@ class ModelConfigurationRepository:
         return db.query(ModelConfiguration).filter(
             or_(
                 ModelConfiguration.alias == alias,
-                cast(ModelConfiguration.id, String) == alias,
+                ModelConfiguration.id == alias,
             )
         ).first()
 

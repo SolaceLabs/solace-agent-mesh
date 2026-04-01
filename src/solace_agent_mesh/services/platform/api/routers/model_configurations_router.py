@@ -219,7 +219,7 @@ async def update_model(
     "/models/{model_id}/dependents",
     response_model=DataResponse[list[ModelDependentResponse]],
     summary="Get agents that depend on a model",
-    description="Return deployed agents whose model_provider references the given model ID. Requires enterprise package.",
+    description="Return deployed agents whose model_provider references the given model by alias or ID. Requires enterprise package.",
 )
 async def get_model_dependents(
     model_id: str,
