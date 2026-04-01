@@ -101,7 +101,7 @@ test = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
-    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
+    "fastmcp>=3.2.0",  # Upgrade to fix SSRF/path traversal (GHSA-vv7q-7jx5-f767)
     "httpx>=0.25",
     "respx",
     "ruff",
@@ -123,7 +123,7 @@ dependencies = [
     "pytest-cov>=4.0.0",
     "pytest-xdist>=3.5.0",
     "pytest-httpx>=0.35.0",
-    "fastmcp==2.11.2",  # Pin for mcp compatibility - newer versions require Icon
+    "fastmcp>=3.2.0",  # Upgrade to fix SSRF/path traversal (GHSA-vv7q-7jx5-f767)
     "httpx>=0.25",
     "respx",
     "ruff",
