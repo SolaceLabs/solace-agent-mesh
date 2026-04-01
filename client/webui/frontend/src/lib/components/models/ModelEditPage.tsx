@@ -78,12 +78,12 @@ export const ModelEditPage = () => {
         }
     }, [modelToEdit, isNew]);
 
-    const handleSave = async (data: ModelFormData) => {
+    const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
         setIsLoading(true);
         setErrorMessage(null);
 
         try {
-            const payload = buildModelPayload(data);
+            const payload = buildModelPayload(data, dirtyFields);
 
             let createdAlias: string | undefined;
             if (isNew) {
