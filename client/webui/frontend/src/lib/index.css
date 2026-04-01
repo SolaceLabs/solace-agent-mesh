@@ -18,6 +18,12 @@
     animation: pulse-generating 1.5s ease-in-out infinite;
 }
 
+/* Animation for inline progress timeline items */
+@keyframes progressSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);

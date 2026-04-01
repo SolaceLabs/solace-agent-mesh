@@ -64,7 +64,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     sessionName: null,
     sessionToDelete: null,
     latestStatusText: React.createRef<string | null>(),
-
     // UI state
     isSidePanelCollapsed: false,
     activeSidePanelTab: "files",
