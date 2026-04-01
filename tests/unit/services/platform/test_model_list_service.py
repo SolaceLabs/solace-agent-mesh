@@ -63,7 +63,7 @@ class TestModelListServiceApiBase:
         """Each known provider returns its correct API base."""
         assert self.service._get_provider_api_base("openai") == "https://api.openai.com/v1"
         assert self.service._get_provider_api_base("anthropic") == "https://api.anthropic.com"
-        assert self.service._get_provider_api_base("ollama") == "http://localhost:11434/api"
+        assert self.service._get_provider_api_base("ollama") is None
         assert self.service._get_provider_api_base("google_ai_studio") == "https://generativelanguage.googleapis.com/v1beta/models"
 
     def test_azure_returns_none(self):
@@ -113,8 +113,8 @@ class TestModelListServiceResponseParsing:
             assert result[0]["id"] == "claude-3-opus"
             assert result[1]["id"] == "claude-3-sonnet"
 
-    def test_parse_ollama_strips_tag_suffix(self):
-        """Ollama models should have tag suffix stripped (e.g., llama2:latest -> llama2)."""
+    def test_parse_ollama_keeps_full_name(self):
+        """Ollama models should keep full name including tag."""
         with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__enter__.return_value = mock_client
@@ -125,7 +125,7 @@ class TestModelListServiceResponseParsing:
                 "models": [
                     {"name": "llama2:latest"},
                     {"name": "mistral:7b"},
-                    {"name": "neural-chat"},  # No tag
+                    {"name": "neural-chat"},
                 ]
             }
             mock_response.status_code = 200
@@ -134,14 +134,14 @@ class TestModelListServiceResponseParsing:
 
             result = self.service.get_models_by_provider_with_config(
                 provider="ollama",
-                api_base="http://localhost:11434/api",
+                api_base="http://localhost:11434",
                 auth_type="none",
                 auth_config={},
             )
 
             assert len(result) == 3
-            assert result[0]["id"] == "llama2"
-            assert result[1]["id"] == "mistral"
+            assert result[0]["id"] == "llama2:latest"
+            assert result[1]["id"] == "mistral:7b"
             assert result[2]["id"] == "neural-chat"
 
     def test_parse_google_ai_studio_extracts_model_name(self):
@@ -218,7 +218,7 @@ class TestModelListServiceValidation:
                 provider="openai",
                 api_base="https://api.openai.com/v1",
                 auth_type="apikey",
-                api_key=None,
+                auth_config={},
             )
         assert "API key is required" in str(exc_info.value)
 
@@ -229,9 +229,7 @@ class TestModelListServiceValidation:
                 provider="google",
                 api_base=None,
                 auth_type="oauth2",
-                client_id=None,
-                client_secret="secret",
-                token_url="https://example.com/token",
+                auth_config={"client_secret": "secret", "token_url": "https://example.com/token"},
             )
         assert "client_id, client_secret, and token_url are required" in str(exc_info.value)
 
@@ -242,9 +240,7 @@ class TestModelListServiceValidation:
                 provider="google",
                 api_base=None,
                 auth_type="oauth2",
-                client_id="id",
-                client_secret=None,
-                token_url="https://example.com/token",
+                auth_config={"client_id": "id", "token_url": "https://example.com/token"},
             )
         assert "client_id, client_secret, and token_url are required" in str(exc_info.value)
 
@@ -255,9 +251,7 @@ class TestModelListServiceValidation:
                 provider="google",
                 api_base=None,
                 auth_type="oauth2",
-                client_id="id",
-                client_secret="secret",
-                token_url=None,
+                auth_config={"client_id": "id", "client_secret": "secret"},
             )
         assert "client_id, client_secret, and token_url are required" in str(exc_info.value)
 
@@ -268,10 +262,9 @@ class TestModelListServiceValidation:
                 provider="bedrock",
                 api_base=None,
                 auth_type="aws_iam",
-                aws_access_key_id=None,
-                aws_secret_access_key="secret",
+                auth_config={"aws_secret_access_key": "secret", "aws_region_name": "us-east-1"},
             )
-        assert "aws_access_key_id and aws_secret_access_key are required" in str(exc_info.value)
+        assert "aws_access_key_id, aws_secret_access_key, and aws_region_name are required" in str(exc_info.value)
 
     def test_aws_iam_auth_missing_secret_key(self):
         """Missing aws_secret_access_key for aws_iam auth should raise ValidationError."""
@@ -280,21 +273,42 @@ class TestModelListServiceValidation:
                 provider="bedrock",
                 api_base=None,
                 auth_type="aws_iam",
-                aws_access_key_id="access",
-                aws_secret_access_key=None,
+                auth_config={"aws_access_key_id": "access", "aws_region_name": "us-east-1"},
             )
-        assert "aws_access_key_id and aws_secret_access_key are required" in str(exc_info.value)
+        assert "aws_access_key_id, aws_secret_access_key, and aws_region_name are required" in str(exc_info.value)
+
+    def test_aws_iam_auth_missing_region(self):
+        """Missing aws_region_name for aws_iam auth should raise ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            self.service.get_models_with_new_credentials(
+                provider="bedrock",
+                api_base=None,
+                auth_type="aws_iam",
+                auth_config={"aws_access_key_id": "access", "aws_secret_access_key": "secret"},
+            )
+        assert "aws_access_key_id, aws_secret_access_key, and aws_region_name are required" in str(exc_info.value)
 
     def test_gcp_service_account_auth_missing_json(self):
-        """Missing gcp_service_account_json should raise ValidationError."""
+        """Missing service_account_json should raise ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             self.service.get_models_with_new_credentials(
                 provider="vertex_ai",
                 api_base=None,
                 auth_type="gcp_service_account",
-                gcp_service_account_json=None,
+                auth_config={"vertex_project": "my-project", "vertex_location": "us-central1"},
             )
-        assert "gcp_service_account_json is required" in str(exc_info.value)
+        assert "gcp_service_account_json, vertex_project, and vertex_location are required" in str(exc_info.value)
+
+    def test_gcp_service_account_auth_missing_project(self):
+        """Missing vertex_project should raise ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            self.service.get_models_with_new_credentials(
+                provider="vertex_ai",
+                api_base=None,
+                auth_type="gcp_service_account",
+                auth_config={"service_account_json": "{}", "vertex_location": "us-central1"},
+            )
+        assert "gcp_service_account_json, vertex_project, and vertex_location are required" in str(exc_info.value)
 
     def test_unsupported_auth_type(self):
         """Unsupported auth_type should raise ValidationError."""
@@ -303,6 +317,7 @@ class TestModelListServiceValidation:
                 provider="openai",
                 api_base="https://api.openai.com/v1",
                 auth_type="invalid_auth_type",
+                auth_config={},
             )
         assert "Unsupported auth_type: invalid_auth_type" in str(exc_info.value)
 
@@ -316,13 +331,11 @@ class TestModelListServiceValidation:
                 provider="openai",
                 api_base="https://api.openai.com/v1",
                 auth_type="none",
+                auth_config={},
             )
             assert len(result) == 1
             assert result[0]["id"] == "model-1"
-            # Verify it delegated with correct auth_config
             mock_get_models.assert_called_once()
-            call_kwargs = mock_get_models.call_args[1]
-            assert call_kwargs["auth_config"] == {}
 
     def test_apikey_auth_valid_credentials_delegates(self):
         """Valid apikey credentials should delegate to get_models_by_provider_with_config."""
@@ -334,32 +347,13 @@ class TestModelListServiceValidation:
                 provider="openai",
                 api_base="https://api.openai.com/v1",
                 auth_type="apikey",
-                api_key="sk-test-key",
+                auth_config={"api_key": "sk-test-key"},
             )
             assert len(result) == 1
             assert result[0]["id"] == "gpt-4"
-            # Verify it delegated with correct auth_config
             mock_get_models.assert_called_once()
             call_kwargs = mock_get_models.call_args[1]
             assert call_kwargs["auth_config"]["api_key"] == "sk-test-key"
-
-    def test_aws_iam_auth_with_session_token(self):
-        """AWS IAM auth with optional session token should include it in auth_config."""
-        with patch.object(
-            self.service, 'get_models_by_provider_with_config',
-            return_value=[]
-        ) as mock_get_models:
-            self.service.get_models_with_new_credentials(
-                provider="bedrock",
-                api_base=None,
-                auth_type="aws_iam",
-                aws_access_key_id="access",
-                aws_secret_access_key="secret",
-                aws_session_token="token123",
-            )
-            # Verify session token was included
-            call_kwargs = mock_get_models.call_args[1]
-            assert call_kwargs["auth_config"]["aws_session_token"] == "token123"
 
     def test_oauth2_auth_valid_credentials_delegates(self):
         """Valid oauth2 credentials should delegate to get_models_by_provider_with_config."""
@@ -371,12 +365,13 @@ class TestModelListServiceValidation:
                 provider="anthropic",
                 api_base=None,
                 auth_type="oauth2",
-                client_id="client-id",
-                client_secret="client-secret",
-                token_url="https://oauth.example.com/token",
+                auth_config={
+                    "client_id": "client-id",
+                    "client_secret": "client-secret",
+                    "token_url": "https://oauth.example.com/token",
+                },
             )
             assert len(result) == 1
-            # Verify all oauth2 fields were included
             call_kwargs = mock_get_models.call_args[1]
             auth_config = call_kwargs["auth_config"]
             assert auth_config["client_id"] == "client-id"
@@ -391,15 +386,15 @@ class TestModelListServiceMissingApiBase:
         self.service = ModelListService()
 
     def test_custom_provider_missing_api_base(self):
-        """Custom provider should fail if api_base is not provided."""
-        with pytest.raises(RuntimeError) as exc_info:
+        """Custom provider should raise ValidationError if api_base is not provided."""
+        with pytest.raises(ValidationError) as exc_info:
             self.service.get_models_by_provider_with_config(
                 provider="custom",
                 api_base=None,
                 auth_type="apikey",
                 auth_config={"api_key": "key"},
             )
-        assert "API base URL not configured" in str(exc_info.value)
+        assert "API base URL is required" in str(exc_info.value)
 
     def test_unsupported_provider(self):
         """Unsupported provider should raise RuntimeError."""

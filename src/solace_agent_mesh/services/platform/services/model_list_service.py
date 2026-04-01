@@ -132,6 +132,13 @@ class ModelListService:
         if not api_base:
             api_base = self._get_provider_api_base(provider)
 
+        # Validate api_base before attempting to fetch — this is a client error,
+        # not a transient failure, so raise before the try/except fallback block.
+        if not api_base and provider not in (ModelProviders.BEDROCK, ModelProviders.VERTEX_AI, ModelProviders.AZURE_OPENAI):
+            raise ValidationErrorBuilder().message(
+                "API base URL is required"
+            ).entity_type("ProviderCredentials").entity_identifier(provider).build()
+
         try:
             # Set up headers with authentication
             headers = self._build_auth_headers(provider, auth_type, auth_config)
@@ -221,9 +228,7 @@ class ModelListService:
             return []
 
         if not api_base:
-            # Without an API base URL we cannot query the provider. Return empty so
-            # the UI falls back to manual text entry (same pattern as Azure).
-            return []
+            raise RuntimeError(f"API base URL is required for provider {provider}")
 
         # Build endpoint URL and prepare query params based on provider
         query_params = {}
