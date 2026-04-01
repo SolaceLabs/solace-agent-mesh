@@ -24,6 +24,10 @@ Teams requires the gateway's webhook endpoint to be **publicly accessible via HT
 - **Typing indicator**: Shows a typing indicator while processing
 - **Session management**: Sessions reset automatically at midnight UTC daily
 
+:::info[Manual Deployment]
+For Docker or wheel-based deployments without the Agent Mesh Enterprise web interface, see the [Teams Integration Tutorial](../../developing/tutorials/teams-integration.md).
+:::
+
 ## Prerequisites
 
 Before you begin, make sure you have:
@@ -71,17 +75,101 @@ The Bot Service registers your bot with Microsoft Teams.
 3. Click **Review + create** > **Create**
 4. After the resource is created, go to the bot resource
 5. Navigate to **Configuration**
-   - **Messaging endpoint**: Leave blank for now. You will set the webhook URL in Step 5.
+   - **Messaging endpoint**: Leave blank for now. You will set the webhook URL in Step 6.
 6. Navigate to **Channels** > click the **Microsoft Teams** icon
 7. Ensure **Messaging** is enabled, leave **Calling** disabled
 8. Accept the terms of service and click **Apply**
 
-## Step 3: Create and Deploy the Gateway in Agent Mesh
+## Step 3: Create and Install the Teams App
+
+Create a Teams app package and upload it to make the bot available in Microsoft Teams.
+
+### 3.1: Create the App Manifest
+
+Create a file named `manifest.json` using the template below. Replace `<YOUR_APP_ID>` with the **Application (client) ID** from Step 1. Update the developer information with your organization's details.
+
+> **Note**: The manifest schema may change over time. See the [Teams app manifest schema reference](https://learn.microsoft.com/en-us/microsoftteams/platform/resources/schema/manifest-schema) for the latest version.
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.22/MicrosoftTeams.schema.json",
+  "version": "1.0.0",
+  "manifestVersion": "1.22",
+  "id": "<YOUR_APP_ID>",
+  "name": {
+    "short": "Agent Mesh Bot",
+    "full": "Solace Agent Mesh Teams Gateway"
+  },
+  "developer": {
+    "name": "Your Organization",
+    "websiteUrl": "https://yourorg.com/",
+    "privacyUrl": "https://yourorg.com/privacy",
+    "termsOfUseUrl": "https://yourorg.com/terms"
+  },
+  "description": {
+    "short": "AI-powered intelligent assistant for Teams",
+    "full": "Connect to the Solace Agent Mesh Teams Gateway to access AI agents for task automation, data analysis, document creation, and intelligent assistance directly through Microsoft Teams."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#ffffff",
+  "bots": [
+    {
+      "botId": "<YOUR_APP_ID>",
+      "scopes": [
+        "personal",
+        "team",
+        "groupChat"
+      ],
+      "isNotificationOnly": false,
+      "supportsCalling": false,
+      "supportsVideo": false,
+      "supportsFiles": true
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": []
+}
+```
+
+### 3.2: Create Icon Files
+
+Prepare two icon files:
+- `color.png` -- 192x192 pixels, full color
+- `outline.png` -- 32x32 pixels, white icon on transparent background
+
+### 3.3: Package and Upload
+
+1. Create a ZIP file containing: `manifest.json`, `color.png`, `outline.png`
+2. Upload using one of the following methods:
+
+**Option A: Import via Teams Developer Portal**
+1. Go to the [Teams Developer Portal](https://dev.teams.microsoft.com)
+2. Select **Apps** > **Import app** and upload the ZIP file
+3. Review and edit the app configuration if needed
+4. Go to **Publish** > **Publish to org** to submit for admin approval
+
+**Option B: Upload via Teams (for personal or team use)**
+1. In Microsoft Teams, go to **Apps** > **Manage your apps** > **Upload an app**
+2. Select **Upload a custom app** and choose the ZIP file
+
+**Option C: Upload via Teams Admin Center (for organization-wide deployment)**
+1. Ask your Teams Administrator to upload the app via the [Teams Admin Center](https://admin.teams.microsoft.com) under **Teams apps** > **Manage apps** > **Upload new app**
+2. Once uploaded, the app is available to users in the organization
+
+> **Note**: All options may require Teams Administrator approval depending on your organization's app policies.
+
+## Step 4: Create and Deploy the Gateway in Agent Mesh
 
 In the Agent Mesh Enterprise web interface, create a new Teams Gateway and provide the Azure credentials:
 
-| SAM Field | Value |
-|-----------|-------|
+| Field | Value |
+|-------|-------|
 | **Microsoft App ID** | Application (client) ID from Step 1 |
 | **Microsoft App Password** | Client secret Value from Step 1 |
 | **Microsoft App Tenant ID** | Directory (tenant) ID from Step 1 |
@@ -89,7 +177,7 @@ In the Agent Mesh Enterprise web interface, create a new Teams Gateway and provi
 
 After saving, **deploy the gateway** from the Agent Mesh Enterprise web interface. SAM creates the gateway pod and networking resources only after you deploy the gateway.
 
-## Step 4: Obtain the Gateway Webhook URL
+## Step 5: Obtain the Gateway Webhook URL
 
 This step differs based on your SAM environment.
 
@@ -106,7 +194,7 @@ In SAM Cloud, the platform automatically provisions a public endpoint for your T
    https://<provided-gateway-hostname>/api/messages
    ```
 
-3. Copy this webhook URL -- you will configure the URL in Azure Bot Service in Step 5
+3. Copy this webhook URL -- you will configure the URL in Azure Bot Service in Step 6
 
 > **Note**: The webhook URL is publicly accessible via HTTPS. No additional networking setup is required.
 
@@ -190,7 +278,7 @@ If your cluster does not have [external-dns](https://github.com/kubernetes-sigs/
 
 **Option 2: LoadBalancer Service**
 
-Change the service type to `LoadBalancer` and use a TLS-terminating load balancer in front of it.
+Create a new LoadBalancer Service that forwards traffic to the gateway pod. Configure TLS termination on the cloud load balancer.
 
 **Option 3: Reverse Proxy**
 
@@ -210,7 +298,7 @@ To verify your setup, open `https://<your-gateway-hostname>/health` in a browser
 
 ---
 
-## Step 5: Configure the Webhook URL in Azure Bot Service
+## Step 6: Configure the Webhook URL in Azure Bot Service
 
 1. Go to the [Azure Portal](https://portal.azure.com)
 2. Navigate to your **Azure Bot** resource
@@ -219,90 +307,6 @@ To verify your setup, open `https://<your-gateway-hostname>/health` in a browser
    - SAM Cloud: `https://<provided-gateway-hostname>/api/messages`
    - SAM Kubernetes: `https://<your-gateway-hostname>/api/messages`
 5. Click **Apply**
-
-## Step 6: Create and Install the Teams App
-
-Create a Teams app package and upload it to make the bot available in Microsoft Teams.
-
-### 6.1: Create the App Manifest
-
-Create a file named `manifest.json` using the template below. Replace `<YOUR_APP_ID>` with the **Application (client) ID** from Step 1. Update the developer information with your organization's details.
-
-> **Note**: The manifest schema may change over time. See the [Teams app manifest schema reference](https://learn.microsoft.com/en-us/microsoftteams/platform/resources/schema/manifest-schema) for the latest version.
-
-```json
-{
-  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.22/MicrosoftTeams.schema.json",
-  "version": "1.0.0",
-  "manifestVersion": "1.22",
-  "id": "<YOUR_APP_ID>",
-  "name": {
-    "short": "Agent Mesh Bot",
-    "full": "Solace Agent Mesh Teams Gateway"
-  },
-  "developer": {
-    "name": "Your Organization",
-    "websiteUrl": "https://yourorg.com/",
-    "privacyUrl": "https://yourorg.com/privacy",
-    "termsOfUseUrl": "https://yourorg.com/terms"
-  },
-  "description": {
-    "short": "AI-powered intelligent assistant for Teams",
-    "full": "Connect to the Solace Agent Mesh Teams Gateway to access AI agents for task automation, data analysis, document creation, and intelligent assistance directly through Microsoft Teams."
-  },
-  "icons": {
-    "outline": "outline.png",
-    "color": "color.png"
-  },
-  "accentColor": "#ffffff",
-  "bots": [
-    {
-      "botId": "<YOUR_APP_ID>",
-      "scopes": [
-        "personal",
-        "team",
-        "groupChat"
-      ],
-      "isNotificationOnly": false,
-      "supportsCalling": false,
-      "supportsVideo": false,
-      "supportsFiles": true
-    }
-  ],
-  "permissions": [
-    "identity",
-    "messageTeamMembers"
-  ],
-  "validDomains": []
-}
-```
-
-### 6.2: Create Icon Files
-
-Prepare two icon files:
-- `color.png` -- 192x192 pixels, full color
-- `outline.png` -- 32x32 pixels, white icon on transparent background
-
-### 6.3: Package and Upload
-
-1. Create a ZIP file containing: `manifest.json`, `color.png`, `outline.png`
-2. Upload using one of the following methods:
-
-**Option A: Import via Teams Developer Portal**
-1. Go to the [Teams Developer Portal](https://dev.teams.microsoft.com)
-2. Select **Apps** > **Import app** and upload the ZIP file
-3. Review and edit the app configuration if needed
-4. Go to **Publish** > **Publish to org** to submit for admin approval
-
-**Option B: Upload via Teams (for personal or team use)**
-1. In Microsoft Teams, go to **Apps** > **Manage your apps** > **Upload an app**
-2. Select **Upload a custom app** and choose the ZIP file
-
-**Option C: Upload via Teams Admin Center (for organization-wide deployment)**
-1. Ask your Teams Administrator to upload the app via the [Teams Admin Center](https://admin.teams.microsoft.com) under **Teams apps** > **Manage apps** > **Upload new app**
-2. Once uploaded, the app is available to users in the organization
-
-> **Note**: All options may require Teams Administrator approval depending on your organization's app policies.
 
 ## Verification
 
