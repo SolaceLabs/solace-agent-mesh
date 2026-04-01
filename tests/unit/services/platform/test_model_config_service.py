@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 from solace_agent_mesh.services.platform.services.model_config_service import (
     ModelConfigService,
+    _resolve_litellm_model_name,
 )
 
 
@@ -112,6 +113,39 @@ class TestToRawLitellmConfig:
         assert result["client_secret"] == "super-secret"
         assert result["token_url"] == "https://auth.example.com/token"
         assert "type" not in result
+
+    def test_model_name_gets_litellm_prefix(self):
+        """Providers in the prefix map get model name prefixed for LiteLLM routing."""
+        db_model = _make_db_model(
+            provider="google_ai_studio", model_name="gemini-pro",
+            api_base=None, model_auth_config=None, model_params=None,
+        )
+        result = ModelConfigService._to_raw_litellm_config(db_model)
+        assert result["model"] == "gemini/gemini-pro"
+
+    def test_model_name_not_double_prefixed(self):
+        """Model name already containing a slash is not double-prefixed."""
+        db_model = _make_db_model(
+            provider="bedrock", model_name="bedrock/anthropic.claude-3",
+            api_base=None, model_auth_config=None, model_params=None,
+        )
+        result = ModelConfigService._to_raw_litellm_config(db_model)
+        assert result["model"] == "bedrock/anthropic.claude-3"
+
+    def test_gcp_service_account_json_remapped(self):
+        """GCP service_account_json is remapped to vertex_credentials for LiteLLM."""
+        db_model = _make_db_model(
+            provider="vertex_ai", model_name="gemini-pro", api_base=None,
+            model_auth_config={
+                "type": "gcp_service_account",
+                "service_account_json": '{"project_id": "test"}',
+                "vertex_project": "test",
+            },
+            model_params=None,
+        )
+        result = ModelConfigService._to_raw_litellm_config(db_model)
+        assert "vertex_credentials" in result
+        assert "service_account_json" not in result
 
 
 class TestGetByAlias:
