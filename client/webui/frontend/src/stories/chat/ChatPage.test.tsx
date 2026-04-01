@@ -183,7 +183,7 @@ describe("ChatPage", () => {
         return render(
             React.createElement(
                 OpenFeatureTestProvider,
-                { flagValueMap: { inline_activity_timeline: false, show_thinking_content: true } },
+                { flagValueMap: { inline_activity_timeline: false, show_thinking_content: false } },
                 React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(MemoryRouter, null, React.createElement(ChatPage)))
             )
         );

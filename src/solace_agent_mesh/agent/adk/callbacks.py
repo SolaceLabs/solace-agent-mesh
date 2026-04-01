@@ -225,11 +225,20 @@ async def process_thinking_content_callback(
     # Track thinking phase state in session to detect transitions
     session = get_session_from_callback_context(callback_context)
     thinking_phase_key = "thinking_phase_active"
+    thinking_just_yielded_key = "thinking_just_yielded"
 
     # Check for phase transition BEFORE the metadata guard so that
     # chunks with no custom_metadata (text after thinking) still close
     # the thinking phase.
     if not llm_response.custom_metadata:
+        if session.state.get(thinking_just_yielded_key):
+            session.state[thinking_just_yielded_key] = False
+            log.debug(
+                "%s Skipping is_complete: text chunk follows thinking chunk in same delta",
+                log_identifier,
+            )
+            return None
+
         if session.state.get(thinking_phase_key):
             session.state[thinking_phase_key] = False
             thinking_complete = ThinkingContentData(
@@ -245,9 +254,17 @@ async def process_thinking_content_callback(
     is_thinking = llm_response.custom_metadata.get("is_thinking_content", False)
     thinking_text_full = llm_response.custom_metadata.get("thinking_content")
 
+    # Bug 5 fix: reset thinking_just_yielded at the start of each metadata-bearing
+    # response so stale flags from a previous turn don't carry over.
+    session.state[thinking_just_yielded_key] = False
+
     if is_thinking and llm_response.content and llm_response.content.parts:
         # Streaming thinking chunk — publish each text part as a signal
         session.state[thinking_phase_key] = True
+        # Bug 6 fix: mark that a thinking chunk was just yielded so the next
+        # no-metadata yield (text portion of the same delta) is not mistaken
+        # for a thinking-phase-end transition.
+        session.state[thinking_just_yielded_key] = True
         for part in llm_response.content.parts:
             if part.text:
                 thinking_data = ThinkingContentData(
@@ -1753,6 +1770,10 @@ def inject_dynamic_instructions_callback(
     """
     log_identifier = "[Callback:InjectInstructions]"
     log.debug("%s Running instruction injection callback...", log_identifier)
+
+    session = get_session_from_callback_context(callback_context)
+    session.state["thinking_phase_active"] = False
+    session.state["thinking_just_yielded"] = False
 
     if not host_component:
         log.error(

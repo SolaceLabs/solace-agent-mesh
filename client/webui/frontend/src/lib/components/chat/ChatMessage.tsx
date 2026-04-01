@@ -906,7 +906,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const chatContext = useChatContext();
     const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
-    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", true);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 
     // Determine if this is another user's message (for uploaded files alignment)
     const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);

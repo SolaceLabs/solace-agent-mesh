@@ -50,7 +50,7 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
-    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", true);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 
     // Keep refs in sync for use inside SSE event handlers (avoids stale closures)
     const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
@@ -370,7 +370,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             contextQuoteSourceId: message.contextQuoteSourceId,
             // Persist inline progress timeline data so it survives page reloads
             ...(message.progressUpdates && message.progressUpdates.length > 0 ? { progressUpdates: message.progressUpdates } : {}),
-            ...(message.thinkingContent ? { thinkingContent: message.thinkingContent, isThinkingComplete: message.isThinkingComplete ?? true } : {}),
+            ...((message.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: message.thinkingContent, isThinkingComplete: message.isThinkingComplete ?? true } : {}),
         };
     }, []);
 
@@ -532,7 +532,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
                     // Restore inline progress timeline data
                     ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
-                    ...(bubble.thinkingContent ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
+                    ...((bubble.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -1024,11 +1024,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         isExpandableComplete: isThinkingComplete,
                                     };
 
-                                    // Only accumulate progress updates when inline-activity-timeline is enabled
+                                    // Only accumulate progress updates when inline-activity-timeline is enabled.
+                                    // Bug 1 fix: thinkingContent/isThinkingComplete are handled exclusively by
+                                    // messageUpdater — NOT passed as extraFields (which would overwrite msgExtra).
                                     if (inlineActivityTimelineEnabledRef.current) {
                                         appendProgressUpdate(
                                             thinkingUpdate,
-                                            { thinkingContent: thinkingText, isThinkingComplete: isThinkingComplete },
+                                            undefined, // Bug 1: no extraFields — messageUpdater handles thinkingContent
                                             {
                                                 progressUpdater: existing => {
                                                     const updates = [...existing];
@@ -1069,10 +1071,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                         });
                                     }
 
-                                    // If this is a thinking-only event, don't process further
                                     const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
                                     if (otherPartsThinking.length === 0) {
-                                        return;
+                                        break;
                                     }
                                     break;
                                 }

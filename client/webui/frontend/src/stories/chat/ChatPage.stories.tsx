@@ -11,7 +11,7 @@ const OpenFeatureDecorator = createOpenFeatureDecorator({
     flags: {
         model_config_ui: false,
         inline_activity_timeline: false,
-        show_thinking_content: true,
+        show_thinking_content: false,
     },
 });
 
@@ -89,8 +89,6 @@ export const WithLoadingMessage: Story = {
         const canvas = within(canvasElement);
 
         await canvas.findByTestId("expandPanel");
-        // viewActivity button is now inside the inline progress timeline (InlineProgressUpdates)
-        // and only renders when there are progressUpdates on the message
         await canvas.findByTestId("cancel");
     },
 };
