@@ -132,20 +132,19 @@ class TestToRawLitellmConfig:
         result = ModelConfigService._to_raw_litellm_config(db_model)
         assert result["model"] == "bedrock/anthropic.claude-3"
 
-    def test_gcp_service_account_json_remapped(self):
-        """GCP service_account_json is remapped to vertex_credentials for LiteLLM."""
+    def test_gcp_vertex_credentials_passed_through(self):
+        """GCP vertex_credentials is passed through directly to LiteLLM config."""
         db_model = _make_db_model(
             provider="vertex_ai", model_name="gemini-pro", api_base=None,
             model_auth_config={
                 "type": "gcp_service_account",
-                "service_account_json": '{"project_id": "test"}',
+                "vertex_credentials": '{"project_id": "test"}',
                 "vertex_project": "test",
             },
             model_params=None,
         )
         result = ModelConfigService._to_raw_litellm_config(db_model)
-        assert "vertex_credentials" in result
-        assert "service_account_json" not in result
+        assert result["vertex_credentials"] == '{"project_id": "test"}'
 
 
 class TestGetByAlias:

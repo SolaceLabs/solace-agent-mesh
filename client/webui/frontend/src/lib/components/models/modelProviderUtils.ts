@@ -19,7 +19,7 @@ export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
     aws_access_key_id: "awsAccessKeyId",
     aws_secret_access_key: "awsSecretAccessKey",
     aws_session_token: "awsSessionToken",
-    gcp_service_account_json: "gcpServiceAccountJson",
+    vertex_credentials: "vertexCredentials",
     // Routing / connection fields (not secret, no placeholder redaction)
     aws_region_name: "awsRegionName",
     vertex_project: "vertexProject",
@@ -84,7 +84,7 @@ export interface ModelFormData {
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
     awsRegionName?: string;
-    gcpServiceAccountJson?: string;
+    vertexCredentials?: string;
     vertexProject?: string;
     vertexLocation?: string;
     temperature?: string;
@@ -205,7 +205,7 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
     ],
     gcp_service_account: [
         {
-            name: "gcpServiceAccountJson",
+            name: "vertexCredentials",
             label: "Service Account JSON",
             type: "textarea",
             required: true,
@@ -469,8 +469,8 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         }
     } else if (data.authType === "gcp_service_account") {
         authConfig = { type: "gcp_service_account" };
-        if (shouldIncludeCredential("gcpServiceAccountJson", data.gcpServiceAccountJson)) {
-            authConfig.service_account_json = data.gcpServiceAccountJson;
+        if (shouldIncludeCredential("vertexCredentials", data.vertexCredentials)) {
+            authConfig.vertex_credentials = data.vertexCredentials;
         }
         if (data.vertexProject) {
             authConfig.vertex_project = data.vertexProject;

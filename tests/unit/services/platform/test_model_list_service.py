@@ -288,8 +288,8 @@ class TestModelListServiceValidation:
             )
         assert "aws_access_key_id, aws_secret_access_key, and aws_region_name are required" in str(exc_info.value)
 
-    def test_gcp_service_account_auth_missing_json(self):
-        """Missing service_account_json should raise ValidationError."""
+    def test_gcp_service_account_auth_missing_credentials(self):
+        """Missing vertex_credentials should raise ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             self.service.get_models_with_new_credentials(
                 provider="vertex_ai",
@@ -297,7 +297,7 @@ class TestModelListServiceValidation:
                 auth_type="gcp_service_account",
                 auth_config={"vertex_project": "my-project", "vertex_location": "us-central1"},
             )
-        assert "gcp_service_account_json, vertex_project, and vertex_location are required" in str(exc_info.value)
+        assert "vertex_credentials, vertex_project, and vertex_location are required" in str(exc_info.value)
 
     def test_gcp_service_account_auth_missing_project(self):
         """Missing vertex_project should raise ValidationError."""
@@ -306,9 +306,9 @@ class TestModelListServiceValidation:
                 provider="vertex_ai",
                 api_base=None,
                 auth_type="gcp_service_account",
-                auth_config={"service_account_json": "{}", "vertex_location": "us-central1"},
+                auth_config={"vertex_credentials": "{}", "vertex_location": "us-central1"},
             )
-        assert "gcp_service_account_json, vertex_project, and vertex_location are required" in str(exc_info.value)
+        assert "vertex_credentials, vertex_project, and vertex_location are required" in str(exc_info.value)
 
     def test_unsupported_auth_type(self):
         """Unsupported auth_type should raise ValidationError."""

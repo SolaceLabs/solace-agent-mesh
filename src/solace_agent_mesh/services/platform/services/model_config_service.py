@@ -404,14 +404,10 @@ class ModelConfigService:
         config = {"model": _resolve_litellm_model_name(db_model.provider, db_model.model_name)}
         if db_model.api_base:
             config["api_base"] = db_model.api_base
-        # Merge auth credentials (unredacted), remapping any keys that LiteLLM expects
-        # under a different name than what we store.
+        # Merge auth credentials (unredacted)
         if db_model.model_auth_config:
             auth_config = dict(db_model.model_auth_config)
             auth_config.pop("type", None)
-            # GCP service account JSON is stored as "service_account_json" but LiteLLM expects "vertex_credentials"
-            if "service_account_json" in auth_config:
-                auth_config["vertex_credentials"] = auth_config.pop("service_account_json")
             config.update(auth_config)
         # Merge model params
         if db_model.model_params:
@@ -503,9 +499,6 @@ class ModelConfigService:
                 else:
                     return False, "Test connection failed. Failed to fetch OAuth2 token"
             else:
-                # GCP service account JSON is stored as "service_account_json" but LiteLLM expects "vertex_credentials"
-                if "service_account_json" in auth_kwargs:
-                    auth_kwargs["vertex_credentials"] = auth_kwargs.pop("service_account_json")
                 litellm_kwargs.update(auth_kwargs)
 
             # For connection testing, do NOT include model_params.

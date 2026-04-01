@@ -78,7 +78,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change.
     // Values aren't used directly — isConfigured() reads via getValues() — but the
     // watch() subscription is needed to trigger a re-render when any field changes.
-    watch(["clientId", "clientSecret", "tokenUrl", "awsAccessKeyId", "awsSecretAccessKey", "awsRegionName", "gcpServiceAccountJson", "vertexProject", "vertexLocation"]);
+    watch(["clientId", "clientSecret", "tokenUrl", "awsAccessKeyId", "awsSecretAccessKey", "awsRegionName", "vertexCredentials", "vertexProject", "vertexLocation"]);
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -102,7 +102,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             return isConfigured("awsAccessKeyId") && isConfigured("awsSecretAccessKey");
         }
         if (selectedAuthType === "gcp_service_account") {
-            return isConfigured("gcpServiceAccountJson");
+            return isConfigured("vertexCredentials");
         }
         return false;
     })();
@@ -329,7 +329,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // For auth fields during edit, make them optional (credentials are stored server-side)
         // Only auth credential fields are truly optional;
         // structural fields (clientId, tokenUrl, etc.) remain required for setup
-        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"].includes(field.name);
+        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "vertexCredentials"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
 
         // Password fields use the dedicated PasswordInput component

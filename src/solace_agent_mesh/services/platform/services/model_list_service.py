@@ -81,9 +81,9 @@ class ModelListService:
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
 
         elif auth_type == "gcp_service_account":
-            if not (auth_config.get("service_account_json") and auth_config.get("vertex_project") and auth_config.get("vertex_location")):
+            if not (auth_config.get("vertex_credentials") and auth_config.get("vertex_project") and auth_config.get("vertex_location")):
                 raise ValidationErrorBuilder().message(
-                    "gcp_service_account_json, vertex_project, and vertex_location are required for gcp_service_account authentication"
+                    "vertex_credentials, vertex_project, and vertex_location are required for gcp_service_account authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
 
         elif auth_type == "none":
@@ -339,15 +339,15 @@ class ModelListService:
         from google.oauth2 import service_account
         import google.auth.transport.requests
 
-        service_account_json = auth_config.get("service_account_json")
-        if not service_account_json:
-            raise RuntimeError("Service account JSON is required for Vertex AI")
+        vertex_credentials = auth_config.get("vertex_credentials")
+        if not vertex_credentials:
+            raise RuntimeError("vertex_credentials is required for Vertex AI")
 
         # Parse the service account JSON (could be a string or already a dict)
-        if isinstance(service_account_json, str):
-            sa_info = json.loads(service_account_json)
+        if isinstance(vertex_credentials, str):
+            sa_info = json.loads(vertex_credentials)
         else:
-            sa_info = service_account_json
+            sa_info = vertex_credentials
 
         project = auth_config.get("vertex_project") or model_params.get("vertexProject") or sa_info.get("project_id")
         location = auth_config.get("vertex_location") or model_params.get("vertexLocation", "us-central1")
