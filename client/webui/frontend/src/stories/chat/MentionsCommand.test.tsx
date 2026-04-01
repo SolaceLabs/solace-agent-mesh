@@ -1,5 +1,5 @@
 /// <reference types="@testing-library/jest-dom" />
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
@@ -126,7 +126,10 @@ describe("MentionsCommand", () => {
         const onPersonSelect = vi.fn();
         renderMentions({ searchQuery: "alice", onPersonSelect });
 
+        // Wait for the person to appear in the DOM
         await screen.findByText("Alice Smith");
+        // Flush pending effects so the keydown listener is re-registered with the updated people array
+        await act(async () => {});
         fireEvent.keyDown(window, { key: "Enter" });
         await waitFor(() => expect(onPersonSelect).toHaveBeenCalledWith(mockPerson));
     });

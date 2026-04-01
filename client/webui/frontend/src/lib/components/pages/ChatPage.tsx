@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
@@ -40,10 +41,12 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const { autoTitleGenerationEnabled, configFeatureEnablement } = useConfigContext();
+    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
     const location = useLocation();
     const navigate = useNavigate();
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const {
         agents,
         sessionId,
@@ -223,8 +226,9 @@ export function ChatPage() {
     }, [currentTaskId, taskMapVersion]);
 
     const { chatPanelSizes, sidePanelSizes } = useMemo(() => {
+        if (useNewNav) return PANEL_SIZES_CLOSED;
         return isSessionSidePanelCollapsed ? PANEL_SIZES_CLOSED : PANEL_SIZES_OPEN;
-    }, [isSessionSidePanelCollapsed]);
+    }, [isSessionSidePanelCollapsed, useNewNav]);
 
     const handleSidepanelToggle = useCallback(
         (collapsed: boolean) => {
@@ -381,6 +385,29 @@ export function ChatPage() {
         });
     }, [shareNotifications, isCollaborativeSession, messages]);
 
+    // --- LoadingMessageRow support (when inline-activity-timeline is disabled) ---
+    const loadingMessage = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return undefined;
+        return messages.find(message => message.isStatusBubble);
+    }, [messages, inlineActivityTimelineEnabled]);
+
+    const backendStatusText = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return null;
+        if (!loadingMessage || !loadingMessage.parts) return null;
+        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
+        return textPart?.text || null;
+    }, [loadingMessage, inlineActivityTimelineEnabled]);
+
+    const handleViewProgressClick = useMemo(() => {
+        if (inlineActivityTimelineEnabled) return undefined;
+        if (!currentTaskId) return undefined;
+
+        return () => {
+            setTaskIdInSidePanel(currentTaskId);
+            openSidePanelTab("activity");
+        };
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
+
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
         messages.forEach((message, index) => {
@@ -391,28 +418,9 @@ export function ChatPage() {
         return map;
     }, [messages]);
 
-    const loadingMessage = useMemo(() => {
-        return messages.find(message => message.isStatusBubble);
-    }, [messages]);
-
-    const backendStatusText = useMemo(() => {
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage]);
-
-    const handleViewProgressClick = useMemo(() => {
-        // Use currentTaskId directly instead of relying on loadingMessage
-        if (!currentTaskId) return undefined;
-
-        return () => {
-            setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("activity");
-        };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
-
     // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
+        if (useNewNav) return;
         const state = location.state as {
             openSessionsPanel?: boolean;
             switchToSession?: string;
@@ -431,7 +439,7 @@ export function ChatPage() {
 
         // Clear the state to prevent re-triggering on browser back button
         navigate(location.pathname, { replace: true, state: {} });
-    }, [location.state, location.pathname, navigate, handleSwitchSession, handleNewSession]);
+    }, [location.state, location.pathname, navigate, useNewNav, handleSwitchSession, handleNewSession]);
 
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
@@ -452,10 +460,12 @@ export function ChatPage() {
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
-                <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
-            </div>
-            <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+            {!useNewNav && (
+                <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+                    <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
+                </div>
+            )}
+            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
                         <div className="flex items-center gap-3">
@@ -472,7 +482,9 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        isSessionSidePanelCollapsed ? (
+                        useNewNav ? (
+                            <ChatSessionDialog />
+                        ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
                                 <Button data-testid="showSessionsPanel" variant="ghost" onClick={handleSessionSidePanelToggle} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
@@ -507,7 +519,7 @@ export function ChatPage() {
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
@@ -564,7 +576,7 @@ export function ChatPage() {
                                                 })}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
-                                                {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
+                                                {!inlineActivityTimelineEnabled && isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
                                         </>
