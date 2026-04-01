@@ -93,7 +93,7 @@ class ModelConfigurationUpdateRequest(ModelConfigurationBaseRequest):
 class SupportedModelsRequest(CamelCaseModel):
     """Request model for querying supported models from a provider.
     Supports two modes:
-    1. Editing mode: provide model_alias to use stored credentials
+    1. Editing mode: provide model_id to use stored credentials
     2. Creating mode: provide auth_type and appropriate credentials
     """
     provider: str = Field(
@@ -102,9 +102,9 @@ class SupportedModelsRequest(CamelCaseModel):
         max_length=50,
         description="Provider ID (e.g., 'openai', 'anthropic', 'custom')",
     )
-    model_alias: Optional[str] = Field(
+    model_id: Optional[str] = Field(
         None,
-        description="Model alias for editing mode (uses stored credentials from database)",
+        description="Model ID for editing mode (uses stored credentials from database)",
     )
     api_base: Optional[str] = Field(
         None,
@@ -168,11 +168,9 @@ class ModelConfigurationTestRequest(CamelCaseModel):
     - Can override provider/model_name to test if credentials work with new configuration
     """
 
-    alias: Optional[str] = Field(
+    model_id: Optional[str] = Field(
         None,
-        min_length=1,
-        max_length=100,
-        description="Optional: Model alias to load configuration from database",
+        description="Optional: Model ID (UUID) to load configuration from database",
     )
     provider: Optional[str] = Field(
         None,

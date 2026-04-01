@@ -145,25 +145,22 @@ async def get_models_status(
     return create_data_response(ModelConfigStatusResponse(configured=configured))
 
 @router.get(
-    "/models/{alias}",
+    "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
-    summary="Get model configuration by alias",
-    description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
+    summary="Get model configuration by ID",
+    description="Retrieve a model configuration by ID (UUID). Sensitive authentication information is excluded.",
 )
 async def get_model(
-    alias: str,
+    model_id: str,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
     """
-    Retrieve a model configuration by alias.
-
-    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
-    client secrets) is excluded from the response.
+    Retrieve a model configuration by ID.
 
     Args:
-        alias: The model alias to look up
+        model_id: The model UUID to look up
 
     Returns:
         DataResponse with model configuration data
@@ -171,7 +168,7 @@ async def get_model(
     Raises:
         HTTPException: 404 if configuration not found
     """
-    config = service.get_by_alias(db, alias)
+    config = service.get_by_id(db, model_id)
     return create_data_response(config)
 
 
@@ -192,18 +189,18 @@ async def create_model(
 ) -> DataResponse[ModelConfigurationResponse]:
     created_by = user.get("id", "unknown")
     config = service.create(db, request, created_by=created_by)
-    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    raw_config = service.get_by_id(db, config.id, raw=True)
     _emit_model_config_update(component, config.id, config.alias, raw_config)
     return create_data_response(config)
 
 @router.put(
-    "/models/{alias}",
+    "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
     summary="Update a model configuration",
-    description="Update an existing model configuration by alias. Only provided fields are updated.",
+    description="Update an existing model configuration by ID. Only provided fields are updated.",
 )
 async def update_model(
-    alias: str,
+    model_id: str,
     request: ModelConfigurationUpdateRequest,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
@@ -212,20 +209,20 @@ async def update_model(
     component=Depends(get_component_instance),
 ) -> DataResponse[ModelConfigurationResponse]:
     updated_by = user.get("id", "unknown")
-    config = service.update(db, alias, request, updated_by=updated_by)
-    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    config = service.update(db, model_id, request, updated_by=updated_by)
+    raw_config = service.get_by_id(db, config.id, raw=True)
     _emit_model_config_update(component, config.id, config.alias, raw_config)
     return create_data_response(config)
 
 
 @router.get(
-    "/models/{alias}/dependents",
+    "/models/{model_id}/dependents",
     response_model=DataResponse[list[ModelDependentResponse]],
     summary="Get agents that depend on a model",
-    description="Return deployed agents whose model_provider references the given model alias or ID. Requires enterprise package.",
+    description="Return deployed agents whose model_provider references the given model by alias or ID. Requires enterprise package.",
 )
 async def get_model_dependents(
-    alias: str,
+    model_id: str,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
@@ -235,7 +232,7 @@ async def get_model_dependents(
     Attempts to import the enterprise ModelDependentsService. If the enterprise
     package is not installed, returns an empty list.
     """
-    config = service.get_by_alias(db, alias)
+    config = service.get_by_id(db, model_id)
 
     try:
         from solace_agent_mesh_enterprise.platform_service.services.model_dependents_service import (
@@ -265,13 +262,13 @@ async def get_model_dependents(
 
 
 @router.delete(
-    "/models/{alias}",
+    "/models/{model_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a model configuration",
-    description="Delete a model configuration by alias. Automatically undeploys any agents that depend on this model. This action cannot be undone.",
+    description="Delete a model configuration by ID. Automatically undeploys any agents that depend on this model. This action cannot be undone.",
 )
 async def delete_model(
-    alias: str,
+    model_id: str,
     _: None = Depends(_require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
@@ -279,11 +276,10 @@ async def delete_model(
     component=Depends(get_component_instance),
     dependents_handler: ModelDependentsHandler = Depends(get_model_dependents_handler),
 ) -> None:
-    config = service.get_by_alias(db, alias)
+    config = service.get_by_id(db, model_id)
     await dependents_handler.undeploy_dependents(config.alias, config.id, component)
-    service.delete(db, alias)
-    _emit_model_config_update(component, config.id, alias, None)
-
+    service.delete(db, model_id)
+    _emit_model_config_update(component, config.id, config.alias, None)
 
 @router.post(
     "/supported-models",
@@ -308,15 +304,15 @@ async def list_supported_models_by_provider(
     Auth validation and config building is delegated to ModelListService.
     """
     # Mode 1: Editing - use stored credentials from database
-    if request.model_alias:
-        models = config_service.get_models_from_provider_by_alias(db, request.model_alias, service)
+    if request.model_id:
+        models = config_service.get_models_from_provider_by_id(db, request.model_id, service)
         return create_data_response(models)
 
     # Mode 2: Creating - use credentials from request
     # Validate that either model_alias or auth_type is provided
     if not request.auth_type:
         raise ValidationErrorBuilder().message(
-            "Either model_alias (for editing) or auth_type with credentials (for creating) is required"
+            "Either model_id (for editing) or auth_type with credentials (for creating) is required"
         ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
 
     # Delegate auth validation and config building to service
