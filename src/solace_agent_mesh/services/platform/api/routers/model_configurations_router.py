@@ -331,7 +331,10 @@ async def list_supported_models_by_provider(
         aws_access_key_id=request.aws_access_key_id,
         aws_secret_access_key=request.aws_secret_access_key,
         aws_session_token=request.aws_session_token,
+        aws_region_name=request.aws_region_name,
         gcp_service_account_json=request.gcp_service_account_json,
+        vertex_project=request.vertex_project,
+        vertex_location=request.vertex_location,
         model_params=request.model_params,
     )
 

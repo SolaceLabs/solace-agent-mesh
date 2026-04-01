@@ -13,6 +13,7 @@ import {
     AUTH_TYPE_LABELS,
     COMMON_MODEL_PARAMS,
     REDACTED_CREDENTIAL_PLACEHOLDER,
+    REDACTED_CREDENTIAL_FIELDS,
     AUTH_CONFIG_TO_FORM_FIELD_MAP,
     type AuthType,
     type ProviderField,
@@ -75,6 +76,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
+    // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change
+    const clientId = watch("clientId");
+    const clientSecret = watch("clientSecret");
+    const tokenUrl = watch("tokenUrl");
+    const awsAccessKeyId = watch("awsAccessKeyId");
+    const awsSecretAccessKey = watch("awsSecretAccessKey");
+    const awsRegionName = watch("awsRegionName");
+    const gcpServiceAccountJson = watch("gcpServiceAccountJson");
+    const vertexProject = watch("vertexProject");
+    const vertexLocation = watch("vertexLocation");
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -86,19 +97,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         if (selectedAuthType === "none") return true;
         if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
         if (selectedAuthType === "oauth2") {
-            const clientId = getValues("clientId");
-            const clientSecret = getValues("clientSecret");
-            const tokenUrl = getValues("tokenUrl");
             return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
         }
         if (selectedAuthType === "aws_iam") {
-            const accessKey = getValues("awsAccessKeyId");
-            const secretKey = getValues("awsSecretAccessKey");
-            return !!accessKey && accessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return !!awsAccessKeyId && awsAccessKeyId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!awsSecretAccessKey && awsSecretAccessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!awsRegionName;
         }
         if (selectedAuthType === "gcp_service_account") {
-            const json = getValues("gcpServiceAccountJson");
-            return !!json && json !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return !!gcpServiceAccountJson && gcpServiceAccountJson !== REDACTED_CREDENTIAL_PLACEHOLDER && !!vertexProject && !!vertexLocation;
         }
         return false;
     })();
@@ -256,12 +261,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("description", modelToEdit.description || "");
 
             // Populate auth credential fields from authConfig
-            // For password fields that are redacted by the server, populate with REDACTED_CREDENTIAL_PLACEHOLDER
             if (modelToEdit.authConfig) {
                 Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
                     const value = modelToEdit.authConfig[configKey];
-                    // If the value is empty/falsy (redacted by server), use placeholder
-                    setValue(fieldName, value ? String(value) : REDACTED_CREDENTIAL_PLACEHOLDER);
+                    if (value) {
+                        setValue(fieldName, String(value));
+                    } else if (REDACTED_CREDENTIAL_FIELDS.includes(fieldName)) {
+                        // Secret was redacted by server — show placeholder so user knows a value exists
+                        setValue(fieldName, REDACTED_CREDENTIAL_PLACEHOLDER);
+                    }
+                    // Non-secret fields with no value: leave at default (empty)
                 });
             }
 

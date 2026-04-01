@@ -8,6 +8,11 @@ import logging
 from typing import List, Dict, Optional
 import httpx
 
+try:
+    import litellm
+except ImportError:
+    litellm = None
+
 from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
 log = logging.getLogger(__name__)
@@ -41,7 +46,10 @@ class ModelListService:
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
         aws_session_token: Optional[str] = None,
+        aws_region_name: Optional[str] = None,
         gcp_service_account_json: Optional[str] = None,
+        vertex_project: Optional[str] = None,
+        vertex_location: Optional[str] = None,
         model_params: Optional[Dict] = None,
     ) -> List[Dict[str, str]]:
         """
@@ -90,21 +98,24 @@ class ModelListService:
             auth_config["token_url"] = token_url
 
         elif auth_type == "aws_iam":
-            if not (aws_access_key_id and aws_secret_access_key):
+            if not (aws_access_key_id and aws_secret_access_key and aws_region_name):
                 raise ValidationErrorBuilder().message(
-                    "aws_access_key_id and aws_secret_access_key are required for aws_iam authentication"
+                    "aws_access_key_id, aws_secret_access_key, and aws_region_name are required for aws_iam authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["aws_access_key_id"] = aws_access_key_id
             auth_config["aws_secret_access_key"] = aws_secret_access_key
+            auth_config["aws_region_name"] = aws_region_name
             if aws_session_token:
                 auth_config["aws_session_token"] = aws_session_token
 
         elif auth_type == "gcp_service_account":
-            if not gcp_service_account_json:
+            if not (gcp_service_account_json and vertex_project and vertex_location):
                 raise ValidationErrorBuilder().message(
-                    "gcp_service_account_json is required for gcp_service_account authentication"
+                    "gcp_service_account_json, vertex_project, and vertex_location are required for gcp_service_account authentication"
                 ).entity_type("ProviderCredentials").entity_identifier(provider).build()
             auth_config["service_account_json"] = gcp_service_account_json
+            auth_config["vertex_project"] = vertex_project
+            auth_config["vertex_location"] = vertex_location
 
         elif auth_type == "none":
             pass  # No credentials needed
@@ -172,7 +183,11 @@ class ModelListService:
             return models
 
         except Exception as e:
-            log.error(f"Failed to fetch models from {provider}: {str(e)}", exc_info=True)
+            log.warning(f"Failed to fetch models from {provider} API: {str(e)}. Falling back to LiteLLM registry.")
+            fallback_models = self._get_litellm_models_for_provider(provider)
+            if fallback_models:
+                log.info(f"Returning {len(fallback_models)} models from LiteLLM registry for {provider}")
+                return [{"id": m, "label": m, "provider": provider} for m in fallback_models]
             raise RuntimeError(f"Failed to fetch models from {provider}: {str(e)}")
 
     def _get_provider_api_base(self, provider: str) -> str:
@@ -182,7 +197,7 @@ class ModelListService:
             ModelProviders.ANTHROPIC: "https://api.anthropic.com",
             ModelProviders.GOOGLE_AI_STUDIO: "https://generativelanguage.googleapis.com/v1beta/models",
             ModelProviders.AZURE_OPENAI: None,  # Requires custom api_base
-            ModelProviders.OLLAMA: "http://localhost:11434/api",
+            ModelProviders.OLLAMA: None,  # Requires custom api_base
         }
         return api_bases.get(provider)
 
@@ -231,7 +246,10 @@ class ModelListService:
         if provider == ModelProviders.VERTEX_AI:
             return self._fetch_vertex_ai_models(auth_config, model_params)
         if provider == ModelProviders.AZURE_OPENAI:
-            return self._fetch_azure_openai_models(api_base, headers, model_params)
+            # Azure deployment names are user-defined and cannot be listed with an API key alone.
+            # The management API (subscription-level auth) would be required. Return empty so the
+            # UI falls back to manual text entry.
+            return []
 
         if not api_base:
             raise RuntimeError(f"API base URL not configured for provider {provider}")
@@ -252,7 +270,7 @@ class ModelListService:
                 else:
                     raise RuntimeError("API key required for Google AI Studio")
         elif provider == ModelProviders.OLLAMA:
-            endpoint = f"{api_base}/tags"
+            endpoint = f"{api_base.rstrip('/')}/api/tags"
         else:
             raise RuntimeError(f"Unsupported provider for model listing: {provider}")
 
@@ -290,7 +308,7 @@ class ModelListService:
 
                 elif provider == ModelProviders.OLLAMA:
                     data = response.json()
-                    return [model["name"].split(":")[0] for model in data.get("models", [])]
+                    return [model["name"] for model in data.get("models", []) if model.get("name")]
 
         except httpx.HTTPError as e:
             raise RuntimeError(f"HTTP error fetching models from {provider}: {str(e)}")
@@ -298,10 +316,14 @@ class ModelListService:
             raise RuntimeError(f"Error fetching models from {provider}: {str(e)}")
 
     def _fetch_bedrock_models(self, auth_config: Dict, model_params: Dict) -> List[str]:
-        """Fetch available models from AWS Bedrock using boto3."""
+        """Fetch available models from AWS Bedrock using boto3.
+
+        Returns inference profile IDs for models that require them, and base model IDs
+        for models that support on-demand invocation directly.
+        """
         import boto3
 
-        region = model_params.get("awsRegionName", "us-east-1")
+        region = auth_config.get("aws_region_name") or model_params.get("awsRegionName", "us-east-1")
         client = boto3.client(
             "bedrock",
             region_name=region,
@@ -310,8 +332,31 @@ class ModelListService:
             aws_session_token=auth_config.get("aws_session_token"),
         )
 
-        response = client.list_foundation_models()
-        return [m["modelId"] for m in response.get("modelSummaries", [])]
+        # Collect models that support on-demand invocation directly
+        on_demand_models = set()
+        foundation_response = client.list_foundation_models()
+        for m in foundation_response.get("modelSummaries", []):
+            if "ON_DEMAND" in m.get("inferenceTypesSupported", []):
+                on_demand_models.add(m["modelId"])
+
+        # Collect cross-region inference profile IDs — these are needed for models
+        # that do not support on-demand invocation (newer Anthropic, etc.)
+        profile_ids = []
+        try:
+            profiles_response = client.list_inference_profiles(typeEquals="SYSTEM_DEFINED")
+            for p in profiles_response.get("inferenceProfileSummaries", []):
+                profile_ids.append(p["inferenceProfileId"])
+        except Exception:
+            log.debug("list_inference_profiles not available or failed; skipping profiles")
+
+        # Merge: prefer inference profile IDs, fall back to on-demand model IDs for
+        # anything not covered by a profile
+        profile_base_ids = {pid.split(".", 1)[-1] for pid in profile_ids if "." in pid}
+        result = list(profile_ids)
+        for model_id in sorted(on_demand_models):
+            if model_id not in profile_base_ids:
+                result.append(model_id)
+        return result
 
     def _fetch_vertex_ai_models(self, auth_config: Dict, model_params: Dict) -> List[str]:
         """Fetch available models from Google Vertex AI using service account credentials."""
@@ -328,8 +373,8 @@ class ModelListService:
         else:
             sa_info = service_account_json
 
-        project = model_params.get("vertexProject") or sa_info.get("project_id")
-        location = model_params.get("vertexLocation", "us-central1")
+        project = auth_config.get("vertex_project") or model_params.get("vertexProject") or sa_info.get("project_id")
+        location = auth_config.get("vertex_location") or model_params.get("vertexLocation", "us-central1")
 
         if not project:
             raise RuntimeError("GCP project ID is required for Vertex AI")
@@ -354,22 +399,30 @@ class ModelListService:
         data = response.json()
         return [m["name"].split("/")[-1] for m in data.get("publisherModels", []) if m.get("name")]
 
-    def _fetch_azure_openai_models(self, api_base: str, headers: Dict, model_params: Dict) -> List[str]:
-        """Fetch available models from Azure OpenAI."""
-        if not api_base:
-            raise RuntimeError("API base URL is required for Azure OpenAI")
+    def _get_litellm_models_for_provider(self, provider: str) -> List[str]:
+        """Return models for a provider from LiteLLM's built-in model registry.
 
-        api_version = model_params.get("apiVersion", "2024-10-21")
-        endpoint = f"{api_base.rstrip('/')}/openai/models"
-
-        with httpx.Client() as client:
-            response = client.get(
-                endpoint,
-                headers=headers,
-                params={"api-version": api_version},
-                timeout=10.0,
-            )
-            response.raise_for_status()
-
-        data = response.json()
-        return [model["id"] for model in data.get("data", [])]
+        Used as a fallback when the provider's API cannot be reached or doesn't
+        support listing models (e.g., Vertex AI Model Garden not enabled).
+        """
+        if litellm is None:
+            return []
+        try:
+            # LiteLLM's models_by_provider uses different keys than our provider IDs
+            litellm_key_map = {
+                ModelProviders.GOOGLE_AI_STUDIO: "gemini",
+                ModelProviders.AZURE_OPENAI: "azure",
+            }
+            key = litellm_key_map.get(provider, provider)
+            models_with_prefix = litellm.models_by_provider.get(key, [])
+            # Strip provider prefix if present (e.g., "vertex_ai/gemini-1.5-pro" → "gemini-1.5-pro")
+            result = []
+            for model in models_with_prefix:
+                if "/" in model:
+                    result.append(model.split("/", 1)[1])
+                else:
+                    result.append(model)
+            return result
+        except Exception as e:
+            log.debug("Could not get models from LiteLLM registry for %s: %s", provider, e)
+            return []

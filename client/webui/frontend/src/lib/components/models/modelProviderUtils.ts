@@ -15,8 +15,9 @@
 export const REDACTED_CREDENTIAL_PLACEHOLDER = "<encrypted>";
 
 /**
- * Mapping of backend authConfig keys to form field names for sensitive credentials
- * Used for populating form fields when editing with redacted values
+ * Mapping of backend authConfig keys to form field names.
+ * Used when loading an existing config for editing.
+ * NOTE: not all of these are sensitive — see REDACTED_CREDENTIAL_FIELDS for the subset that is.
  */
 export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
     api_key: "apiKey",
@@ -26,15 +27,20 @@ export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
     aws_secret_access_key: "awsSecretAccessKey",
     aws_session_token: "awsSessionToken",
     gcp_service_account_json: "gcpServiceAccountJson",
+    // Routing / connection fields (not secret, no placeholder redaction)
+    aws_region_name: "awsRegionName",
+    vertex_project: "vertexProject",
+    vertex_location: "vertexLocation",
+    api_version: "apiVersion",
 };
 
 /**
- * Form field names that contain sensitive credentials and are redacted by the server
+ * Form field names that contain sensitive credentials and are redacted by the server.
  * Used for:
  * - Populating with REDACTED_CREDENTIAL_PLACEHOLDER during edit
  * - Stripping placeholder values before submission
  */
-export const REDACTED_CREDENTIAL_FIELDS = Object.values(AUTH_CONFIG_TO_FORM_FIELD_MAP);
+export const REDACTED_CREDENTIAL_FIELDS: string[] = ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"];
 
 export interface ModelProvider {
     id: string;
@@ -92,7 +98,10 @@ export interface ModelFormData {
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
+    awsRegionName?: string;
     gcpServiceAccountJson?: string;
+    vertexProject?: string;
+    vertexLocation?: string;
     temperature?: string;
     maxTokens?: string;
     customParams?: Array<{ key: string; value: string }>;
@@ -121,35 +130,8 @@ const AZURE_OPENAI_FIELDS: ProviderField[] = [
         name: "apiVersion",
         label: "API Version",
         type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-];
-
-const VERTEX_AI_FIELDS: ProviderField[] = [
-    {
-        name: "vertexProject",
-        label: "GCP Project ID",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-    {
-        name: "vertexLocation",
-        label: "GCP Region",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-];
-
-const BEDROCK_FIELDS: ProviderField[] = [
-    {
-        name: "awsRegionName",
-        label: "AWS Region",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
+        required: false,
+        storageTarget: "auth",
     },
 ];
 
@@ -228,6 +210,13 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             required: false,
             storageTarget: "auth",
         },
+        {
+            name: "awsRegionName",
+            label: "AWS Region",
+            type: "text",
+            required: true,
+            storageTarget: "auth",
+        },
     ],
     gcp_service_account: [
         {
@@ -236,6 +225,20 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             type: "textarea",
             required: true,
             helpText: "Paste the full JSON key file contents",
+            storageTarget: "auth",
+        },
+        {
+            name: "vertexProject",
+            label: "GCP Project ID",
+            type: "text",
+            required: true,
+            storageTarget: "auth",
+        },
+        {
+            name: "vertexLocation",
+            label: "GCP Region",
+            type: "text",
+            required: true,
             storageTarget: "auth",
         },
     ],
@@ -324,7 +327,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         id: "vertex_ai",
         label: "Google Vertex AI",
         showApiBase: false,
-        fields: VERTEX_AI_FIELDS,
+        fields: [],
         modelNamePlaceholder: "vertex_ai/gemini-1.5-pro",
         allowedAuthTypes: ["gcp_service_account"],
     },
@@ -332,7 +335,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         id: "bedrock",
         label: "Amazon Bedrock",
         showApiBase: false,
-        fields: BEDROCK_FIELDS,
+        fields: [],
         modelNamePlaceholder: "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
         allowedAuthTypes: ["aws_iam"],
     },
@@ -400,12 +403,19 @@ export function buildModelPayload(data: ModelFormData) {
 
     const providerConfig = getProviderConfig(data.provider);
 
-    // Collect model_params from provider-specific fields
+    // Collect provider-specific fields, respecting storage target
     const modelParams: Record<string, unknown> = {};
+    const providerAuthFields: Record<string, unknown> = {};
     for (const field of providerConfig.fields) {
         if (data[field.name] != null && data[field.name] !== "") {
             const value = field.type === "number" ? Number(data[field.name]) : data[field.name];
-            modelParams[field.name] = value;
+            if (field.storageTarget === "auth") {
+                // Convert camelCase to snake_case to match auth_config key convention
+                const snakeKey = field.name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                providerAuthFields[snakeKey] = value;
+            } else {
+                modelParams[field.name] = value;
+            }
         }
     }
 
@@ -466,14 +476,26 @@ export function buildModelPayload(data: ModelFormData) {
         if (data.awsSessionToken) {
             authConfig.aws_session_token = data.awsSessionToken;
         }
+        if (data.awsRegionName) {
+            authConfig.aws_region_name = data.awsRegionName;
+        }
     } else if (data.authType === "gcp_service_account") {
         authConfig = { type: "gcp_service_account" };
         if (data.gcpServiceAccountJson) {
             authConfig.service_account_json = data.gcpServiceAccountJson;
         }
+        if (data.vertexProject) {
+            authConfig.vertex_project = data.vertexProject;
+        }
+        if (data.vertexLocation) {
+            authConfig.vertex_location = data.vertexLocation;
+        }
     } else {
         authConfig = { type: "none" };
     }
+
+    // Merge provider-specific connection params (storageTarget: "auth") into authConfig
+    Object.assign(authConfig, providerAuthFields);
 
     // Format model name with provider prefix if needed
     let modelName = data.modelName;

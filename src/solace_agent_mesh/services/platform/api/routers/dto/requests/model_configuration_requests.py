@@ -144,13 +144,25 @@ class SupportedModelsRequest(CamelCaseModel):
         None,
         description="AWS Session Token for aws_iam authentication (optional, for temporary credentials)",
     )
+    aws_region_name: Optional[str] = Field(
+        None,
+        description="AWS region for aws_iam authentication (e.g., 'us-east-1')",
+    )
     gcp_service_account_json: Optional[str] = Field(
         None,
         description="GCP Service Account JSON key for gcp_service_account authentication",
     )
+    vertex_project: Optional[str] = Field(
+        None,
+        description="GCP project ID for Vertex AI",
+    )
+    vertex_location: Optional[str] = Field(
+        None,
+        description="GCP region for Vertex AI (e.g., 'us-central1')",
+    )
     model_params: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
-        description="Provider-specific parameters (e.g., awsRegionName, vertexProject, vertexLocation, apiVersion)",
+        description="Optional model-tuning parameters (e.g., temperature, max_tokens)",
     )
 
 

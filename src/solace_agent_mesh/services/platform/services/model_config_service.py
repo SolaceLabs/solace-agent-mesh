@@ -12,6 +12,7 @@ except ImportError:
 
 
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
+from solace_agent_mesh.services.platform.services.model_list_service import ModelListService
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
@@ -30,6 +31,39 @@ from solace_agent_mesh.shared.exceptions.exceptions import (
 from solace_agent_mesh.common.oauth import OAuth2Client
 
 log = logging.getLogger(__name__)
+
+# LiteLLM uses model name prefixes to route calls to the correct backend.
+# Without the correct prefix, LiteLLM may route to the wrong provider
+# (e.g., a bare "gemini-pro" routes to Vertex AI instead of Google AI Studio).
+_LITELLM_PROVIDER_PREFIXES = {
+    "google_ai_studio": "gemini/",
+    "vertex_ai": "vertex_ai/",
+    "bedrock": "bedrock/",
+    "ollama": "ollama/",
+    "azure_openai": "azure/",
+}
+
+# Providers where LiteLLM resolves the endpoint internally via its prefix routing.
+# For these, passing api_base to LiteLLM is unnecessary and can cause it to bypass
+# its native auth handling (e.g., routing Google AI Studio calls to Vertex AI).
+_LITELLM_MANAGES_ENDPOINT = frozenset({
+    "google_ai_studio",
+    "vertex_ai",
+    "bedrock",
+    "anthropic",
+    "openai",
+})
+
+
+def _resolve_litellm_model_name(provider: Optional[str], model_name: str) -> str:
+    """Prepend the LiteLLM provider prefix to a model name if it doesn't already have one."""
+    if not provider or not model_name:
+        return model_name
+    required_prefix = _LITELLM_PROVIDER_PREFIXES.get(provider)
+    if required_prefix and not model_name.startswith(required_prefix) and "/" not in model_name:
+        return f"{required_prefix}{model_name}"
+    return model_name
+
 
 # Default API bases for known providers
 _DEFAULT_API_BASES = {
@@ -101,7 +135,7 @@ class ModelConfigService:
         self,
         db: Session,
         alias: str,
-        model_list_service: "ModelListService"
+        model_list_service: ModelListService
     ) -> List[Dict]:
         """
         Fetch supported models from a provider using stored credentials.
@@ -343,13 +377,17 @@ class ModelConfigService:
         Returns:
             Dict with keys: model, api_base (optional), auth credentials, model params
         """
-        config = {"model": db_model.model_name}
-        if db_model.api_base:
+        config = {"model": _resolve_litellm_model_name(db_model.provider, db_model.model_name)}
+        if db_model.api_base and db_model.provider not in _LITELLM_MANAGES_ENDPOINT:
             config["api_base"] = db_model.api_base
-        # Merge auth credentials (unredacted)
+        # Merge auth credentials (unredacted), remapping any keys that LiteLLM expects
+        # under a different name than what we store.
         if db_model.model_auth_config:
             auth_config = dict(db_model.model_auth_config)
             auth_config.pop("type", None)
+            # GCP service account JSON is stored as "service_account_json" but LiteLLM expects "vertex_credentials"
+            if "service_account_json" in auth_config:
+                auth_config["vertex_credentials"] = auth_config.pop("service_account_json")
             config.update(auth_config)
         # Merge model params
         if db_model.model_params:
@@ -420,35 +458,37 @@ class ModelConfigService:
 
             # Build litellm call kwargs
             litellm_kwargs: Dict[str, Any] = {
-                "model": model_name,
+                "model": _resolve_litellm_model_name(provider, model_name),
                 "messages": [{"role": "user", "content": "Say OK"}],
                 "max_tokens": 5,
             }
 
-            # Add api_base if available
-            if api_base:
+            # Only pass api_base for providers that need a custom endpoint (e.g., Ollama, Azure,
+            # custom). For providers where LiteLLM handles the endpoint via its prefix routing
+            # (Google AI Studio, Vertex AI, Bedrock, etc.), passing api_base can cause LiteLLM
+            # to bypass its native auth handling.
+            if api_base and provider not in _LITELLM_MANAGES_ENDPOINT:
                 litellm_kwargs["api_base"] = api_base
 
-            # Handle authentication based on auth_type
-            if auth_type == "apikey":
-                api_key = auth_config.get("api_key")
-                if api_key:
-                    litellm_kwargs["api_key"] = api_key
-            elif auth_type == "oauth2":
-                # Fetch OAuth2 token and pass as Bearer in Authorization header
-                token = self._fetch_oauth2_token(auth_config)
+            # Flatten auth_config into litellm kwargs — same approach as _to_raw_litellm_config().
+            # OAuth2 is the only special case: exchange credentials for a bearer token first.
+            auth_kwargs = dict(auth_config)
+            auth_kwargs.pop("type", None)
+            if auth_type == "oauth2":
+                token = self._fetch_oauth2_token(auth_kwargs)
                 if token:
                     litellm_kwargs["api_key"] = token
                 else:
                     return False, "Test connection failed. Failed to fetch OAuth2 token"
+            else:
+                # GCP service account JSON is stored as "service_account_json" but LiteLLM expects "vertex_credentials"
+                if "service_account_json" in auth_kwargs:
+                    auth_kwargs["vertex_credentials"] = auth_kwargs.pop("service_account_json")
+                litellm_kwargs.update(auth_kwargs)
 
             # For connection testing, do NOT include model_params.
             # The test is purely to verify connectivity and authentication work.
             # Custom parameters are validated during actual model usage, not in the test.
-
-            # Bedrock models require tool_choice to be explicitly set
-            if "bedrock" in (model_name or "").lower() and "tool_choice" not in litellm_kwargs:
-                litellm_kwargs["tool_choice"] = {"type": "auto"}
 
             # Make the test call
             response = litellm.completion(**litellm_kwargs)
