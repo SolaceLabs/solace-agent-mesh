@@ -221,7 +221,9 @@ class ModelListService:
             return []
 
         if not api_base:
-            raise RuntimeError(f"API base URL not configured for provider {provider}")
+            # Without an API base URL we cannot query the provider. Return empty so
+            # the UI falls back to manual text entry (same pattern as Azure).
+            return []
 
         # Build endpoint URL and prepare query params based on provider
         query_params = {}

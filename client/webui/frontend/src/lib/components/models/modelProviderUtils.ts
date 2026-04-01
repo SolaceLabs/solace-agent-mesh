@@ -339,7 +339,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Custom",
         description: "Configure a provider that implements the OpenAI-compatible API protocol",
         showApiBase: true,
-        apiBaseRequired: false,
+        apiBaseRequired: true,
         apiBasePlaceholder: "https://api.example.com",
         fields: [],
         modelNamePlaceholder: "my-model-id",

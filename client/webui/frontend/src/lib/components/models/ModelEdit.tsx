@@ -109,7 +109,9 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     // For editing: enable if provider and auth type are set (cached models available)
     // For creating: also need credentials to be filled in (to fetch models)
-    const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
+    // Additionally, if the provider requires an API base URL, it must be filled in
+    const isApiBaseReady = !providerConfig?.apiBaseRequired || !!apiBase;
+    const isModelDropdownEnabled = isProviderConfigured && isApiBaseReady && (!isNew || isAuthCredentialsConfigured);
 
     useEffect(() => {
         onDirtyStateChange?.(isDirty);
@@ -209,7 +211,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
             try {
                 const formData = getValues() as ModelFormData;
-                const payload = buildModelPayload(formData);
+                // Only need authConfig for fetching models — provide safe defaults
+                // for fields that buildModelPayload requires but aren't filled yet
+                const payload = buildModelPayload({
+                    ...formData,
+                    alias: formData.alias || "",
+                    modelName: formData.modelName || "",
+                });
 
                 const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
                     apiBase: apiBase || undefined,
