@@ -350,7 +350,7 @@ class TestModelConfigurationAPI:
             db.close()
 
     def test_update_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
-        """Test that PUT /models/{id} updates an existing model configuration."""
+        """Test that PATCH /models/{id} updates an existing model configuration."""
         # Setup: Create a model to update
         db = platform_db_session_factory()
         try:
@@ -380,7 +380,7 @@ class TestModelConfigurationAPI:
             }
 
             # Act: Update the model by ID
-            response = platform_api_client.put(f"/api/v1/platform/models/{model_id}", json=request_data)
+            response = platform_api_client.patch(f"/api/v1/platform/models/{model_id}", json=request_data)
 
             # Assert: Status code is 200
             assert response.status_code == 200
@@ -401,12 +401,12 @@ class TestModelConfigurationAPI:
             db.close()
 
     def test_update_model_not_found_returns_404(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that PUT /models/{id} returns 404 when model doesn't exist."""
+        """Test that PATCH /models/{id} returns 404 when model doesn't exist."""
         # Arrange: Prepare update request for non-existent model
         request_data = {"description": "Updated description"}
 
         # Act: Try to update non-existent model by a random UUID
-        response = platform_api_client.put(f"/api/v1/platform/models/{uuid.uuid4()}", json=request_data)
+        response = platform_api_client.patch(f"/api/v1/platform/models/{uuid.uuid4()}", json=request_data)
 
         # Assert: Status code is 404
         assert response.status_code == 404
