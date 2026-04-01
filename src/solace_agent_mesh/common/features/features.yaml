@@ -68,3 +68,23 @@ features:
     description: >
       Enable the Models tab in the Agent Mesh interface to view and manage
       LLM model configurations. When disabled, the Models tab is hidden.
+
+  - key: inline_activity_timeline
+    name: Inline Activity Timeline
+    release_phase: early_access
+    default: false
+    jira: DATAGO-130230
+    description: >
+      Show progress updates inline within AI response messages as a vertical
+      timeline. When disabled, the old ephemeral LoadingMessageRow is shown
+      above the chat input instead.
+
+  - key: show_thinking_content
+    name: Show Thinking Content
+    release_phase: early_access
+    default: false
+    jira: DATAGO-130230
+    description: >
+      Display LLM thinking/reasoning tokens as expandable entries in the
+      inline activity timeline. When disabled, thinking entries are filtered
+      out and thinking content is not accumulated on messages.

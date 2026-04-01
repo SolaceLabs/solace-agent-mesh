@@ -506,6 +506,26 @@ class CompactionNotificationData(BaseModel):
     )
 
 
+class ThinkingContentData(BaseModel):
+    """
+    Data model for streaming LLM thinking/reasoning content.
+    Sent as chunks during streaming when the model produces
+    thinking tokens (e.g., Anthropic extended_thinking, OpenAI reasoning).
+    The frontend displays this in a collapsible 'Thinking...' block.
+    """
+
+    type: Literal["thinking_content"] = Field(
+        "thinking_content", description="The constant type for this data part."
+    )
+    content: str = Field(
+        ..., description="The thinking/reasoning text chunk."
+    )
+    is_complete: bool = Field(
+        False,
+        description="True when this is the final thinking chunk (thinking phase ended).",
+    )
+
+
 SignalData = Union[
     ToolInvocationStartData,
     LlmInvocationData,
@@ -526,4 +546,5 @@ SignalData = Union[
     RAGInfoUpdateData,
     DeepResearchReportData,
     CompactionNotificationData,
+    ThinkingContentData,
 ]

@@ -1293,6 +1293,7 @@ class BaseGatewayComponent(SamComponentBase):
         # Keep user-facing data parts like general progress updates
         user_facing_types = {
             "agent_progress_update",
+            "thinking_content",
         }
 
         if data_type in user_facing_types:

@@ -193,7 +193,7 @@ async def create_model(
     _emit_model_config_update(component, config.id, config.alias, raw_config)
     return create_data_response(config)
 
-@router.put(
+@router.patch(
     "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
     summary="Update a model configuration",

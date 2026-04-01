@@ -98,7 +98,7 @@ class TestFeatureFlagDisabled:
         ("post", "/api/v1/platform/models", {
             "alias": "x", "provider": "openai", "modelName": "gpt-4",
         }),
-        ("put", f"/api/v1/platform/models/{uuid.uuid4()}", {"description": "x"}),
+        ("patch", f"/api/v1/platform/models/{uuid.uuid4()}", {"description": "x"}),
         ("delete", f"/api/v1/platform/models/{uuid.uuid4()}", None),
         ("post", "/api/v1/platform/supported-models", {
             "provider": "openai", "auth_type": "apikey", "api_key": "sk-x",
@@ -277,7 +277,7 @@ class TestModelConfigurationAPI:
     def test_update_model_not_found_returns_404(
         self, platform_api_client, enable_model_config_feature_flag,
     ):
-        response = platform_api_client.put(
+        response = platform_api_client.patch(
             f"/api/v1/platform/models/{uuid.uuid4()}",
             json={"description": "Updated description"},
         )
@@ -436,7 +436,7 @@ class TestModelConfigurationAPI:
     def test_update_model_success(
         self, platform_api_client, seed_model, enable_model_config_feature_flag,
     ):
-        """PUT /models/{id} updates an existing model configuration."""
+        """PATCH /models/{id} updates an existing model configuration."""
         model = seed_model(
             alias="test-update-model",
             model_auth_type="apikey",
@@ -449,7 +449,7 @@ class TestModelConfigurationAPI:
             "description": "Updated description",
             "modelParams": {"temperature": 0.7, "max_tokens": 2000},
         }
-        response = platform_api_client.put(
+        response = platform_api_client.patch(
             f"/api/v1/platform/models/{model.id}", json=request_data,
         )
 
