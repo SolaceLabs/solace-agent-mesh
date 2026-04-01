@@ -8,12 +8,6 @@
 // ============================================================================
 
 /**
- * Placeholder value displayed for encrypted credential fields.
- * Used when credentials are stored but not returned by the server.
- */
-export const CREDENTIAL_PLACEHOLDER = "<encrypted>";
-
-/**
  * Mapping of backend authConfig keys to form field names for sensitive credentials.
  * Used to determine which form fields have stored values during edit,
  * and to check dirtyFields when building payloads.
