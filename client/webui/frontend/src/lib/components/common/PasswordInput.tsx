@@ -23,15 +23,9 @@ const STORED_VALUE_PLACEHOLDER = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u20
  * is shown to indicate a credential exists server-side. The eye toggle is always
  * visible (signals a sensitive field) but is inert when only the placeholder is shown.
  */
-export const PasswordInput = <T extends FieldValues = FieldValues>({
-    name,
-    control,
-    hasStoredValue = false,
-    placeholder,
-    disabled = false,
-    rules,
-}: PasswordInputProps<T>) => {
+export const PasswordInput = <T extends FieldValues = FieldValues>({ name, control, hasStoredValue = false, placeholder, disabled = false, rules }: PasswordInputProps<T>) => {
     const [showPassword, setShowPassword] = useState(false);
+    const [userHasTouched, setUserHasTouched] = useState(false);
 
     return (
         <Controller
@@ -39,7 +33,7 @@ export const PasswordInput = <T extends FieldValues = FieldValues>({
             control={control}
             rules={rules}
             render={({ field }) => {
-                const hasUserInput = !!field.value;
+                const hasUserInput = !!field.value || userHasTouched;
                 const isEyeFunctional = hasUserInput || !hasStoredValue;
                 const effectivePlaceholder = hasStoredValue && !hasUserInput ? STORED_VALUE_PLACEHOLDER : placeholder;
                 const inputType = showPassword && isEyeFunctional ? "text" : "password";
@@ -55,6 +49,9 @@ export const PasswordInput = <T extends FieldValues = FieldValues>({
                             disabled={disabled}
                             className="pr-10"
                             role="textbox"
+                            onFocus={() => {
+                                setUserHasTouched(true);
+                            }}
                         />
                         <Button
                             type="button"
