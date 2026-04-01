@@ -423,8 +423,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         if (dirtyFields) {
             return !!dirtyFields[fieldName];
         }
-        // Don't send placeholder values even in create mode
-        return !!value && value !== CREDENTIAL_PLACEHOLDER;
+        return !!value;
     };
 
     // Build auth config
