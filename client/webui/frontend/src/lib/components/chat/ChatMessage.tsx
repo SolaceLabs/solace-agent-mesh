@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 
 import { AlertCircle, Quote, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
@@ -31,6 +32,7 @@ import { CompactionNotification, type CompactionNotificationData } from "./Compa
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MessageAttribution } from "./MessageAttribution";
+import { InlineProgressUpdates } from "./InlineProgressUpdates";
 
 /**
  * Returns true if a user message is from another user (not the current viewer).
@@ -633,7 +635,9 @@ const getChatBubble = (
     deepResearchReportInfo?: DeepResearchReportInfo,
     onReportContentLoaded?: (content: string) => void,
     reportContentOverride?: string,
-    highlightedText?: string | null
+    highlightedText?: string | null,
+    inlineActivityTimelineEnabled?: boolean,
+    showThinkingContentEnabled?: boolean
 ): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData, currentUserEmail } = chatContext;
 
@@ -677,7 +681,7 @@ const getChatBubble = (
         return (
             <>
                 {progressBlock}
-                {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId)}
+                {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId, undefined, undefined, undefined, undefined, undefined, undefined, inlineActivityTimelineEnabled, showThinkingContentEnabled)}
             </>
         );
     }
@@ -708,7 +712,8 @@ const getChatBubble = (
     }
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
-    if (!hasContent) {
+    const hasProgressUpdates = inlineActivityTimelineEnabled && message.progressUpdates && message.progressUpdates.length > 0;
+    if (!hasContent && !hasProgressUpdates) {
         return null;
     }
 
@@ -717,7 +722,9 @@ const getChatBubble = (
     const variant = message.isUser && !isOtherUser ? "sent" : isOtherUser ? "other-user" : "received";
     // For alignment: current user's messages are right-aligned, other users' and agent messages are left-aligned
     const isRightAligned = message.isUser && !isOtherUser;
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
+    // Only show workflow button in MessageActions if there are no inline progress updates
+    // (when progress updates exist and inline timeline is enabled, the button is shown in the InlineProgressUpdates header instead)
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId && !hasProgressUpdates;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
     // Debug logging for error messages
@@ -785,6 +792,17 @@ const getChatBubble = (
 
     return (
         <div key={message.metadata?.messageId} className="space-y-6">
+            {/* Render inline progress updates at the top of AI messages (only when inline-activity-timeline is enabled).
+                Also renders when active with no updates yet to show the "Processing..." placeholder. */}
+            {inlineActivityTimelineEnabled && !message.isUser && (!message.isComplete || (message.progressUpdates && message.progressUpdates.length > 0)) && (
+                <div className="pl-4">
+                    <InlineProgressUpdates
+                        updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
+                        isActive={!message.isComplete}
+                        onViewWorkflow={message.taskId ? handleViewWorkflowClick : undefined}
+                    />
+                </div>
+            )}
             {/* Render context quote above user message if present */}
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">
@@ -887,6 +905,8 @@ const getChatBubble = (
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
     const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 
     // Determine if this is another user's message (for uploaded files alignment)
     const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
@@ -1155,7 +1175,10 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     // Pass report content to MessageActions for TTS/copy
                     reportContent || undefined,
                     // Pass highlighted text for scroll-to-source feature
-                    highlightedText
+                    highlightedText,
+                    // Feature flags
+                    inlineActivityTimelineEnabled,
+                    showThinkingContentEnabled
                 )}
 
                 {/* Render images separately at the end for web search */}
