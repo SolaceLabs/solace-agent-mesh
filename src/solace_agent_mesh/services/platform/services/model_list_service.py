@@ -159,10 +159,10 @@ class ModelListService:
             return models
 
         except Exception as e:
-            log.warning(f"Failed to fetch models from {provider} API: {str(e)}. Falling back to LiteLLM registry.")
+            log.warning("Failed to fetch models from %s API: %s. Falling back to LiteLLM registry.", provider, e)
             fallback_models = self._get_litellm_models_for_provider(provider)
             if fallback_models:
-                log.info(f"Returning {len(fallback_models)} models from LiteLLM registry for {provider}")
+                log.info("Returning %d models from LiteLLM registry for %s", len(fallback_models), provider)
                 return [{"id": m, "label": m, "provider": provider} for m in fallback_models]
             raise RuntimeError(f"Failed to fetch models from {provider} API and LiteLLM registry: {str(e)}")
 
