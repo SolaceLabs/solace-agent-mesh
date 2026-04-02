@@ -10,7 +10,19 @@ const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import {
+    useConfigContext,
+    useArtifacts,
+    useAgentCards,
+    useIsAutoTitleGenerationEnabled,
+    useTaskContext,
+    useErrorDialog,
+    useTitleGeneration,
+    useBackgroundTaskMonitor,
+    useArtifactPreview,
+    useArtifactOperations,
+    useCollaborativeSession,
+} from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
@@ -48,7 +60,8 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 

@@ -1,12 +1,20 @@
 """Unit tests for SamComponentBase.get_component_id and _start_model_listener."""
 
-import os
 import pytest
 from typing import Any
 from unittest.mock import patch, MagicMock, AsyncMock
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.common.sac.sam_component_base import SamComponentBase
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
+
+
+@pytest.fixture(autouse=True)
+def _feature_flags():
+    feature_flags.initialize()
+    yield
+    feature_flags._reset_for_testing()
 
 
 class ConcreteSamComponent(SamComponentBase):
@@ -50,9 +58,7 @@ def _make_component(model_config=None, model_provider=None, lazy=False, extra_at
         "model": model_config,
         "model_provider": model_provider,
     }
-    with patch("openfeature.api.get_client") as mock_get_client:
-        mock_client = mock_get_client.return_value
-        mock_client.get_boolean_value.return_value = lazy
+    with mock_flags(model_config_ui=lazy):
         with patch.object(
             SamComponentBase,
             "get_config",

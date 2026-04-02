@@ -7,7 +7,7 @@ import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
 import { useSharedWithMe } from "@/lib/api/share";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
 import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
@@ -21,7 +21,7 @@ interface SessionNameProps {
 }
 
 const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {

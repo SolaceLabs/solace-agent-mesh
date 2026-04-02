@@ -109,10 +109,12 @@ apps:
         max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
 
       # --- Frontend Feature Enablement ---
+      # Migrated flags (mentions, auto_title_generation, project_sharing, project_indexing)
+      # are now controlled via SAM_FEATURE_* environment variables. For example:
+      #   SAM_FEATURE_AUTO_TITLE_GENERATION=true
+      #   SAM_FEATURE_PROJECT_INDEXING=true
       frontend_feature_enablement:
         background_tasks: ${BACKGROUND_TASKS_ENABLED, true} # NOTE: task_logging must also be enabled for background tasks to work
-        auto_title_generation: ${AUTO_TITLE_GENERATION_ENABLED, true}  # Enable automatic chat title generation
-        projectIndexing: ${PROJECT_FILE_INDEXING, true} # Enable project file indexing and citations
         artifactsPage: ${ARTIFACTS_PAGE_ENABLED, false}  # Enable Artifacts page (EXPERIMENTAL - disabled by default)
 
       # --- Background Tasks Configuration ---

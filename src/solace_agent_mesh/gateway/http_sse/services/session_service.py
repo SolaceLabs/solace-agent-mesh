@@ -13,6 +13,7 @@ from ..repository.task_repository import TaskRepository
 from ..repository.entities import ChatTask
 from solace_agent_mesh.shared.utils.enums import SenderType
 from solace_agent_mesh.shared.utils.types import SessionId, UserId
+from openfeature import api as openfeature_api
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse, get_pagination_or_default
 
@@ -361,9 +362,7 @@ class SessionService:
                     project_service = ProjectService(component=self.component)
                     log_prefix = f"[move_session_to_project session_id={session_id}] "
 
-                    # Get feature flag value
-                    feature_flags = self.component.get_config("frontend_feature_enablement", {})
-                    indexing_enabled = feature_flags.get("projectIndexing", False)
+                    indexing_enabled = openfeature_api.get_client().get_boolean_value("project_indexing", False)
 
                     artifacts_copied, _ = await copy_project_artifacts_to_session(
                         project_id=new_project_id,

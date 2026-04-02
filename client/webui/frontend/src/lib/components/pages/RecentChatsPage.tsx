@@ -5,7 +5,7 @@ import { Loader2, Check, X, Plus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
@@ -24,7 +24,7 @@ interface SessionNameProps {
 }
 
 const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isSelected }) => {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {
