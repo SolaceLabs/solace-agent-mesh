@@ -174,10 +174,9 @@ def get_official_plugin_url(plugin_name: str) -> Optional[str]:
     ):
         return False
 
-    # Check PyPI-published plugins first (normalize to snake_case for lookup)
-    normalized = plugin_name.strip().replace("-", "_")
-    if normalized in PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI:
-        return normalized.replace("_", "-")  # Return as pip-style dashed name
+    # Check PyPI-published plugins first
+    if plugin_name.strip() in PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI:
+        return plugin_name.strip()
 
     official_plugins = get_official_plugins()
     return official_plugins.get(plugin_name)
