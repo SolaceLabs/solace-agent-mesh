@@ -135,19 +135,31 @@ class ModelConfigService:
         self,
         db: Session,
         model_id: str,
-        model_list_service: ModelListService
+        model_list_service: ModelListService,
+        provider_override: Optional[str] = None,
+        auth_config_overrides: Optional[Dict[str, Any]] = None,
+        api_base_override: Optional[str] = None,
     ) -> List[Dict]:
         """
-        Fetch supported models from a provider using stored credentials.
+        Fetch supported models using a stored model configuration as a base.
 
-        Retrieves the configuration by ID and uses its stored credentials to query
-        the provider for available models. Orchestrates both the config lookup and
-        the model listing in one operation.
+        Retrieves the configuration by ID, then resolves the final provider,
+        credentials, and API base based on what the user changed in the form:
+
+        - **Same provider, no overrides**: Uses stored credentials as-is.
+        - **Same provider, with overrides**: Merges — stored credentials fill in
+          any missing fields (e.g., user changed API key but not secret key).
+        - **Different provider**: Discards stored credentials entirely and uses
+          only the overrides. Only model_params carry over (provider-agnostic).
 
         Args:
             db: SQLAlchemy database session
             model_id: Model configuration UUID to look up
             model_list_service: ModelListService instance for fetching provider models
+            provider_override: Provider from the request. When different from stored,
+                stored credentials are discarded (cross-provider leak prevention).
+            auth_config_overrides: Auth config from the request to merge or replace.
+            api_base_override: API base URL override from the request.
 
         Returns:
             List of available models from the provider
@@ -160,11 +172,46 @@ class ModelConfigService:
         if not raw_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
+        provider_changed = provider_override and provider_override != raw_config.provider
+
+        if provider_changed:
+            # Provider switched — use overrides only, carry over model_params
+            return model_list_service.get_models_by_provider_with_config(
+                provider=provider_override,
+                api_base=api_base_override,
+                auth_type=(auth_config_overrides or {}).get("type"),
+                auth_config=auth_config_overrides or {},
+                model_params=raw_config.model_params or {},
+            )
+
+        # Same provider — start from stored config
+        auth_config = raw_config.model_auth_config or {}
+        auth_type = raw_config.model_auth_type
+        api_base = raw_config.api_base
+
+        if auth_config_overrides:
+            override_auth_type = auth_config_overrides.get("type")
+
+            if override_auth_type == auth_type:
+                # Same auth type — stored credentials fill in missing override fields
+                merged = dict(auth_config)
+                for key, value in auth_config_overrides.items():
+                    if value:
+                        merged[key] = value
+                auth_config = merged
+            else:
+                # Auth type changed within same provider — use overrides only
+                auth_config = auth_config_overrides
+                auth_type = override_auth_type
+
+        if api_base_override:
+            api_base = api_base_override
+
         return model_list_service.get_models_by_provider_with_config(
             provider=raw_config.provider,
-            api_base=raw_config.api_base,
-            auth_type=raw_config.model_auth_type,
-            auth_config=raw_config.model_auth_config,
+            api_base=api_base,
+            auth_type=auth_type,
+            auth_config=auth_config,
             model_params=raw_config.model_params or {},
         )
     
@@ -310,18 +357,29 @@ class ModelConfigService:
         if request.model_name is not None:
             db_config.model_name = request.model_name
         if request.api_base is not None:
-            db_config.api_base = request.api_base
+            # Empty string means "clear this field" — store as None
+            db_config.api_base = request.api_base or None
         elif request.provider is not None and request.provider in _DEFAULT_API_BASES:
             # Auto-fill api_base if provider changed to a known provider
             db_config.api_base = _DEFAULT_API_BASES[request.provider]
         if request.auth_config is not None:
-            # Merge with existing auth config (preserve existing secrets)
             existing_config = db_config.model_auth_config or {}
-            merged_config = {**existing_config, **request.auth_config}
-            db_config.model_auth_config = merged_config
-            # Update auth_type from the merged config's 'type' field
-            if "type" in merged_config:
-                db_config.model_auth_type = merged_config["type"]
+            new_auth_type = request.auth_config.get("type")
+            old_auth_type = existing_config.get("type")
+
+            if new_auth_type != old_auth_type:
+                # Auth type changed (e.g., provider switch) — replace entirely.
+                # Old credentials are for a different auth scheme and must not leak.
+                db_config.model_auth_config = request.auth_config
+            else:
+                # Same auth type — merge to preserve stored secrets the user didn't re-enter
+                merged_config = {**existing_config, **request.auth_config}
+                db_config.model_auth_config = merged_config
+
+            # Update auth_type from the config's 'type' field
+            final_config = db_config.model_auth_config or {}
+            if "type" in final_config:
+                db_config.model_auth_type = final_config["type"]
         if request.model_params is not None:
             db_config.model_params = request.model_params
         if request.description is not None:

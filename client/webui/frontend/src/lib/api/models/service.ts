@@ -52,19 +52,20 @@ export async function fetchSupportedModelsByProvider(
         provider,
     };
 
+    // Pass modelId for stored credential fallback (editing mode)
     if (modelId) {
         body.modelId = modelId;
-    } else if (options?.authConfig) {
-        // Creating mode - pass nested auth config
+    }
+
+    // Pass request credentials — server merges with stored when both provided
+    if (options?.authConfig) {
         body.authConfig = options.authConfig;
-
-        if (options.apiBase != null) {
-            body.apiBase = options.apiBase;
-        }
-
-        if (options.modelParams != null) {
-            body.modelParams = options.modelParams;
-        }
+    }
+    if (options?.apiBase != null) {
+        body.apiBase = options.apiBase;
+    }
+    if (options?.modelParams != null) {
+        body.modelParams = options.modelParams;
     }
 
     const response = await api.platform.post("/api/v1/platform/supported-models", body);

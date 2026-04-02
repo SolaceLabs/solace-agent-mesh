@@ -495,7 +495,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         alias: data.alias,
         provider: data.provider,
         modelName,
-        apiBase: data.apiBase || null,
+        apiBase: data.apiBase || "",
         description: data.description || null,
         authType: data.authType,
         authConfig,
