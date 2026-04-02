@@ -70,7 +70,7 @@ features:
   - key: auto_title_generation
     name: Auto Title Generation
     release_phase: beta
-    default: true
+    default: false
     jira: DATAGO-118394
     description: >
       Automatically generate a descriptive title for new chat sessions
