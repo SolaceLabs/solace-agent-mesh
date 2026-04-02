@@ -40,7 +40,6 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
                 provider: payload.provider,
                 modelName: payload.modelName,
                 apiBase: payload.apiBase || undefined,
-                authType: payload.authType,
                 authConfig: payload.authConfig,
                 modelParams: payload.modelParams,
                 // For editing, include modelId so backend can use stored credentials as fallback

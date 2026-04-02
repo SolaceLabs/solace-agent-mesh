@@ -12,6 +12,7 @@ except ImportError:
 
 
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
+from solace_agent_mesh.services.platform.services.model_list_service import ModelListService
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
@@ -30,6 +31,39 @@ from solace_agent_mesh.shared.exceptions.exceptions import (
 from solace_agent_mesh.common.oauth import OAuth2Client
 
 log = logging.getLogger(__name__)
+
+# LiteLLM uses model name prefixes to route calls to the correct backend.
+# Without the correct prefix, LiteLLM may route to the wrong provider
+# (e.g., a bare "gemini-pro" routes to Vertex AI instead of Google AI Studio).
+_LITELLM_PROVIDER_PREFIXES = {
+    "google_ai_studio": "gemini/",
+    "vertex_ai": "vertex_ai/",
+    "bedrock": "bedrock/",
+    "ollama": "ollama/",
+    "azure_openai": "azure/",
+}
+
+# Providers where LiteLLM resolves the endpoint internally via its prefix routing.
+# For these, passing api_base to LiteLLM is unnecessary and can cause it to bypass
+# its native auth handling (e.g., routing Google AI Studio calls to Vertex AI).
+_LITELLM_MANAGES_ENDPOINT = frozenset({
+    "google_ai_studio",
+    "vertex_ai",
+    "bedrock",
+    "anthropic",
+    "openai",
+})
+
+
+def _resolve_litellm_model_name(provider: Optional[str], model_name: str) -> str:
+    """Prepend the LiteLLM provider prefix to a model name if it doesn't already have one."""
+    if not provider or not model_name:
+        return model_name
+    required_prefix = _LITELLM_PROVIDER_PREFIXES.get(provider)
+    if required_prefix and not model_name.startswith(required_prefix) and "/" not in model_name:
+        return f"{required_prefix}{model_name}"
+    return model_name
+
 
 # Default API bases for known providers
 _DEFAULT_API_BASES = {
@@ -101,19 +135,31 @@ class ModelConfigService:
         self,
         db: Session,
         model_id: str,
-        model_list_service: "ModelListService"
+        model_list_service: ModelListService,
+        provider_override: Optional[str] = None,
+        auth_config_overrides: Optional[Dict[str, Any]] = None,
+        api_base_override: Optional[str] = None,
     ) -> List[Dict]:
         """
-        Fetch supported models from a provider using stored credentials.
+        Fetch supported models using a stored model configuration as a base.
 
-        Retrieves the configuration by ID and uses its stored credentials to query
-        the provider for available models. Orchestrates both the config lookup and
-        the model listing in one operation.
+        Retrieves the configuration by ID, then resolves the final provider,
+        credentials, and API base based on what the user changed in the form:
+
+        - **Same provider, no overrides**: Uses stored credentials as-is.
+        - **Same provider, with overrides**: Merges — stored credentials fill in
+          any missing fields (e.g., user changed API key but not secret key).
+        - **Different provider**: Discards stored credentials entirely and uses
+          only the overrides. Only model_params carry over (provider-agnostic).
 
         Args:
             db: SQLAlchemy database session
             model_id: Model configuration UUID to look up
             model_list_service: ModelListService instance for fetching provider models
+            provider_override: Provider from the request. When different from stored,
+                stored credentials are discarded (cross-provider leak prevention).
+            auth_config_overrides: Auth config from the request to merge or replace.
+            api_base_override: API base URL override from the request.
 
         Returns:
             List of available models from the provider
@@ -126,11 +172,46 @@ class ModelConfigService:
         if not raw_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
+        provider_changed = provider_override and provider_override != raw_config.provider
+
+        if provider_changed:
+            # Provider switched — use overrides only, carry over model_params
+            return model_list_service.get_models_by_provider_with_config(
+                provider=provider_override,
+                api_base=api_base_override,
+                auth_type=(auth_config_overrides or {}).get("type"),
+                auth_config=auth_config_overrides or {},
+                model_params=raw_config.model_params or {},
+            )
+
+        # Same provider — start from stored config
+        auth_config = raw_config.model_auth_config or {}
+        auth_type = raw_config.model_auth_type
+        api_base = raw_config.api_base
+
+        if auth_config_overrides:
+            override_auth_type = auth_config_overrides.get("type")
+
+            if override_auth_type == auth_type:
+                # Same auth type — stored credentials fill in missing override fields
+                merged = dict(auth_config)
+                for key, value in auth_config_overrides.items():
+                    if value:
+                        merged[key] = value
+                auth_config = merged
+            else:
+                # Auth type changed within same provider — use overrides only
+                auth_config = auth_config_overrides
+                auth_type = override_auth_type
+
+        if api_base_override:
+            api_base = api_base_override
+
         return model_list_service.get_models_by_provider_with_config(
             provider=raw_config.provider,
-            api_base=raw_config.api_base,
-            auth_type=raw_config.model_auth_type,
-            auth_config=raw_config.model_auth_config,
+            api_base=api_base,
+            auth_type=auth_type,
+            auth_config=auth_config,
             model_params=raw_config.model_params or {},
         )
     
@@ -276,18 +357,29 @@ class ModelConfigService:
         if request.model_name is not None:
             db_config.model_name = request.model_name
         if request.api_base is not None:
-            db_config.api_base = request.api_base
+            # Empty string means "clear this field" — store as None
+            db_config.api_base = request.api_base or None
         elif request.provider is not None and request.provider in _DEFAULT_API_BASES:
             # Auto-fill api_base if provider changed to a known provider
             db_config.api_base = _DEFAULT_API_BASES[request.provider]
         if request.auth_config is not None:
-            # Merge with existing auth config (preserve existing secrets)
             existing_config = db_config.model_auth_config or {}
-            merged_config = {**existing_config, **request.auth_config}
-            db_config.model_auth_config = merged_config
-            # Update auth_type from the merged config's 'type' field
-            if "type" in merged_config:
-                db_config.model_auth_type = merged_config["type"]
+            new_auth_type = request.auth_config.get("type")
+            old_auth_type = existing_config.get("type")
+
+            if new_auth_type != old_auth_type:
+                # Auth type changed (e.g., provider switch) — replace entirely.
+                # Old credentials are for a different auth scheme and must not leak.
+                db_config.model_auth_config = request.auth_config
+            else:
+                # Same auth type — merge to preserve stored secrets the user didn't re-enter
+                merged_config = {**existing_config, **request.auth_config}
+                db_config.model_auth_config = merged_config
+
+            # Update auth_type from the config's 'type' field
+            final_config = db_config.model_auth_config or {}
+            if "type" in final_config:
+                db_config.model_auth_type = final_config["type"]
         if request.model_params is not None:
             db_config.model_params = request.model_params
         if request.description is not None:
@@ -367,7 +459,7 @@ class ModelConfigService:
         Returns:
             Dict with keys: model, api_base (optional), auth credentials, model params
         """
-        config = {"model": db_model.model_name}
+        config = {"model": _resolve_litellm_model_name(db_model.provider, db_model.model_name)}
         if db_model.api_base:
             config["api_base"] = db_model.api_base
         # Merge auth credentials (unredacted)
@@ -403,7 +495,6 @@ class ModelConfigService:
             provider = request.provider
             model_name = request.model_name
             auth_config = dict(request.auth_config or {})
-            auth_type = request.auth_type
             api_base = request.api_base
 
             # Load stored config if model_id provided
@@ -418,10 +509,6 @@ class ModelConfigService:
                 if not model_name:
                     model_name = stored_config.model_name
 
-                # Use stored auth_type if not explicitly provided in request
-                if not request.auth_type or request.auth_type == "none":
-                    auth_type = stored_config.model_auth_type or "none"
-
                 # Use stored credentials as fallback for empty fields
                 stored_auth = stored_config.model_auth_config or {}
                 for key, stored_value in stored_auth.items():
@@ -431,6 +518,9 @@ class ModelConfigService:
                 # Use stored api_base if not provided in request
                 if not api_base and stored_config.api_base:
                     api_base = stored_config.api_base
+
+            # Derive auth_type from auth_config
+            auth_type = auth_config.get("type", "none")
 
             # Validate required fields
             if not provider:
@@ -444,35 +534,34 @@ class ModelConfigService:
 
             # Build litellm call kwargs
             litellm_kwargs: Dict[str, Any] = {
-                "model": model_name,
+                "model": _resolve_litellm_model_name(provider, model_name),
                 "messages": [{"role": "user", "content": "Say OK"}],
                 "max_tokens": 5,
             }
 
-            # Add api_base if available
-            if api_base:
+            # Only pass api_base for providers that need a custom endpoint (e.g., Ollama, Azure,
+            # custom). For providers where LiteLLM handles the endpoint via its prefix routing
+            # (Google AI Studio, Vertex AI, Bedrock, etc.), passing api_base can cause LiteLLM
+            # to bypass its native auth handling.
+            if api_base and provider not in _LITELLM_MANAGES_ENDPOINT:
                 litellm_kwargs["api_base"] = api_base
 
-            # Handle authentication based on auth_type
-            if auth_type == "apikey":
-                api_key = auth_config.get("api_key")
-                if api_key:
-                    litellm_kwargs["api_key"] = api_key
-            elif auth_type == "oauth2":
-                # Fetch OAuth2 token and pass as Bearer in Authorization header
-                token = self._fetch_oauth2_token(auth_config)
+            # Flatten auth_config into litellm kwargs — same approach as _to_raw_litellm_config().
+            # OAuth2 is the only special case: exchange credentials for a bearer token first.
+            auth_kwargs = dict(auth_config)
+            auth_kwargs.pop("type", None)
+            if auth_type == "oauth2":
+                token = self._fetch_oauth2_token(auth_kwargs)
                 if token:
                     litellm_kwargs["api_key"] = token
                 else:
                     return False, "Test connection failed. Failed to fetch OAuth2 token"
+            else:
+                litellm_kwargs.update(auth_kwargs)
 
             # For connection testing, do NOT include model_params.
             # The test is purely to verify connectivity and authentication work.
             # Custom parameters are validated during actual model usage, not in the test.
-
-            # Bedrock models require tool_choice to be explicitly set
-            if "bedrock" in (model_name or "").lower() and "tool_choice" not in litellm_kwargs:
-                litellm_kwargs["tool_choice"] = {"type": "auto"}
 
             # Make the test call
             response = litellm.completion(**litellm_kwargs)

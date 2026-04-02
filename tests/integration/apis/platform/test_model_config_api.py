@@ -493,8 +493,7 @@ class TestSupportedModelsAPI:
                 "/api/v1/platform/supported-models",
                 json={
                     "provider": "openai",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -531,8 +530,7 @@ class TestSupportedModelsAPI:
                     "/api/v1/platform/supported-models",
                     json={
                         "provider": provider,
-                        "auth_type": "apikey",
-                        "api_key": "sk-test-key",
+                        "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                     }
                 )
 
