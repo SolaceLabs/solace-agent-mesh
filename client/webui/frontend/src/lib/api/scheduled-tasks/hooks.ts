@@ -36,8 +36,9 @@ export function useUpdateScheduledTask() {
 
     return useMutation({
         mutationFn: ({ taskId, updates }: { taskId: string; updates: UpdateScheduledTaskRequest }) => scheduledTaskService.updateTask(taskId, updates),
-        onSuccess: () => {
+        onSuccess: (_, { taskId }) => {
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
         },
     });
 }
@@ -47,8 +48,9 @@ export function useDeleteScheduledTask() {
 
     return useMutation({
         mutationFn: (taskId: string) => scheduledTaskService.deleteTask(taskId),
-        onSuccess: () => {
+        onSuccess: (_, taskId) => {
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
         },
     });
 }
@@ -58,8 +60,9 @@ export function useEnableScheduledTask() {
 
     return useMutation({
         mutationFn: (taskId: string) => scheduledTaskService.enableTask(taskId),
-        onSuccess: () => {
+        onSuccess: (_, taskId) => {
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
         },
     });
 }
@@ -69,8 +72,9 @@ export function useDisableScheduledTask() {
 
     return useMutation({
         mutationFn: (taskId: string) => scheduledTaskService.disableTask(taskId),
-        onSuccess: () => {
+        onSuccess: (_, taskId) => {
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
         },
     });
 }
