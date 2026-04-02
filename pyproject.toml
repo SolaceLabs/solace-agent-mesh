@@ -63,7 +63,7 @@ dependencies = [
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
-    "solace_ai_connector==3.3.6",
+    "solace_ai_connector==3.3.8",
     "holidays==0.81.0",
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
@@ -73,7 +73,7 @@ dependencies = [
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
-    "cryptography==46.0.5",  # [CVE-2026-26007] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
+    "cryptography==46.0.6",  # [CVE-2026-34073] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.1.1",  # [CVE-2026-25990] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
     "pypdf==6.9.1",  # [CVE-2026-33123] Security fix: large memory usage via crafted PDF content stream

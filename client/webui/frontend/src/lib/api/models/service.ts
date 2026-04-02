@@ -93,7 +93,7 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
  * Update an existing model configuration.
  */
 export async function updateModelConfig(id: string, data: ModelData): Promise<ModelConfig> {
-    const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
+    const response = await api.platform.patch(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
     return response.data;
 }
 
