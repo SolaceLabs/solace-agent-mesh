@@ -56,8 +56,9 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
     Skipped endpoints (no monitoring): /health, /metrics
     """
 
+    GATEWAY_NAME = "WebUIGateway"
+
     # Map path prefixes to operation names (grouped by resource type)
-    # Only includes user-facing, performance-critical operations
     PATH_TO_OPERATION = {
         '/api/v1/tasks': '/tasks',
         '/api/v1/message': '/message',
@@ -96,7 +97,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         is_streaming = self._is_streaming_endpoint(request.url.path)
-        is_sse = operation_name == 'sse'
+        is_sse = operation_name == '/sse'
 
         # Branch 1: SSE endpoints - only measure TTFB
         if is_sse:
@@ -108,7 +109,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
         if is_streaming:
             # Measure duration (all requests, no error_type in histogram)
             monitor = MonitorLatency(SamGatewayMonitor.create(
-                gateway_name="WebUIGateway",
+                gateway_name=self.GATEWAY_NAME,
                 operation_name=operation_name
             ))
             monitor.start()
@@ -120,7 +121,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
 
         # Branch 3: Regular endpoints - measure duration
         monitor = MonitorLatency(SamGatewayMonitor.create(
-            gateway_name="WebUIGateway",
+            gateway_name=self.GATEWAY_NAME,
             operation_name=operation_name
         ))
         monitor.start()
@@ -188,7 +189,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
 
         monitor = MonitorLatency(
             SamGatewayTTFBMonitor.create(
-                gateway_name="WebUIGateway",
+                gateway_name=self.GATEWAY_NAME,
                 operation_name=operation_name
             )
         )
