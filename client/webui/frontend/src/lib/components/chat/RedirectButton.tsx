@@ -30,6 +30,15 @@ export const RedirectButton: React.FC<RedirectButtonProps> = ({ data }) => {
         // Generate a new session ID for the destination.
         const destSessionId = uuidv4();
 
+        // Create the destination session so it exists before the Builder page tries to load it.
+        try {
+            await api.webui.post("/api/v1/sessions", {
+                id: destSessionId,
+            });
+        } catch (err) {
+            console.warn("[SAM-REDIRECT] Failed to create destination session:", err);
+        }
+
         // Copy artifacts to the new session if specified.
         if (data.artifacts && data.artifacts.length > 0 && data.source_session_id) {
             try {
