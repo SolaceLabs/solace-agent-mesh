@@ -299,6 +299,20 @@ class CredentialServiceConfig(SamConfigBase):
 class SamAgentAppConfig(SamConfigBase):
     """Pydantic model for the complete agent application configuration."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _promote_legacy_long_term_memory(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        memory_service = data.get("memory_service")
+        legacy_long_term_memory = data.get("long_term_memory")
+        if memory_service is None and legacy_long_term_memory is not None:
+            data = dict(data)
+            data["memory_service"] = legacy_long_term_memory
+
+        return data
+
     namespace: str = Field(
         ...,
         description="Absolute topic prefix for A2A communication (e.g., 'myorg/dev').",

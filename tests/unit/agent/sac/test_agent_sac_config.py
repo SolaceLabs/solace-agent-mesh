@@ -145,6 +145,35 @@ class TestSamAgentAppConfig:
         assert config.agent_identity is not None
         assert config.agent_identity.key_mode == "auto"
 
+    def test_legacy_long_term_memory_config_maps_to_memory_service(self):
+        config = SamAgentAppConfig.model_validate(
+            {
+                "namespace": "test",
+                "agent_name": "test-agent",
+                "model": "test-model",
+                "long_term_memory": {"type": "vector_store", "enabled": True},
+                "agent_card": {"description": "Test agent"},
+                "agent_card_publishing": {"interval_seconds": 60},
+            }
+        )
+
+        assert config.memory_service == {"type": "vector_store", "enabled": True}
+
+    def test_memory_service_takes_precedence_over_legacy_long_term_memory(self):
+        config = SamAgentAppConfig.model_validate(
+            {
+                "namespace": "test",
+                "agent_name": "test-agent",
+                "model": "test-model",
+                "memory_service": {"type": "postgres"},
+                "long_term_memory": {"type": "vector_store", "enabled": True},
+                "agent_card": {"description": "Test agent"},
+                "agent_card_publishing": {"interval_seconds": 60},
+            }
+        )
+
+        assert config.memory_service == {"type": "postgres"}
+
 
 class TestAgentNameSanitization:
     """Test cases for agent name sanitization during app initialization."""
