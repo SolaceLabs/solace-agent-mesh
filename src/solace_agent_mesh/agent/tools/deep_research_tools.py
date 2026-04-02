@@ -895,6 +895,289 @@ Respond with ONLY the title, nothing else."""
         return research_question[:60] + "..." if len(research_question) > 60 else research_question
 
 
+async def _generate_research_plan(
+    research_question: str,
+    queries: List[str],
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> List[str]:
+    """
+    Generate human-readable research plan steps from queries using LLM.
+    
+    Converts raw search queries into user-friendly plan step descriptions
+    suitable for display in the verification UI.
+    
+    Args:
+        research_question: The original research question
+        queries: List of generated search queries
+        tool_context: Tool context for accessing agent
+        tool_config: Optional tool configuration
+    
+    Returns:
+        List of human-readable plan step descriptions
+    """
+    log_identifier = "[DeepResearch:PlanGen]"
+    
+    try:
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
+        
+        queries_text = "\n".join(f"- {q}" for q in queries)
+        plan_prompt = f"""You are a research planning specialist. Convert these search queries into a clear,
+human-readable research plan with 3-6 concise steps.
+
+Research Question: {research_question}
+
+Search Queries:
+{queries_text}
+
+Requirements:
+1. Each step should be a clear, actionable description (one sentence)
+2. Steps should be in logical order
+3. Use plain language, not search query syntax
+4. Cover the key aspects of the research
+5. Include a final synthesis/compilation step
+
+Respond in JSON format:
+{{
+  "steps": ["step1 description", "step2 description", ...]
+}}"""
+
+        llm_request = LlmRequest(
+            model=llm.model,
+            contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=plan_prompt)])],
+            config=adk_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.5,
+                max_output_tokens=4096
+            )
+        )
+        
+        response = None
+        if hasattr(llm, 'generate_content_async'):
+            async for response_event in llm.generate_content_async(llm_request):
+                response = response_event
+                break
+        else:
+            response = llm.generate_content(request=llm_request)
+        
+        response_text = _extract_text_from_llm_response(response, log_identifier)
+        if not response_text or not response_text.strip():
+            # Fallback: use queries as steps
+            return queries
+        
+        plan_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="steps")
+        if plan_data is None:
+            return queries
+        
+        steps = plan_data.get("steps", queries)[:6]
+        
+        log.info("%s Generated %d plan steps", log_identifier, len(steps))
+        return steps
+        
+    except Exception as e:
+        log.error("%s Plan generation failed: %s, using queries as fallback", log_identifier, str(e))
+        return queries
+
+
+def _is_webui_gateway(tool_context: ToolContext) -> bool:
+    """
+    Check if the current gateway supports interactive verification.
+    
+    Currently always returns True to enable the verification step.
+    The auto-approve timeout ensures the tool doesn't block indefinitely
+    even if the frontend doesn't respond.
+    
+    TODO: In the future, detect gateway type from a2a_context to skip
+    verification for non-interactive gateways (Teams, Slack, MCP).
+    """
+    return True
+
+
+async def _send_plan_verification(
+    plan_id: str,
+    title: str,
+    research_question: str,
+    steps: List[str],
+    research_type: str,
+    max_iterations: int,
+    max_runtime_seconds: int,
+    sources: List[str],
+    auto_approve_seconds: int,
+    tool_context: ToolContext
+) -> None:
+    """Send research plan verification signal to frontend via SSE."""
+    log_identifier = "[DeepResearch:PlanVerify]"
+    
+    try:
+        a2a_context = tool_context.state.get("a2a_context")
+        if not a2a_context:
+            log.warning("%s No a2a_context found, cannot send plan verification", log_identifier)
+            return
+
+        invocation_context = getattr(tool_context, '_invocation_context', None)
+        if not invocation_context:
+            log.warning("%s No invocation context found", log_identifier)
+            return
+            
+        agent = getattr(invocation_context, 'agent', None)
+        if not agent:
+            log.warning("%s No agent found in invocation context", log_identifier)
+            return
+            
+        host_component = getattr(agent, 'host_component', None)
+        if not host_component:
+            log.warning("%s No host component found on agent", log_identifier)
+            return
+
+        from ...common.data_parts import DeepResearchPlanData
+        
+        plan_data = DeepResearchPlanData(
+            plan_id=plan_id,
+            title=title,
+            research_question=research_question,
+            steps=steps,
+            research_type=research_type,
+            max_iterations=max_iterations,
+            max_runtime_seconds=max_runtime_seconds,
+            sources=sources,
+            auto_approve_seconds=auto_approve_seconds
+        )
+        
+        log.info("%s Sending plan verification: plan_id=%s, title='%s', %d steps",
+                log_identifier, plan_id, title, len(steps))
+        
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=plan_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
+        )
+        
+    except Exception as e:
+        log.error("%s Error sending plan verification: %s", log_identifier, str(e))
+
+
+async def _wait_for_plan_response(
+    plan_id: str,
+    auto_approve_seconds: int,
+    steps: List[str],
+    tool_context: ToolContext
+) -> Dict[str, Any]:
+    """
+    Wait for user response to plan verification by polling the cache.
+    
+    Returns:
+        Dict with "action" ("start" or "cancel") and optionally "steps" (modified steps)
+    """
+    log_identifier = "[DeepResearch:PlanWait]"
+    
+    try:
+        invocation_context = getattr(tool_context, '_invocation_context', None)
+        agent = getattr(invocation_context, 'agent', None) if invocation_context else None
+        host_component = getattr(agent, 'host_component', None) if agent else None
+        
+        if not host_component or not hasattr(host_component, 'cache_service') or not host_component.cache_service:
+            log.warning("%s No cache service available, auto-approving plan", log_identifier)
+            return {"action": "start", "steps": steps}
+        
+        cache_key = f"deep_research_plan_{plan_id}"
+        poll_interval = 0.5  # seconds
+
+        # Auto-approve timeout disabled - poll indefinitely until user responds.
+        # To re-enable auto-approve, uncomment the timeout logic below:
+        # timeout = auto_approve_seconds + 5  # Extra buffer for network latency
+        # elapsed = 0.0
+
+        log.info("%s Waiting for plan response: plan_id=%s (blocking until user responds)",
+                log_identifier, plan_id)
+        
+        while True:
+            response = host_component.cache_service.get_data(cache_key)
+            if response:
+                host_component.cache_service.remove_data(cache_key)
+                log.info("%s Received plan response: action=%s",
+                        log_identifier, response.get("action", "unknown"))
+                return response
+            await asyncio.sleep(poll_interval)
+            # Auto-approve timeout (disabled):
+            # elapsed += poll_interval
+            # if elapsed >= timeout:
+            #     log.info("%s Plan verification timed out after %ds, auto-approving",
+            #             log_identifier, auto_approve_seconds)
+            #     return {"action": "start", "steps": steps}
+        
+    except Exception as e:
+        log.error("%s Error waiting for plan response: %s, auto-approving", log_identifier, str(e))
+        return {"action": "start", "steps": steps}
+
+
+async def _regenerate_queries_from_steps(
+    steps: List[str],
+    research_question: str,
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> List[str]:
+    """
+    Regenerate search queries from user-modified plan steps.
+    
+    When the user edits plan steps, we need to convert them back into
+    effective search queries for the research loop.
+    """
+    log_identifier = "[DeepResearch:QueryRegen]"
+    
+    try:
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
+        
+        steps_text = "\n".join(f"- {s}" for s in steps)
+        regen_prompt = f"""Convert these research plan steps into effective search engine queries.
+
+Research Question: {research_question}
+
+Plan Steps:
+{steps_text}
+
+Generate one search query per step, optimized for web search engines.
+
+Respond in JSON format:
+{{
+  "queries": ["query1", "query2", ...]
+}}"""
+
+        llm_request = LlmRequest(
+            model=llm.model,
+            contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=regen_prompt)])],
+            config=adk_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.5,
+                max_output_tokens=4096
+            )
+        )
+        
+        response = None
+        if hasattr(llm, 'generate_content_async'):
+            async for response_event in llm.generate_content_async(llm_request):
+                response = response_event
+                break
+        else:
+            response = llm.generate_content(request=llm_request)
+        
+        response_text = _extract_text_from_llm_response(response, log_identifier)
+        if not response_text or not response_text.strip():
+            return steps  # Use steps as queries as fallback
+        
+        query_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="queries")
+        if query_data is None:
+            return steps
+        
+        queries = query_data.get("queries", steps)[:len(steps)]
+        log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
+        return queries
+        
+    except Exception as e:
+        log.error("%s Query regeneration failed: %s, using steps as queries", log_identifier, str(e))
+        return steps
+
+
 def _prepare_findings_summary(findings: List[SearchResult], max_findings: int = 20) -> str:
     """Prepare a concise summary of findings for LLM reflection"""
     if not findings:
@@ -1727,6 +2010,70 @@ async def deep_research(
         # Send initial RAG info update with title (no sources yet)
         # This allows the UI to display the title in the RAG info panel immediately
         await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
+        
+        # === VERIFICATION STEP ===
+        # Check if verification is needed (WebUI gateway + not skipped via config)
+        is_webui = _is_webui_gateway(tool_context)
+        skip_verification = config.get("skip_verification", False)
+        
+        if is_webui and not skip_verification:
+            # Only generate plan steps when verification is actually needed
+            plan_steps = await _generate_research_plan(research_question, queries, tool_context, tool_config)
+            log.info("%s Generated %d plan steps for verification", log_identifier, len(plan_steps))
+            
+            plan_id = str(uuid.uuid4())
+            auto_approve_seconds = int(config.get("auto_approve_seconds", 60))
+            
+            log.info("%s Sending plan verification to frontend: plan_id=%s, auto_approve=%ds",
+                    log_identifier, plan_id, auto_approve_seconds)
+            
+            # Send plan to frontend for user review
+            await _send_plan_verification(
+                plan_id=plan_id,
+                title=research_title,
+                research_question=research_question,
+                steps=plan_steps,
+                research_type=research_type,
+                max_iterations=max_iterations,
+                max_runtime_seconds=max_runtime_seconds or 0,
+                sources=sources,
+                auto_approve_seconds=auto_approve_seconds,
+                tool_context=tool_context
+            )
+            
+            # Wait for user response (blocks until user responds or timeout)
+            verification_result = await _wait_for_plan_response(
+                plan_id=plan_id,
+                auto_approve_seconds=auto_approve_seconds,
+                steps=plan_steps,
+                tool_context=tool_context
+            )
+            
+            if verification_result.get("action") == "cancel":
+                log.info("%s Research cancelled by user", log_identifier)
+                return {
+                    "status": "cancelled",
+                    "message": "Research was cancelled by the user before starting."
+                }
+            
+            # User may have edited steps - regenerate queries if steps were modified
+            user_steps = verification_result.get("steps", plan_steps)
+            if user_steps != plan_steps:
+                log.info("%s User modified plan steps, regenerating queries", log_identifier)
+                queries = await _regenerate_queries_from_steps(
+                    user_steps, research_question, tool_context, tool_config
+                )
+                log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
+            
+            log.info("%s Plan approved, proceeding with research", log_identifier)
+        else:
+            if not is_webui:
+                log.info("%s Non-WebUI gateway detected, skipping verification", log_identifier)
+            else:
+                log.info("%s Verification skipped via config", log_identifier)
+        
+        # Reset start time after verification (don't count verification wait time)
+        start_time = time.time()
         
         # Iterative research loop
         all_findings: List[SearchResult] = []

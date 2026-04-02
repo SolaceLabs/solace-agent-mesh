@@ -1443,6 +1443,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     }
                                     break;
                                 }
+                                case "deep_research_plan": {
+                                    // Deep research plan verification - keep the data part for ChatMessage to render
+                                    // The ResearchPlanVerification component will handle user interaction
+                                    latestStatusText.current = null;
+                                    console.log("[ChatProvider] Received deep_research_plan for verification", {
+                                        planId: (data as { plan_id?: string }).plan_id,
+                                        title: (data as { title?: string }).title,
+                                    });
+                                    break;
+                                }
                                 case "deep_research_progress": {
                                     // Deep research progress tracking - keep the data part for ChatMessage to render
                                     // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
@@ -1607,9 +1617,36 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Check if this is a deep research progress update
                 const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
 
-                // For progress updates, always update the same message (don't replace, just update the data)
-                // The InlineResearchProgress component will handle showing all stages
-                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                // Check if this is a deep research plan verification update
+                const isPlanUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_plan";
+
+                // For plan updates, replace the existing message (similar to progress updates)
+                if (isPlanUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
+                    const updatedMessage: MessageFE = {
+                        ...lastMessage,
+                        parts: newContentParts,
+                        isComplete: false,
+                        metadata: {
+                            ...lastMessage.metadata,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    };
+                    newMessages[newMessages.length - 1] = updatedMessage;
+                } else if (isPlanUpdate) {
+                    // New plan message (no existing message for this task)
+                    newMessages.push({
+                        role: "agent",
+                        parts: newContentParts,
+                        taskId: currentTaskIdFromResult,
+                        isUser: false,
+                        isComplete: false,
+                        metadata: {
+                            messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                            sessionId: (result as TaskStatusUpdateEvent).contextId,
+                            lastProcessedEventSequence: currentEventSequence,
+                        },
+                    });
+                } else if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
                     const updatedMessage: MessageFE = {
                         ...lastMessage,
                         parts: newContentParts,
