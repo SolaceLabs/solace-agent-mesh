@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# Import shared mock_templates fixture from parent directory
+from tests.unit.cli.commands.shared_fixtures import mock_templates  # noqa: F401
 
 
 @pytest.fixture
