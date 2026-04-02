@@ -4,7 +4,8 @@ Built-in ADK Tools for Data Analysis (SQL, JQ, Plotly).
 
 import logging
 import json
-from typing import Any, Dict, Tuple, Optional, Literal
+import os
+from typing import Dict, Optional, Literal
 from datetime import datetime, timezone
 
 try:
@@ -43,6 +44,54 @@ log = logging.getLogger(__name__)
 
 CATEGORY_NAME = "Data Analysis"
 CATEGORY_DESCRIPTION = "Create static chart images from data in JSON or YAML format."
+
+
+def _reap_zombie_processes():
+    """Reap any zombie child processes to prevent accumulation.
+
+    In containerized environments where PID 1 is the Python process (not init),
+    zombie child processes from Kaleido/Chromium are not automatically reaped.
+    This function calls os.waitpid() in a non-blocking loop to clean them up.
+    """
+    reaped = 0
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+            if pid == 0:
+                break
+            reaped += 1
+        except ChildProcessError:
+            # No child processes exist
+            break
+    if reaped > 0:
+        log.debug("Reaped %d zombie child process(es).", reaped)
+
+
+def _cleanup_kaleido_scope():
+    """Shut down the Kaleido Chromium subprocess scope to free resources.
+
+    Kaleido 0.2.x maintains a persistent Chromium subprocess (PlotlyScope)
+    that spawns child renderer processes.
+    """
+    try:
+        if hasattr(pio, "_kaleido") and pio._kaleido is not None:
+            scope = pio._kaleido
+            if hasattr(scope, "_shutdown"):
+                scope._shutdown()
+                log.debug("Kaleido scope shut down successfully.")
+            elif hasattr(scope, "_proc") and scope._proc is not None:
+                scope._proc.kill()
+                scope._proc.wait()
+                scope._proc = None
+                log.debug("Kaleido subprocess terminated successfully.")
+        elif hasattr(pio, "kaleido") and hasattr(pio.kaleido, "scope"):
+            scope = pio.kaleido.scope
+            if hasattr(scope, "_shutdown"):
+                scope._shutdown()
+                log.debug("Kaleido scope shut down successfully.")
+    except Exception as e:
+        log.debug("Non-critical: Failed to clean up Kaleido scope: %s", e)
+
 
 async def create_chart_from_plotly_config(
     config_content: str,
@@ -124,6 +173,11 @@ async def create_chart_from_plotly_config(
             raise ValueError(
                 f"Failed to generate {output_format} image using Plotly/Kaleido: {img_err}. Ensure 'kaleido' package is installed and functional."
             ) from img_err
+        finally:
+            # Clean up Kaleido's Chromium subprocess to prevent zombie process
+            # accumulation. 
+            _cleanup_kaleido_scope()
+            _reap_zombie_processes()
 
         mime_map = {
             "png": "image/png",
