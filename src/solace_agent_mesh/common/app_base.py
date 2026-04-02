@@ -183,6 +183,23 @@ class SamAppBase(App):
             conn.execute(text("SELECT 1"))
         return True
 
+    def _get_health_check_executor(self) -> ThreadPoolExecutor:
+        """
+        Get or create a shared ThreadPoolExecutor for health check operations.
+
+        Reuses a single executor instance to avoid thread and memory leaks
+        from creating new ThreadPoolExecutor instances on every health check
+        call. 
+
+        Returns:
+            A shared ThreadPoolExecutor with max_workers=2.
+        """
+        if not hasattr(self, "_health_check_executor") or self._health_check_executor is None:
+            self._health_check_executor = ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="db-health-check"
+            )
+        return self._health_check_executor
+
     def _is_database_connected(
         self, timeout: float = DB_HEALTH_CHECK_TIMEOUT_SECONDS
     ) -> bool:
@@ -194,6 +211,9 @@ class SamAppBase(App):
         databases are reachable within the timeout period.
 
         If no databases are configured, returns True.
+
+        Uses a shared ThreadPoolExecutor to avoid thread/memory leaks from
+        creating new executors on every health check call.
 
         Args:
             timeout: Maximum time in seconds to wait for each database connection
@@ -207,17 +227,12 @@ class SamAppBase(App):
         if not engines:
             return True
 
+        executor = self._get_health_check_executor()
+
         for engine in engines:
             try:
-                # Use ThreadPoolExecutor to enforce timeout on the connection test
-                # Note: We use shutdown(wait=False) to avoid blocking if timeout occurs
-                executor = ThreadPoolExecutor(max_workers=1)
-                try:
-                    future = executor.submit(self._test_single_db_connection, engine)
-                    future.result(timeout=timeout)
-                finally:
-                    # Don't wait for thread to finish - just release resources
-                    executor.shutdown(wait=False)
+                future = executor.submit(self._test_single_db_connection, engine)
+                future.result(timeout=timeout)
             except FuturesTimeoutError:
                 log.warning(
                     "Database health check failed: timed out after %.1f seconds",
