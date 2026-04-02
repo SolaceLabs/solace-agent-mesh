@@ -132,6 +132,44 @@ sam add agent --gui
 sam plugin add <your-component-name> --plugin <plugin-name>
 ```
 
+### 🛠️ Developing Locally
+
+If you want to work from source instead of installing from PyPI, use a local virtual environment and install the project in editable mode.
+
+#### 1. Clone the repository
+```bash
+git clone https://github.com/SolaceLabs/solace-agent-mesh.git
+cd solace-agent-mesh
+```
+
+#### 2. Create and activate a virtual environment
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### 3. Install the project with test dependencies
+```bash
+pip install -e .[test]
+```
+
+#### 4. Run the CLI locally
+```bash
+sam --help
+```
+
+#### 5. Start the application from source
+```bash
+sam run
+```
+
+#### 6. Run the test suite
+```bash
+pytest
+```
+
+For contribution workflow details, formatting, and additional test commands, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ---
 
 ## 🏗️ Architecture Overview
