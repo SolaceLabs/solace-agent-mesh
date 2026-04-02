@@ -191,7 +191,7 @@ class CoreA2AService:
 
             user_properties = {
                 "replyTo": reply_to_topic,
-                "a2aStatusTopic": status_to_topic,
+                "statusTo": status_to_topic,
                 "clientId": client_id,
                 "userId": user_id,
             }

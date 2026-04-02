@@ -510,7 +510,7 @@ class BaseGatewayComponent(SamComponentBase):
             self.namespace, self.gateway_id, task_id
         )
         if is_streaming:
-            user_properties["a2aStatusTopic"] = a2a.get_gateway_status_topic(
+            user_properties["statusTo"] = a2a.get_gateway_status_topic(
                 self.namespace, self.gateway_id, task_id
             )
 

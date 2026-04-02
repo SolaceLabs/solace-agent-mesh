@@ -1,0 +1,150 @@
+# Azure Blob Storage Artifact Configuration Example
+#
+# This file demonstrates how to configure agents to use Azure Blob Storage
+# for artifact management in Solace Agent Mesh applications.
+#
+# Required Environment Variables (choose one authentication method):
+# - AZURE_STORAGE_CONNECTION_STRING: Full connection string (Option 1)
+# - AZURE_STORAGE_ACCOUNT_NAME + AZURE_STORAGE_ACCOUNT_KEY: Account credentials (Option 2)
+# - AZURE_STORAGE_ACCOUNT_NAME only: Uses DefaultAzureCredential / Workload Identity (Option 3)
+#
+# Other Environment Variables:
+# - AZURE_CONTAINER_NAME: Name of your Azure Blob container
+# - NAMESPACE: Your application namespace
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: azure_artifact_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  # Example 1: Azure with Connection String
+  - name: azure_connstr_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AzureConnStrAgent"
+      display_name: "Azure Connection String Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Azure Blob Storage
+        using a connection string for authentication.
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "azure"
+        container_name: ${AZURE_CONTAINER_NAME}
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in Azure Blob Storage using a connection string."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 2: Azure with Account Name + Account Key
+  - name: azure_account_key_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AzureAccountKeyAgent"
+      display_name: "Azure Account Key Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Azure Blob Storage
+        using account name and key for authentication.
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "azure"
+        container_name: ${AZURE_CONTAINER_NAME}
+        account_name: ${AZURE_STORAGE_ACCOUNT_NAME}
+        artifact_scope: app
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in Azure Blob Storage using account key."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 3: Azure with Workload Identity (AKS)
+  - name: azure_workload_identity_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AzureWorkloadIdentityAgent"
+      display_name: "Azure Workload Identity Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Azure Blob Storage
+        using AKS Workload Identity (no explicit credentials needed).
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "azure"
+        container_name: ${AZURE_CONTAINER_NAME}
+        account_name: ${AZURE_STORAGE_ACCOUNT_NAME}
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in Azure Blob Storage using workload identity."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["AzureConnStrAgent", "AzureAccountKeyAgent"]
+        request_timeout_seconds: 45
