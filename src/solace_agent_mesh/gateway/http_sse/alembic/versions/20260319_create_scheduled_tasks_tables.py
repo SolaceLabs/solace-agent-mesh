@@ -45,35 +45,56 @@ def _column_exists(table_name: str, column_name: str) -> bool:
     return column_name in columns
 
 
+def _enum_type_exists(enum_name: str) -> bool:
+    """Check if an enum type already exists (PostgreSQL only)."""
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return False
+    result = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = :name"),
+        {"name": enum_name},
+    )
+    return result.fetchone() is not None
+
+
 def upgrade() -> None:
     dialect = op.get_bind().dialect.name
+
+    # Pre-create enum types for PostgreSQL to avoid "already exists" on re-run
+    schedule_type_enum = sa.Enum("cron", "interval", "one_time", name="scheduletype")
+    execution_status_enum = sa.Enum(
+        "pending", "running", "completed", "failed",
+        "timeout", "cancelled", "skipped",
+        name="executionstatus",
+    )
+    if dialect == "postgresql":
+        if not _enum_type_exists("scheduletype"):
+            schedule_type_enum.create(op.get_bind(), checkfirst=True)
+        if not _enum_type_exists("executionstatus"):
+            execution_status_enum.create(op.get_bind(), checkfirst=True)
 
     # Create scheduled_tasks table
     if not _table_exists("scheduled_tasks"):
         op.create_table(
             "scheduled_tasks",
-            sa.Column("id", sa.String(), nullable=False),
-            sa.Column("name", sa.String(), nullable=False),
+            sa.Column("id", sa.String(36), nullable=False),
+            sa.Column("name", sa.String(255), nullable=False),
             sa.Column("description", sa.Text(), nullable=True),
-            sa.Column("namespace", sa.String(), nullable=False),
-            sa.Column("user_id", sa.String(), nullable=True),
-            sa.Column("created_by", sa.String(), nullable=False),
-            sa.Column(
-                "schedule_type",
-                sa.Enum("cron", "interval", "one_time", name="scheduletype"),
-                nullable=False,
-            ),
-            sa.Column("schedule_expression", sa.String(), nullable=False),
-            sa.Column("timezone", sa.String(), nullable=False, server_default="UTC"),
-            sa.Column("target_agent_name", sa.String(), nullable=False),
-            sa.Column("target_type", sa.String(), nullable=False, server_default="agent"),
+            sa.Column("namespace", sa.String(255), nullable=False),
+            sa.Column("user_id", sa.String(255), nullable=True),
+            sa.Column("created_by", sa.String(255), nullable=False),
+            sa.Column("schedule_type", schedule_type_enum, nullable=False),
+            sa.Column("schedule_expression", sa.String(255), nullable=False),
+            sa.Column("timezone", sa.String(64), nullable=False, server_default="UTC"),
+            sa.Column("target_agent_name", sa.String(255), nullable=False),
+            sa.Column("target_type", sa.String(64), nullable=False, server_default="agent"),
             sa.Column("task_message", sa.JSON(), nullable=False),
             sa.Column("task_metadata", sa.JSON(), nullable=True),
             sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
             sa.Column("max_retries", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column("retry_delay_seconds", sa.Integer(), nullable=False, server_default=sa.text("60")),
             sa.Column("timeout_seconds", sa.Integer(), nullable=False, server_default=sa.text("3600")),
-            sa.Column("source", sa.String(), nullable=True, server_default="ui"),
+            sa.Column("source", sa.String(64), nullable=True, server_default="ui"),
             sa.Column("consecutive_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column("run_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column("notification_config", sa.JSON(), nullable=True),
@@ -82,7 +103,7 @@ def upgrade() -> None:
             sa.Column("next_run_at", sa.BigInteger(), nullable=True),
             sa.Column("last_run_at", sa.BigInteger(), nullable=True),
             sa.Column("deleted_at", sa.BigInteger(), nullable=True),
-            sa.Column("deleted_by", sa.String(), nullable=True),
+            sa.Column("deleted_by", sa.String(255), nullable=True),
             sa.PrimaryKeyConstraint("id"),
         )
 
@@ -116,18 +137,10 @@ def upgrade() -> None:
     if not _table_exists("scheduled_task_executions"):
         op.create_table(
             "scheduled_task_executions",
-            sa.Column("id", sa.String(), nullable=False),
-            sa.Column("scheduled_task_id", sa.String(), nullable=False),
-            sa.Column(
-                "status",
-                sa.Enum(
-                    "pending", "running", "completed", "failed",
-                    "timeout", "cancelled", "skipped",
-                    name="executionstatus",
-                ),
-                nullable=False,
-            ),
-            sa.Column("a2a_task_id", sa.String(), nullable=True),
+            sa.Column("id", sa.String(36), nullable=False),
+            sa.Column("scheduled_task_id", sa.String(36), nullable=False),
+            sa.Column("status", execution_status_enum, nullable=False),
+            sa.Column("a2a_task_id", sa.String(255), nullable=True),
             sa.Column("scheduled_for", sa.BigInteger(), nullable=False),
             sa.Column("started_at", sa.BigInteger(), nullable=True),
             sa.Column("completed_at", sa.BigInteger(), nullable=True),
@@ -153,11 +166,13 @@ def upgrade() -> None:
     if _table_exists("sessions") and not _column_exists("sessions", "source"):
         op.add_column(
             "sessions",
-            sa.Column("source", sa.String(), nullable=True, server_default="chat"),
+            sa.Column("source", sa.String(64), nullable=True, server_default="chat"),
         )
 
 
 def downgrade() -> None:
+    dialect = op.get_bind().dialect.name
+
     # Drop source column from sessions
     if _table_exists("sessions") and _column_exists("sessions", "source"):
         op.drop_column("sessions", "source")
@@ -166,3 +181,8 @@ def downgrade() -> None:
         op.drop_table("scheduled_task_executions")
     if _table_exists("scheduled_tasks"):
         op.drop_table("scheduled_tasks")
+
+    # Drop enum types on PostgreSQL
+    if dialect == "postgresql":
+        op.execute("DROP TYPE IF EXISTS executionstatus")
+        op.execute("DROP TYPE IF EXISTS scheduletype")

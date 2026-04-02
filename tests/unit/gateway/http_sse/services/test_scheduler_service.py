@@ -640,7 +640,7 @@ class TestScheduleTask:
         mock_job.next_run_time = None
         mocks["scheduler"].add_job.return_value = mock_job
 
-        await service._schedule_task(task)
+        await service.schedule_task(task)
 
         mocks["scheduler"].add_job.assert_called_once()
         assert task.id in service.active_tasks
@@ -660,7 +660,7 @@ class TestScheduleTask:
         db_task = MagicMock()
         mocks["session"].get.return_value = db_task
 
-        await service._schedule_task(task)
+        await service.schedule_task(task)
 
         assert db_task.next_run_at is not None
         mocks["session"].commit.assert_called()
@@ -679,7 +679,7 @@ class TestUnscheduleTask:
 
         service.active_tasks["task-1"] = {"job": MagicMock(), "task_name": "t", "schedule_type": "cron"}
 
-        await service._unschedule_task("task-1")
+        await service.unschedule_task("task-1")
 
         mocks["scheduler"].remove_job.assert_called_once_with("scheduled_task_task-1")
         assert "task-1" not in service.active_tasks
@@ -689,7 +689,7 @@ class TestUnscheduleTask:
         """Unscheduling a task not in active_tasks should not raise."""
         service, mocks = _build_scheduler_service()
 
-        await service._unschedule_task("nonexistent")
+        await service.unschedule_task("nonexistent")
 
         mocks["scheduler"].remove_job.assert_not_called()
 
@@ -701,7 +701,7 @@ class TestUnscheduleTask:
         service.active_tasks["task-1"] = {"job": MagicMock()}
         mocks["scheduler"].remove_job.side_effect = Exception("job not found")
 
-        await service._unschedule_task("task-1")
+        await service.unschedule_task("task-1")
 
         assert "task-1" not in service.active_tasks
 

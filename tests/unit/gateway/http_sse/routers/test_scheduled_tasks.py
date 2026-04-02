@@ -467,7 +467,7 @@ class TestDeleteScheduledTask:
         user = {"id": "user-1", "roles": []}
         mock_db = MagicMock()
         mock_scheduler_service = MagicMock()
-        mock_scheduler_service._unschedule_task = AsyncMock()
+        mock_scheduler_service.unschedule_task = AsyncMock()
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
@@ -484,7 +484,7 @@ class TestDeleteScheduledTask:
 
         mock_repo.soft_delete.assert_called_once_with(mock_db, "task-1", "user-1")
         mock_db.commit.assert_called_once()
-        mock_scheduler_service._unschedule_task.assert_awaited_once_with("task-1")
+        mock_scheduler_service.unschedule_task.assert_awaited_once_with("task-1")
 
     @pytest.mark.asyncio
     async def test_returns_404_when_not_found(self):
@@ -534,7 +534,7 @@ class TestEnableDisableTask:
         user = {"id": "user-1", "roles": []}
         mock_db = MagicMock()
         mock_scheduler_service = MagicMock()
-        mock_scheduler_service._schedule_task = AsyncMock()
+        mock_scheduler_service.schedule_task = AsyncMock()
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
@@ -551,7 +551,7 @@ class TestEnableDisableTask:
 
         assert result.success is True
         mock_repo.enable_task.assert_called_once_with(mock_db, "task-1")
-        mock_scheduler_service._schedule_task.assert_awaited_once_with(enabled_task)
+        mock_scheduler_service.schedule_task.assert_awaited_once_with(enabled_task)
 
     @pytest.mark.asyncio
     async def test_disable_unschedules_task(self):
@@ -566,7 +566,7 @@ class TestEnableDisableTask:
         user = {"id": "user-1", "roles": []}
         mock_db = MagicMock()
         mock_scheduler_service = MagicMock()
-        mock_scheduler_service._unschedule_task = AsyncMock()
+        mock_scheduler_service.unschedule_task = AsyncMock()
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
@@ -583,7 +583,7 @@ class TestEnableDisableTask:
 
         assert result.success is True
         mock_repo.disable_task.assert_called_once_with(mock_db, "task-1")
-        mock_scheduler_service._unschedule_task.assert_awaited_once_with("task-1")
+        mock_scheduler_service.unschedule_task.assert_awaited_once_with("task-1")
 
     @pytest.mark.asyncio
     async def test_enable_returns_404_for_missing_task(self):
