@@ -1,5 +1,8 @@
 """Concrete monitor implementations for SAM gateway operations."""
 
+from starlette.requests import Request
+from starlette.responses import Response
+
 from solace_ai_connector.common.observability.monitors.base import MonitorInstance
 from solace_ai_connector.common.observability.monitors.gateway import (
     GatewayMonitor,
@@ -170,7 +173,7 @@ class SamWebGatewayCounter:
         return cls._counter
 
     @classmethod
-    def record(cls, request, response):
+    def record(cls, request: Request, response: Response) -> None:
         """
         Record a gateway request with automatic label extraction.
 

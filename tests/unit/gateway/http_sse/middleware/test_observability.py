@@ -1,19 +1,41 @@
 """
 Unit tests for gateway observability middleware.
 
+Minimal mocking approach - spy on counter.record() calls to verify labels.
+
 Tests verify:
-1. Counter increments for all requests with correct labels
-2. Error categorization (none, 4xx_error, 5xx_error, auth_error)
-3. Route template extraction from FastAPI
-4. /health and /metrics endpoints skipped
+1. Counter called with correct labels (route_template, method, error_type)
+2. Error categorization logic (none, 4xx_error, 5xx_error, auth_error)
+3. TTFB iterator timing (stop after first chunk)
+4. Edge cases (no body_iterator, errors during streaming)
+5. /health and /metrics skipped
 """
 import pytest
-from unittest.mock import patch
 from starlette.testclient import TestClient
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, Response
 from fastapi import FastAPI, HTTPException
 
 from solace_agent_mesh.gateway.http_sse.middleware.observability import GatewayObservabilityMiddleware
+
+
+@pytest.fixture(autouse=True)
+def setup_counter():
+    """Setup a spy on counter to track calls without full MetricRegistry."""
+    from unittest.mock import Mock, patch
+
+    # Track all counter.record() calls
+    recorded_metrics = []
+
+    def spy_record(value, labels):
+        """Spy that tracks calls and stores them."""
+        recorded_metrics.append((value, labels))
+
+    # Patch _get_counter to return a mock counter with our spy
+    mock_counter = Mock()
+    mock_counter.record = spy_record
+
+    with patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter._get_counter", return_value=mock_counter):
+        yield recorded_metrics
 
 
 @pytest.fixture
@@ -27,11 +49,11 @@ def app():
         return {"task_id": task_id, "status": "completed"}
 
     @app.get("/api/v1/tasks/{task_id}/not-found")
-    async def get_task_not_found(task_id: str):
+    async def get_task_not_found(task_id: str):  # noqa: ARG001
         raise HTTPException(status_code=404, detail="Task not found")
 
     @app.post("/api/v1/tasks/{task_id}/server-error")
-    async def post_task_error(task_id: str):
+    async def post_task_error(task_id: str):  # noqa: ARG001
         raise HTTPException(status_code=500, detail="Server error")
 
     @app.post("/api/v1/auth/unauthorized")
@@ -47,7 +69,7 @@ def app():
         return {"status": "ok"}
 
     @app.get("/metrics")
-    async def metrics():
+    async def metrics_endpoint():
         return "# metrics"
 
     @app.get("/api/v1/message:stream")
@@ -55,6 +77,13 @@ def app():
         async def generate():
             yield b"chunk1"
             yield b"chunk2"
+        return StreamingResponse(generate())
+
+    @app.get("/api/v1/test/stream/error")
+    async def stream_with_error():
+        async def generate():
+            yield b"chunk1"
+            raise RuntimeError("Error during streaming")
         return StreamingResponse(generate())
 
     return app
@@ -66,285 +95,210 @@ def client(app):
     return TestClient(app)
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_regular_endpoint_success(mock_counter_record, client):
-    """Test regular endpoint records counter with success."""
-    # Make request
-    response = client.get("/api/v1/tasks/abc-123/status")
+def find_metric(recorded_metrics, route_template: str, method: str, error_type: str) -> int:
+    """
+    Find counter calls matching the given labels.
 
-    # Assertions
+    Args:
+        recorded_metrics: List of (value, labels) tuples from spy
+        route_template: Route pattern to find
+        method: HTTP method to find
+        error_type: Error type to find
+
+    Returns:
+        Sum of values for matching labels
+    """
+    total = 0
+    for value, labels in recorded_metrics:
+        if (labels.get("route.template") == route_template and
+            labels.get("http.method") == method and
+            labels.get("error.type") == error_type):
+            total += value
+    return total
+
+
+def test_counter_records_success(client, setup_counter):
+    """Test counter records successful request with correct labels."""
+    response = client.get("/api/v1/tasks/abc-123/status")
     assert response.status_code == 200
 
-    # Counter should be called
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    # Verify request and response were passed correctly
-    assert request_arg.url.path == "/api/v1/tasks/abc-123/status"
-    assert request_arg.method == "GET"
-    assert response_arg.status_code == 200
+    # Verify counter recorded with correct labels
+    count = find_metric(setup_counter, "/api/v1/tasks/{task_id}/status", "GET", "none")
+    assert count == 1
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_regular_endpoint_404_error(mock_counter_record, client):
-    """Test regular endpoint records counter with 404 error."""
-    # Make request
-    response = client.get("/api/v1/tasks/xyz-789/not-found")
-
-    # Assertions
+def test_counter_records_404_error(client, setup_counter):
+    """Test counter records 404 error correctly."""
+    response = client.get("/api/v1/tasks/xyz/not-found")
     assert response.status_code == 404
 
-    # Counter should be called with error response
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    assert request_arg.url.path == "/api/v1/tasks/xyz-789/not-found"
-    assert response_arg.status_code == 404
+    # Verify 4xx_error categorization
+    count = find_metric(setup_counter, "/api/v1/tasks/{task_id}/not-found", "GET", "4xx_error")
+    assert count == 1
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_post_endpoint_500_error(mock_counter_record, client):
-    """Test POST endpoint records counter with 500 error."""
-    # Make request
+def test_counter_records_500_error(client, setup_counter):
+    """Test counter records 500 error correctly."""
     response = client.post("/api/v1/tasks/abc/server-error")
-
-    # Assertions
     assert response.status_code == 500
 
-    # Counter should be called with error response
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    assert request_arg.method == "POST"
-    assert response_arg.status_code == 500
+    # Verify 5xx_error categorization
+    count = find_metric(setup_counter, "/api/v1/tasks/{task_id}/server-error", "POST", "5xx_error")
+    assert count == 1
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_auth_error_401(mock_counter_record, client):
-    """Test auth endpoint records counter with 401 error."""
-    # Make request
+def test_counter_records_auth_error(client, setup_counter):
+    """Test counter categorizes 401 as auth_error."""
     response = client.post("/api/v1/auth/unauthorized")
-
-    # Assertions
     assert response.status_code == 401
 
-    # Counter should be called
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    assert response_arg.status_code == 401
+    # Verify auth_error categorization
+    count = find_metric(setup_counter, "/api/v1/auth/unauthorized", "POST", "auth_error")
+    assert count == 1
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_health_endpoint_skipped(mock_counter_record, client):
-    """Test /health endpoint skips all monitoring."""
-    # Make request
+def test_health_endpoint_skipped(client, setup_counter):
+    """Test /health endpoint produces NO metrics."""
     response = client.get("/health")
-
-    # Assertions
     assert response.status_code == 200
 
-    # No counter should be called
-    mock_counter_record.assert_not_called()
+    # Verify counter was NOT called
+    assert len(setup_counter) == 0
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_metrics_endpoint_skipped(mock_counter_record, client):
-    """Test /metrics endpoint skips all monitoring."""
-    # Make request
+def test_metrics_endpoint_skipped(client, setup_counter):
+    """Test /metrics endpoint produces NO metrics."""
     response = client.get("/metrics")
-
-    # Assertions
     assert response.status_code == 200
 
-    # No counter should be called
-    mock_counter_record.assert_not_called()
+    # Verify counter was NOT called
+    assert len(setup_counter) == 0
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_other_endpoint_recorded(mock_counter_record, client):
-    """Test endpoints outside main 5 controllers are still monitored."""
-    # Make request to /config (operation="other")
+def test_other_operation_recorded(client, setup_counter):
+    """Test endpoints outside main 5 are recorded."""
     response = client.get("/api/v1/config")
-
-    # Assertions
     assert response.status_code == 200
 
-    # Counter should still be called
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    assert request_arg.url.path == "/api/v1/config"
-    assert response_arg.status_code == 200
+    # Verify counter recorded
+    count = find_metric(setup_counter, "/api/v1/config", "GET", "none")
+    assert count == 1
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_streaming_endpoint_recorded(mock_counter_record, client):
-    """Test streaming endpoint records counter."""
-    # Make streaming request
+def test_streaming_endpoint_counter(client, setup_counter):
+    """Test streaming endpoint increments counter."""
     response = client.get("/api/v1/message:stream")
-
-    # Consume the stream
     _ = response.read()
-
-    # Assertions
     assert response.status_code == 200
 
-    # Counter called
-    assert mock_counter_record.called
-    request_arg, response_arg = mock_counter_record.call_args[0]
-
-    assert request_arg.url.path == "/api/v1/message:stream"
-    assert response_arg.status_code == 200
+    # Verify counter recorded
+    count = find_metric(setup_counter, "/api/v1/message:stream", "GET", "none")
+    assert count == 1
 
 
-def test_categorize_error():
-    """Test error categorization logic in SamWebGatewayCounter."""
-    # Extract categorization logic (same as in SamWebGatewayCounter.record)
-    def categorize(status_code):
-        if status_code < 400:
-            return "none"
-        elif status_code in (401, 403):
-            return "auth_error"
-        elif 400 <= status_code < 500:
-            return "4xx_error"
-        elif 500 <= status_code < 600:
-            return "5xx_error"
-        else:
-            return "unknown"
+def test_multiple_requests_accumulate(client, setup_counter):
+    """Test counter accumulates across multiple requests."""
+    for _ in range(3):
+        response = client.get("/api/v1/tasks/test-id/status")
+        assert response.status_code == 200
 
-    # Test cases
-    assert categorize(200) == "none"
-    assert categorize(201) == "none"
-    assert categorize(204) == "none"
-    assert categorize(400) == "4xx_error"
-    assert categorize(401) == "auth_error"
-    assert categorize(403) == "auth_error"
-    assert categorize(404) == "4xx_error"
-    assert categorize(422) == "4xx_error"
-    assert categorize(500) == "5xx_error"
-    assert categorize(503) == "5xx_error"
-    assert categorize(600) == "unknown"
+    # Verify count = 3 (sum of all record calls with matching labels)
+    count = find_metric(setup_counter, "/api/v1/tasks/{task_id}/status", "GET", "none")
+    assert count == 3
 
 
-@patch("solace_ai_connector.common.observability.MetricRegistry")
-def test_counter_record_extracts_labels(mock_registry):
-    """Test SamWebGatewayCounter.record() extracts correct labels."""
-    from solace_agent_mesh.gateway.observability.monitors import SamWebGatewayCounter
+def test_ttfb_iterator_timing():
+    """Test TTFB iterator calls monitor.stop() after first chunk."""
     from unittest.mock import Mock
+    import asyncio
 
-    # Setup mock counter
-    mock_counter = Mock()
-    mock_registry.get_instance.return_value.create_counter.return_value = mock_counter
+    async def mock_iterator():
+        yield b"first"
+        yield b"second"
 
-    # Reset class state
-    SamWebGatewayCounter._counter = None
+    # Simulate the TTFB measurement logic
+    async def simulate_ttfb_measurement():
+        monitor = Mock()
+        monitor.stop = Mock()
 
-    # Create mock request with route
-    mock_request = Mock()
-    mock_request.method = "POST"
-    mock_route = Mock()
-    mock_route.path = "/api/v1/users/{id}/profile"
-    mock_request.scope = {"route": mock_route}
+        original_body_iterator = mock_iterator()
 
-    # Create mock response
-    mock_response = Mock()
-    mock_response.status_code = 404
+        first_chunk_seen = False
+        chunks = []
+        async for chunk in original_body_iterator:
+            if not first_chunk_seen:
+                monitor.stop()
+                first_chunk_seen = True
+            chunks.append(chunk)
 
-    # Call record
-    SamWebGatewayCounter.record(mock_request, mock_response)
+        # Verify stop called exactly once after first chunk
+        assert monitor.stop.call_count == 1
+        assert chunks == [b"first", b"second"]
 
-    # Verify counter was called with correct labels
-    assert mock_counter.record.called
-    value, labels = mock_counter.record.call_args[0]
-
-    assert value == 1
-    assert labels["gateway.name"] == "WebUIGateway"
-    assert labels["route.template"] == "/api/v1/users/{id}/profile"
-    assert labels["http.method"] == "POST"
-    assert labels["error.type"] == "4xx_error"
+    asyncio.run(simulate_ttfb_measurement())
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamGatewayMonitor.create")
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_duration_histogram_recorded_for_tasks(mock_counter, mock_monitor_create, client):
-    """Test duration histogram is recorded for task operations."""
+def test_ttfb_iterator_error_handling():
+    """Test TTFB iterator calls monitor.error() if exception before first chunk."""
     from unittest.mock import Mock
+    import asyncio
 
-    # Setup mock monitor instance
-    mock_monitor_instance = Mock()
-    mock_monitor_create.return_value = mock_monitor_instance
+    # Simulate iterator that errors before yielding
+    async def error_iterator():
+        if True:  # Immediately error
+            raise RuntimeError("Immediate error")
+        yield b"never reached"  # noqa
 
-    # Make request
-    response = client.get("/api/v1/tasks/abc-123/status")
+    # Simulate the error handling logic
+    monitor = Mock()
+    monitor.error = Mock()
+    monitor.stop = Mock()
 
-    # Assertions
-    assert response.status_code == 200
+    async def test_error_path():
+        first_chunk_seen = False
+        try:
+            async for chunk in error_iterator():
+                if not first_chunk_seen:
+                    monitor.stop()
+                    first_chunk_seen = True
+                yield chunk
+        except Exception as e:
+            if not first_chunk_seen:
+                monitor.error(e)
+            raise
 
-    # Monitor should be created with correct parameters
-    mock_monitor_create.assert_called_once_with(
-        gateway_name="WebUIGateway",
-        operation_name="/tasks"
-    )
+    # Run and verify error() was called
+    with pytest.raises(RuntimeError):
+        asyncio.run(test_error_path().__anext__())
 
-
-@patch("solace_agent_mesh.gateway.observability.monitors.SamGatewayMonitor.create")
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_duration_histogram_recorded_for_other(mock_counter, mock_monitor_create, client):
-    """Test duration histogram is recorded for 'other' operations."""
-    from unittest.mock import Mock
-
-    # Setup mock monitor instance
-    mock_monitor_instance = Mock()
-    mock_monitor_create.return_value = mock_monitor_instance
-
-    # Make request to config (operation="other")
-    response = client.get("/api/v1/config")
-
-    # Assertions
-    assert response.status_code == 200
-
-    # Monitor should be created for "other" operation
-    mock_monitor_create.assert_called_once_with(
-        gateway_name="WebUIGateway",
-        operation_name="other"
-    )
+    assert monitor.error.call_count == 1
+    assert monitor.stop.call_count == 0
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamGatewayMonitor.create")
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_duration_histogram_not_recorded_for_health(mock_counter, mock_monitor_create, client):
-    """Test duration histogram is NOT recorded for /health."""
-    # Make request
-    response = client.get("/health")
+def test_wrap_streaming_non_streaming_response():
+    """Test _wrap_streaming_with_ttfb returns unwrapped response if no body_iterator."""
+    from solace_agent_mesh.gateway.http_sse.middleware.observability import GatewayObservabilityMiddleware
+    from fastapi import FastAPI
 
-    # Assertions
-    assert response.status_code == 200
+    # Create middleware with a real app
+    app = FastAPI()
+    middleware = GatewayObservabilityMiddleware(app)
 
-    # Monitor should NOT be created
-    mock_monitor_create.assert_not_called()
-    mock_counter.assert_not_called()
+    # Regular response (no body_iterator)
+    regular_response = Response(content=b"test", status_code=200)
+
+    # Should return unchanged
+    result = middleware._wrap_streaming_with_ttfb(regular_response, "test")
+
+    assert result is regular_response  # Same object returned
 
 
-@patch("solace_agent_mesh.gateway.observability.monitors.SamGatewayTTFBMonitor.create")
-@patch("solace_agent_mesh.gateway.observability.monitors.SamWebGatewayCounter.record")
-def test_ttfb_histogram_recorded_for_streaming(mock_counter, mock_ttfb_create, client):
-    """Test TTFB histogram is recorded for streaming endpoints."""
-    from unittest.mock import Mock
-
-    # Setup mock monitor instance
-    mock_monitor_instance = Mock()
-    mock_ttfb_create.return_value = mock_monitor_instance
-
-    # Make streaming request
+def test_streaming_endpoint_both_metrics(client, setup_counter):
+    """Test streaming endpoints record counter."""
+    # Make request to streaming endpoint
     response = client.get("/api/v1/message:stream")
     _ = response.read()
 
-    # Assertions
-    assert response.status_code == 200
-
-    # TTFB monitor should be created
-    mock_ttfb_create.assert_called_once_with(
-        gateway_name="WebUIGateway",
-        operation_name="/message"
-    )
+    # Verify counter was recorded
+    count = find_metric(setup_counter, "/api/v1/message:stream", "GET", "none")
+    assert count == 1

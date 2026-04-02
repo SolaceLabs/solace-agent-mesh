@@ -72,7 +72,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
         '/api/v1/message:stream',  # Streaming message responses
     }
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next) -> Response:
         """
         Intercept request, measure duration, and record metrics.
 
