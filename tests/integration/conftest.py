@@ -664,7 +664,7 @@ def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
     Automatically clears any primed responses and captured requests from the
     TestLLMServer before each test that uses it (if session-scoped and reused).
-    Also clears the global static response.
+    Also clears the global static response and resets the response delay.
     """
     test_llm_server.clear_all_configurations()
 
@@ -739,6 +739,10 @@ def shared_solace_connector(
     Creates and manages a single SolaceAiConnector instance with multiple agents
     for integration testing.
     """
+    # Reset MetricRegistry singleton before creating the connector to avoid
+    # 'MetricRegistry already initialized' errors from SAC 3.3.6+.
+    from solace_ai_connector.common.observability.registry import MetricRegistry
+    MetricRegistry.reset()
 
     def create_agent_config(
         agent_name,
