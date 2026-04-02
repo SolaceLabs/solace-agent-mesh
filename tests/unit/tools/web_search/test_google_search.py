@@ -205,6 +205,19 @@ class TestGoogleSearchToolSearch:
             assert result.success is False
             assert "403" in result.error
             assert "API key invalid" in result.error
+
+    @pytest.mark.asyncio
+    async def test_search_api_error_does_not_swallow_interrupt(self, google_tool):
+        """Test that interrupt-style failures in API error parsing are not suppressed."""
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.json.side_effect = KeyboardInterrupt()
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(KeyboardInterrupt):
+                await google_tool.search("test query")
     
     @pytest.mark.asyncio
     async def test_search_timeout(self, google_tool):

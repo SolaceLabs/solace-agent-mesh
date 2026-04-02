@@ -99,9 +99,10 @@ class GoogleSearchTool(WebSearchTool):
                     error_msg = f"Google API error: {response.status_code}"
                     try:
                         error_data = response.json()
-                        error_msg += f" - {error_data.get('error', {}).get('message', '')}"
-                    except:
+                    except ValueError:
                         error_msg += f" - {response.text}"
+                    else:
+                        error_msg += f" - {error_data.get('error', {}).get('message', '')}"
                     
                     logger.error(error_msg)
                     return SearchResult(
@@ -199,17 +200,17 @@ class GoogleSearchTool(WebSearchTool):
         Returns:
             Clean domain name
         """
-        try:
-            # Remove protocol
-            domain = url.replace("https://", "").replace("http://", "")
-            # Get first part (domain)
-            domain = domain.split("/")[0]
-            # Remove www.
-            if domain.startswith("www."):
-                domain = domain[4:]
-            return domain
-        except:
+        if not isinstance(url, str):
             return url
+
+        # Remove protocol
+        domain = url.replace("https://", "").replace("http://", "")
+        # Get first part (domain)
+        domain = domain.split("/")[0]
+        # Remove www.
+        if domain.startswith("www."):
+            domain = domain[4:]
+        return domain
     
     def get_tool_definition(self) -> dict:
         """Get the tool definition for LLM function calling.
