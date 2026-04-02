@@ -301,6 +301,9 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     else:
         log.info("OAuth middleware added (development mode - community/dev user)")
 
+    from .middleware.observability import GatewayObservabilityMiddleware
+    app.add_middleware(GatewayObservabilityMiddleware)
+    log.info("Gateway observability middleware added (monitoring: tasks, sessions, sse, artifacts, messages)")
 
 def _setup_routers() -> None:
     api_prefix = "/api/v1"
