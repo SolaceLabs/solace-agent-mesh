@@ -10,6 +10,14 @@ log:
 # Shared SAM config
 !include ../shared_config.yaml
 
+management_server:
+  enabled: true
+  port: 8080
+  observability:
+    enabled: true
+    metric_prefix: sam_dev_local
+    path: /metrics
+
 apps:
   # Example 1: Custom OpenAI-Compatible LLM Agent
   - name: orchestrator-agent_app
