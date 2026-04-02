@@ -1,7 +1,9 @@
 """Shared database fixtures for all tests."""
-import pytest
+
 import tempfile
 from pathlib import Path
+
+import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
@@ -37,4 +39,3 @@ def sqlite_session(sqlite_session_factory):
     session = sqlite_session_factory()
     yield session
     session.close()
-

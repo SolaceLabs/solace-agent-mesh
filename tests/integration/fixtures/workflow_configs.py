@@ -6,7 +6,6 @@ Extracted from the main integration conftest to improve maintainability.
 Note: These are extracted inline from the shared_solace_connector fixture.
 They will be imported back into the main conftest and used in the app_infos list.
 """
-import pytest
 
 
 def get_simple_workflow_config():
@@ -25,29 +24,29 @@ def get_simple_workflow_config():
                 "input_schema": {
                     "type": "object",
                     "properties": {"input_text": {"type": "string"}},
-                    "required": ["input_text"]
+                    "required": ["input_text"],
                 },
                 "output_schema": {
                     "type": "object",
                     "properties": {"final_result": {"type": "string"}},
-                    "required": ["final_result"]
+                    "required": ["final_result"],
                 },
                 "nodes": [
                     {
                         "id": "step_1",
                         "type": "agent",
                         "agent_name": "TestPeerAgentA",
-                        "input": {"task_description": "{{workflow.input.input_text}}"}
+                        "input": {"task_description": "{{workflow.input.input_text}}"},
                     },
                     {
                         "id": "step_2",
                         "type": "agent",
                         "agent_name": "TestPeerAgentB",
                         "depends_on": ["step_1"],
-                        "input": {"task_description": "Process the output from step 1"}
-                    }
+                        "input": {"task_description": "Process the output from step 1"},
+                    },
                 ],
-                "output_mapping": {"final_result": "{{step_2.output}}"}
+                "output_mapping": {"final_result": "{{step_2.output}}"},
             },
             "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
             "artifact_service": {"type": "test_in_memory"},
@@ -76,9 +75,9 @@ def get_structured_workflow_config():
                     "properties": {
                         "customer_name": {"type": "string"},
                         "order_id": {"type": "string"},
-                        "amount": {"type": "integer"}
+                        "amount": {"type": "integer"},
                     },
-                    "required": ["customer_name", "order_id", "amount"]
+                    "required": ["customer_name", "order_id", "amount"],
                 },
                 "output_schema": {
                     "type": "object",
@@ -87,9 +86,15 @@ def get_structured_workflow_config():
                         "order_id": {"type": "string"},
                         "amount": {"type": "integer"},
                         "status": {"type": "string"},
-                        "processed": {"type": "boolean"}
+                        "processed": {"type": "boolean"},
                     },
-                    "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                    "required": [
+                        "customer_name",
+                        "order_id",
+                        "amount",
+                        "status",
+                        "processed",
+                    ],
                 },
                 "nodes": [
                     {
@@ -99,16 +104,16 @@ def get_structured_workflow_config():
                         "input": {
                             "customer_name": "{{workflow.input.customer_name}}",
                             "order_id": "{{workflow.input.order_id}}",
-                            "amount": "{{workflow.input.amount}}"
+                            "amount": "{{workflow.input.amount}}",
                         },
                         "input_schema_override": {
                             "type": "object",
                             "properties": {
                                 "customer_name": {"type": "string"},
                                 "order_id": {"type": "string"},
-                                "amount": {"type": "integer"}
+                                "amount": {"type": "integer"},
                             },
-                            "required": ["customer_name", "order_id", "amount"]
+                            "required": ["customer_name", "order_id", "amount"],
                         },
                         "output_schema_override": {
                             "type": "object",
@@ -116,10 +121,15 @@ def get_structured_workflow_config():
                                 "customer_name": {"type": "string"},
                                 "order_id": {"type": "string"},
                                 "amount": {"type": "integer"},
-                                "status": {"type": "string"}
+                                "status": {"type": "string"},
                             },
-                            "required": ["customer_name", "order_id", "amount", "status"]
-                        }
+                            "required": [
+                                "customer_name",
+                                "order_id",
+                                "amount",
+                                "status",
+                            ],
+                        },
                     },
                     {
                         "id": "process_order",
@@ -130,7 +140,7 @@ def get_structured_workflow_config():
                             "customer_name": "{{validate_order.output.customer_name}}",
                             "order_id": "{{validate_order.output.order_id}}",
                             "amount": "{{validate_order.output.amount}}",
-                            "status": "{{validate_order.output.status}}"
+                            "status": "{{validate_order.output.status}}",
                         },
                         "input_schema_override": {
                             "type": "object",
@@ -138,9 +148,14 @@ def get_structured_workflow_config():
                                 "customer_name": {"type": "string"},
                                 "order_id": {"type": "string"},
                                 "amount": {"type": "integer"},
-                                "status": {"type": "string"}
+                                "status": {"type": "string"},
                             },
-                            "required": ["customer_name", "order_id", "amount", "status"]
+                            "required": [
+                                "customer_name",
+                                "order_id",
+                                "amount",
+                                "status",
+                            ],
                         },
                         "output_schema_override": {
                             "type": "object",
@@ -149,19 +164,25 @@ def get_structured_workflow_config():
                                 "order_id": {"type": "string"},
                                 "amount": {"type": "integer"},
                                 "status": {"type": "string"},
-                                "processed": {"type": "boolean"}
+                                "processed": {"type": "boolean"},
                             },
-                            "required": ["customer_name", "order_id", "amount", "status", "processed"]
-                        }
-                    }
+                            "required": [
+                                "customer_name",
+                                "order_id",
+                                "amount",
+                                "status",
+                                "processed",
+                            ],
+                        },
+                    },
                 ],
                 "output_mapping": {
                     "customer_name": "{{process_order.output.customer_name}}",
                     "order_id": "{{process_order.output.order_id}}",
                     "amount": "{{process_order.output.amount}}",
                     "status": "{{process_order.output.status}}",
-                    "processed": "{{process_order.output.processed}}"
-                }
+                    "processed": "{{process_order.output.processed}}",
+                },
             },
             "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
             "artifact_service": {"type": "test_in_memory"},
@@ -516,7 +537,9 @@ def get_instruction_workflow_config():
                         "input": {"task": "{{workflow.input.input_text}}"},
                     },
                 ],
-                "output_mapping": {"result": "{{process_with_instruction.output.result}}"},
+                "output_mapping": {
+                    "result": "{{process_with_instruction.output.result}}"
+                },
             },
             "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
             "artifact_service": {"type": "test_in_memory"},
@@ -557,21 +580,27 @@ def get_subworkflow_invoke_config():
                         "id": "prepare_data",
                         "type": "agent",
                         "agent_name": "TestPeerAgentA",
-                        "input": {"task": "Prepare data for sub-workflow: {{workflow.input.input_text}}"},
+                        "input": {
+                            "task": "Prepare data for sub-workflow: {{workflow.input.input_text}}"
+                        },
                     },
                     {
                         "id": "invoke_sub_workflow",
                         "type": "workflow",
                         "workflow_name": "SimpleTestWorkflow",
                         "depends_on": ["prepare_data"],
-                        "input": {"input_text": "{{prepare_data.output.processed_data}}"},
+                        "input": {
+                            "input_text": "{{prepare_data.output.processed_data}}"
+                        },
                     },
                     {
                         "id": "finalize",
                         "type": "agent",
                         "agent_name": "TestPeerAgentB",
                         "depends_on": ["invoke_sub_workflow"],
-                        "input": {"sub_workflow_result": "{{invoke_sub_workflow.output.final_result}}"},
+                        "input": {
+                            "sub_workflow_result": "{{invoke_sub_workflow.output.final_result}}"
+                        },
                     },
                 ],
                 "output_mapping": {
@@ -644,10 +673,9 @@ def get_a2a_proxy_config(test_a2a_agent_server_harness):
                     "url": test_a2a_agent_server_harness.url,
                     "request_timeout_seconds": 3,
                     "convert_progress_updates": False,
-                }
+                },
             ],
             "artifact_service": {"type": "test_in_memory"},
             "discovery_interval_seconds": 1,
         },
     }
-

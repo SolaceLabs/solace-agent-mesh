@@ -3,7 +3,7 @@
 This module contains fixtures used across multiple CLI command test suites,
 particularly for mocking template loading operations.
 """
-from unittest.mock import MagicMock
+
 import pytest
 
 
@@ -129,6 +129,8 @@ session_service:__SESSION_SERVICE__
             "plugin_agent_config_template.yaml": mock_plugin_config_template,
             "plugin_gateway_config_template.yaml": mock_plugin_config_template,
             "plugin_custom_config_template.yaml": mock_plugin_config_template,
+            "plugin_tool_config_template.yaml": mock_plugin_config_template,
+            "plugin_workflow_config_template.yaml": mock_plugin_config_template,
             "plugin_pyproject_template.toml": mock_pyproject_template,
             "plugin_readme_template.md": mock_readme_template,
             "plugin_tools_template.py": mock_tools_template,
@@ -149,14 +151,8 @@ session_service:__SESSION_SERVICE__
     # The mocker needs to patch both locations where load_template is used
     plugin_mock = mocker.patch(
         "cli.commands.plugin_cmd.create_cmd.load_template",
-        side_effect=load_template_side_effect
-    )
-
-    init_mock = mocker.patch(
-        "cli.utils.load_template",
-        side_effect=load_template_side_effect
+        side_effect=load_template_side_effect,
     )
 
     # Return the plugin mock as the primary (for backward compatibility)
     return plugin_mock
-

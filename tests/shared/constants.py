@@ -3,6 +3,7 @@
 
 class TestIds:
     """Standard test IDs for use in tests."""
+
     NONEXISTENT_ID = "00000000-0000-0000-0000-000000000000"
     DEFAULT_USER = "sam_dev_user"
     SECONDARY_USER = "secondary_user"
@@ -13,6 +14,7 @@ class TestIds:
 
 class HttpStatus:
     """HTTP status codes for API testing."""
+
     OK = 200
     CREATED = 201
     ACCEPTED = 202
@@ -28,6 +30,7 @@ class HttpStatus:
 
 class TestPaths:
     """Common test file paths."""
+
     SAMPLE_PDF = "sample.pdf"
     SAMPLE_DOCX = "sample.docx"
     SAMPLE_TXT = "sample.txt"
@@ -35,6 +38,7 @@ class TestPaths:
 
 class AgentDefaults:
     """Default values for agent testing."""
+
     DEFAULT_AGENT_NAME = "TestAgent"
     DEFAULT_NAMESPACE = "test_namespace"
     DEFAULT_MODEL = "openai/test-model"
@@ -43,6 +47,6 @@ class AgentDefaults:
 
 class GatewayDefaults:
     """Default values for gateway testing."""
+
     DEFAULT_GATEWAY_ID = "TestGateway"
     DEFAULT_USER_ID = "test-user@example.com"
-

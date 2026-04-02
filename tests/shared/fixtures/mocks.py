@@ -1,4 +1,5 @@
 """Shared mock factories for tests."""
+
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -41,4 +42,3 @@ def create_mock_db_session():
     session.rollback = MagicMock()
     session.close = MagicMock()
     return session
-

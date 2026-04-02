@@ -4,28 +4,27 @@ Integration test fixtures and configuration.
 This conftest imports and re-exports all fixtures from the fixtures/ subdirectory
 for backward compatibility, while keeping integration-specific fixtures here.
 """
-from typing import Any, Dict, Generator, TYPE_CHECKING
+
 import os
 import tempfile
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import sqlalchemy as sa
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, event, text
 
 from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
 
-# Import all fixtures from subdirectories
-from .fixtures import *
+# Import all fixtures from subdirectories for pytest auto-discovery
+from .fixtures import *  # noqa: F403
 
 if TYPE_CHECKING:
-    from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
-    from sam_test_infrastructure.llm_server.server import TestLLMServer
-    from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
+    pass
 
 
 def pytest_configure(config):
@@ -92,28 +91,27 @@ def test_db_engine():
 @pytest.fixture(autouse=True)
 def clean_db_fixture(test_db_engine):
     """Cleans all data from the test database before each test run."""
-    with test_db_engine.connect() as connection:
-        with connection.begin():
-            inspector = sa.inspect(test_db_engine)
-            existing_tables = inspector.get_table_names()
+    with test_db_engine.connect() as connection, connection.begin():
+        inspector = sa.inspect(test_db_engine)
+        existing_tables = inspector.get_table_names()
 
-            # Delete in correct order to handle foreign key constraints
-            tables_to_clean = [
-                "feedback",
-                "task_events",
-                "chat_messages",
-                "tasks",
-                "sessions",
-                "prompt_group_users",
-                "prompts",
-                "prompt_groups",
-                "project_users",
-                "projects",
-                "users",
-            ]
-            for table_name in tables_to_clean:
-                if table_name in existing_tables:
-                    connection.execute(text(f"DELETE FROM {table_name}"))
+        # Delete in correct order to handle foreign key constraints
+        tables_to_clean = [
+            "feedback",
+            "task_events",
+            "chat_messages",
+            "tasks",
+            "sessions",
+            "prompt_group_users",
+            "prompts",
+            "prompt_groups",
+            "project_users",
+            "projects",
+            "users",
+        ]
+        for table_name in tables_to_clean:
+            if table_name in existing_tables:
+                connection.execute(text(f"DELETE FROM {table_name}"))
     yield
 
 
@@ -153,16 +151,16 @@ def shared_solace_connector(
     for integration testing. Imports configurations from fixtures/ subdirectory.
     """
     from .fixtures.workflow_configs import (
+        get_a2a_proxy_config,
+        get_conditional_workflow_config,
+        get_instruction_workflow_config,
+        get_loop_workflow_config,
+        get_map_workflow_config,
+        get_recursive_workflow_config,
         get_simple_workflow_config,
         get_structured_workflow_config,
-        get_conditional_workflow_config,
-        get_map_workflow_config,
-        get_switch_workflow_config,
-        get_loop_workflow_config,
-        get_instruction_workflow_config,
         get_subworkflow_invoke_config,
-        get_recursive_workflow_config,
-        get_a2a_proxy_config,
+        get_switch_workflow_config,
     )
 
     app_infos = [
@@ -319,10 +317,14 @@ def shared_solace_connector(
             "enable_trace": False,
         },
     }
-    print(f"\n[Conftest] Configuring SolaceAiConnector with stdout log level: {log_level_str.upper()}")
+    print(
+        f"\n[Conftest] Configuring SolaceAiConnector with stdout log level: {log_level_str.upper()}"
+    )
     connector = SolaceAiConnector(config=connector_config)
     connector.run()
-    print(f"shared_solace_connector fixture: Started SolaceAiConnector with apps: {[app['name'] for app in connector_config['apps']]}")
+    print(
+        f"shared_solace_connector fixture: Started SolaceAiConnector with apps: {[app['name'] for app in connector_config['apps']]}"
+    )
 
     # Allow time for agent card discovery
     print("shared_solace_connector fixture: Waiting for agent discovery...")
@@ -341,7 +343,7 @@ def test_a2a_sdk_import():
     """Verifies that the a2a-sdk can be imported."""
     try:
         from a2a.types import Task
+
         assert Task is not None
     except ImportError as e:
         pytest.fail(f"Failed to import from a2a-sdk: {e}")
-

@@ -3,6 +3,7 @@
 This module contains all gateway configuration dictionaries.
 Extracted from the main integration conftest to improve maintainability.
 """
+
 import pytest
 
 
@@ -101,4 +102,3 @@ def test_harness_gateway_config():
         "response_format": "Test gateway response format for metadata validation",
         "gateway_card_publishing": {"enabled": False},
     }
-

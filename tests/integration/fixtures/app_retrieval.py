@@ -4,7 +4,9 @@ This module contains fixtures that retrieve apps and components from the
 shared_solace_connector, plus state cleanup fixtures.
 Extracted from the main integration conftest to improve maintainability.
 """
-from typing import Generator, TYPE_CHECKING
+
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
@@ -43,103 +45,153 @@ def sam_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentAp
     """Retrieves the main SamAgentApp instance."""
     app_instance = shared_solace_connector.get_app("TestSamAgentApp")
     assert isinstance(app_instance, SamAgentApp), "Failed to retrieve SamAgentApp."
-    print(f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector.")
+    print(
+        f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def peer_agent_a_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def peer_agent_a_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the TestPeerAgentA_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentA_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve TestPeerAgentA_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentA_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def peer_agent_b_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def peer_agent_b_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the TestPeerAgentB_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentB_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve TestPeerAgentB_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentB_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def peer_agent_c_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def peer_agent_c_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the TestPeerAgentC_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentC_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve TestPeerAgentC_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentC_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def peer_agent_d_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def peer_agent_d_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the TestPeerAgentD_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentD_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve TestPeerAgentD_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentD_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def combined_dynamic_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def combined_dynamic_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the CombinedDynamicAgent_App instance."""
     app_instance = shared_solace_connector.get_app("CombinedDynamicAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve CombinedDynamicAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve CombinedDynamicAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def empty_provider_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def empty_provider_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the EmptyProviderAgent_App instance."""
     app_instance = shared_solace_connector.get_app("EmptyProviderAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve EmptyProviderAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve EmptyProviderAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def docstringless_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def docstringless_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the DocstringlessAgent_App instance."""
     app_instance = shared_solace_connector.get_app("DocstringlessAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve DocstringlessAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve DocstringlessAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def mixed_discovery_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def mixed_discovery_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the MixedDiscoveryAgent_App instance."""
     app_instance = shared_solace_connector.get_app("MixedDiscoveryAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve MixedDiscoveryAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve MixedDiscoveryAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def complex_signatures_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def complex_signatures_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the ComplexSignaturesAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ComplexSignaturesAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve ComplexSignaturesAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ComplexSignaturesAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def config_context_agent_component_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def config_context_agent_component_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the ConfigContextAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ConfigContextAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve ConfigContextAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ConfigContextAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def artifact_content_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def artifact_content_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the ArtifactContentAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ArtifactContentAgent_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve ArtifactContentAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ArtifactContentAgent_App."
+    )
     yield app_instance
 
 
 @pytest.fixture(scope="session")
-def compaction_agent_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentApp:
+def compaction_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
     """Retrieves the TestAgentCompaction_App instance."""
     app_instance = shared_solace_connector.get_app("TestAgentCompaction_App")
-    assert isinstance(app_instance, SamAgentApp), "Failed to retrieve TestAgentCompaction_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestAgentCompaction_App."
+    )
     yield app_instance
 
 
@@ -175,43 +227,57 @@ def peer_d_component(peer_agent_d_app_under_test: SamAgentApp) -> SamAgentCompon
 
 
 @pytest.fixture(scope="session")
-def combined_dynamic_agent_component(combined_dynamic_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def combined_dynamic_agent_component(
+    combined_dynamic_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the CombinedDynamicAgent component instance."""
     return get_component_from_app(combined_dynamic_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def empty_provider_agent_component(empty_provider_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def empty_provider_agent_component(
+    empty_provider_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the EmptyProviderAgent component instance."""
     return get_component_from_app(empty_provider_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def docstringless_agent_component(docstringless_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def docstringless_agent_component(
+    docstringless_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the DocstringlessAgent component instance."""
     return get_component_from_app(docstringless_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def mixed_discovery_agent_component(mixed_discovery_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def mixed_discovery_agent_component(
+    mixed_discovery_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the MixedDiscoveryAgent component instance."""
     return get_component_from_app(mixed_discovery_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def complex_signatures_agent_component(complex_signatures_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def complex_signatures_agent_component(
+    complex_signatures_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the ComplexSignaturesAgent component instance."""
     return get_component_from_app(complex_signatures_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def config_context_agent_component(config_context_agent_component_app_under_test: SamAgentApp) -> SamAgentComponent:
+def config_context_agent_component(
+    config_context_agent_component_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the ConfigContextAgent component instance."""
     return get_component_from_app(config_context_agent_component_app_under_test)
 
 
 @pytest.fixture(scope="session")
-def artifact_content_agent_component(artifact_content_agent_app_under_test: SamAgentApp) -> SamAgentComponent:
+def artifact_content_agent_component(
+    artifact_content_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
     """Retrieves the ArtifactContentAgent component instance."""
     return get_component_from_app(artifact_content_agent_app_under_test)
 
@@ -221,8 +287,11 @@ def artifact_content_agent_component(artifact_content_agent_app_under_test: SamA
 def test_simple_workflow_app(shared_solace_connector: SolaceAiConnector):
     """Retrieves the TestSimpleWorkflowApp instance."""
     from solace_agent_mesh.workflow.app import WorkflowApp
+
     app_instance = shared_solace_connector.get_app("TestSimpleWorkflowApp")
-    assert isinstance(app_instance, WorkflowApp), "Failed to retrieve TestSimpleWorkflowApp."
+    assert isinstance(app_instance, WorkflowApp), (
+        "Failed to retrieve TestSimpleWorkflowApp."
+    )
     yield app_instance
 
 
@@ -230,20 +299,29 @@ def test_simple_workflow_app(shared_solace_connector: SolaceAiConnector):
 def test_simple_workflow_component(test_simple_workflow_app):
     """Retrieves the SimpleTestWorkflow component instance."""
     from solace_agent_mesh.workflow.component import WorkflowComponent
+
     component = get_component_from_app(test_simple_workflow_app)
-    assert isinstance(component, WorkflowComponent), "Failed to retrieve WorkflowComponent."
+    assert isinstance(component, WorkflowComponent), (
+        "Failed to retrieve WorkflowComponent."
+    )
     return component
 
 
 # Gateway fixtures
 @pytest.fixture(scope="session")
-def webui_api_client(shared_solace_connector: SolaceAiConnector) -> Generator[TestClient, None, None]:
+def webui_api_client(
+    shared_solace_connector: SolaceAiConnector,
+) -> Generator[TestClient, None, None]:
     """Provides a FastAPI TestClient for the running WebUIBackendApp."""
     app_instance = shared_solace_connector.get_app("WebUIBackendApp")
-    assert isinstance(app_instance, WebUIBackendApp), "Failed to retrieve WebUIBackendApp."
+    assert isinstance(app_instance, WebUIBackendApp), (
+        "Failed to retrieve WebUIBackendApp."
+    )
 
     component_instance = app_instance.get_component()
-    assert isinstance(component_instance, WebUIBackendComponent), "Failed to retrieve WebUIBackendComponent."
+    assert isinstance(component_instance, WebUIBackendComponent), (
+        "Failed to retrieve WebUIBackendComponent."
+    )
 
     fastapi_app_instance = component_instance.fastapi_app
     if not fastapi_app_instance:
@@ -256,7 +334,9 @@ def webui_api_client(shared_solace_connector: SolaceAiConnector) -> Generator[Te
 
 
 @pytest.fixture(scope="session")
-def a2a_proxy_component(shared_solace_connector: SolaceAiConnector) -> "BaseProxyComponent":
+def a2a_proxy_component(
+    shared_solace_connector: SolaceAiConnector,
+) -> "BaseProxyComponent":
     """Retrieves the A2AProxyComponent instance."""
     from solace_agent_mesh.agent.proxies.base.component import BaseProxyComponent
 
@@ -277,10 +357,14 @@ def a2a_proxy_component(shared_solace_connector: SolaceAiConnector) -> "BaseProx
 
 
 @pytest.fixture(scope="session")
-def test_gateway_app_instance(shared_solace_connector: SolaceAiConnector) -> TestGatewayComponent:
+def test_gateway_app_instance(
+    shared_solace_connector: SolaceAiConnector,
+) -> TestGatewayComponent:
     """Retrieves the TestGatewayApp instance and yields its TestGatewayComponent."""
     app_instance = shared_solace_connector.get_app("TestHarnessGatewayApp")
-    assert isinstance(app_instance, TestGatewayApp), "Failed to retrieve TestGatewayApp."
+    assert isinstance(app_instance, TestGatewayApp), (
+        "Failed to retrieve TestGatewayApp."
+    )
     print(f"test_gateway_app_instance fixture: Retrieved app {app_instance.name}.")
 
     component_instance = None
@@ -298,20 +382,21 @@ def test_gateway_app_instance(shared_solace_connector: SolaceAiConnector) -> Tes
             if component_instance:
                 break
 
-    if not component_instance:
-        if hasattr(app_instance, "get_component"):
-            comp_from_method = app_instance.get_component()
-            if isinstance(comp_from_method, TestGatewayComponent):
-                component_instance = comp_from_method
-            elif hasattr(comp_from_method, "component") and isinstance(
-                comp_from_method.component, TestGatewayComponent
-            ):
-                component_instance = comp_from_method.component
+    if not component_instance and hasattr(app_instance, "get_component"):
+        comp_from_method = app_instance.get_component()
+        if isinstance(comp_from_method, TestGatewayComponent):
+            component_instance = comp_from_method
+        elif hasattr(comp_from_method, "component") and isinstance(
+            comp_from_method.component, TestGatewayComponent
+        ):
+            component_instance = comp_from_method.component
 
     if not component_instance:
         pytest.fail("TestGatewayComponent instance could not be retrieved.")
 
-    print(f"[SessionFixture] TestGatewayComponent instance ({component_instance.name}) retrieved for session.")
+    print(
+        f"[SessionFixture] TestGatewayComponent instance ({component_instance.name}) retrieved for session."
+    )
     yield component_instance
 
 
@@ -363,7 +448,7 @@ def clear_all_agent_states_between_tests(request):
         "mixed_discovery_agent_app_under_test",
         "complex_signatures_agent_app_under_test",
         "config_context_agent_component_app_under_test",
-        "compaction_agent_app_under_test"
+        "compaction_agent_app_under_test",
     ]
 
     for fixture_name in agent_app_fixtures:
@@ -376,7 +461,9 @@ def clear_all_agent_states_between_tests(request):
         a2a_proxy_component.clear_client_cache()
 
     if "test_a2a_agent_server_harness" in request.fixturenames:
-        test_a2a_agent_server_harness = request.getfixturevalue("test_a2a_agent_server_harness")
+        test_a2a_agent_server_harness = request.getfixturevalue(
+            "test_a2a_agent_server_harness"
+        )
         test_a2a_agent_server_harness.clear_captured_auth_headers()
         test_a2a_agent_server_harness.clear_captured_requests()
         test_a2a_agent_server_harness.clear_auth_state()
@@ -414,7 +501,9 @@ def a2a_message_validator(
     if not final_components_to_patch:
         pytest.skip("No suitable components found to patch for A2A validation.")
 
-    print(f"A2A Validator activating on components: {[c.name for c in final_components_to_patch]}")
+    print(
+        f"A2A Validator activating on components: {[c.name for c in final_components_to_patch]}"
+    )
     validator.activate(final_components_to_patch)
     yield validator
     validator.deactivate()
@@ -425,6 +514,7 @@ def a2a_message_validator(
 def mock_agent_skills():
     """Provides mock agent skills for A2A agent card testing."""
     from a2a.types import AgentSkill
+
     return AgentSkill(
         id="skill-1",
         name="Skill 1",
@@ -440,8 +530,8 @@ def mock_agent_skills():
 def mock_agent_card(mock_agent_skills):
     """Provides mock A2A agent card for testing."""
     from a2a.types import (
-        AgentCard,
         AgentCapabilities,
+        AgentCard,
         APIKeySecurityScheme,
         HTTPAuthSecurityScheme,
         In,
@@ -479,7 +569,8 @@ def mock_agent_card(mock_agent_skills):
 @pytest.fixture(scope="function")
 def mock_task_response():
     """Provides a mock A2A Task object representing a completed task."""
-    from a2a.types import Task, TaskState
+    from a2a.types import TaskState
+
     from solace_agent_mesh.common import a2a
 
     final_status = a2a.create_task_status(
@@ -500,7 +591,8 @@ def mock_task_response():
 @pytest.fixture(scope="function")
 def mock_task_response_cancel():
     """Provides a mock A2A Task object representing a canceled task."""
-    from a2a.types import Task, TaskState
+    from a2a.types import TaskState
+
     from solace_agent_mesh.common import a2a
 
     final_status = a2a.create_task_status(
@@ -521,7 +613,6 @@ def mock_task_response_cancel():
 @pytest.fixture(scope="function")
 def mock_sse_task_response():
     """Provides a mock A2A TaskStatusUpdateEvent for streaming response."""
-    from a2a.types import TaskStatusUpdateEvent
     from solace_agent_mesh.common import a2a
 
     status_message = a2a.create_agent_text_message(
@@ -540,7 +631,7 @@ def mock_sse_task_response():
 @pytest.fixture(scope="function")
 def mock_task_callback_response():
     """Provides a mock A2A TaskPushNotificationConfig object."""
-    from a2a.types import TaskPushNotificationConfig, PushNotificationConfig
+    from a2a.types import PushNotificationConfig, TaskPushNotificationConfig
 
     return TaskPushNotificationConfig(
         task_id="task-123",
@@ -550,5 +641,3 @@ def mock_task_callback_response():
             token="test-token",
         ),
     )
-
-

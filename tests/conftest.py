@@ -1,9 +1,8 @@
 """Root pytest configuration for all SAM tests."""
-import pytest
-import sys
+
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+import pytest
 
 
 @pytest.fixture(scope="session")
@@ -22,4 +21,3 @@ def test_data_dir(project_root):
 def default_test_timeout():
     """Default timeout for async operations in tests."""
     return 30.0
-

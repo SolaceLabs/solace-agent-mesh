@@ -1,15 +1,16 @@
-from typing import Any, Dict, Generator, List, Optional, TYPE_CHECKING
 import inspect
+import os
 import socket
-import pytest
-import time
 import subprocess
 import sys
 import tempfile
-import os
+import time
+from collections.abc import Generator
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import httpx
+import pytest
 import sqlalchemy as sa
 from a2a.types import (
     AgentCard,
@@ -23,24 +24,23 @@ from a2a.types import (
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 from fastapi.testclient import TestClient
+from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.a2a_validator.validator import A2AMessageValidator
 from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
 from sam_test_infrastructure.gateway_interface.app import TestGatewayApp
 from sam_test_infrastructure.gateway_interface.component import TestGatewayComponent
 from sam_test_infrastructure.llm_server.server import TestLLMServer
-from sam_test_infrastructure.a2a_agent_server.server import TestA2AAgentServer
 from sam_test_infrastructure.static_file_server.server import TestStaticFileServer
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
 from sqlalchemy import create_engine, text
 
+from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
 from solace_agent_mesh.agent.sac.app import SamAgentApp
 from solace_agent_mesh.agent.sac.component import SamAgentComponent
-from solace_agent_mesh.agent.adk.services import ScopedArtifactServiceWrapper
 from solace_agent_mesh.agent.tools.registry import tool_registry
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.gateway.http_sse.app import WebUIBackendApp
 from solace_agent_mesh.gateway.http_sse.component import WebUIBackendComponent
-
 from tests.integration.test_support.a2a_agent.executor import (
     DeclarativeAgentExecutor,
 )
@@ -135,28 +135,27 @@ def clean_db_fixture(test_db_engine):
     """
     Cleans all data from the test database before each test run.
     """
-    with test_db_engine.connect() as connection:
-        with connection.begin():
-            inspector = sa.inspect(test_db_engine)
-            existing_tables = inspector.get_table_names()
+    with test_db_engine.connect() as connection, connection.begin():
+        inspector = sa.inspect(test_db_engine)
+        existing_tables = inspector.get_table_names()
 
-            # Delete in correct order to handle foreign key constraints
-            tables_to_clean = [
-                "feedback",
-                "task_events",
-                "chat_messages",
-                "tasks",
-                "sessions",
-                "prompt_group_users",
-                "prompts",
-                "prompt_groups",
-                "project_users",
-                "projects",
-                "users",
-            ]
-            for table_name in tables_to_clean:
-                if table_name in existing_tables:
-                    connection.execute(text(f"DELETE FROM {table_name}"))
+        # Delete in correct order to handle foreign key constraints
+        tables_to_clean = [
+            "feedback",
+            "task_events",
+            "chat_messages",
+            "tasks",
+            "sessions",
+            "prompt_group_users",
+            "prompts",
+            "prompt_groups",
+            "project_users",
+            "projects",
+            "users",
+        ]
+        for table_name in tables_to_clean:
+            if table_name in existing_tables:
+                connection.execute(text(f"DELETE FROM {table_name}"))
     yield
 
 
@@ -337,26 +336,24 @@ def mock_oauth_server():
             # This ensures the A2A SDK's fallback logic works correctly
             self.mock.route(path="/.well-known/agent-card.json").pass_through()
 
-            print(f"\n[MockOAuthServer] Initializing respx mock")
+            print("\n[MockOAuthServer] Initializing respx mock")
+            print("[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost")
             print(
-                f"[MockOAuthServer] Pass-through configured for: 127.0.0.1, localhost"
-            )
-            print(
-                f"[MockOAuthServer] Pass-through configured for agent card path: /.well-known/agent-card.json"
+                "[MockOAuthServer] Pass-through configured for agent card path: /.well-known/agent-card.json"
             )
 
             self.mock.start()
             self._routes = {}
             self._call_log = []
 
-            print(f"[MockOAuthServer] Mock started. ")
+            print("[MockOAuthServer] Mock started. ")
 
         def configure_token_endpoint(
             self,
             token_url: str,
             access_token: str = "test_token_12345",
             expires_in: int = 3600,
-            error: Optional[Dict[str, Any]] = None,
+            error: dict[str, Any] | None = None,
             status_code: int = 200,
         ):
             """Configure a token endpoint to return specific responses."""
@@ -380,11 +377,11 @@ def mock_oauth_server():
 
             route = self.mock.post(token_url).mock(return_value=response)
             self._routes[token_url] = route
-            print(f"[MockOAuthServer] Route configured and stored")
+            print("[MockOAuthServer] Route configured and stored")
             return route
 
         def configure_token_endpoint_sequence(
-            self, token_url: str, responses: List[Dict[str, Any]]
+            self, token_url: str, responses: list[dict[str, Any]]
         ):
             """Configure a token endpoint to return a sequence of responses."""
             http_responses = []
@@ -422,11 +419,11 @@ def mock_oauth_server():
             """Assert that a token endpoint was called a specific number of times."""
             route = self._routes.get(token_url)
             assert route is not None, f"No route configured for {token_url}"
-            assert (
-                route.call_count == times
-            ), f"Expected {times} calls to {token_url}, got {route.call_count}"
+            assert route.call_count == times, (
+                f"Expected {times} calls to {token_url}, got {route.call_count}"
+            )
 
-        def get_last_token_request(self, token_url: str) -> Optional[Any]:
+        def get_last_token_request(self, token_url: str) -> Any | None:
             """Get the last request made to a token endpoint."""
             route = self._routes.get(token_url)
             if route and route.calls:
@@ -435,9 +432,9 @@ def mock_oauth_server():
 
         def stop(self):
             """Stop the mock."""
-            print(f"\n[MockOAuthServer] Stopping respx mock")
+            print("\n[MockOAuthServer] Stopping respx mock")
             self.mock.stop()
-            print(f"[MockOAuthServer] Mock stopped")
+            print("[MockOAuthServer] Mock stopped")
 
     server = MockOAuthServer()
     yield server
@@ -632,13 +629,15 @@ def test_a2a_agent_server_harness(
         time.sleep(retry_delay)
         try:
             if server.started:
-                print(f"TestA2AAgentServer confirmed started after {i+1} attempts.")
+                print(f"TestA2AAgentServer confirmed started after {i + 1} attempts.")
                 ready = True
                 break
-            print(f"TestA2AAgentServer not ready yet (attempt {i+1}/{max_retries})...")
+            print(
+                f"TestA2AAgentServer not ready yet (attempt {i + 1}/{max_retries})..."
+            )
         except Exception as e:
             print(
-                f"TestA2AAgentServer readiness check (attempt {i+1}/{max_retries}) encountered an error: {e}"
+                f"TestA2AAgentServer readiness check (attempt {i + 1}/{max_retries}) encountered an error: {e}"
             )
 
     if not ready:
@@ -848,7 +847,7 @@ def shared_solace_connector(
             "tool_type": "builtin",
             "tool_name": "edit_image_with_gemini",
             "tool_config": {
-                "model": "gemini-2.5-flash-image",  
+                "model": "gemini-2.5-flash-image",
                 "pro_model": "gemini-3-pro-image-preview",  # Nano Banana Pro - for complex tasks
                 "gemini_api_key": "fake-gemini-api-key",
             },
@@ -895,7 +894,12 @@ def shared_solace_connector(
     sam_agent_app_config = create_agent_config(
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
+        allow_list=[
+            "TestPeerAgentA",
+            "TestPeerAgentB",
+            "TestAgent_Proxied",
+            "TestAgent_Proxied_NoConvert",
+        ],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -1249,17 +1253,13 @@ def shared_solace_connector(
                     "description": "A simple 2-node workflow for testing",
                     "input_schema": {
                         "type": "object",
-                        "properties": {
-                            "input_text": {"type": "string"}
-                        },
-                        "required": ["input_text"]
+                        "properties": {"input_text": {"type": "string"}},
+                        "required": ["input_text"],
                     },
                     "output_schema": {
                         "type": "object",
-                        "properties": {
-                            "final_result": {"type": "string"}
-                        },
-                        "required": ["final_result"]
+                        "properties": {"final_result": {"type": "string"}},
+                        "required": ["final_result"],
                     },
                     "nodes": [
                         {
@@ -1268,7 +1268,7 @@ def shared_solace_connector(
                             "agent_name": "TestPeerAgentA",
                             "input": {
                                 "task_description": "{{workflow.input.input_text}}"
-                            }
+                            },
                         },
                         {
                             "id": "step_2",
@@ -1277,12 +1277,10 @@ def shared_solace_connector(
                             "depends_on": ["step_1"],
                             "input": {
                                 "task_description": "Process the output from step 1"
-                            }
-                        }
+                            },
+                        },
                     ],
-                    "output_mapping": {
-                        "final_result": "{{step_2.output}}"
-                    }
+                    "output_mapping": {"final_result": "{{step_2.output}}"},
                 },
                 "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
                 "artifact_service": {"type": "test_in_memory"},
@@ -1307,9 +1305,9 @@ def shared_solace_connector(
                         "properties": {
                             "customer_name": {"type": "string"},
                             "order_id": {"type": "string"},
-                            "amount": {"type": "integer"}
+                            "amount": {"type": "integer"},
                         },
-                        "required": ["customer_name", "order_id", "amount"]
+                        "required": ["customer_name", "order_id", "amount"],
                     },
                     "output_schema": {
                         "type": "object",
@@ -1318,9 +1316,15 @@ def shared_solace_connector(
                             "order_id": {"type": "string"},
                             "amount": {"type": "integer"},
                             "status": {"type": "string"},
-                            "processed": {"type": "boolean"}
+                            "processed": {"type": "boolean"},
                         },
-                        "required": ["customer_name", "order_id", "amount", "status", "processed"]
+                        "required": [
+                            "customer_name",
+                            "order_id",
+                            "amount",
+                            "status",
+                            "processed",
+                        ],
                     },
                     "nodes": [
                         {
@@ -1330,16 +1334,16 @@ def shared_solace_connector(
                             "input": {
                                 "customer_name": "{{workflow.input.customer_name}}",
                                 "order_id": "{{workflow.input.order_id}}",
-                                "amount": "{{workflow.input.amount}}"
+                                "amount": "{{workflow.input.amount}}",
                             },
                             "input_schema_override": {
                                 "type": "object",
                                 "properties": {
                                     "customer_name": {"type": "string"},
                                     "order_id": {"type": "string"},
-                                    "amount": {"type": "integer"}
+                                    "amount": {"type": "integer"},
                                 },
-                                "required": ["customer_name", "order_id", "amount"]
+                                "required": ["customer_name", "order_id", "amount"],
                             },
                             "output_schema_override": {
                                 "type": "object",
@@ -1347,10 +1351,15 @@ def shared_solace_connector(
                                     "customer_name": {"type": "string"},
                                     "order_id": {"type": "string"},
                                     "amount": {"type": "integer"},
-                                    "status": {"type": "string"}
+                                    "status": {"type": "string"},
                                 },
-                                "required": ["customer_name", "order_id", "amount", "status"]
-                            }
+                                "required": [
+                                    "customer_name",
+                                    "order_id",
+                                    "amount",
+                                    "status",
+                                ],
+                            },
                         },
                         {
                             "id": "process_order",
@@ -1361,7 +1370,7 @@ def shared_solace_connector(
                                 "customer_name": "{{validate_order.output.customer_name}}",
                                 "order_id": "{{validate_order.output.order_id}}",
                                 "amount": "{{validate_order.output.amount}}",
-                                "status": "{{validate_order.output.status}}"
+                                "status": "{{validate_order.output.status}}",
                             },
                             "input_schema_override": {
                                 "type": "object",
@@ -1369,9 +1378,14 @@ def shared_solace_connector(
                                     "customer_name": {"type": "string"},
                                     "order_id": {"type": "string"},
                                     "amount": {"type": "integer"},
-                                    "status": {"type": "string"}
+                                    "status": {"type": "string"},
                                 },
-                                "required": ["customer_name", "order_id", "amount", "status"]
+                                "required": [
+                                    "customer_name",
+                                    "order_id",
+                                    "amount",
+                                    "status",
+                                ],
                             },
                             "output_schema_override": {
                                 "type": "object",
@@ -1380,19 +1394,25 @@ def shared_solace_connector(
                                     "order_id": {"type": "string"},
                                     "amount": {"type": "integer"},
                                     "status": {"type": "string"},
-                                    "processed": {"type": "boolean"}
+                                    "processed": {"type": "boolean"},
                                 },
-                                "required": ["customer_name", "order_id", "amount", "status", "processed"]
-                            }
-                        }
+                                "required": [
+                                    "customer_name",
+                                    "order_id",
+                                    "amount",
+                                    "status",
+                                    "processed",
+                                ],
+                            },
+                        },
                     ],
                     "output_mapping": {
                         "customer_name": "{{process_order.output.customer_name}}",
                         "order_id": "{{process_order.output.order_id}}",
                         "amount": "{{process_order.output.amount}}",
                         "status": "{{process_order.output.status}}",
-                        "processed": "{{process_order.output.processed}}"
-                    }
+                        "processed": "{{process_order.output.processed}}",
+                    },
                 },
                 "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
                 "artifact_service": {"type": "test_in_memory"},
@@ -1865,7 +1885,7 @@ def shared_solace_connector(
                         "url": test_a2a_agent_server_harness.url,
                         "request_timeout_seconds": 3,
                         "convert_progress_updates": False,  # Disable text-to-data conversion
-                    }
+                    },
                 ],
                 "artifact_service": {"type": "test_in_memory"},
                 "discovery_interval_seconds": 1,
@@ -1931,9 +1951,9 @@ def sam_app_under_test(shared_solace_connector: SolaceAiConnector) -> SamAgentAp
     Retrieves the main SamAgentApp instance from the session-scoped SolaceAiConnector.
     """
     app_instance = shared_solace_connector.get_app("TestSamAgentApp")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve SamAgentApp from shared connector."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve SamAgentApp from shared connector."
+    )
     print(
         f"sam_app_under_test fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -1946,9 +1966,9 @@ def peer_agent_a_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentA_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentA_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentA_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentA_App."
+    )
     yield app_instance
 
 
@@ -1958,9 +1978,9 @@ def peer_agent_b_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentB_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentB_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentB_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentB_App."
+    )
     yield app_instance
 
 
@@ -1970,9 +1990,9 @@ def peer_agent_c_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentC_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentC_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentC_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentC_App."
+    )
     yield app_instance
 
 
@@ -1982,9 +2002,9 @@ def peer_agent_d_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestPeerAgentD_App instance."""
     app_instance = shared_solace_connector.get_app("TestPeerAgentD_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestPeerAgentD_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestPeerAgentD_App."
+    )
     yield app_instance
 
 
@@ -1994,9 +2014,9 @@ def combined_dynamic_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the CombinedDynamicAgent_App instance."""
     app_instance = shared_solace_connector.get_app("CombinedDynamicAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve CombinedDynamicAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve CombinedDynamicAgent_App."
+    )
     yield app_instance
 
 
@@ -2006,9 +2026,9 @@ def empty_provider_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the EmptyProviderAgent_App instance."""
     app_instance = shared_solace_connector.get_app("EmptyProviderAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve EmptyProviderAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve EmptyProviderAgent_App."
+    )
     yield app_instance
 
 
@@ -2018,9 +2038,9 @@ def docstringless_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the DocstringlessAgent_App instance."""
     app_instance = shared_solace_connector.get_app("DocstringlessAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve DocstringlessAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve DocstringlessAgent_App."
+    )
     yield app_instance
 
 
@@ -2030,9 +2050,9 @@ def mixed_discovery_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the MixedDiscoveryAgent_App instance."""
     app_instance = shared_solace_connector.get_app("MixedDiscoveryAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve MixedDiscoveryAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve MixedDiscoveryAgent_App."
+    )
     yield app_instance
 
 
@@ -2042,9 +2062,9 @@ def complex_signatures_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the ComplexSignaturesAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ComplexSignaturesAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve ComplexSignaturesAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ComplexSignaturesAgent_App."
+    )
     yield app_instance
 
 
@@ -2054,9 +2074,9 @@ def config_context_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the ConfigContextAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ConfigContextAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve ConfigContextAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ConfigContextAgent_App."
+    )
     yield app_instance
 
 
@@ -2066,9 +2086,9 @@ def artifact_content_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the ArtifactContentAgent_App instance."""
     app_instance = shared_solace_connector.get_app("ArtifactContentAgent_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve ArtifactContentAgent_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve ArtifactContentAgent_App."
+    )
     yield app_instance
 
 
@@ -2078,9 +2098,9 @@ def compaction_agent_app_under_test(
 ) -> SamAgentApp:
     """Retrieves the TestAgentCompaction_App instance with auto-summarization enabled."""
     app_instance = shared_solace_connector.get_app("TestAgentCompaction_App")
-    assert isinstance(
-        app_instance, SamAgentApp
-    ), "Failed to retrieve TestAgentCompaction_App."
+    assert isinstance(app_instance, SamAgentApp), (
+        "Failed to retrieve TestAgentCompaction_App."
+    )
     yield app_instance
 
 
@@ -2135,10 +2155,11 @@ def test_simple_workflow_app(
 ):
     """Retrieves the TestSimpleWorkflowApp instance."""
     from solace_agent_mesh.workflow.app import WorkflowApp
+
     app_instance = shared_solace_connector.get_app("TestSimpleWorkflowApp")
-    assert isinstance(
-        app_instance, WorkflowApp
-    ), "Failed to retrieve TestSimpleWorkflowApp."
+    assert isinstance(app_instance, WorkflowApp), (
+        "Failed to retrieve TestSimpleWorkflowApp."
+    )
     yield app_instance
 
 
@@ -2146,10 +2167,11 @@ def test_simple_workflow_app(
 def test_simple_workflow_component(test_simple_workflow_app):
     """Retrieves the SimpleTestWorkflow component instance."""
     from solace_agent_mesh.workflow.component import WorkflowComponent
+
     component = get_component_from_app(test_simple_workflow_app)
-    assert isinstance(
-        component, WorkflowComponent
-    ), "Failed to retrieve WorkflowComponent from TestSimpleWorkflowApp."
+    assert isinstance(component, WorkflowComponent), (
+        "Failed to retrieve WorkflowComponent from TestSimpleWorkflowApp."
+    )
     return component
 
 
@@ -2218,14 +2240,14 @@ def webui_api_client(
     Session-scoped to avoid ~800ms TestClient teardown overhead per test.
     """
     app_instance = shared_solace_connector.get_app("WebUIBackendApp")
-    assert isinstance(
-        app_instance, WebUIBackendApp
-    ), "Failed to retrieve WebUIBackendApp from shared connector."
+    assert isinstance(app_instance, WebUIBackendApp), (
+        "Failed to retrieve WebUIBackendApp from shared connector."
+    )
 
     component_instance = app_instance.get_component()
-    assert isinstance(
-        component_instance, WebUIBackendComponent
-    ), "Failed to retrieve WebUIBackendComponent from WebUIBackendApp."
+    assert isinstance(component_instance, WebUIBackendComponent), (
+        "Failed to retrieve WebUIBackendComponent from WebUIBackendApp."
+    )
 
     fastapi_app_instance = component_instance.fastapi_app
     if not fastapi_app_instance:
@@ -2269,9 +2291,9 @@ def test_gateway_app_instance(
     and yields its TestGatewayComponent.
     """
     app_instance = shared_solace_connector.get_app("TestHarnessGatewayApp")
-    assert isinstance(
-        app_instance, TestGatewayApp
-    ), "Failed to retrieve TestGatewayApp from shared connector."
+    assert isinstance(app_instance, TestGatewayApp), (
+        "Failed to retrieve TestGatewayApp from shared connector."
+    )
     print(
         f"test_gateway_app_instance fixture: Retrieved app {app_instance.name} from shared SolaceAiConnector."
     )
@@ -2376,7 +2398,7 @@ def clear_all_agent_states_between_tests(
         "mixed_discovery_agent_app_under_test",
         "complex_signatures_agent_app_under_test",
         "config_context_agent_app_under_test",
-        "compaction_agent_app_under_test"
+        "compaction_agent_app_under_test",
     ]
 
     for fixture_name in agent_app_fixtures:
@@ -2391,7 +2413,9 @@ def clear_all_agent_states_between_tests(
 
     # Clear A2A server state only if it was used
     if "test_a2a_agent_server_harness" in request.fixturenames:
-        test_a2a_agent_server_harness = request.getfixturevalue("test_a2a_agent_server_harness")
+        test_a2a_agent_server_harness = request.getfixturevalue(
+            "test_a2a_agent_server_harness"
+        )
         test_a2a_agent_server_harness.clear_captured_auth_headers()
         test_a2a_agent_server_harness.clear_captured_requests()
         test_a2a_agent_server_harness.clear_auth_state()

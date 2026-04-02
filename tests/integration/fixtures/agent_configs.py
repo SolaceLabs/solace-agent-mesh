@@ -4,7 +4,9 @@ This module contains all agent configuration dictionaries and the helper
 function for creating agent configs. Extracted from the main integration conftest
 to improve maintainability.
 """
+
 import time
+
 import pytest
 
 
@@ -201,7 +203,12 @@ def sam_agent_app_config(test_llm_server, mcp_server_harness):
         mcp_server_harness=mcp_server_harness,
         agent_name="TestAgent",
         description="The main test agent (orchestrator)",
-        allow_list=["TestPeerAgentA", "TestPeerAgentB", "TestAgent_Proxied", "TestAgent_Proxied_NoConvert"],
+        allow_list=[
+            "TestPeerAgentA",
+            "TestPeerAgentB",
+            "TestAgent_Proxied",
+            "TestAgent_Proxied_NoConvert",
+        ],
         tools=test_agent_tools,
         model_suffix="sam",
         inject_system_purpose=True,
@@ -426,4 +433,3 @@ def artifact_content_agent_config(test_llm_server, mcp_server_harness):
         ],
         model_suffix="artifact-content",
     )
-

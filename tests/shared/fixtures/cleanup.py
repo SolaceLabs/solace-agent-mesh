@@ -1,6 +1,7 @@
 """Shared cleanup fixtures and utilities."""
+
 import pytest
-from sqlalchemy import text, MetaData
+from sqlalchemy import MetaData, text
 
 
 def clean_all_tables(engine, exclude_tables=None):
@@ -13,24 +14,14 @@ def clean_all_tables(engine, exclude_tables=None):
     """
     exclude_tables = exclude_tables or ["alembic_version"]
 
-    with engine.connect() as conn:
-        with conn.begin():
-            metadata = MetaData()
-            metadata.reflect(bind=engine)
+    with engine.connect() as conn, conn.begin():
+        metadata = MetaData()
+        metadata.reflect(bind=conn)
 
-            # Handle database-specific FK constraints
-            db_url = str(engine.url)
-            if db_url.startswith("sqlite"):
-                conn.execute(text("PRAGMA foreign_keys=OFF"))
-
-            # Delete in reverse order (respects FK constraints)
-            for table in reversed(metadata.sorted_tables):
-                if table.name not in exclude_tables:
-                    conn.execute(table.delete())
-
-            # Re-enable FK constraints
-            if db_url.startswith("sqlite"):
-                conn.execute(text("PRAGMA foreign_keys=ON"))
+        # Delete in reverse order (respects FK constraints)
+        for table in reversed(metadata.sorted_tables):
+            if table.name not in exclude_tables:
+                conn.execute(table.delete())
 
 
 @pytest.fixture
@@ -39,4 +30,3 @@ def auto_cleanup_database(db_engine):
     clean_all_tables(db_engine)
     yield
     clean_all_tables(db_engine)
-

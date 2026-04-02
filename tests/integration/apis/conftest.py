@@ -8,21 +8,18 @@ import logging
 from unittest.mock import AsyncMock
 
 import pytest
-import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sam_test_infrastructure.fastapi_service.webui_backend_factory import (
     WebUIBackendFactory,
 )
-from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
 
 from tests.shared.constants import TestIds
 from tests.shared.fixtures.cleanup import clean_all_tables
+
 from .infrastructure.database_inspector import DatabaseInspector
 from .infrastructure.database_manager import (
     DatabaseManager,
     DatabaseProviderFactory,
-    SqliteProvider,
 )
 from .infrastructure.gateway_adapter import GatewayAdapter
 
@@ -46,10 +43,10 @@ def _patch_mock_auth_header_aware(factory):
 
     async def mock_authenticate_from_header(request):
         # Check for test header first (for multi-user tests)
-        test_user_id = request.headers.get(TEST_USER_HEADER, "sam_dev_user")
-        if test_user_id == "secondary_user":
+        test_user_id = request.headers.get(TEST_USER_HEADER, TestIds.DEFAULT_USER)
+        if test_user_id == TestIds.SECONDARY_USER:
             return {
-                "id": "secondary_user",
+                "id": TestIds.SECONDARY_USER,
                 "name": "Secondary User",
                 "email": "secondary@dev.local",
                 "authenticated": True,
@@ -57,7 +54,7 @@ def _patch_mock_auth_header_aware(factory):
             }
         # Default to primary user
         return {
-            "id": "sam_dev_user",
+            "id": TestIds.DEFAULT_USER,
             "name": "Sam Dev User",
             "email": "sam@dev.local",
             "authenticated": True,
@@ -134,7 +131,7 @@ def api_client(db_provider, api_client_factory):
             kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
             return super().request(method, url, **kwargs)
 
-    client = HeaderBasedTestClient(app, "sam_dev_user")
+    client = HeaderBasedTestClient(app, TestIds.DEFAULT_USER)
     print(
         f"[API Tests] FastAPI TestClient created from {db_provider.provider_type} db_provider"
     )
@@ -145,6 +142,7 @@ def api_client(db_provider, api_client_factory):
 @pytest.fixture(scope="session")
 def secondary_api_client(api_client_factory):
     """Creates a secondary TestClient using the SAME app/database but different user auth."""
+
     class HeaderBasedTestClient(TestClient):
         def __init__(self, app, user_id: str):
             super().__init__(app)
@@ -157,7 +155,7 @@ def secondary_api_client(api_client_factory):
             kwargs["headers"][TEST_USER_HEADER] = self.test_user_id
             return super().request(method, url, **kwargs)
 
-    client = HeaderBasedTestClient(api_client_factory.app, "secondary_user")
+    client = HeaderBasedTestClient(api_client_factory.app, TestIds.SECONDARY_USER)
     print(
         "[API Tests] Secondary FastAPI TestClient created (same database, different user)"
     )
@@ -185,8 +183,6 @@ def clean_database_between_tests(database_manager: DatabaseManager):
     yield
     clean_all_tables(engine)
     print("[API Tests] Database cleaned between tests")
-
-
 
 
 @pytest.fixture(scope="session")
@@ -242,7 +238,9 @@ def db_provider(test_agents_list: list[str], db_provider_type):
     # Store factory on provider so api_client_factory can access it
     provider.factory = factory
 
-    log.info(f"[API Tests] Created unified WebUIBackendFactory with {provider.provider_type} database")
+    log.info(
+        f"[API Tests] Created unified WebUIBackendFactory with {provider.provider_type} database"
+    )
 
     yield provider
 
