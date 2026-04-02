@@ -305,8 +305,8 @@ export const CollapsibleNavigationSidebar = ({
                         );
                     })}
                 </div>
-                {/* Shared with me section - renders nothing if no shared chats */}
-                {chatSharingEnabled && <SharedChatsList maxItems={5} />}
+                {/* Shared with me section - hidden when collapsed, renders nothing if no shared chats */}
+                {chatSharingEnabled && !isCollapsed && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}
