@@ -396,3 +396,152 @@ class TestTestConnection:
             assert "..." in message or len(message) < 600
             # Check that sensitive key doesn't appear
             assert "sk-very-secret-key" not in message
+
+
+class TestGetModelsFromProviderById:
+    """Tests for get_models_from_provider_by_id with override logic."""
+
+    def _make_service(self, db_model=None):
+        service = ModelConfigService()
+        service.repository = Mock()
+        service.repository.get_by_id.return_value = db_model
+        return service
+
+    def test_not_found_raises(self):
+        from solace_agent_mesh.shared.exceptions.exceptions import EntityNotFoundError
+        service = self._make_service(db_model=None)
+        try:
+            service.get_models_from_provider_by_id(Mock(), "missing", Mock())
+            assert False, "Expected EntityNotFoundError"
+        except EntityNotFoundError:
+            pass
+
+    def test_no_overrides_uses_stored_config(self):
+        db_model = _make_db_model(
+            provider="openai", api_base="https://api.openai.com/v1",
+            model_auth_type="apikey",
+            model_auth_config={"type": "apikey", "api_key": "sk-stored"},
+            model_params={"temperature": 0.5},
+        )
+        service = self._make_service(db_model)
+        mock_list_svc = Mock()
+        service.get_models_from_provider_by_id(Mock(), "id", mock_list_svc)
+        mock_list_svc.get_models_by_provider_with_config.assert_called_once_with(
+            provider="openai", api_base="https://api.openai.com/v1",
+            auth_type="apikey",
+            auth_config={"type": "apikey", "api_key": "sk-stored"},
+            model_params={"temperature": 0.5},
+        )
+
+    def test_provider_changed_discards_stored_credentials(self):
+        db_model = _make_db_model(
+            provider="openai",
+            model_auth_config={"type": "apikey", "api_key": "sk-old"},
+            model_params={"temperature": 0.7},
+        )
+        service = self._make_service(db_model)
+        mock_list_svc = Mock()
+        service.get_models_from_provider_by_id(
+            Mock(), "id", mock_list_svc,
+            provider_override="anthropic",
+            auth_config_overrides={"type": "apikey", "api_key": "sk-new"},
+            api_base_override="https://api.anthropic.com/v1",
+        )
+        call_kwargs = mock_list_svc.get_models_by_provider_with_config.call_args[1]
+        assert call_kwargs["provider"] == "anthropic"
+        assert call_kwargs["auth_config"]["api_key"] == "sk-new"
+        assert "sk-old" not in str(call_kwargs)
+        assert call_kwargs["model_params"] == {"temperature": 0.7}
+
+    def test_same_provider_merges_auth_overrides(self):
+        db_model = _make_db_model(
+            provider="openai", model_auth_type="apikey",
+            model_auth_config={"type": "apikey", "api_key": "sk-stored", "org_id": "org-123"},
+        )
+        service = self._make_service(db_model)
+        mock_list_svc = Mock()
+        service.get_models_from_provider_by_id(
+            Mock(), "id", mock_list_svc,
+            provider_override="openai",
+            auth_config_overrides={"type": "apikey", "api_key": "sk-new"},
+        )
+        call_kwargs = mock_list_svc.get_models_by_provider_with_config.call_args[1]
+        assert call_kwargs["auth_config"]["api_key"] == "sk-new"
+        assert call_kwargs["auth_config"]["org_id"] == "org-123"
+
+    def test_same_provider_auth_type_changed_replaces(self):
+        db_model = _make_db_model(
+            provider="openai", model_auth_type="apikey",
+            model_auth_config={"type": "apikey", "api_key": "sk-old"},
+        )
+        service = self._make_service(db_model)
+        mock_list_svc = Mock()
+        service.get_models_from_provider_by_id(
+            Mock(), "id", mock_list_svc,
+            provider_override="openai",
+            auth_config_overrides={"type": "oauth2", "client_id": "my-client"},
+        )
+        call_kwargs = mock_list_svc.get_models_by_provider_with_config.call_args[1]
+        assert call_kwargs["auth_type"] == "oauth2"
+        assert "api_key" not in call_kwargs["auth_config"]
+
+    def test_api_base_override(self):
+        db_model = _make_db_model(
+            provider="openai", api_base="https://old.api.com/v1",
+            model_auth_type="apikey",
+            model_auth_config={"type": "apikey", "api_key": "sk-key"},
+        )
+        service = self._make_service(db_model)
+        mock_list_svc = Mock()
+        service.get_models_from_provider_by_id(
+            Mock(), "id", mock_list_svc, api_base_override="https://new.api.com/v1",
+        )
+        call_kwargs = mock_list_svc.get_models_by_provider_with_config.call_args[1]
+        assert call_kwargs["api_base"] == "https://new.api.com/v1"
+
+
+class TestUpdateAuthHandling:
+    """Tests for update method's auth merging and api_base clearing."""
+
+    def _make_service_with_stored(self, **db_overrides):
+        service = ModelConfigService()
+        service.repository = Mock()
+        db_model = _make_db_model(**db_overrides)
+        service.repository.get_by_id.return_value = db_model
+        service.repository.get_by_alias.return_value = None
+        service.repository.update.return_value = None
+        return service, db_model
+
+    def test_empty_api_base_clears_to_none(self):
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationUpdateRequest
+        service, db_model = self._make_service_with_stored(api_base="https://old.api.com/v1")
+        request = ModelConfigurationUpdateRequest(api_base="")
+        service.update(Mock(), db_model.id, request, "admin")
+        assert db_model.api_base is None
+
+    def test_auth_type_changed_replaces_entirely(self):
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationUpdateRequest
+        service, db_model = self._make_service_with_stored(
+            model_auth_config={"type": "apikey", "api_key": "sk-old"},
+            model_auth_type="apikey",
+        )
+        request = ModelConfigurationUpdateRequest(
+            auth_config={"type": "oauth2", "client_id": "new-client"},
+        )
+        service.update(Mock(), db_model.id, request, "admin")
+        assert db_model.model_auth_config == {"type": "oauth2", "client_id": "new-client"}
+        assert db_model.model_auth_type == "oauth2"
+        assert "api_key" not in db_model.model_auth_config
+
+    def test_same_auth_type_merges(self):
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationUpdateRequest
+        service, db_model = self._make_service_with_stored(
+            model_auth_config={"type": "apikey", "api_key": "sk-stored", "org_id": "org-1"},
+            model_auth_type="apikey",
+        )
+        request = ModelConfigurationUpdateRequest(
+            auth_config={"type": "apikey", "api_key": "sk-updated"},
+        )
+        service.update(Mock(), db_model.id, request, "admin")
+        assert db_model.model_auth_config["api_key"] == "sk-updated"
+        assert db_model.model_auth_config["org_id"] == "org-1"
