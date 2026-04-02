@@ -282,7 +282,11 @@ def test_artifact_service_instance() -> TestInMemoryArtifactService:
 
 @pytest.fixture(autouse=True)
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
-    """Automatically clears TestLLMServer before each test."""
+    """
+    Automatically clears any primed responses and captured requests from the
+    TestLLMServer before each test that uses it (if session-scoped and reused).
+    Also clears the global static response and resets the response delay.
+    """
     test_llm_server.clear_all_configurations()
 
 

@@ -60,8 +60,8 @@ export const WithAPIKeyAuth: Story = {
     parameters: {
         msw: { handlers: successHandlers },
         routerValues: {
-            initialPath: "/models/anthropic-model",
-            routePath: "/models/:alias",
+            initialPath: `/models/${anthropicModelConfig.id}`,
+            routePath: "/models/:id",
         },
     },
     play: async () => {
@@ -100,8 +100,8 @@ export const NotFound: Story = {
     parameters: {
         msw: { handlers: notFoundHandlers },
         routerValues: {
-            initialPath: "/models/nonexistent-model",
-            routePath: "/models/:alias",
+            initialPath: "/models/nonexistent-uuid",
+            routePath: "/models/:id",
         },
     },
     play: async () => {

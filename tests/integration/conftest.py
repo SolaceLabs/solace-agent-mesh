@@ -150,6 +150,12 @@ def shared_solace_connector(
     Creates and manages a single SolaceAiConnector instance with multiple agents
     for integration testing. Imports configurations from fixtures/ subdirectory.
     """
+    # Reset MetricRegistry singleton before creating the connector to avoid
+    # 'MetricRegistry already initialized' errors from SAC 3.3.6+.
+    from solace_ai_connector.common.observability.registry import MetricRegistry
+
+    MetricRegistry.reset()
+
     from .fixtures.workflow_configs import (
         get_a2a_proxy_config,
         get_conditional_workflow_config,

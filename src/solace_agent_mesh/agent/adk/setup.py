@@ -1255,7 +1255,17 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 3. Fenced Artifact Block Processing (must run before auto-continue)
+        # 3. Thinking/Reasoning Content Processing (must run before artifact blocks)
+        thinking_content_cb = functools.partial(
+            adk_callbacks.process_thinking_content_callback, host_component=component
+        )
+        callbacks_in_order_for_after_model.append(thinking_content_cb)
+        log.debug(
+            "%s Added process_thinking_content_callback to after_model chain.",
+            component.log_identifier,
+        )
+
+        # 4. Fenced Artifact Block Processing (must run before auto-continue)
         artifact_block_cb = functools.partial(
             adk_callbacks.process_artifact_blocks_callback, host_component=component
         )
@@ -1265,7 +1275,7 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
-        # 3. Auto-Continuation (may short-circuit the chain)
+        # 5. Auto-Continuation (may short-circuit the chain)
         auto_continue_cb = functools.partial(
             adk_callbacks.auto_continue_on_max_tokens_callback, host_component=component
         )

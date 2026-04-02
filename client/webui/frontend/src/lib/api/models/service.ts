@@ -27,10 +27,10 @@ export async function fetchModelConfigs(): Promise<ModelConfig[]> {
 }
 
 /**
- * Fetch a single model configuration by alias.
+ * Fetch a single model configuration by ID.
  */
-export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
-    const response = await api.platform.get(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
+export async function fetchModelById(id: string): Promise<ModelConfig> {
+    const response = await api.platform.get(`/api/v1/platform/models/${encodeURIComponent(id)}`);
     return response.data;
 }
 
@@ -38,12 +38,12 @@ export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
  * Fetch supported models for a specific provider.
  *
  * Two modes:
- * 1. Editing (modelAlias provided): Uses stored credentials from database
+ * 1. Editing (modelId provided): Uses stored credentials from database
  * 2. Creating (credentials provided): Uses credentials from request
  */
 export async function fetchSupportedModelsByProvider(
     provider: string,
-    modelAlias?: string,
+    modelId?: string,
     options?: {
         apiBase?: string;
         authType?: AuthType;
@@ -54,8 +54,8 @@ export async function fetchSupportedModelsByProvider(
         provider,
     };
 
-    if (modelAlias) {
-        body.modelAlias = modelAlias;
+    if (modelId) {
+        body.modelId = modelId;
     } else if (options?.authType) {
         // Creating mode - pass credentials
         body.authType = options.authType;
@@ -92,20 +92,20 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
 /**
  * Update an existing model configuration.
  */
-export async function updateModelConfig(alias: string, data: ModelData): Promise<ModelConfig> {
-    const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(alias)}`, data);
+export async function updateModelConfig(id: string, data: ModelData): Promise<ModelConfig> {
+    const response = await api.platform.patch(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
     return response.data;
 }
 
 /**
- * Delete a model configuration by alias.
+ * Delete a model configuration by ID.
  */
-export async function deleteModel(alias: string): Promise<void> {
-    await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
+export async function deleteModel(id: string): Promise<void> {
+    await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(id)}`);
 }
 
 export interface TestConnectionRequest {
-    alias?: string;
+    modelId?: string;
     provider?: string;
     modelName?: string;
     apiBase?: string;
@@ -124,7 +124,7 @@ export interface TestConnectionResponse {
  *
  * Two modes:
  * 1. New configuration: Provide provider, model_name, and credentials
- * 2. Existing model: Provide alias to use stored credentials as fallback
+ * 2. Existing model: Provide modelId to use stored credentials as fallback
  */
 export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
     const response = await api.platform.post("/api/v1/platform/models/test", data);
