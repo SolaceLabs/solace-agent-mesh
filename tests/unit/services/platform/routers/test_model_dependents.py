@@ -68,7 +68,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "general"
         mock_config.id = "uuid-123"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_db = Mock()
 
@@ -83,14 +83,14 @@ class TestGetModelDependentsEndpoint:
 
         with patch("builtins.__import__", side_effect=mock_import):
             result = await get_model_dependents(
-                alias="general",
+                model_id="uuid-123",
                 _=None,
                 db=mock_db,
                 service=mock_service,
             )
 
         assert result.data == []
-        mock_service.get_by_alias.assert_called_once_with(mock_db, "general")
+        mock_service.get_by_id.assert_called_once_with(mock_db, "uuid-123")
 
     @pytest.mark.asyncio
     async def test_returns_dependents_when_enterprise_available(self):
@@ -103,7 +103,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "general"
         mock_config.id = "uuid-123"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_agent = Mock()
         mock_agent.id = "agent-1"
@@ -137,7 +137,7 @@ class TestGetModelDependentsEndpoint:
             },
         ):
             result = await get_model_dependents(
-                alias="general",
+                model_id="uuid-123",
                 _=None,
                 db=Mock(),
                 service=mock_service,
@@ -150,8 +150,8 @@ class TestGetModelDependentsEndpoint:
         assert result.data[0].deployment_status == "deployed"
 
     @pytest.mark.asyncio
-    async def test_looks_up_config_by_alias(self):
-        """Verifies the alias is resolved to config before querying dependents."""
+    async def test_looks_up_config_by_id(self):
+        """Verifies the model_id is resolved to config before querying dependents."""
         from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
             get_model_dependents,
         )
@@ -160,7 +160,7 @@ class TestGetModelDependentsEndpoint:
         mock_config = Mock()
         mock_config.alias = "planning"
         mock_config.id = "uuid-456"
-        mock_service.get_by_alias.return_value = mock_config
+        mock_service.get_by_id.return_value = mock_config
 
         mock_db = Mock()
 
@@ -175,13 +175,13 @@ class TestGetModelDependentsEndpoint:
 
         with patch("builtins.__import__", side_effect=mock_import):
             await get_model_dependents(
-                alias="planning",
+                model_id="uuid-456",
                 _=None,
                 db=mock_db,
                 service=mock_service,
             )
 
-        mock_service.get_by_alias.assert_called_once_with(mock_db, "planning")
+        mock_service.get_by_id.assert_called_once_with(mock_db, "uuid-456")
 
 
 class TestDeleteModelCallsHandler:
@@ -201,7 +201,7 @@ class TestDeleteModelCallsHandler:
         existing_config = Mock()
         existing_config.id = "uuid-789"
         existing_config.alias = "my-alias"
-        mock_service.get_by_alias.return_value = existing_config
+        mock_service.get_by_id.return_value = existing_config
 
         mock_handler = AsyncMock(spec=ModelDependentsHandler)
         mock_handler.undeploy_dependents.return_value = [{"id": "agent-1", "name": "Agent"}]
@@ -213,7 +213,7 @@ class TestDeleteModelCallsHandler:
         mock_component = Mock()
 
         await delete_model(
-            alias="my-alias",
+            model_id="uuid-789",
             _=None,
             db=Mock(),
             user={"id": "user-1"},
@@ -242,14 +242,14 @@ class TestDeleteModelCallsHandler:
         config = Mock()
         config.id = "model-uuid-abc"
         config.alias = "general"
-        mock_service.get_by_alias.return_value = config
+        mock_service.get_by_id.return_value = config
 
         mock_handler = AsyncMock(spec=ModelDependentsHandler)
         mock_handler.undeploy_dependents.return_value = []
         mock_component = Mock()
 
         await delete_model(
-            alias="general",
+            model_id="model-uuid-abc",
             _=None,
             db=Mock(),
             user={"id": "u1"},
@@ -276,12 +276,12 @@ class TestDeleteModelCallsHandler:
         config = Mock()
         config.id = "uuid-1"
         config.alias = "test"
-        mock_service.get_by_alias.return_value = config
+        mock_service.get_by_id.return_value = config
 
         mock_db = Mock()
 
         await delete_model(
-            alias="test",
+            model_id="uuid-1",
             _=None,
             db=mock_db,
             user={"id": "u1"},
@@ -290,4 +290,4 @@ class TestDeleteModelCallsHandler:
             dependents_handler=ModelDependentsHandler(),
         )
 
-        mock_service.delete.assert_called_once_with(mock_db, "test")
+        mock_service.delete.assert_called_once_with(mock_db, "uuid-1")

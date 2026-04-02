@@ -5,6 +5,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 expect.extend(matchers);
 
@@ -183,7 +184,13 @@ describe("ChatPage", () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
-        return render(React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(MemoryRouter, null, React.createElement(ChatPage))));
+        return render(
+            React.createElement(
+                OpenFeatureTestProvider,
+                { flagValueMap: { inline_activity_timeline: false, show_thinking_content: false } },
+                React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(MemoryRouter, null, React.createElement(ChatPage)))
+            )
+        );
     }
 
     test("renders loading state when isLoadingSession is true", () => {

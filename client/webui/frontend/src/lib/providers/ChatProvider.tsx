@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
 // This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
@@ -49,6 +50,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    ProgressUpdate,
 } from "@/lib/types";
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -60,6 +62,18 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
+
+    // Keep refs in sync for use inside SSE event handlers (avoids stale closures)
+    const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
+    useEffect(() => {
+        inlineActivityTimelineEnabledRef.current = inlineActivityTimelineEnabled;
+    }, [inlineActivityTimelineEnabled]);
+    const showThinkingContentEnabledRef = useRef(showThinkingContentEnabled);
+    useEffect(() => {
+        showThinkingContentEnabledRef.current = showThinkingContentEnabled;
+    }, [showThinkingContentEnabled]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
@@ -367,6 +381,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             displayHtml: message.displayHtml,
             contextQuote: message.contextQuote,
             contextQuoteSourceId: message.contextQuoteSourceId,
+            // Persist inline progress timeline data so it survives page reloads
+            ...(message.progressUpdates && message.progressUpdates.length > 0 ? { progressUpdates: message.progressUpdates } : {}),
+            ...((message.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: message.thinkingContent, isThinkingComplete: message.isThinkingComplete ?? true } : {}),
         };
     }, []);
 
@@ -526,6 +543,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
                     senderDisplayName: bubble.sender_display_name, // Preserve sender identity for collaborative sessions
                     senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
+                    // Restore inline progress timeline data
+                    ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
+                    ...((bubble.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
                     metadata: {
                         messageId: bubble.id,
                         sessionId: sessionId,
@@ -942,6 +962,50 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     return;
             }
 
+            // Helper: find-or-create the last AI message for the current task and apply
+            // progress/message mutations. Used by thinking_content, agent_progress_update,
+            // and tool_invocation_start handlers to avoid duplicating the scaffold.
+            const appendProgressUpdate = (
+                update: ProgressUpdate,
+                extraFields?: Partial<(typeof messages)[number]>,
+                options?: {
+                    /** Custom mutator for the progress updates array on an existing message */
+                    progressUpdater?: (existing: ProgressUpdate[]) => ProgressUpdate[];
+                    /** Extra fields to merge onto an existing message (beyond progressUpdates) */
+                    messageUpdater?: (msg: (typeof messages)[number]) => Partial<(typeof messages)[number]>;
+                }
+            ) => {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                        const updatedProgressUpdates = options?.progressUpdater ? options.progressUpdater(lastMsg.progressUpdates || []) : [...(lastMsg.progressUpdates || []), update];
+                        const msgExtra = options?.messageUpdater ? options.messageUpdater(lastMsg) : {};
+                        newMessages[newMessages.length - 1] = {
+                            ...lastMsg,
+                            progressUpdates: updatedProgressUpdates,
+                            ...msgExtra,
+                            ...extraFields,
+                        };
+                    } else {
+                        newMessages.push({
+                            role: "agent",
+                            parts: [],
+                            taskId: currentTaskIdFromResult,
+                            isUser: false,
+                            isComplete: false,
+                            progressUpdates: [update],
+                            metadata: {
+                                messageId: `msg-${v4()}`,
+                                lastProcessedEventSequence: currentEventSequence,
+                            },
+                            ...extraFields,
+                        });
+                    }
+                    return newMessages;
+                });
+            };
+
             // Process data parts first to extract status text
             if (messageToProcess?.parts) {
                 const dataParts = messageToProcess.parts.filter(p => p.kind === "data") as DataPart[];
@@ -950,8 +1014,121 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         const data = part.data as any;
                         if (data && typeof data === "object" && "type" in data) {
                             switch (data.type) {
+                                case "thinking_content": {
+                                    // Skip thinking content accumulation when show-thinking-content flag is disabled
+                                    if (!showThinkingContentEnabledRef.current) {
+                                        const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
+                                        if (otherPartsThinking.length === 0) {
+                                            return;
+                                        }
+                                        break;
+                                    }
+
+                                    const { content: thinkingText, is_complete: isThinkingComplete } = data as {
+                                        content: string;
+                                        is_complete: boolean;
+                                    };
+
+                                    const thinkingUpdate: ProgressUpdate = {
+                                        type: "thinking" as const,
+                                        text: "Thinking",
+                                        timestamp: Date.now(),
+                                        expandableContent: thinkingText,
+                                        isExpandableComplete: isThinkingComplete,
+                                    };
+
+                                    // Only accumulate progress updates when inline-activity-timeline is enabled.
+                                    // Bug 1 fix: thinkingContent/isThinkingComplete are handled exclusively by
+                                    // messageUpdater — NOT passed as extraFields (which would overwrite msgExtra).
+                                    if (inlineActivityTimelineEnabledRef.current) {
+                                        appendProgressUpdate(
+                                            thinkingUpdate,
+                                            undefined, // Bug 1: no extraFields — messageUpdater handles thinkingContent
+                                            {
+                                                progressUpdater: existing => {
+                                                    const updates = [...existing];
+                                                    const lastThinkingIdx = updates.findLastIndex(p => p.type === "thinking");
+                                                    const lastThinkingEntry = lastThinkingIdx >= 0 ? updates[lastThinkingIdx] : null;
+
+                                                    if (lastThinkingEntry && !lastThinkingEntry.isExpandableComplete) {
+                                                        updates[lastThinkingIdx] = {
+                                                            ...lastThinkingEntry,
+                                                            expandableContent: (lastThinkingEntry.expandableContent || "") + thinkingText,
+                                                            isExpandableComplete: isThinkingComplete,
+                                                        };
+                                                    } else {
+                                                        updates.push(thinkingUpdate);
+                                                    }
+                                                    return updates;
+                                                },
+                                                messageUpdater: msg => ({
+                                                    thinkingContent: (msg.thinkingContent || "") + thinkingText,
+                                                    isThinkingComplete: isThinkingComplete,
+                                                }),
+                                            }
+                                        );
+                                    } else {
+                                        // When inline timeline is disabled, still accumulate thinkingContent on the message
+                                        // (for potential future use) but don't create progressUpdates
+                                        setMessages(prev => {
+                                            const newMessages = [...prev];
+                                            const lastMsg = newMessages[newMessages.length - 1];
+                                            if (lastMsg && !lastMsg.isUser && lastMsg.taskId === currentTaskIdFromResult) {
+                                                newMessages[newMessages.length - 1] = {
+                                                    ...lastMsg,
+                                                    thinkingContent: (lastMsg.thinkingContent || "") + thinkingText,
+                                                    isThinkingComplete: isThinkingComplete,
+                                                };
+                                            }
+                                            return newMessages;
+                                        });
+                                    }
+
+                                    const otherPartsThinking = messageToProcess.parts.filter(p => p.kind !== "data");
+                                    if (otherPartsThinking.length === 0) {
+                                        break;
+                                    }
+                                    break;
+                                }
                                 case "agent_progress_update": {
-                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
+                                    const statusText = String(data?.status_text ?? "Processing...");
+                                    latestStatusText.current = statusText;
+
+                                    // Only accumulate progress updates when inline-activity-timeline is enabled
+                                    if (inlineActivityTimelineEnabledRef.current) {
+                                        const progressUpdate: ProgressUpdate = {
+                                            type: "status",
+                                            text: statusText,
+                                            timestamp: Date.now(),
+                                        };
+
+                                        // Auto-close any open thinking block and push progress update
+                                        appendProgressUpdate(
+                                            progressUpdate,
+                                            { isStatusBubble: false },
+                                            {
+                                                progressUpdater: existing => {
+                                                    const updates = [...existing];
+                                                    const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                    if (lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete) {
+                                                        updates[lastThinkingIdx] = {
+                                                            ...updates[lastThinkingIdx],
+                                                            isExpandableComplete: true,
+                                                        };
+                                                    }
+                                                    updates.push(progressUpdate);
+                                                    return updates;
+                                                },
+                                                messageUpdater: msg => {
+                                                    const updates = msg.progressUpdates || [];
+                                                    const lastThinkingIdx = updates.findLastIndex((p: ProgressUpdate) => p.type === "thinking");
+                                                    const needsClose = lastThinkingIdx >= 0 && !updates[lastThinkingIdx].isExpandableComplete;
+                                                    return needsClose ? { isThinkingComplete: true } : {};
+                                                },
+                                            }
+                                        );
+                                    }
+
                                     const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
                                     if (otherParts.length === 0) {
                                         return; // This is a status-only event, do not process further.
@@ -1172,6 +1349,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     return;
                                 }
                                 case "tool_invocation_start":
+                                    // Status updates are handled via LLM-generated agent_progress_update
+                                    // events (status_update embeds). No frontend processing needed.
                                     break;
                                 case "authentication_required": {
                                     const auth_uri = data?.auth_uri;
@@ -1508,6 +1687,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Add a new status bubble if the task is not over
                 if (isFinalEvent) {
                     latestStatusText.current = null;
+
                     // Finalize any lingering in-progress artifact parts for this task
                     // With the new artifact_completed signal, in-progress artifacts should only remain if they truly failed
                     for (let i = newMessages.length - 1; i >= 0; i--) {
@@ -1852,6 +2032,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
+
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
             setRagData([]);
@@ -1995,6 +2176,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 closePreview();
                 isFinalizing.current = false;
                 latestStatusText.current = null;
+
                 sseEventSequenceRef.current = 0;
                 // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
@@ -2300,6 +2482,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(true);
             setCurrentTaskId(null);
             latestStatusText.current = null;
+
             sseEventSequenceRef.current = 0;
 
             const userMsg: MessageFE = {

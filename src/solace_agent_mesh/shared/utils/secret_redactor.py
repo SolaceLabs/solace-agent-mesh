@@ -35,7 +35,7 @@ AUTH_SECRET_FIELDS = {
     "apikey": {"api_key"},
     "basic": {"password"},
     "aws_iam": {"aws_secret_access_key", "aws_session_token"},
-    "gcp_service_account": {"service_account_json"},    
+    "gcp_service_account": {"vertex_credentials"},
 }
 
 

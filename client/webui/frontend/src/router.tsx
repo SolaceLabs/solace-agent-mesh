@@ -106,11 +106,11 @@ export const createRouter = () => {
                             element: <ModelEditPage />,
                         },
                         {
-                            path: ":alias/edit",
+                            path: ":id/edit",
                             element: <ModelEditPage />,
                         },
                         {
-                            path: ":alias",
+                            path: ":id",
                             element: <ModelDetailsPage />,
                         },
                     ],

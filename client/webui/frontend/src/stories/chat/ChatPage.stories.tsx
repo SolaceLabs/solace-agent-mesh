@@ -7,7 +7,13 @@ import { defaultPromptGroups } from "../data/prompts";
 import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
 import type { MessageFE } from "@/lib/types/fe";
 
-const OpenFeatureDecorator = createOpenFeatureDecorator({ flags: { model_config_ui: false } });
+const OpenFeatureDecorator = createOpenFeatureDecorator({
+    flags: {
+        model_config_ui: false,
+        inline_activity_timeline: false,
+        show_thinking_content: false,
+    },
+});
 
 const handlers = [
     http.get("*/api/v1/prompts/groups/all", () => {
@@ -83,7 +89,6 @@ export const WithLoadingMessage: Story = {
         const canvas = within(canvasElement);
 
         await canvas.findByTestId("expandPanel");
-        await canvas.findByTestId("viewActivity");
         await canvas.findByTestId("cancel");
     },
 };

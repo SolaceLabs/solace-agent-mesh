@@ -46,8 +46,8 @@ const editModelHandlers = [
     http.get("*/api/v1/platform/models", () => {
         return HttpResponse.json({ data: [anthropicModelConfig], total: 1 });
     }),
-    http.get("*/api/v1/platform/models/:alias", ({ params }) => {
-        if (params.alias === "anthropic-model") {
+    http.get("*/api/v1/platform/models/:id", ({ params }) => {
+        if (params.id === anthropicModelConfig.id) {
             return HttpResponse.json({ data: anthropicModelConfig });
         }
         return HttpResponse.json({ error: "Not found" }, { status: 404 });
@@ -61,7 +61,7 @@ const editModelHandlers = [
             ],
         });
     }),
-    http.put("*/api/v1/platform/models/:alias", async ({ request }) => {
+    http.put("*/api/v1/platform/models/:id", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
             ...anthropicModelConfig,
@@ -76,7 +76,7 @@ const editModelHandlers = [
  * Mock handlers for model loading state
  */
 const loadingHandlers = [
-    http.get("*/api/v1/platform/models/:alias", async () => {
+    http.get("*/api/v1/platform/models/:id", async () => {
         await delay("infinite");
         return HttpResponse.json({ data: {} });
     }),
@@ -100,7 +100,7 @@ const testConnectionFailureHandler = http.post("*/api/v1/platform/models/test", 
  * Mock handlers for error state when fetching model for edit
  */
 const notFoundHandlers = [
-    http.get("*/api/v1/platform/models/:alias", () => {
+    http.get("*/api/v1/platform/models/:id", () => {
         return HttpResponse.json({ error: "Model not found" }, { status: 404 });
     }),
 ];
@@ -221,8 +221,8 @@ export const EditExistingModel: Story = {
     parameters: {
         msw: { handlers: editModelHandlers },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -263,8 +263,8 @@ export const EditModelLoading: Story = {
     parameters: {
         msw: { handlers: loadingHandlers },
         routerValues: {
-            initialPath: "/models/some-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: "/models/some-uuid/edit",
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -283,8 +283,8 @@ export const EditModelNotFound: Story = {
     parameters: {
         msw: { handlers: notFoundHandlers },
         routerValues: {
-            initialPath: "/models/nonexistent-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: "/models/nonexistent-uuid/edit",
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -307,8 +307,8 @@ export const EditModelWithAdvancedParams: Story = {
     parameters: {
         msw: { handlers: editModelHandlers },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -386,8 +386,8 @@ export const TestConnectionSuccess: Story = {
     parameters: {
         msw: { handlers: [...editModelHandlers, testConnectionSuccessHandler] },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -418,8 +418,8 @@ export const TestConnectionFailure: Story = {
     parameters: {
         msw: { handlers: [...editModelHandlers, testConnectionFailureHandler] },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {

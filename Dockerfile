@@ -72,7 +72,8 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     git \
     libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
-    libpng16-16t64=1.6.48-1+deb13u3 \
+    libpng16-16t64=1.6.48-1+deb13u4 \
+    libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.4-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \
@@ -168,7 +169,8 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libatomic1 \
     libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
-    libpng16-16t64=1.6.48-1+deb13u3 \
+    libpng16-16t64=1.6.48-1+deb13u4 \
+    libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.4-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.4-1~deb13u2 && \

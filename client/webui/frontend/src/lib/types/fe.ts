@@ -123,11 +123,28 @@ export type PartFE = Part | ArtifactPart;
 /**
  * Represents a single message in the chat conversation.
  */
+/** A single progress update entry for inline display in AI messages */
+export interface ProgressUpdate {
+    /** Type of progress event */
+    type: "status" | "tool_call" | "tool_result" | "artifact" | "delegation" | "thinking";
+    /** Human-readable text for the update */
+    text: string;
+    /** Timestamp when this update was received */
+    timestamp: number;
+    /** Expandable content (used for thinking/reasoning tokens) */
+    expandableContent?: string;
+    /** Whether the expandable content is complete */
+    isExpandableComplete?: boolean;
+}
+
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
     createdTime?: number; // Epoch ms timestamp from the task that generated this message (for timeline ordering)
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
+    progressUpdates?: ProgressUpdate[]; // Accumulated progress updates for inline display
+    thinkingContent?: string; // Accumulated thinking/reasoning text from LLM thinking tokens
+    isThinkingComplete?: boolean; // True when the thinking phase is done and main response has started
     isUser: boolean; // True if the message is from the user, false if from the agent/system
     isStatusMessage?: boolean; // True if this is a temporary status message (e.g., "Agent is thinking")
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
