@@ -21,17 +21,19 @@ interface TaskCardsProps {
 }
 
 export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onAIAssisted, onEdit, onDelete, onToggleEnabled, onViewExecutions }) => {
-    const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null);
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
+    const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId]);
+
     const handleTaskClick = (task: ScheduledTask) => {
-        setSelectedTask(prev => (prev?.id === task.id ? null : task));
+        setSelectedTaskId(prev => (prev === task.id ? null : task.id));
     };
 
     const handleCloseSidePanel = () => {
-        setSelectedTask(null);
+        setSelectedTaskId(null);
     };
 
     const statuses = ["Active", "Paused", "Error"];
