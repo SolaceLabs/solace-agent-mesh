@@ -4,13 +4,11 @@ from typing import TYPE_CHECKING, Optional, List, Dict, Any
 
 from sqlalchemy.orm import Session as DbSession
 
-from ..repository import (
-    ISessionRepository,
-    Session,
-)
+from ..repository.entities.chat_task import ChatTask
+from ..repository.entities.session import Session
 from ..repository.chat_task_repository import ChatTaskRepository
 from ..repository.task_repository import TaskRepository
-from ..repository.entities import ChatTask
+from ..repository.interfaces import ISessionRepository
 from solace_agent_mesh.shared.utils.enums import SenderType
 from solace_agent_mesh.shared.utils.types import SessionId, UserId
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -31,7 +29,7 @@ class SessionService:
 
     def _get_repositories(self, db: DbSession):
         """Create session repository for the given database session."""
-        from ..repository import SessionRepository
+        from ..repository.session_repository import SessionRepository
         session_repository = SessionRepository()
         return session_repository
 
@@ -212,7 +210,7 @@ class SessionService:
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
-    def delete_session_with_notifications(
+    async def delete_session_with_notifications(
         self, db: DbSession, session_id: SessionId, user_id: UserId
     ) -> bool:
         if not self._is_valid_session_id(session_id):
@@ -241,6 +239,33 @@ class SessionService:
             return False
 
         log.info("Session %s deleted successfully by user %s", session_id, user_id)
+
+        if self.component:
+            artifact_service = self.component.get_shared_artifact_service()
+            if artifact_service:
+                try:
+                    deleted_count = await artifact_service.delete_session_artifacts(
+                        user_id=user_id,
+                        session_id=session_id,
+                    )
+                    log.info(
+                        "Deleted %d artifacts for session %s (user %s)",
+                        deleted_count,
+                        session_id,
+                        user_id,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "Failed to delete artifacts for session %s (user %s): %s",
+                        session_id,
+                        user_id,
+                        e,
+                    )
+            else:
+                log.debug(
+                    "Artifact service not configured, skipping artifact cleanup for session %s",
+                    session_id,
+                )
 
         if agent_id and self.component:
             self._notify_agent_of_session_deletion(session_id, user_id, agent_id)

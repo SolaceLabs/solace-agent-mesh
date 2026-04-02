@@ -2,9 +2,10 @@
 Service for managing automatic cleanup of old data based on retention policies.
 """
 
+import asyncio
 import logging
 import time
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional, TYPE_CHECKING
 
 from sqlalchemy.orm import Session as DBSession
 
@@ -12,7 +13,11 @@ from ..repository.feedback_repository import FeedbackRepository
 from ..repository.task_repository import TaskRepository
 from ..repository.sse_event_buffer_repository import SSEEventBufferRepository
 from ..repository.document_conversion_cache_repository import DocumentConversionCacheRepository
+from ..repository.session_repository import SessionRepository
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+
+if TYPE_CHECKING:
+    from google.adk.artifacts import BaseArtifactService
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +35,10 @@ class DataRetentionService:
     MAX_BATCH_SIZE = 10000
 
     def __init__(
-        self, session_factory: Callable[[], DBSession] | None, config: Dict[str, Any]
+        self,
+        session_factory: Callable[[], DBSession] | None,
+        config: Dict[str, Any],
+        artifact_service: Optional["BaseArtifactService"] = None,
     ):
         """
         Initialize the DataRetentionService.
@@ -38,9 +46,11 @@ class DataRetentionService:
         Args:
             session_factory: Factory function to create database sessions
             config: Configuration dictionary with retention settings
+            artifact_service: Optional artifact service for session artifact cleanup
         """
         self.session_factory = session_factory
         self.config = config
+        self.artifact_service = artifact_service
         self.log_identifier = "[DataRetentionService]"
 
         # Validate and store configuration
@@ -48,12 +58,13 @@ class DataRetentionService:
 
         log.info(
             "%s Initialized with task_retention=%d days, feedback_retention=%d days, "
-            "sse_event_retention=%d days, conversion_cache_retention=%d hours, "
+            "sse_event_retention=%d days, artifact_retention=%s days, conversion_cache_retention=%d hours, "
             "cleanup_interval=%d hours, batch_size=%d",
             self.log_identifier,
             self.config.get("task_retention_days"),
             self.config.get("feedback_retention_days"),
             self.config.get("sse_event_retention_days"),
+            self.config.get("artifact_retention_days", "disabled"),
             self.config.get("conversion_cache_retention_hours"),
             self.config.get("cleanup_interval_hours"),
             self.config.get("batch_size"),
@@ -150,6 +161,23 @@ class DataRetentionService:
         else:
             self.config["conversion_cache_retention_hours"] = cache_retention
 
+        artifact_retention = self.config.get("artifact_retention_days")
+        if artifact_retention is not None:
+            if artifact_retention == 0:
+                log.warning(
+                    "%s artifact_retention_days is set to 0. Retention disabled (safety guard).",
+                    self.log_identifier,
+                )
+                self.config["artifact_retention_days"] = None
+            elif artifact_retention < self.MIN_RETENTION_DAYS:
+                log.warning(
+                    "%s artifact_retention_days (%d) is below minimum (%d days). Using minimum.",
+                    self.log_identifier,
+                    artifact_retention,
+                    self.MIN_RETENTION_DAYS,
+                )
+                self.config["artifact_retention_days"] = self.MIN_RETENTION_DAYS
+
     def cleanup_old_data(self) -> None:
         """
         Main orchestration method for cleaning up old data.
@@ -177,6 +205,7 @@ class DataRetentionService:
             feedback_deleted = 0
             sse_events_deleted = 0
             cache_deleted = 0
+            artifacts_deleted = 0
 
             # Cleanup old tasks (can be disabled with cleanup_tasks: false)
             if self.config.get("cleanup_tasks", True):
@@ -197,15 +226,22 @@ class DataRetentionService:
             cache_retention_hours = self.config.get("conversion_cache_retention_hours")
             cache_deleted = self._cleanup_conversion_cache(cache_retention_hours)
 
+            artifact_retention_days = self.config.get("artifact_retention_days")
+            if artifact_retention_days is not None:
+                artifacts_deleted = asyncio.run(
+                    self._cleanup_expired_session_artifacts(artifact_retention_days)
+                )
+
             elapsed_time = time.time() - start_time
             log.info(
                 "%s Cleanup completed. Tasks deleted: %d, Feedback deleted: %d, "
-                "SSE events deleted: %d, Cache entries deleted: %d, Time taken: %.2f seconds",
+                "SSE events deleted: %d, Cache entries deleted: %d, Artifacts deleted: %d, Time taken: %.2f seconds",
                 self.log_identifier,
                 tasks_deleted,
                 feedback_deleted,
                 sse_events_deleted,
                 cache_deleted,
+                artifacts_deleted,
                 elapsed_time,
             )
 
@@ -428,5 +464,38 @@ class DataRetentionService:
             )
             db.rollback()
             return 0
+        finally:
+            db.close()
+
+    async def _cleanup_expired_session_artifacts(self, retention_days: int) -> int:
+        """Delete artifacts for sessions older than retention cutoff."""
+        if not self.artifact_service:
+            log.debug("%s Artifact service unavailable. Skipping artifact cleanup.", self.log_identifier)
+            return 0
+
+        if not self.session_factory:
+            log.debug("%s Session factory unavailable. Skipping artifact cleanup.", self.log_identifier)
+            return 0
+
+        cutoff_time_ms = now_epoch_ms() - (retention_days * 24 * 60 * 60 * 1000)
+        total_deleted = 0
+        db = self.session_factory()
+        try:
+            repo = SessionRepository()
+            sessions = repo.find_sessions_older_than(db, cutoff_time_ms)
+            for session in sessions:
+                try:
+                    total_deleted += await self.artifact_service.delete_session_artifacts(
+                        user_id=session.user_id,
+                        session_id=session.id,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "%s Failed deleting artifacts for session %s: %s",
+                        self.log_identifier,
+                        session.id,
+                        e,
+                    )
+            return total_deleted
         finally:
             db.close()
