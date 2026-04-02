@@ -1161,14 +1161,11 @@ class LiteLlm(BaseLlm):
 
             # Create monitors for observability
             gen_ai_monitor = GenAIMonitor.create(model=self.model)
-            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=self.model))
+            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=self.model)).start()
             ttft_recorded = False
 
             with MonitorLatency(gen_ai_monitor):
                 async for part in await self.llm_client.acompletion(**completion_args):
-                    if not ttft_recorded:
-                        ttft_latency.start()
-
                     for chunk, finish_reason in _model_response_to_chunk(part):
                         if isinstance(chunk, FunctionChunk):
                             index = chunk.index or fallback_index

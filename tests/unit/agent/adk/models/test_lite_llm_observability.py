@@ -264,6 +264,85 @@ class TestLiteLlmObservabilityStreaming:
                 # Verify completion was called with stream mode
                 assert mock_acompletion.called
 
+    @pytest.mark.asyncio
+    async def test_ttft_measures_request_to_first_token_latency(
+        self, simple_llm_request, mock_cost_per_token
+    ):
+        """Test TTFT measures time from request sent to first token received (not between chunks)."""
+        # Create streaming mock with controlled 10ms delay BEFORE first token
+        async def delayed_streaming():
+            # Simulate network + LLM processing delay BEFORE first token
+            await asyncio.sleep(0.010)  # 10ms delay
+
+            # First token arrives
+            yield {
+                "choices": [{
+                    "delta": {"content": "Hello"},
+                    "finish_reason": None
+                }]
+            }
+
+            # Second token (immediate)
+            yield {
+                "choices": [{
+                    "delta": {"content": " world"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "total_tokens": 12
+                }
+            }
+
+        ttft_durations = []
+
+        def capture_recorder_calls(duration, labels):
+            """Capture all recorder.record() calls."""
+            ttft_durations.append((duration, labels))
+
+        with patch('solace_agent_mesh.agent.adk.models.lite_llm.acompletion') as mock_acompletion:
+            with patch('solace_agent_mesh.agent.adk.models.lite_llm.cost_per_token', return_value=mock_cost_per_token):
+                with patch('solace_ai_connector.common.observability.api.MetricRegistry') as mock_registry:
+                    with patch('solace_agent_mesh.agent.adk.models.lite_llm.MetricRegistry', mock_registry):
+                        mock_recorder = Mock()
+                        mock_recorder.record = Mock(side_effect=capture_recorder_calls)
+
+                        mock_registry_instance = Mock()
+                        mock_registry_instance.get_recorder = Mock(return_value=mock_recorder)
+                        mock_registry_instance.record_counter_from_monitor = Mock()
+                        mock_registry.get_instance.return_value = mock_registry_instance
+
+                        mock_acompletion.return_value = delayed_streaming()
+
+                        llm = LiteLlm(model="gpt-4")
+
+                        with ObservabilityContext(component_name="test-agent", owner_id="user123"):
+                            async for _ in llm.generate_content_async(simple_llm_request, stream=True):
+                                pass
+
+                        # Verify TTFT monitor was used
+                        ttft_get_recorder_calls = [
+                            call for call in mock_registry_instance.get_recorder.call_args_list
+                            if call[0][0] == "gen_ai.client.operation.ttft.duration"
+                        ]
+
+                        assert len(ttft_get_recorder_calls) > 0, "TTFT monitor should have been used"
+                        assert len(ttft_durations) > 0, "TTFT should have been recorded"
+
+                        # Get the TTFT duration (should be one of the recorded durations)
+                        # TTFT should be ~10ms (with tolerance for test timing variance)
+                        ttft_found = False
+                        for duration, labels in ttft_durations:
+                            ttft_ms = duration * 1000
+                            # Check if this looks like the TTFT measurement (around 10ms)
+                            if 8.0 <= ttft_ms <= 20.0:
+                                ttft_found = True
+                                assert ttft_ms >= 8.0, f"TTFT too low ({ttft_ms:.2f}ms) - timer may have started too late"
+                                break
+
+                        assert ttft_found, f"TTFT measurement not found in recorded durations: {[(d*1000, l) for d, l in ttft_durations]}"
+
 
 class TestLiteLlmObservabilityContextPropagation:
     """Test context propagation through nested async calls."""
