@@ -178,13 +178,7 @@ class TestSanitizeToFilename:
         assert result == "hello_world"
 
     def test_unicode_characters(self):
-        """Test handling of unicode characters.
-        
-        With re.ASCII flag, \\w only matches [a-zA-Z0-9_], so accented
-        characters (é, ü, etc.) are stripped to ensure ASCII-safe filenames.
-        This is required because S3 metadata only supports ASCII values.
-        See DATAGO-130045.
-        """
+        """Test handling of unicode characters - stripped to ASCII only for S3 compatibility."""
         result = sanitize_to_filename("café résumé")
         assert result == "caf_rsum"
 

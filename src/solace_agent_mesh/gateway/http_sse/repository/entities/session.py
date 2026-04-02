@@ -18,6 +18,7 @@ class Session(BaseModel):
     name: str | None = None
     agent_id: AgentId | None = None
     project_id: str | None = None
+    source: str | None = "chat"  # "chat" or "scheduler"
     project_name: str | None = None
     has_running_background_task: bool = False  # Enriched field, not stored in DB
     created_time: int
