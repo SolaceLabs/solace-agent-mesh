@@ -216,8 +216,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     // Small delay to ensure state is updated
                     setTimeout(async () => {
                         const fullMessage = `${prompt}\n\nContext: "${escapeMarkdown(text)}"`;
-                        const fakeEvent = new Event("submit") as unknown as FormEvent;
-                        await handleSubmit(fakeEvent, [], fullMessage);
+                        await handleSubmit(null, [], fullMessage);
                         setContextText(null);
                         setContextSourceId(null);
                         setShowContextBadge(false);

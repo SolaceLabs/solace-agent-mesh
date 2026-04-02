@@ -6,11 +6,11 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled, useAuthContext } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ChatStarterCards, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -18,6 +18,7 @@ import { api } from "@/lib/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
+import { extractFirstName } from "@/lib/utils/userFormatting";
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -44,6 +45,7 @@ export function ChatPage() {
     const { autoTitleGenerationEnabled, configFeatureEnablement } = useConfigContext();
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
+    const { userInfo } = useAuthContext();
     const location = useLocation();
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
@@ -69,6 +71,7 @@ export function ChatPage() {
         sessionOwnerEmail,
         handleSwitchSession,
         handleNewSession,
+        handleSubmit,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -441,6 +444,37 @@ export function ChatPage() {
         navigate(location.pathname, { replace: true, state: {} });
     }, [location.state, location.pathname, navigate, useNewNav, handleSwitchSession, handleNewSession]);
 
+    // Determine if this is an empty chat (no user messages yet) for showing starter cards.
+    // The ChatProvider always adds a welcome message on new chats, so we check if there are
+    // no user-sent messages and no active session (sessionId is empty for new chats).
+    const isEmptyChat = useMemo(() => {
+        if (isResponding || isLoadingSession) return false;
+        const hasUserMessages = messages.some(msg => msg.isUser);
+        const hasTaskMessages = messages.some(msg => msg.taskId);
+        return !hasUserMessages && !hasTaskMessages;
+    }, [messages, isResponding, isLoadingSession]);
+
+    // Handle starter card option click - submit prompt directly
+    const handleStarterOptionClick = useCallback(
+        (prompt: string) => {
+            if (isResponding) return;
+            handleSubmit(null, [], prompt);
+        },
+        [isResponding, handleSubmit]
+    );
+
+    // Extract user's first name for personalized greeting
+    const userFirstName = useMemo(() => {
+        const username = typeof userInfo?.username === "string" ? userInfo.username : "";
+        if (username) {
+            return extractFirstName(username);
+        }
+        if (currentUserEmail) {
+            return extractFirstName(currentUserEmail);
+        }
+        return null;
+    }, [userInfo, currentUserEmail]);
+
     // Handle window focus to reconnect when user returns to chat page
     useEffect(() => {
         const handleWindowFocus = () => {
@@ -529,6 +563,17 @@ export function ChatPage() {
                                             <Spinner size="medium" variant="primary">
                                                 <p className="text-muted-foreground mt-4 text-sm">Loading session...</p>
                                             </Spinner>
+                                        </div>
+                                    ) : isEmptyChat ? (
+                                        /* Empty chat state: centered input with welcome text and starter cards */
+                                        <div className="flex h-full flex-col items-center justify-center px-4">
+                                            <div className="flex w-full max-w-4xl flex-col items-center gap-6">
+                                                <h2 className="text-foreground text-2xl font-semibold tracking-tight">{userFirstName ? `What can I help you with, ${userFirstName}?` : "What can I help you with?"}</h2>
+                                                <div className="w-full" style={CHAT_STYLES}>
+                                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                </div>
+                                                <ChatStarterCards onOptionClick={handleStarterOptionClick} />
+                                            </div>
                                         </div>
                                     ) : (
                                         <>

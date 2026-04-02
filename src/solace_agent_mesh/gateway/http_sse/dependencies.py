@@ -4,6 +4,7 @@ managed by the WebUIBackendComponent.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -34,6 +35,7 @@ from .repository.interfaces import ITaskRepository
 from .repository.task_repository import TaskRepository
 from .services.session_service import SessionService
 from .services.title_generation_service import TitleGenerationService
+from .services.starter_suggestions_service import StarterSuggestionsService
 from ...shared.api import get_current_user
 
 log = logging.getLogger(__name__)
@@ -834,9 +836,33 @@ def get_indexing_task_service(
     from .services.indexing_task_service import IndexingTaskService
     
     log.debug("get_indexing_task_service called")
-    
     return IndexingTaskService(
         sse_manager=sse_manager,
         project_service=project_service
     )
+
+
+# Singleton instance to preserve in-memory cache across requests
+_starter_suggestions_service_instance: StarterSuggestionsService | None = None
+_starter_suggestions_lock = asyncio.Lock()
+
+
+async def get_starter_suggestions_service(
+    component: "WebUIBackendComponent" = Depends(get_sac_component),
+) -> StarterSuggestionsService:
+    """FastAPI dependency to get a singleton instance of StarterSuggestionsService."""
+    global _starter_suggestions_service_instance
+
+    log.debug("get_starter_suggestions_service called")
+
+    if _starter_suggestions_service_instance is None:
+        async with _starter_suggestions_lock:
+            if _starter_suggestions_service_instance is None:
+                model_config = component.get_config("model", {})
+                llm = component.get_lite_llm_model()
+                _starter_suggestions_service_instance = StarterSuggestionsService(
+                    model_config=model_config, llm=llm
+                )
+
+    return _starter_suggestions_service_instance
 

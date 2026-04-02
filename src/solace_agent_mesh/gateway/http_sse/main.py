@@ -36,6 +36,7 @@ from .routers import (
     sse,
     share,
     speech,
+    starter_suggestions,
     version,
     visualization,
     projects,
@@ -333,6 +334,11 @@ def _setup_routers() -> None:
         tags=["Document Conversion"],
     )
     app.include_router(share.router, prefix=api_prefix, tags=["Share"])
+    app.include_router(
+        starter_suggestions.router,
+        prefix=api_prefix,
+        tags=["Starter Suggestions"],
+    )
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers

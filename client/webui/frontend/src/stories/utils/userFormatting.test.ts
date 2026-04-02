@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { getUserInitials, formatCollaborativeTimestamp } from "@/lib/utils/userFormatting";
+import { getUserInitials, formatCollaborativeTimestamp, extractFirstName } from "@/lib/utils/userFormatting";
 
 describe("getUserInitials", () => {
     test("returns two-letter initials from first and last name", () => {
@@ -24,6 +24,36 @@ describe("getUserInitials", () => {
 
     test("uppercases the initials", () => {
         expect(getUserInitials("jane smith")).toBe("JS");
+    });
+});
+
+describe("extractFirstName", () => {
+    test("extracts first name from email", () => {
+        expect(extractFirstName("john.doe@company.com")).toBe("John");
+    });
+
+    test("extracts first name from email with underscores", () => {
+        expect(extractFirstName("jane_smith@example.org")).toBe("Jane");
+    });
+
+    test("extracts first name from email with dashes", () => {
+        expect(extractFirstName("bob-jones@test.io")).toBe("Bob");
+    });
+
+    test("extracts first name from display name", () => {
+        expect(extractFirstName("John Doe")).toBe("John");
+    });
+
+    test("capitalizes single lowercase name", () => {
+        expect(extractFirstName("alice")).toBe("Alice");
+    });
+
+    test("returns null for empty string", () => {
+        expect(extractFirstName("")).toBeNull();
+    });
+
+    test("lowercases rest of email-derived name", () => {
+        expect(extractFirstName("JOHN.DOE@company.com")).toBe("John");
     });
 });
 

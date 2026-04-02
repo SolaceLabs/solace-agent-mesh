@@ -2457,8 +2457,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
-            event.preventDefault();
+        async (event: FormEvent | null, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
+            event?.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
             if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {

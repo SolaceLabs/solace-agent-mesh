@@ -1538,6 +1538,26 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             log.info(
                                 "%s Task logging is disabled.", self.log_identifier
                             )
+
+                        # Pre-warm starter suggestions cache in the background
+                        # Wait for agents to register before generating suggestions
+                        async def _warm_starter_suggestions():
+                            try:
+                                # Wait for agents to register (they arrive via Solace messages)
+                                await asyncio.sleep(15)
+                                from .services.starter_suggestions_service import extract_agent_data
+                                from .dependencies import get_starter_suggestions_service
+                                service = await get_starter_suggestions_service(self)
+                                agents_data = extract_agent_data(self.agent_registry)
+                                if agents_data:
+                                    await service.warm_cache(agents_data)
+                                else:
+                                    log.info("%s No agents registered yet, skipping starter suggestions warm-up", self.log_identifier)
+                            except Exception as e:
+                                log.warning("%s Failed to warm starter suggestions cache: %s", self.log_identifier, e)
+
+                        self.fastapi_event_loop.create_task(_warm_starter_suggestions())
+                        log.info("%s Scheduled starter suggestions cache warm-up task", self.log_identifier)
                     else:
                         log.error(
                             "%s FastAPI event loop not captured. Cannot start visualization processor.",
