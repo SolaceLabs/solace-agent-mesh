@@ -1,6 +1,6 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, SharedChatViewPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, ScheduledTasksPage, SharedChatViewPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
 import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
 import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
@@ -114,6 +114,10 @@ export const createRouter = () => {
                             element: <ModelDetailsPage />,
                         },
                     ],
+                },
+                {
+                    path: "schedules",
+                    element: <ScheduledTasksPage />,
                 },
                 {
                     path: "*",

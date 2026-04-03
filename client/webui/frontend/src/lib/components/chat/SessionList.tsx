@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Check, X, MessageCircle, Loader2, UserSearch } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
@@ -13,7 +13,7 @@ import type { SharedWithMeItem } from "@/lib/types/share";
 import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 interface SessionNameProps {
     session: Session;
@@ -124,6 +124,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
+    const [activeTab, setActiveTab] = useState<"chat" | "scheduler">("chat");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
@@ -139,27 +140,32 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
-        setIsLoading(true);
+    const fetchSessions = useCallback(
+        async (pageNumber: number = 1, append: boolean = false) => {
+            setIsLoading(true);
 
-        try {
-            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
+            try {
+                let url = `/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+                url += `&source=${activeTab}`;
+                const result: PaginatedSessionsResponse = await api.webui.get(url);
 
-            if (append) {
-                setSessions(prev => [...prev, ...result.data]);
-            } else {
-                setSessions(result.data);
+                if (append) {
+                    setSessions(prev => [...prev, ...result.data]);
+                } else {
+                    setSessions(result.data);
+                }
+
+                // Use metadata to determine if there are more pages
+                setHasMore(result.meta.pagination.nextPage !== null);
+                setCurrentPage(pageNumber);
+            } catch (error) {
+                console.error("An error occurred while fetching sessions:", error);
+            } finally {
+                setIsLoading(false);
             }
-
-            // Use metadata to determine if there are more pages
-            setHasMore(result.meta.pagination.nextPage !== null);
-            setCurrentPage(pageNumber);
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+        },
+        [activeTab]
+    );
 
     useEffect(() => {
         fetchSessions(1, false);
@@ -211,7 +217,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             window.removeEventListener("session-title-updated", handleTitleUpdated);
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
-    }, [fetchSessions]);
+    }, [fetchSessions, activeTab]);
 
     // Periodic refresh when there are sessions with running background tasks
     // This is necessary to detect task completion when user is on a different session
@@ -452,8 +458,24 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
 
-                {/* Project Filter - Only show when persistence is enabled */}
-                {persistenceEnabled && projectNames.length > 0 && (
+                {/* Tabs: Chats / Scheduled */}
+                <div className="pr-4">
+                    <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                        <TabsList className="w-full bg-transparent p-0">
+                            <TabsTrigger value="chat" className="rounded-none rounded-l-md">
+                                <MessageCircle className="h-4 w-4 shrink-0" />
+                                Chats
+                            </TabsTrigger>
+                            <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0">
+                                <CalendarClock className="h-4 w-4 shrink-0" />
+                                Scheduled Tasks
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
+
+                {/* Project Filter (only for chats tab) */}
+                {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
                     <div className="flex items-center gap-2 pr-4">
                         <label className="text-sm font-medium">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
