@@ -18,7 +18,7 @@ class TaskCancelledError(Exception):
     pass
 
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from google.adk.agents import RunConfig
 from google.adk.events import Event as ADKEvent
@@ -1008,6 +1008,7 @@ async def _repair_dangling_tool_calls_in_session(
     component: "SamAgentComponent",
     adk_session: ADKSession,
     logical_task_id: str,
+    incoming_content: Optional[adk_types.Content] = None,
 ):
     """
     Scan the ADK session events for dangling tool calls (function_call events
@@ -1026,6 +1027,12 @@ async def _repair_dangling_tool_calls_in_session(
         component: The SamAgentComponent instance.
         adk_session: The ADK session to scan and repair.
         logical_task_id: The task ID for logging.
+        incoming_content: Optional incoming content (e.g., peer tool responses)
+            that is about to be passed to the ADK runner as new_message.
+            Function responses in this content are treated as already resolved
+            and will NOT be considered dangling. This prevents false-positive
+            repairs when a peer agent has successfully responded but the
+            response hasn't been appended to the session yet.
     """
     log_identifier = f"{component.log_identifier}[RepairSession:{logical_task_id}]"
 
@@ -1039,6 +1046,20 @@ async def _repair_dangling_tool_calls_in_session(
             for part in event.content.parts:
                 if part.function_response and part.function_response.id:
                     response_ids.add(part.function_response.id)
+
+    # Also include function_response IDs from the incoming content that is
+    # about to be injected into the session. 
+    if incoming_content and incoming_content.parts:
+        for part in incoming_content.parts:
+            if part.function_response and part.function_response.id:
+                response_ids.add(part.function_response.id)
+                log.debug(
+                    "%s Excluding incoming function_response id=%s (tool=%s) from "
+                    "dangling check — response is about to be injected.",
+                    log_identifier,
+                    part.function_response.id,
+                    part.function_response.name or "unknown",
+                )
 
     # Find all function_call IDs that have no matching response
     dangling_calls: list[tuple[str, str]] = []  # (call_id, tool_name)
@@ -1566,7 +1587,8 @@ async def run_adk_async_task_thread_wrapper(
         # peer calls that will never receive a response (causing indefinite blocking).
         if adk_session and component.session_service:
             await _repair_dangling_tool_calls_in_session(
-                component, adk_session, logical_task_id
+                component, adk_session, logical_task_id,
+                incoming_content=adk_content,
             )
 
         # Run the ADK task with automatic compaction retry on context limit errors
