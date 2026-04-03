@@ -19,8 +19,10 @@ export const getRecentSessions = async (maxItems: number): Promise<Session[]> =>
     return result.data || [];
 };
 
-export const getPaginatedSessions = async (pageNumber: number = 1, pageSize: number = 20): Promise<PaginatedSessionsResponse> => {
-    return api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`);
+export const getPaginatedSessions = async (pageNumber: number = 1, pageSize: number = 20, source?: string): Promise<PaginatedSessionsResponse> => {
+    let url = `/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
+    if (source) url += `&source=${source}`;
+    return api.webui.get(url);
 };
 
 export const getSessionChatTasks = async (sessionId: string) => {

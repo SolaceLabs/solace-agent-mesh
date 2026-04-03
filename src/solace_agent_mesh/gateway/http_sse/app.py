@@ -337,6 +337,39 @@ class WebUIBackendApp(BaseGatewayApp):
             },
         },
         {
+            "name": "scheduler_service",
+            "required": False,
+            "type": "dict",
+            "default": {},
+            "description": "Configuration for the scheduled tasks service.",
+            "dict_schema": {
+                "enabled": {
+                    "type": "boolean",
+                    "required": False,
+                    "default": False,
+                    "description": "Enable/disable the scheduler service.",
+                },
+                "instance_id": {
+                    "type": "string",
+                    "required": False,
+                    "default": None,
+                    "description": "Unique instance ID for this scheduler (auto-generated if not provided).",
+                },
+                "default_timeout_seconds": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 3600,
+                    "description": "Default timeout for task executions (in seconds).",
+                },
+                "max_concurrent_executions": {
+                    "type": "integer",
+                    "required": False,
+                    "default": 10,
+                    "description": "Maximum number of concurrent task executions.",
+                },
+            },
+        },
+        {
             "name": "data_retention",
             "required": False,
             "type": "dict",
