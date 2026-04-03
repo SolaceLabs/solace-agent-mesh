@@ -48,6 +48,6 @@
   },
   "overrides": {
     "dompurify": "^3.3.2",
-    "lodash-es": "^4.17.23"
+    "lodash-es": "^4.18.0"
   }
 }
