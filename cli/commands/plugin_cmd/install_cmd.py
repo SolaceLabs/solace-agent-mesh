@@ -99,7 +99,15 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
         click.echo(f"Found official plugin '{plugin_source}' at: {official_plugin_url}")
         plugin_source = official_plugin_url
 
-    install_type = None  # "module", "local", "git"
+    install_type = None  # "module", "local", "git", "pypi"
+
+    # If the resolved official URL is a plain package name (not a URL), install from PyPI
+    if official_plugin_url and not plugin_source.startswith(
+        ("git+", "http://", "https://", "file://", "/", "./", "../", "~/")
+    ):
+        install_type = "pypi"
+        install_target = plugin_source  # pip-style dashed name
+        module_name = plugin_source.strip().replace("-", "_")
     module_name = None
     install_target = None
     source_path_for_name_extraction = None
@@ -133,7 +141,7 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
             f"Error: Invalid plugin source '{plugin_source}'. Not a recognized module name, local path, or Git URL."
         )
 
-    if install_type in ["local", "git", "repository", "wheel"]:
+    if install_type in ["local", "git", "repository", "wheel", "pypi"]:
         if install_type == "repository":
             if not _check_command_exists("git"):
                 return error_exit(
@@ -234,6 +242,14 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
                 return error_exit(err)
             module_name = module_name_from_wheel
 
+        elif install_type == "pypi":
+            err = _run_install(
+                installer_command, install_target, f"PyPI ({install_target})"
+            )
+            if err:
+                return error_exit(err)
+            # module_name already set when install_type was determined
+
     if not module_name:
         return error_exit("Error: Could not determine the plugin module name to load.")
 
@@ -271,7 +287,7 @@ def install_plugin_cmd(
       - A local path to a directory (e.g., '/path/to/plugin') \n
       - A local path to a wheel file (e.g., '/path/to/plugin.whl') \n
       - A Git URL (e.g., 'https://github.com/user/repo.git') \n
-      - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins \n
+      - The name of an official plugin (e.g., 'sam-rest-gateway') — installed from PyPI if published, otherwise from the official GitHub registry \n
     """
     module_name, plugin_path = install_plugin(plugin_source, installer_command)
     if module_name and plugin_path:

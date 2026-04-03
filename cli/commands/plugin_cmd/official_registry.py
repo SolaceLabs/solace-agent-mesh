@@ -6,6 +6,7 @@ import click
 from config_portal.backend.plugin_catalog.constants import (
     DEFAULT_OFFICIAL_REGISTRY_URL,
     OFFICIAL_REGISTRY_GIT_BRANCH,
+    PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI,
 )
 
 IGNORE_SUB_DIRS = [".git", "__pycache__", ".venv", "node_modules", ".vscode", ".github"]
@@ -164,12 +165,18 @@ def get_official_plugin_url(plugin_name: str) -> Optional[str]:
         plugin_name: Name of the official plugin
 
     Returns:
-        Optional[str]: Full URL/path if plugin is official, None otherwise
+        Optional[str]: PyPI package name if published to PyPI, full git URL/path if in
+        official registry, or None if not an official plugin
     """
     # if the plugin_name is a git path, url, or a local path, it can't be an official plugin
     if plugin_name.startswith(
         ("git+", "http://", "https://", "file://", "/", "./", "../", "~/")
     ):
         return False
+
+    # Check PyPI-published plugins first
+    if plugin_name.strip() in PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI:
+        return plugin_name.strip()
+
     official_plugins = get_official_plugins()
     return official_plugins.get(plugin_name)
