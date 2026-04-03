@@ -60,18 +60,18 @@ def _enum_type_exists(enum_name: str) -> bool:
 def upgrade() -> None:
     dialect = op.get_bind().dialect.name
 
-    # Pre-create enum types for PostgreSQL to avoid "already exists" on re-run
-    schedule_type_enum = sa.Enum("cron", "interval", "one_time", name="scheduletype")
+    # Define enum types with create_type=False so create_table won't auto-create them.
+    # We create them ourselves with checkfirst=True for idempotency on PostgreSQL.
+    schedule_type_enum = sa.Enum("cron", "interval", "one_time", name="scheduletype", create_type=False)
     execution_status_enum = sa.Enum(
         "pending", "running", "completed", "failed",
         "timeout", "cancelled", "skipped",
         name="executionstatus",
+        create_type=False,
     )
     if dialect == "postgresql":
-        if not _enum_type_exists("scheduletype"):
-            schedule_type_enum.create(op.get_bind(), checkfirst=True)
-        if not _enum_type_exists("executionstatus"):
-            execution_status_enum.create(op.get_bind(), checkfirst=True)
+        schedule_type_enum.create(op.get_bind(), checkfirst=True)
+        execution_status_enum.create(op.get_bind(), checkfirst=True)
 
     # Create scheduled_tasks table
     if not _table_exists("scheduled_tasks"):
