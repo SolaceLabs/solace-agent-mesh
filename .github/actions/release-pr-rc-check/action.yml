@@ -1,0 +1,59 @@
+name: "Release PR RC Check"
+description: "Propagates RC status from a source commit to a release PR commit and waits for completion."
+
+inputs:
+  github_token:
+    description: "GitHub token with repo status read/write permissions"
+    required: true
+  source_commit_sha:
+    description: "Source commit SHA to monitor for RC status (typically main HEAD SHA)"
+    required: true
+  target_commit_sha:
+    description: "Target commit SHA to publish propagated RC status to (release PR HEAD SHA)"
+    required: true
+  status_context:
+    description: "Status context to read from source commit"
+    required: false
+    default: "RC / Integration Tests (Community)"
+  propagated_context:
+    description: "Status context name to publish on target commit"
+    required: false
+    default: "RC / Integration Tests (Community) [Release PR]"
+  poll_interval_seconds:
+    description: "Polling interval in seconds"
+    required: false
+    default: "60"
+  max_attempts:
+    description: "Maximum polling attempts"
+    required: false
+    default: "75"
+
+outputs:
+  rc_state:
+    description: "Final RC state observed from source commit (success|failure|error|timeout)"
+    value: ${{ steps.propagate.outputs.rc_state }}
+  propagated_context:
+    description: "Status context published to target commit"
+    value: ${{ steps.propagate.outputs.propagated_context }}
+  source_commit_sha:
+    description: "Source commit SHA monitored for RC status"
+    value: ${{ steps.propagate.outputs.source_commit_sha }}
+  target_commit_sha:
+    description: "Target release PR commit SHA that received propagated status"
+    value: ${{ steps.propagate.outputs.target_commit_sha }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Propagate and wait for RC status
+      id: propagate
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        SOURCE_COMMIT_SHA: ${{ inputs.source_commit_sha }}
+        TARGET_COMMIT_SHA: ${{ inputs.target_commit_sha }}
+        STATUS_CONTEXT: ${{ inputs.status_context }}
+        PROPAGATED_CONTEXT: ${{ inputs.propagated_context }}
+        POLL_INTERVAL_SECONDS: ${{ inputs.poll_interval_seconds }}
+        MAX_ATTEMPTS: ${{ inputs.max_attempts }}
+      run: python3 "${{ github.action_path }}/scripts/propagate_rc_status.py"
