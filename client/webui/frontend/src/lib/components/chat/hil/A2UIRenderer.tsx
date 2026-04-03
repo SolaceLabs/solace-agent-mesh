@@ -101,6 +101,10 @@ interface RenderCtx {
     onModelChange: (model: Record<string, unknown>) => void;
     onAction: (action: SurfaceAction) => void;
     disabled: boolean;
+    /** When a Tabs component with auto-advance exists, whether the last tab is active. */
+    isLastTabActive?: boolean;
+    /** Callback for Tabs to report active tab position to parent context. */
+    onLastTabActiveChange?: (isLast: boolean) => void;
 }
 
 function RenderComponent({ id, ctx }: { id: string; ctx: RenderCtx }) {
@@ -179,7 +183,7 @@ function RenderText({ comp }: { comp: A2UIComponent }) {
         case "h3":
             return <span className="text-sm font-semibold">{text}</span>;
         case "caption":
-            return <span className="text-xs text-muted-foreground">{text}</span>;
+            return <span className="text-muted-foreground text-xs">{text}</span>;
         case "body":
         default:
             return <span className="text-sm">{text}</span>;
@@ -223,45 +227,27 @@ function RenderChoicePicker({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx
         <div className="space-y-1">
             {options.map(opt =>
                 isMulti ? (
-                    <label
-                        key={opt.value}
-                        className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
-                    >
-                        <Checkbox
-                            checked={Array.isArray(currentValue) && currentValue.includes(opt.value)}
-                            onCheckedChange={(checked: boolean) => handleMultiToggle(opt.value, checked)}
-                            disabled={ctx.disabled}
-                            className="mt-0.5"
-                        />
+                    <label key={opt.value} className="hover:bg-muted/50 flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors">
+                        <Checkbox checked={Array.isArray(currentValue) && currentValue.includes(opt.value)} onCheckedChange={(checked: boolean) => handleMultiToggle(opt.value, checked)} disabled={ctx.disabled} className="mt-0.5" />
                         <div className="min-w-0">
                             <span>{opt.label}</span>
-                            {opt.description && <p className="text-xs text-muted-foreground">{opt.description}</p>}
+                            {opt.description && <p className="text-muted-foreground text-xs">{opt.description}</p>}
                         </div>
                     </label>
                 ) : (
                     <label
                         key={opt.value}
                         className={`flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2 text-sm transition-colors ${
-                            currentValue === opt.value
-                                ? "border-[var(--color-brand-wMain)] bg-[var(--color-brand-wMain)]/5"
-                                : "border-transparent hover:bg-muted/50"
+                            currentValue === opt.value ? "border-[var(--color-brand-wMain)] bg-[var(--color-brand-wMain)]/5" : "hover:bg-muted/50 border-transparent"
                         }`}
                     >
-                        <input
-                            type="radio"
-                            name={comp.id}
-                            value={opt.value}
-                            checked={currentValue === opt.value}
-                            onChange={() => handleSingleSelect(opt.value)}
-                            disabled={ctx.disabled}
-                            className="mt-0.5 size-4 accent-[var(--color-primary-wMain)]"
-                        />
+                        <input type="radio" name={comp.id} value={opt.value} checked={currentValue === opt.value} onChange={() => handleSingleSelect(opt.value)} disabled={ctx.disabled} className="mt-0.5 size-4 accent-[var(--color-primary-wMain)]" />
                         <div className="min-w-0">
                             <span>{opt.label}</span>
-                            {opt.description && <p className="text-xs text-muted-foreground">{opt.description}</p>}
+                            {opt.description && <p className="text-muted-foreground text-xs">{opt.description}</p>}
                         </div>
                     </label>
-                ),
+                )
             )}
         </div>
     );
@@ -287,15 +273,24 @@ function RenderTextField({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx })
 function RenderButton({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
     const childIds = getChildrenIds(comp);
     const variant = comp.variant as string | undefined;
-    const action = comp.action as {
-        event?: { name?: string; context?: Record<string, unknown>; completionText?: string };
-    } | undefined;
+    const action = comp.action as
+        | {
+              event?: { name?: string; context?: Record<string, unknown>; completionText?: string };
+          }
+        | undefined;
     const eventName = action?.event?.name ?? "";
     const eventContext = action?.event?.context ?? {};
     const completionText = action?.event?.completionText ?? "";
 
     const isCancel = eventName === "cancel";
+    const isSubmit = eventName === "submit";
     const isPrimary = variant === "primary";
+
+    // Hide the submit button until the user reaches the last tab step.
+    // This prevents premature submission when multi-step questions are shown.
+    if (isSubmit && ctx.isLastTabActive === false) {
+        return null;
+    }
 
     const handleClick = () => {
         const resolved = resolveContext(eventContext, ctx.model);
@@ -303,12 +298,7 @@ function RenderButton({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
     };
 
     return (
-        <Button
-            size="sm"
-            variant={isPrimary ? "default" : isCancel ? "ghost" : "outline"}
-            onClick={handleClick}
-            disabled={ctx.disabled}
-        >
+        <Button size="sm" variant={isPrimary ? "default" : isCancel ? "ghost" : "outline"} onClick={handleClick} disabled={ctx.disabled}>
             <RenderChildren ids={childIds} ctx={ctx} />
         </Button>
     );
@@ -353,6 +343,14 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
     const autoAdvance = comp["x-auto-advance"] === true;
     const [activeTab, setActiveTab] = useState(tabItems[0]?.child ?? "");
 
+    // Report whether the last tab is active to the parent context.
+    useEffect(() => {
+        if (autoAdvance && ctx.onLastTabActiveChange) {
+            const isLast = tabItems.length <= 1 || activeTab === tabItems[tabItems.length - 1]?.child;
+            ctx.onLastTabActiveChange(isLast);
+        }
+    }, [activeTab, autoAdvance, tabItems, ctx]);
+
     // Track a pending auto-advance timer so we can cancel it if the user changes tabs manually.
     const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -370,9 +368,7 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
             const panel = ctx.index.get(activeTab);
             if (!panel) return;
             const childIds = getChildrenIds(panel);
-            const picker = childIds
-                .map(id => ctx.index.get(id))
-                .find(c => c?.component === "ChoicePicker");
+            const picker = childIds.map(id => ctx.index.get(id)).find(c => c?.component === "ChoicePicker");
 
             if (!picker || picker.variant !== "mutuallyExclusive") return;
 
@@ -388,7 +384,7 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
                 }, 300);
             }
         },
-        [ctx, autoAdvance, activeTab, tabItems],
+        [ctx, autoAdvance, activeTab, tabItems]
     );
 
     // Build a context with the wrapped onModelChange for child components.
@@ -397,20 +393,17 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
             ...ctx,
             onModelChange: autoAdvance ? handleModelChange : ctx.onModelChange,
         }),
-        [ctx, autoAdvance, handleModelChange],
+        [ctx, autoAdvance, handleModelChange]
     );
 
-    const handleTabChange = useCallback(
-        (value: string) => {
-            // Cancel any pending auto-advance if the user manually switches.
-            if (advanceTimer.current) {
-                clearTimeout(advanceTimer.current);
-                advanceTimer.current = null;
-            }
-            setActiveTab(value);
-        },
-        [],
-    );
+    const handleTabChange = useCallback((value: string) => {
+        // Cancel any pending auto-advance if the user manually switches.
+        if (advanceTimer.current) {
+            clearTimeout(advanceTimer.current);
+            advanceTimer.current = null;
+        }
+        setActiveTab(value);
+    }, []);
 
     return (
         <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -426,12 +419,7 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
                     <RenderComponent id={item.child} ctx={tabCtx} />
                     {autoAdvance && idx < tabItems.length - 1 && tabNeedsNextButton(item.child, tabCtx) && (
                         <div className="flex justify-end px-4 pt-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setActiveTab(tabItems[idx + 1].child)}
-                                disabled={ctx.disabled}
-                            >
+                            <Button size="sm" variant="outline" onClick={() => setActiveTab(tabItems[idx + 1].child)} disabled={ctx.disabled}>
                                 Next
                             </Button>
                         </div>
@@ -454,9 +442,8 @@ interface A2UISurfaceRendererProps {
 }
 
 export function A2UISurfaceRenderer({ surface, onAction, disabled = false, expiresAt }: A2UISurfaceRendererProps) {
-    const [model, setModel] = useState<Record<string, unknown>>(() =>
-        (surface.dataModel as Record<string, unknown>) ?? {},
-    );
+    const [model, setModel] = useState<Record<string, unknown>>(() => (surface.dataModel as Record<string, unknown>) ?? {});
+    const [isLastTabActive, setIsLastTabActive] = useState<boolean | undefined>(undefined);
 
     const index = useMemo(() => buildIndex(surface.components), [surface.components]);
 
@@ -464,8 +451,12 @@ export function A2UISurfaceRenderer({ surface, onAction, disabled = false, expir
         (action: SurfaceAction) => {
             onAction(action);
         },
-        [onAction],
+        [onAction]
     );
+
+    const handleLastTabActiveChange = useCallback((isLast: boolean) => {
+        setIsLastTabActive(isLast);
+    }, []);
 
     const ctx: RenderCtx = useMemo(
         () => ({
@@ -474,8 +465,10 @@ export function A2UISurfaceRenderer({ surface, onAction, disabled = false, expir
             onModelChange: setModel,
             onAction: handleAction,
             disabled,
+            isLastTabActive,
+            onLastTabActiveChange: handleLastTabActiveChange,
         }),
-        [index, model, handleAction, disabled],
+        [index, model, handleAction, disabled, isLastTabActive, handleLastTabActiveChange]
     );
 
     // Find the root component — the Card with id "root".
@@ -524,7 +517,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
     if (!text) return null;
 
     return (
-        <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-center gap-1.5 py-2 text-xs">
             <Clock className="size-3" />
             <span>{text}</span>
         </div>
