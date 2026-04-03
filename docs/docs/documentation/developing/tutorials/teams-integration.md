@@ -26,7 +26,7 @@ If you are using the Agent Mesh Enterprise web interface to manage gateways, see
 
 Before you begin, make sure you have the following:
 
-1. Agent Mesh Enterprise deployed via Docker or Kubernetes, or installed via wheel/pip
+1. Agent Mesh Enterprise deployed via Docker, Kubernetes, or Python
 2. Access to an Azure Active Directory tenant
 3. An Azure subscription for creating Bot Service resources
 4. A public HTTPS endpoint for production, or ngrok for development and testing
@@ -87,7 +87,6 @@ apps:
         initial_status_message: "Processing your request..."
         enable_typing_indicator: true
         buffer_update_interval_seconds: 2
-        max_download_file_size_mb: 100
       artifact_service:
         type: ${ARTIFACT_SERVICE_TYPE, filesystem}
         base_path: ${ARTIFACT_BASE_PATH, /tmp/samv2}
@@ -115,7 +114,6 @@ Key adapter configuration parameters:
 - `enable_typing_indicator`: Shows typing indicator while processing requests
 - `buffer_update_interval_seconds`: Controls streaming response update frequency
 - `initial_status_message`: Feedback shown when users first send a message
-- `max_download_file_size_mb`: Maximum file size the gateway will process (default: 100 MB)
 
 ### Running the Gateway
 

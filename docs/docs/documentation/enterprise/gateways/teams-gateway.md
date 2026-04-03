@@ -272,7 +272,7 @@ If your cluster does not have [external-dns](https://github.com/kubernetes-sigs/
    ```
    If using Route 53 with an ALB, you can use an **Alias** record instead.
 
-> **Note**: The `gw-<dns-id>` in the Ingress backend is the Kubernetes Service name created by SAM during deployment. This example uses AWS ALB annotations -- for other ingress controllers (NGINX, Traefik, GKE), adapt the annotations accordingly. The key requirements are:
+> **Note**: The `gw-<dns-id>` in the Ingress backend is the Kubernetes Service name created by SAM during deployment. To find this value, run `kubectl get services -n <namespace>` and look for the service prefixed with `gw-`. This example uses AWS ALB annotations -- for other ingress controllers (NGINX, Traefik, GKE), adapt the annotations accordingly. The key requirements are:
 > - TLS termination (HTTPS) at the ingress
 > - Route to the gateway service on port 8092
 
