@@ -24,30 +24,24 @@ class TestDetermineAutoTitleGenerationEnabled:
     """Tests for _determine_auto_title_generation_enabled function."""
 
     def test_disabled_when_persistence_not_enabled(self):
-        mock_component = MagicMock()
-
         result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": False}, "[TEST]"
+            {"persistence_enabled": False}, "[TEST]"
         )
 
         assert result is False
 
     def test_disabled_when_flag_is_off(self):
-        mock_component = MagicMock()
-
         with mock_flags(auto_title_generation=False):
             result = _determine_auto_title_generation_enabled(
-                mock_component, {"persistence_enabled": True}, "[TEST]"
+                {"persistence_enabled": True}, "[TEST]"
             )
 
         assert result is False
 
     def test_enabled_when_persistence_and_flag_on(self):
-        mock_component = MagicMock()
-
         with mock_flags(auto_title_generation=True):
             result = _determine_auto_title_generation_enabled(
-                mock_component, {"persistence_enabled": True}, "[TEST]"
+                {"persistence_enabled": True}, "[TEST]"
             )
 
         assert result is True

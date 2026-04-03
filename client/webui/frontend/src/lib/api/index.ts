@@ -4,4 +4,5 @@ export * from "./people";
 export * from "./projects";
 export * from "./sessions";
 export * from "./models";
+export * from "./scheduled-tasks";
 export * from "./share";
