@@ -60,13 +60,6 @@ def _enum_type_exists(enum_name: str) -> bool:
 def upgrade() -> None:
     dialect = op.get_bind().dialect.name
 
-    schedule_type_enum = sa.Enum("cron", "interval", "one_time", name="scheduletype")
-    execution_status_enum = sa.Enum(
-        "pending", "running", "completed", "failed",
-        "timeout", "cancelled", "skipped",
-        name="executionstatus",
-    )
-
     # Create scheduled_tasks table
     if not _table_exists("scheduled_tasks"):
         op.create_table(
@@ -77,7 +70,7 @@ def upgrade() -> None:
             sa.Column("namespace", sa.String(255), nullable=False),
             sa.Column("user_id", sa.String(255), nullable=True),
             sa.Column("created_by", sa.String(255), nullable=False),
-            sa.Column("schedule_type", schedule_type_enum, nullable=False),
+            sa.Column("schedule_type", sa.String(64), nullable=False),
             sa.Column("schedule_expression", sa.String(255), nullable=False),
             sa.Column("timezone", sa.String(64), nullable=False, server_default="UTC"),
             sa.Column("target_agent_name", sa.String(255), nullable=False),
@@ -133,7 +126,7 @@ def upgrade() -> None:
             "scheduled_task_executions",
             sa.Column("id", sa.String(36), nullable=False),
             sa.Column("scheduled_task_id", sa.String(36), nullable=False),
-            sa.Column("status", execution_status_enum, nullable=False),
+            sa.Column("status", sa.String(64), nullable=False),
             sa.Column("a2a_task_id", sa.String(255), nullable=True),
             sa.Column("scheduled_for", sa.BigInteger(), nullable=False),
             sa.Column("started_at", sa.BigInteger(), nullable=True),
@@ -175,8 +168,3 @@ def downgrade() -> None:
         op.drop_table("scheduled_task_executions")
     if _table_exists("scheduled_tasks"):
         op.drop_table("scheduled_tasks")
-
-    # Drop enum types on PostgreSQL
-    if dialect == "postgresql":
-        op.execute("DROP TYPE IF EXISTS executionstatus")
-        op.execute("DROP TYPE IF EXISTS scheduletype")
