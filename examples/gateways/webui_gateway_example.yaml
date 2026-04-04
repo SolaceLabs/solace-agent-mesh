@@ -258,6 +258,7 @@ apps:
       #   task_retention_days: ${DATA_RETENTION_TASK_DAYS, 90} # Days to retain task records (default: 90, minimum: 7)
       #   feedback_retention_days: ${DATA_RETENTION_FEEDBACK_DAYS, 90} # Days to retain feedback records (default: 90, minimum: 7)
       #   sse_event_retention_days: ${DATA_RETENTION_SSE_EVENT_DAYS, 30}  # SSE event buffer retention
+      #   artifact_retention_days: ${DATA_RETENTION_ARTIFACT_DAYS, null}  # Session artifact retention (null disables cleanup)
       #   # Cleanup scheduling
       #   cleanup_interval_hours: ${DATA_RETENTION_CLEANUP_INTERVAL_HOURS, 24} # How often cleanup runs (default: 24, minimum: 1)
       #   batch_size: ${DATA_RETENTION_BATCH_SIZE, 1000}  # Records deleted per transaction (default: 1000, range: 1-10000)

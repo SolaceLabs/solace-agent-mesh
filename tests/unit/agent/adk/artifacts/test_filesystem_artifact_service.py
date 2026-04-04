@@ -728,3 +728,102 @@ class TestFilesystemArtifactServiceListVersions:
         )
         
         assert versions == [0]  # Should only include numeric files
+
+
+class TestFilesystemArtifactServiceDeleteSession:
+    @pytest.mark.asyncio
+    async def test_delete_session_artifacts_removes_all_app_scoped_files(self, artifact_service):
+        part = adk_types.Part.from_bytes(data=b"x", mime_type="text/plain")
+        await artifact_service.save_artifact(
+            app_name="app1",
+            user_id="user123",
+            session_id="session456",
+            filename="file1.txt",
+            artifact=part,
+        )
+        await artifact_service.save_artifact(
+            app_name="app2",
+            user_id="user123",
+            session_id="session456",
+            filename="file1.txt",
+            artifact=part,
+        )
+
+        deleted_count = await artifact_service.delete_session_artifacts(
+            user_id="user123",
+            session_id="session456",
+        )
+
+        assert deleted_count == 2
+        assert await artifact_service.list_versions(
+            app_name="app1", user_id="user123", session_id="session456", filename="file1.txt"
+        ) == []
+        assert await artifact_service.list_versions(
+            app_name="app2", user_id="user123", session_id="session456", filename="file1.txt"
+        ) == []
+
+    @pytest.mark.asyncio
+    async def test_delete_session_artifacts_returns_correct_count(self, artifact_service):
+        expected_count = 2 * 3 * 2
+        for app_idx in range(2):
+            for file_idx in range(3):
+                for version in range(2):
+                    artifact = adk_types.Part.from_bytes(
+                        data=f"v{version}".encode(),
+                        mime_type="text/plain",
+                    )
+                    await artifact_service.save_artifact(
+                        app_name=f"app{app_idx}",
+                        user_id="user123",
+                        session_id="session456",
+                        filename=f"file{file_idx}.txt",
+                        artifact=artifact,
+                    )
+
+        deleted_count = await artifact_service.delete_session_artifacts(
+            user_id="user123",
+            session_id="session456",
+        )
+
+        assert deleted_count == expected_count
+
+    @pytest.mark.asyncio
+    async def test_delete_session_artifacts_handles_missing_directory(self, artifact_service):
+        deleted_count = await artifact_service.delete_session_artifacts(
+            user_id="none",
+            session_id="none",
+        )
+        assert deleted_count == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_session_artifacts_does_not_touch_user_artifacts(self, artifact_service):
+        session_artifact = adk_types.Part.from_bytes(data=b"session", mime_type="text/plain")
+        user_artifact = adk_types.Part.from_bytes(data=b"user", mime_type="text/plain")
+
+        await artifact_service.save_artifact(
+            app_name="app1",
+            user_id="user123",
+            session_id="session456",
+            filename="session_file.txt",
+            artifact=session_artifact,
+        )
+        await artifact_service.save_artifact(
+            app_name="app1",
+            user_id="user123",
+            session_id="ignored",
+            filename="user:shared_file.txt",
+            artifact=user_artifact,
+        )
+
+        deleted_count = await artifact_service.delete_session_artifacts(
+            user_id="user123",
+            session_id="session456",
+        )
+
+        assert deleted_count == 1
+        assert await artifact_service.list_versions(
+            app_name="app1",
+            user_id="user123",
+            session_id="ignored",
+            filename="user:shared_file.txt",
+        ) == [0]
