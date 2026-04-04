@@ -34,7 +34,7 @@ from .exceptions import (
     TestCaseFileNotFoundError,
     TestCaseParseError,
 )
-from .helpers import get_local_base_url
+from .helpers import get_local_base_url, load_dotenv_from_cwd
 
 # Expose main loader classes and functions
 from .test_case_loader import TestCase, load_test_case
@@ -89,4 +89,5 @@ __all__ = [
     "InvalidDataError",
     # Helpers
     "get_local_base_url",
+    "load_dotenv_from_cwd",
 ]
