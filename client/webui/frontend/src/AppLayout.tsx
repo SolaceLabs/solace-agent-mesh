@@ -9,10 +9,8 @@ import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
-import { api } from "@/lib/api";
-import type { Session } from "@/lib/types";
 
 function AppLayoutContent() {
     const location = useLocation();
@@ -21,11 +19,10 @@ function AppLayoutContent() {
     const { configFeatureEnablement } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
-    const { addNotification, hasModelConfigWrite } = useChatContext();
+    const { hasModelConfigWrite } = useChatContext();
+    const { isMoveDialogOpen, sessionToMove, handleMoveConfirm, closeMoveDialog } = useMoveSession();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
-    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
-    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
     const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
@@ -71,40 +68,6 @@ function AppLayoutContent() {
             observer.disconnect();
         };
     }, []);
-
-    const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
-        setSessionToMove(event.detail.session);
-        setIsMoveDialogOpen(true);
-    }, []);
-
-    useEffect(() => {
-        window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        return () => {
-            window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        };
-    }, [handleOpenMoveDialog]);
-
-    const handleMoveConfirm = async (targetProjectId: string | null) => {
-        if (!sessionToMove) return;
-
-        try {
-            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
-
-            window.dispatchEvent(
-                new CustomEvent("session-updated", {
-                    detail: {
-                        sessionId: sessionToMove.id,
-                        projectId: targetProjectId,
-                    },
-                })
-            );
-
-            addNotification?.("Session moved successfully", "success");
-        } catch (error) {
-            console.error("Failed to move session:", error);
-            addNotification?.("Failed to move session", "warning");
-        }
-    };
 
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
@@ -183,16 +146,7 @@ function AppLayoutContent() {
             <ToastContainer />
             <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
 
-            <MoveSessionDialog
-                isOpen={isMoveDialogOpen}
-                onClose={() => {
-                    setIsMoveDialogOpen(false);
-                    setSessionToMove(null);
-                }}
-                onConfirm={handleMoveConfirm}
-                session={sessionToMove}
-                currentProjectId={sessionToMove?.projectId}
-            />
+            <MoveSessionDialog isOpen={isMoveDialogOpen} onClose={closeMoveDialog} onConfirm={handleMoveConfirm} session={sessionToMove} currentProjectId={sessionToMove?.projectId} />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
             <ModelSetupDialog open={isModelSetupDialogOpen} onOpenChange={handleModelSetupDialogChange} hasWritePermissions={hasModelConfigWrite} />
         </div>
