@@ -99,8 +99,9 @@ type ChatDataPartPayload =
     | ToolResultPayload
     | ToolInvocationStartPayload;
 
-function asTypedPayload(data: Record<string, unknown>): ChatDataPartPayload | null {
-    return typeof data.type === "string" ? (data as unknown as ChatDataPartPayload) : null;
+function asTypedPayload(data: unknown): ChatDataPartPayload | null {
+    if (typeof data !== "object" || data === null || !("type" in data)) return null;
+    return typeof (data as Record<string, unknown>).type === "string" ? (data as ChatDataPartPayload) : null;
 }
 
 // ============ Types ============
@@ -190,7 +191,9 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     // --- Background task timestamp ---
     if ("result" in rpcResponse && rpcResponse.result) {
         const result = rpcResponse.result;
-        const taskIdFromResult = result.kind === "task" ? result.id : result.kind === "status-update" ? result.taskId : undefined;
+        let taskIdFromResult: string | undefined;
+        if (result.kind === "task") taskIdFromResult = result.id;
+        else if (result.kind === "status-update") taskIdFromResult = result.taskId;
         if (taskIdFromResult && isTaskRunningInBackground(taskIdFromResult)) {
             effects.push({ type: "update-task-timestamp", payload: { taskId: taskIdFromResult, timestamp: Date.now() } });
         }
@@ -446,7 +449,19 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
 
     // --- Update messages with content ---
-    messages = applyContentToMessages(messages, newContentParts, hasNewFiles, isFinalEvent, isTaskFailed, currentTaskIdFromResult, eventSequence, rpcResponse, sessionId);
+    const responseMessageId = rpcResponse.id?.toString() ?? `msg-${v4()}`;
+    const responseContextId = "result" in rpcResponse && rpcResponse.result && "contextId" in rpcResponse.result ? (rpcResponse.result as unknown as { contextId?: string }).contextId : undefined;
+
+    messages = applyContentToMessages(messages, newContentParts, {
+        hasNewFiles,
+        isFinalEvent,
+        isTaskFailed,
+        taskId: currentTaskIdFromResult,
+        eventSequence,
+        messageId: responseMessageId,
+        contextId: responseContextId,
+        fallbackSessionId: sessionId,
+    });
 
     // --- Final event handling ---
     if (isFinalEvent) {
@@ -617,18 +632,19 @@ function processArtifactCreationProgress(
     let artifactsList = [...inputArtifacts];
     const effects: ChatEffect[] = [];
 
-    // Handle "cancelled" status
+    // Handle "cancelled" status — only update the last agent message for this task,
+    // matching the original behavior to avoid removing legitimate earlier artifact references.
     if (status === "cancelled") {
-        messages = messages.map(m => {
-            if (!m.isUser && m.taskId === currentTaskIdFromResult) {
-                let parts = m.parts.filter(p => !(p.kind === "artifact" && (p as ArtifactPart).name === filename));
-                if (rolled_back_text) {
-                    parts = [...parts, { kind: "text" as const, text: rolled_back_text }];
-                }
-                return { ...m, parts };
+        const lastAgentIdx = messages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
+        if (lastAgentIdx !== -1) {
+            const agentMsg = messages[lastAgentIdx];
+            let parts = agentMsg.parts.filter(p => !(p.kind === "artifact" && (p as ArtifactPart).name === filename));
+            if (rolled_back_text) {
+                parts = [...parts, { kind: "text" as const, text: rolled_back_text }];
             }
-            return m;
-        });
+            messages = [...messages];
+            messages[lastAgentIdx] = { ...agentMsg, parts };
+        }
         artifactsList = artifactsList.filter(a => a.filename !== filename);
         return { messages, artifacts: artifactsList, effects };
     }
@@ -640,43 +656,50 @@ function processArtifactCreationProgress(
     const existingIndex = artifactsList.findIndex(a => a.filename === filename);
     if (existingIndex >= 0) {
         const existingArtifact = artifactsList[existingIndex];
-        const isDisplayed = existingArtifact.isDisplayed || false;
+        const isDisplayed = existingArtifact.isDisplayed ?? false;
 
         if (status === "completed" && isDisplayed) {
             shouldAutoDownload = true;
         }
 
         artifactsList = [...artifactsList];
+        let accumulatedContent: string | undefined;
+        if (status === "in-progress" && artifact_chunk) {
+            accumulatedContent = (existingArtifact.accumulatedContent || "") + artifact_chunk;
+        } else if (status === "completed" && !isDisplayed) {
+            accumulatedContent = undefined;
+        } else {
+            accumulatedContent = existingArtifact.accumulatedContent;
+        }
+
         artifactsList[existingIndex] = {
             ...existingArtifact,
             description: description !== undefined ? description : existingArtifact.description,
             size: bytes_transferred || existingArtifact.size,
             last_modified: new Date().toISOString(),
             uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
-            accumulatedContent: status === "in-progress" && artifact_chunk ? (existingArtifact.accumulatedContent || "") + artifact_chunk : status === "completed" && !isDisplayed ? undefined : existingArtifact.accumulatedContent,
+            accumulatedContent,
             isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
             mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
             needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
             tags: tags !== undefined ? tags : existingArtifact.tags,
         };
-    } else {
-        if (description !== undefined || status === "in-progress") {
-            artifactsList = [
-                ...artifactsList,
-                {
-                    filename,
-                    description: description || null,
-                    mime_type: mime_type || "application/octet-stream",
-                    size: bytes_transferred || 0,
-                    last_modified: new Date().toISOString(),
-                    uri: `artifact://${sessionId}/${filename}`,
-                    accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
-                    isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
-                    needsEmbedResolution: status === "completed" ? true : false,
-                    tags,
-                },
-            ];
-        }
+    } else if (description !== undefined || status === "in-progress") {
+        artifactsList = [
+            ...artifactsList,
+            {
+                filename,
+                description: description ?? null,
+                mime_type: mime_type ?? "application/octet-stream",
+                size: bytes_transferred ?? 0,
+                last_modified: new Date().toISOString(),
+                uri: `artifact://${sessionId}/${filename}`,
+                accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
+                isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
+                needsEmbedResolution: status === "completed" ? true : false,
+                tags,
+            },
+        ];
     }
 
     if (shouldAutoDownload) {
@@ -875,14 +898,18 @@ function processToolResultRag(data: ToolResultPayload, prevRagData: RAGSearchRes
 function applyContentToMessages(
     inputMessages: MessageFE[],
     newContentParts: Part[],
-    hasNewFiles: boolean,
-    isFinalEvent: boolean,
-    isTaskFailed: boolean,
-    currentTaskIdFromResult: string | undefined,
-    eventSequence: number,
-    rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse,
-    sessionId: string
+    options: {
+        hasNewFiles: boolean;
+        isFinalEvent: boolean;
+        isTaskFailed: boolean;
+        taskId: string | undefined;
+        eventSequence: number;
+        messageId: string;
+        contextId: string | undefined;
+        fallbackSessionId: string;
+    }
 ): MessageFE[] {
+    const { hasNewFiles, isFinalEvent, isTaskFailed, taskId, eventSequence, messageId, contextId, fallbackSessionId } = options;
     const messages = [...inputMessages];
     let lastMessage = messages[messages.length - 1];
 
@@ -894,9 +921,7 @@ function applyContentToMessages(
 
     const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && (newContentParts[0] as DataPart).data?.type === "deep_research_progress";
 
-    const contextId = "result" in rpcResponse && rpcResponse.result && "contextId" in rpcResponse.result ? (rpcResponse.result as unknown as { contextId?: string }).contextId : undefined;
-
-    if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === currentTaskIdFromResult) {
+    if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === taskId) {
         messages[messages.length - 1] = {
             ...lastMessage,
             parts: newContentParts as PartFE[],
@@ -906,20 +931,20 @@ function applyContentToMessages(
                 lastProcessedEventSequence: eventSequence,
             },
         };
-    } else if (isCompactionNotificationBubble(lastMessage, currentTaskIdFromResult || "", newContentParts)) {
+    } else if (isCompactionNotificationBubble(lastMessage, taskId ?? "", newContentParts)) {
         messages.push({
             role: "agent",
             parts: newContentParts as PartFE[],
-            taskId: currentTaskIdFromResult,
+            taskId,
             isUser: false,
             isComplete: isFinalEvent,
             metadata: {
-                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                messageId,
                 sessionId: contextId,
                 lastProcessedEventSequence: eventSequence,
             },
         });
-    } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === currentTaskIdFromResult && newContentParts.length > 0) {
+    } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === taskId && newContentParts.length > 0) {
         messages[messages.length - 1] = {
             ...lastMessage,
             parts: [...lastMessage.parts, ...(newContentParts as PartFE[])],
@@ -930,22 +955,20 @@ function applyContentToMessages(
                 lastProcessedEventSequence: eventSequence,
             },
         };
-    } else {
-        if (isTaskFailed || checkHasVisibleContent(newContentParts)) {
-            messages.push({
-                role: "agent",
-                parts: newContentParts as PartFE[],
-                taskId: currentTaskIdFromResult,
-                isUser: false,
-                isComplete: isFinalEvent || hasNewFiles,
-                isError: isTaskFailed,
-                metadata: {
-                    messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
-                    sessionId: contextId || sessionId,
-                    lastProcessedEventSequence: eventSequence,
-                },
-            });
-        }
+    } else if (isTaskFailed || checkHasVisibleContent(newContentParts)) {
+        messages.push({
+            role: "agent",
+            parts: newContentParts as PartFE[],
+            taskId,
+            isUser: false,
+            isComplete: isFinalEvent || hasNewFiles,
+            isError: isTaskFailed,
+            metadata: {
+                messageId,
+                sessionId: contextId ?? fallbackSessionId,
+                lastProcessedEventSequence: eventSequence,
+            },
+        });
     }
 
     return messages;
