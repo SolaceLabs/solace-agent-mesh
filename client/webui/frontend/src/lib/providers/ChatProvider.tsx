@@ -20,7 +20,7 @@ import {
 } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
-import { processChatEvent, serializeChatMessage } from "@/lib/providers/chat";
+import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
@@ -56,85 +56,63 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
+    // ============ External Hooks ============
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
-
-    // Keep refs in sync for use inside SSE event handlers (avoids stale closures)
-    const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
-    useEffect(() => {
-        inlineActivityTimelineEnabledRef.current = inlineActivityTimelineEnabled;
-    }, [inlineActivityTimelineEnabled]);
-    const showThinkingContentEnabledRef = useRef(showThinkingContentEnabled);
-    useEffect(() => {
-        showThinkingContentEnabledRef.current = showThinkingContentEnabled;
-    }, [showThinkingContentEnabled]);
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    // State Variables from useChat
+    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    const { generateTitle } = useTitleGeneration();
+
+    // ============ State ============
     const [sessionId, setSessionId] = useState<string>("");
     const [messages, setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
-
-    // Collaborative session detection and state
-    const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
-
-    // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
-    const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
     const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
-
-    // Wrapper to keep ref in sync with state
-    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
-        _setRagData(prev => {
-            const newData = typeof data === "function" ? data(prev) : data;
-            ragDataRef.current = newData;
-            return newData;
-        });
-    }, []);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-
-    const savingTasksRef = useRef<Set<string>>(new Set());
-
-    // Track isCancelling in ref to access in async callbacks
-    const isCancellingRef = useRef(isCancelling);
-    useEffect(() => {
-        isCancellingRef.current = isCancelling;
-    }, [isCancelling]);
-
-    // Track current session id to prevent race conditions
-    const currentSessionIdRef = useRef(sessionId);
-    useEffect(() => {
-        currentSessionIdRef.current = sessionId;
-    }, [sessionId]);
-
+    const [isCancelling, setIsCancelling] = useState<boolean>(false);
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
+    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity" | "rag">("files");
+    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
+    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
+    const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
+    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+
+    // ============ Hooks that depend on state ============
+    const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
+    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
+
+    // ============ Refs ============
+    // Refs serve two purposes here:
+    // 1. Mirroring state for SSE event handlers that would otherwise capture stale closure values
+    //    (e.g., messagesRef, ragDataRef, isCancellingRef, currentSessionIdRef)
+    // 2. Holding mutable values that don't trigger re-renders
+    //    (e.g., cancelTimeoutRef, isFinalizing, savingTasksRef)
+    const ragDataRef = useRef<RAGSearchResult[]>([]);
+    const isCancellingRef = useRef(isCancelling);
+    const currentSessionIdRef = useRef(sessionId);
+    const messagesRef = useRef<MessageFE[]>([]);
+    const allArtifactsRef = useRef<ArtifactInfo[]>([]);
+    const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
+    const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
+    const showThinkingContentEnabledRef = useRef(showThinkingContentEnabled);
+    const currentEventSource = useRef<EventSource | null>(null);
+    const savingTasksRef = useRef<Set<string>>(new Set());
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
-    const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
-    const messagesRef = useRef<MessageFE[]>([]);
-
-    // Ref to hold the replay function - allows calling from loadSessionTasks which is defined earlier
     const replayBufferedEventsRef = useRef<((taskId: string) => Promise<boolean>) | null>(null);
-
-    // Ref to hold handleSseMessage - allows calling from loadSessionTasks for buffer replay
     const handleSseMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
-
-    // Track if we're currently replaying buffered events
-    // When true, handleSseMessage will skip save operations since the data is already persisted
     const isReplayingEventsRef = useRef(false);
-
-    // Track query history for deep research progress timeline
-    // This accumulates queries and their URLs as they come in via deep_research_progress events
     const deepResearchQueryHistoryRef = useRef<
         Map<
             string,
@@ -145,32 +123,37 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }>
         >
     >(new Map());
-
     const sessionsWithAutoGeneratedTitles = useRef<Set<string>>(new Set());
 
-    // Agents State
-    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    // ============ Ref sync ============
+    // Keep refs in sync with their corresponding state/hook values.
+    useEffect(() => {
+        inlineActivityTimelineEnabledRef.current = inlineActivityTimelineEnabled;
+    }, [inlineActivityTimelineEnabled]);
+    useEffect(() => {
+        showThinkingContentEnabledRef.current = showThinkingContentEnabled;
+    }, [showThinkingContentEnabled]);
+    useEffect(() => {
+        isCancellingRef.current = isCancelling;
+    }, [isCancelling]);
+    useEffect(() => {
+        currentSessionIdRef.current = sessionId;
+    }, [sessionId]);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+    useEffect(() => {
+        allArtifactsRef.current = allArtifacts;
+    }, [allArtifacts]);
 
-    // Chat Side Panel State
-    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
-
-    // Title Generation
-    const { generateTitle } = useTitleGeneration();
-
-    // Side Panel Control State
-    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity" | "rag">("files");
-
-    // Feedback State
-    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
-
-    // Pending prompt state for starting new chat with a prompt template
-    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
-
-    // Running task navigation warning state
-    // Used when background tasks are disabled and user tries to switch sessions while a task is running
-    const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
-    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+    // Wrapper to keep ragDataRef in sync with state
+    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
+        _setRagData(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            ragDataRef.current = newData;
+            return newData;
+        });
+    }, []);
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
@@ -339,21 +322,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         ),
     });
 
-    // Keep refs in sync with state
-    // TBD These refs exist to avoid stale closures in SSE event handlers.
-    // A state management migration would eliminate the need for manual ref synchronization.
     useEffect(() => {
         backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
-
-    useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
-
-    const allArtifactsRef = useRef<ArtifactInfo[]>([]);
-    useEffect(() => {
-        allArtifactsRef.current = allArtifacts;
-    }, [allArtifacts]);
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
@@ -391,138 +362,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [sessionId, persistenceEnabled]
-    );
-
-    // Helper function to extract artifact markers and create artifact parts
-    const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
-        const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
-        const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
-
-        const createArtifactPart = (filename: string) => {
-            // Strip version suffix if present (e.g., "file.md:0" -> "file.md")
-            // This handles artifact markers from agents that include version numbers
-            let cleanFilename = filename;
-            if (filename.includes(":")) {
-                const parts = filename.split(":");
-                // Check if the last part is a number (version)
-                const lastPart = parts[parts.length - 1];
-                if (/^\d+$/.test(lastPart)) {
-                    // It's a version number, remove it
-                    cleanFilename = parts.slice(0, -1).join(":");
-                }
-            }
-
-            return {
-                kind: "artifact",
-                status: "completed",
-                name: cleanFilename,
-                file: {
-                    name: cleanFilename,
-                    uri: `artifact://${sessionId}/${cleanFilename}`,
-                },
-            };
-        };
-
-        // Extract artifact_return markers
-        let match;
-        while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            // Normalize filename to avoid duplicates (strip version suffix)
-            const normalizedFilename = artifactFilename.includes(":") && /:\d+$/.test(artifactFilename) ? artifactFilename.substring(0, artifactFilename.lastIndexOf(":")) : artifactFilename;
-
-            if (!addedArtifacts.has(normalizedFilename)) {
-                addedArtifacts.add(normalizedFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-
-        // Extract artifact: markers
-        while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-    }, []);
-
-    // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback(
-        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-            return task.messageBubbles.map(bubble => {
-                // Process parts to handle markers and reconstruct artifact parts if needed
-                const processedParts: any[] = [];
-                const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
-
-                // Track artifact names we've already added to avoid duplicates
-                const addedArtifacts = new Set<string>();
-
-                // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
-                // This handles the case where backend saves text with markers but parts without artifacts
-                if (bubble.text) {
-                    extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
-                }
-
-                for (const part of originalParts) {
-                    if (part.kind === "text" && part.text) {
-                        let textContent = part.text;
-
-                        // Extract artifact markers and convert them to artifact parts
-                        extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
-
-                        // Remove artifact markers from text content
-                        textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
-                        textContent = textContent.replace(/«artifact:[^»]+»/g, "");
-
-                        // Remove status update markers
-                        textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
-
-                        // Add text part if there's content
-                        if (textContent.trim()) {
-                            processedParts.push({ kind: "text", text: textContent });
-                        }
-                    } else if (part.kind === "artifact") {
-                        // Only add artifact part if not already added (from markers)
-                        const artifactName = part.name;
-                        if (artifactName && !addedArtifacts.has(artifactName)) {
-                            addedArtifacts.add(artifactName);
-                            processedParts.push(part);
-                        }
-                        // Skip duplicate artifacts
-                    } else {
-                        // Keep other non-text parts as-is
-                        processedParts.push(part);
-                    }
-                }
-
-                return {
-                    taskId: task.taskId,
-                    createdTime: task.createdTime,
-                    role: bubble.type === "user" ? "user" : "agent",
-                    parts: processedParts,
-                    isUser: bubble.type === "user",
-                    isComplete: true,
-                    files: bubble.files,
-                    uploadedFiles: bubble.uploadedFiles,
-                    artifactNotification: bubble.artifactNotification,
-                    isError: bubble.isError,
-                    displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
-                    contextQuote: bubble.contextQuote, // Restore context quote for user messages
-                    contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
-                    senderDisplayName: bubble.sender_display_name, // Preserve sender identity for collaborative sessions
-                    senderEmail: bubble.sender_email, // Preserve sender email for collaborative sessions
-                    // Restore inline progress timeline data
-                    ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
-                    ...((bubble.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
-                    metadata: {
-                        messageId: bubble.id,
-                        sessionId: sessionId,
-                        lastProcessedEventSequence: 0,
-                    },
-                };
-            });
-        },
-        [extractArtifactMarkers]
     );
 
     // Helper function to load session tasks and reconstruct messages
@@ -586,7 +425,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             for (const task of migratedTasks) {
-                const taskMessages = deserializeTaskToMessages(task, sessionId);
+                const taskMessages = deserializeChatMessages(task, sessionId);
 
                 if (tasksWithBufferedEvents.has(task.taskId)) {
                     const userMessages = taskMessages.filter(m => m.isUser);
@@ -671,7 +510,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const tasksNeedingReplay: Array<{ taskId: string; events: any[] }> = [];
 
                 for (const task of migratedTasks) {
-                    const taskMessages = deserializeTaskToMessages(task, sessionId);
+                    const taskMessages = deserializeChatMessages(task, sessionId);
                     const bufferedData = tasksWithBufferedEvents.get(task.taskId);
                     const agentMessagesFromChatTasks = taskMessages.filter(m => !m.isUser);
                     const userMessages = taskMessages.filter(m => m.isUser);
@@ -820,7 +659,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
             // Sender info in messages is kept for UI display purposes only.
         },
-        [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeChatMessage, saveTaskToBackend]
+        [setRagData, backgroundTasksEnabled, saveTaskToBackend]
     );
 
     // Session State
@@ -1396,7 +1235,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             autoTitleGenerationEnabled,
             generateTitle,
             isTaskRunningInBackground,
-            replayBufferedEvents,
             detectCollaborativeSession,
         ]
     );
@@ -1897,13 +1735,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closeCurrentEventSource,
             uploadArtifactFile,
             saveTaskToBackend,
-            serializeChatMessage,
             activeProject,
             cleanupUploadedFiles,
             setError,
             backgroundTasksDefaultTimeoutMs,
             backgroundTasksEnabled,
             registerBackgroundTask,
+            registerTaskEarly,
             autoTitleGenerationEnabled,
             updateSessionName,
         ]
