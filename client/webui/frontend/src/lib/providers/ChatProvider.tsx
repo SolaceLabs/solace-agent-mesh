@@ -41,6 +41,7 @@ import type {
     Project,
     StoredTaskData,
     RAGSearchResult,
+    ArtifactInfo,
 } from "@/lib/types";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
@@ -339,6 +340,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     // Keep refs in sync with state
+    // TBD These refs exist to avoid stale closures in SSE event handlers.
+    // A state management migration would eliminate the need for manual ref synchronization.
     useEffect(() => {
         backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
@@ -346,6 +349,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    const allArtifactsRef = useRef<ArtifactInfo[]>([]);
+    useEffect(() => {
+        allArtifactsRef.current = allArtifacts;
+    }, [allArtifacts]);
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
@@ -978,7 +986,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 eventData: event.data,
                 messages: messagesRef.current,
                 ragData: ragDataRef.current,
-                artifacts: artifacts,
+                artifacts: allArtifactsRef.current,
                 flags: {
                     inlineActivityTimeline: inlineActivityTimelineEnabledRef.current,
                     showThinkingContent: showThinkingContentEnabledRef.current,
@@ -1001,6 +1009,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setRagData(output.ragData);
             }
             if (output.artifacts) {
+                allArtifactsRef.current = output.artifacts;
                 setArtifacts(output.artifacts);
             }
             if (output.latestStatusText !== undefined) {
@@ -1016,7 +1025,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
 
-        [ragEnabled, selectedAgentName, artifacts, setArtifacts, setRagData, isTaskRunningInBackground, executeEffect]
+        [ragEnabled, selectedAgentName, setArtifacts, setRagData, isTaskRunningInBackground, executeEffect]
     );
     // Helper function to replay buffered SSE events for a background task
     // This is used when a background task completed while the user was away
