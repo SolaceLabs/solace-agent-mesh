@@ -19,9 +19,9 @@ import {
     useCollaborativeSession,
 } from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -56,9 +56,8 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    // ============ External Hooks ============
+    // ============ Hooks ============
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
-    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
     const { activeProject, setActiveProject, projects } = useProjectContext();
@@ -66,10 +65,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { ErrorDialog, setError } = useErrorDialog();
     const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
     const { generateTitle } = useTitleGeneration();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
 
     // ============ State ============
     const [sessionId, setSessionId] = useState<string>("");
-    const [messages, setMessages] = useState<MessageFE[]>([]);
+    const [messages, _setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
@@ -91,7 +91,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
 
     // ============ Refs ============
-    // Refs serve two purposes here:
+    // Refs serve two purposes here which may be replaceable by a react-state-management library.
     // 1. Mirroring state for SSE event handlers that would otherwise capture stale closure values
     //    (e.g., messagesRef, ragDataRef, isCancellingRef, currentSessionIdRef)
     // 2. Holding mutable values that don't trigger re-renders
@@ -140,13 +140,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentSessionIdRef.current = sessionId;
     }, [sessionId]);
     useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
-    useEffect(() => {
         allArtifactsRef.current = allArtifacts;
     }, [allArtifacts]);
 
-    // Wrapper to keep ragDataRef in sync with state
+    // Refs that handle events that may be coming in faster than state updates — a callback
+    // ensures the ref is updated synchronously inside the state setter, minimizing staleness.
+    const setMessages = useCallback((data: MessageFE[] | ((prev: MessageFE[]) => MessageFE[])) => {
+        _setMessages(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            messagesRef.current = newData;
+            return newData;
+        });
+    }, []);
     const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
         _setRagData(prev => {
             const newData = typeof data === "function" ? data(prev) : data;
@@ -659,7 +664,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
             // Sender info in messages is kept for UI display purposes only.
         },
-        [setRagData, backgroundTasksEnabled, saveTaskToBackend]
+        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
 
     // Session State
@@ -841,7 +846,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Apply state updates
             if (output.messages) {
-                messagesRef.current = output.messages;
                 setMessages(output.messages);
             }
             if (output.ragData) {
@@ -864,7 +868,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
 
-        [ragEnabled, selectedAgentName, setArtifacts, setRagData, isTaskRunningInBackground, executeEffect]
+        [ragEnabled, selectedAgentName, isTaskRunningInBackground, setMessages, setRagData, setArtifacts, executeEffect]
     );
     // Helper function to replay buffered SSE events for a background task
     // This is used when a background task completed while the user was away
@@ -928,7 +932,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return false;
             }
         },
-        [handleSseMessage]
+        [handleSseMessage, setMessages]
     );
 
     // Keep the ref in sync with the latest replayBufferedEvents function
@@ -1003,7 +1007,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData, resetCollaborativeState]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, resetCollaborativeState, activeProject, setMessages, closePreview, setRagData, isTaskRunningInBackground, setActiveProject]
     );
 
     // Wrapper that shows confirmation when task is running and background tasks are disabled
@@ -1129,13 +1133,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
                 closePreview();
+                // Reset refs
                 isFinalizing.current = false;
                 latestStatusText.current = null;
-
                 sseEventSequenceRef.current = 0;
-                // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
-                // Clear deep research query history when switching sessions
                 deepResearchQueryHistoryRef.current.clear();
 
                 await loadSessionTasks(newSessionId);
@@ -1192,9 +1194,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                             }
 
                                             if (userMessageText && agentResponseText) {
-                                                console.log(`[ChatProvider] Calling generateTitle for session ${newSessionId} (post-refresh)`);
                                                 await generateTitle(newSessionId, userMessageText, agentResponseText);
-                                                console.log(`[ChatProvider] Title generation completed for session ${newSessionId}`);
                                             } else {
                                                 console.warn(`[ChatProvider] Cannot generate title - missing messages. User: ${!!userMessageText}, Agent: ${!!agentResponseText}`);
                                             }
@@ -1216,26 +1216,27 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
+            backgroundTasks,
             closeCurrentEventSource,
             isResponding,
             currentTaskId,
             selectedAgentName,
             isCancelling,
+            sessionId,
+            setMessages,
+            isTaskRunningInBackground,
+            detectCollaborativeSession,
+            closePreview,
+            setRagData,
             loadSessionTasks,
             activeProject,
             projects,
             setActiveProject,
-            closePreview,
-            setError,
-            setRagData,
-            backgroundTasks,
             checkTaskStatus,
-            sessionId,
             unregisterBackgroundTask,
             autoTitleGenerationEnabled,
             generateTitle,
-            isTaskRunningInBackground,
-            detectCollaborativeSession,
+            setError,
         ]
     );
 
@@ -1361,7 +1362,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, addNotification, setError, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, addNotification, closeCurrentEventSource, setMessages, setError]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -1405,7 +1406,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             latestStatusText.current = null;
         }
         setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, [closeCurrentEventSource, isResponding, setError]);
+    }, [closeCurrentEventSource, isResponding, setError, setMessages]);
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {
@@ -1728,22 +1729,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
-            sessionId,
             isResponding,
             isCancelling,
             selectedAgentName,
             closeCurrentEventSource,
+            sessionId,
+            setMessages,
+            backgroundTasksEnabled,
+            activeProject?.id,
+            registerTaskEarly,
             uploadArtifactFile,
-            saveTaskToBackend,
-            activeProject,
             cleanupUploadedFiles,
             setError,
             backgroundTasksDefaultTimeoutMs,
-            backgroundTasksEnabled,
-            registerBackgroundTask,
-            registerTaskEarly,
             autoTitleGenerationEnabled,
             updateSessionName,
+            saveTaskToBackend,
+            registerBackgroundTask,
         ]
     );
 
@@ -1952,7 +1954,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     // Note: handleSseMessageRef is declared earlier (line ~103) for use in loadSessionTasks
@@ -2030,7 +2032,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, closeCurrentEventSource]);
+    }, [currentTaskId, closeCurrentEventSource, setMessages]);
 
     const contextValue: ChatContextValue = {
         ragData,
