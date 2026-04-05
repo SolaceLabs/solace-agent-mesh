@@ -404,7 +404,14 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         }
                         case "deep_research_progress": {
                             latestStatusText = null;
-                            processDeepResearchProgress(data, deepResearchQueryHistory, currentTaskIdFromResult);
+                            const queryHistory = processDeepResearchProgress(data, deepResearchQueryHistory, currentTaskIdFromResult);
+                            // MUTATION: InlineResearchProgress reads query_history directly from
+                            // the DataPart.data object reference in the message parts array.
+                            // Removing this requires changing the component to receive query
+                            // history via a separate prop or context.
+                            if (queryHistory) {
+                                (data as DeepResearchProgressPayload & Record<string, unknown>).query_history = queryHistory;
+                            }
                             break;
                         }
                         case "compaction_notification": {
@@ -445,7 +452,8 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     if (isFinalEvent) {
         latestStatusText = null;
 
-        // Finalize lingering in-progress artifact parts
+        // Finalize in-progress artifacts for THIS task — mark as failed since
+        // the artifact_completed signal should have arrived before the final event.
         for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i];
             if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress")) {
@@ -504,7 +512,8 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             }
         }
 
-        // Mark in-progress artifacts as completed
+        // Cleanup sweep: mark any remaining in-progress artifacts across ALL messages
+        // as completed (e.g. artifacts from other tasks that weren't finalized).
         messages = messages.map(msg => {
             if (msg.isUser) return msg;
             const hasInProgressArtifacts = msg.parts.some(p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress");
@@ -796,8 +805,8 @@ function processRagInfoUpdate(data: RagInfoUpdatePayload, prevRagData: RAGSearch
     return ragData;
 }
 
-function processDeepResearchProgress(data: DeepResearchProgressPayload, deepResearchQueryHistory: Map<string, QueryHistoryEntry[]>, currentTaskIdFromResult: string | undefined): void {
-    if (!currentTaskIdFromResult) return;
+function processDeepResearchProgress(data: DeepResearchProgressPayload, deepResearchQueryHistory: Map<string, QueryHistoryEntry[]>, currentTaskIdFromResult: string | undefined): QueryHistoryEntry[] | null {
+    if (!currentTaskIdFromResult) return null;
 
     const taskHistory = deepResearchQueryHistory.get(currentTaskIdFromResult) || [];
 
@@ -835,11 +844,7 @@ function processDeepResearchProgress(data: DeepResearchProgressPayload, deepRese
 
     deepResearchQueryHistory.set(currentTaskIdFromResult, taskHistory);
 
-    // MUTATION: InlineResearchProgress reads query_history directly from the DataPart.data
-    // object in the message parts array. Since this is the same object reference that will be
-    // rendered, we must write to it here. Removing this requires changing the component to
-    // receive query history via a separate prop or context.
-    (data as DeepResearchProgressPayload & Record<string, unknown>).query_history = taskHistory;
+    return taskHistory;
 }
 
 function processToolResultRag(data: ToolResultPayload, prevRagData: RAGSearchResult[], currentTaskIdFromResult: string | undefined): RAGSearchResult[] | undefined {

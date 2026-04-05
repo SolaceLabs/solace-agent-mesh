@@ -227,7 +227,7 @@ describe("processChatEvent", () => {
             expect(output.effects.find(e => e.type === "save-task")).toBeUndefined();
         });
 
-        it("marks lingering in-progress artifacts as failed", () => {
+        it("marks lingering in-progress artifacts as failed for the completed task", () => {
             const existing = [
                 agentMessage("task-1", [
                     {
@@ -241,10 +241,12 @@ describe("processChatEvent", () => {
             const eventData = taskCompleteEvent("task-1");
             const output = processChatEvent(makeInput({ eventData, messages: existing }));
 
-            // First pass marks them failed, second pass marks them completed
-            // The final state should have the artifact resolved
             const taskMsg = output.messages!.find(m => m.taskId === "task-1");
             expect(taskMsg).toBeDefined();
+            expect(taskMsg!.isError).toBe(true);
+            expect(taskMsg!.isComplete).toBe(true);
+            const artifactPart = taskMsg!.parts.find(p => p.kind === "artifact");
+            expect(artifactPart).toMatchObject({ status: "failed", name: "file.txt" });
         });
 
         it("creates a fallback message when final task has parts but no prior status updates", () => {
