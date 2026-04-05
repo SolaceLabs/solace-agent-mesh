@@ -167,8 +167,8 @@ export type ChatEffect =
 // ============ Processor ============
 
 /**
- * Pure state-machine that processes a single chat event and returns
- * the next state plus a list of side-effect descriptors.
+ * Pure function that processes a single chat event against the current state
+ * and returns state updates plus a list of side-effect descriptors.
  */
 export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     const { eventData, flags, sessionId, deepResearchQueryHistory, eventSequence, isTaskRunningInBackground } = input;
