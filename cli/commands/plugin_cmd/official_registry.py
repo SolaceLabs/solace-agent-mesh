@@ -175,8 +175,8 @@ def get_official_plugin_url(plugin_name: str) -> Optional[str]:
         return False
 
     # Check PyPI-published plugins first
-    if plugin_name.strip() in PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI:
-        return plugin_name.strip()
+    if plugin_name.strip().replace("_", "-") in PUBLISHED_OFFICIAL_PLUGINS_TO_PYPI:
+        return plugin_name.strip().replace("-", "_")
 
     official_plugins = get_official_plugins()
     return official_plugins.get(plugin_name)
