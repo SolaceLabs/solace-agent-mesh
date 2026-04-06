@@ -36,6 +36,11 @@ class ManifestEntry:
     description: Optional[str] = None
     timeout_seconds: Optional[int] = None
     sandbox_profile: Optional[str] = None
+    executable: Optional[str] = None
+    parameters: Optional[Dict] = None
+    artifact_params: Optional[Dict] = None
+    instructions: Optional[str] = None
+    config_schema: Optional[List] = None
 
 
 class ToolManifest:
@@ -119,16 +124,12 @@ class ToolManifest:
                     description=tool_def.get("description"),
                     timeout_seconds=tool_def.get("timeout_seconds"),
                     sandbox_profile=tool_def.get("sandbox_profile"),
+                    executable=tool_def.get("executable"),
+                    parameters=tool_def.get("parameters"),
+                    artifact_params=tool_def.get("artifact_params"),
+                    instructions=tool_def.get("instructions"),
+                    config_schema=tool_def.get("config_schema"),
                 )
-
-                if entry.runtime == "python":
-                    if not entry.module or (not entry.function and not entry.class_name):
-                        log.error(
-                            "Python tool '%s' missing required 'module' or "
-                            "'function'/'class_name'",
-                            tool_name,
-                        )
-                        continue
 
                 entries[tool_name] = entry
 

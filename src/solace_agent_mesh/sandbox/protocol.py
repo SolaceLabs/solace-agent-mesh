@@ -287,6 +287,9 @@ class SandboxToolInitResult(BaseModel):
     instructions: Optional[str] = Field(
         default=None, description="LLM instructions for using this tool"
     )
+    config_schema: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="Operator-facing config parameters this tool requires"
+    )
     ctx_facade_param_name: Optional[str] = Field(
         default=None,
         description="Parameter name for ToolContextFacade injection (Python-only)",
@@ -318,6 +321,7 @@ class SandboxToolInitResponse(BaseModel):
         parameters: Optional[Dict[str, Any]] = None,
         artifact_params: Optional[Dict[str, ArtifactParamInfo]] = None,
         instructions: Optional[str] = None,
+        config_schema: Optional[List[Dict[str, Any]]] = None,
         ctx_facade_param_name: Optional[str] = None,
     ) -> "SandboxToolInitResponse":
         """Create a success response."""
@@ -329,6 +333,7 @@ class SandboxToolInitResponse(BaseModel):
                 parameters=parameters,
                 artifact_params=artifact_params,
                 instructions=instructions,
+                config_schema=config_schema,
                 ctx_facade_param_name=ctx_facade_param_name,
             ),
         )

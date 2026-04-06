@@ -9,6 +9,7 @@ Solace communication.
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any, Optional, Set
 
 from solace_ai_connector.common.message import Message as SolaceMessage
@@ -18,6 +19,7 @@ from ..agent.adk.services import initialize_artifact_service
 from ..common.sac.sam_component_base import SamComponentBase
 from ..common.a2a import protocol as a2a
 from .manifest import ToolManifest
+from .package_processor import PackageProcessor
 from .sandbox_runner import SandboxRunner
 from .protocol import (
     SandboxErrorCodes,
@@ -97,6 +99,10 @@ class SandboxWorkerComponent(SamComponentBase):
         manifest_path = self.get_config("manifest_path", "/tools/manifest.yaml")
         self.manifest = ToolManifest(manifest_path)
         self.manifest.ensure_packages_installed()
+
+        tools_dir = self.get_config("tools_dir", str(Path(manifest_path).parent))
+        self._package_processor = PackageProcessor(tools_dir)
+        self._package_processor.process_all()
 
         # Track which tool topics we're currently subscribed to
         self._subscribed_tools: Set[str] = set()
@@ -182,21 +188,38 @@ class SandboxWorkerComponent(SamComponentBase):
         return broker_input.remove_subscription(topic)
 
     def _manifest_poll_loop(self) -> None:
-        """Background thread that watches for manifest changes.
+        """Background thread that watches for manifest and package changes.
 
-        Calls install_pending_wheels() every iteration to catch wheels that
-        arrive after the manifest (race condition with S3 sync).
+        Two responsibilities:
+        1. Process new/changed tool packages (extract ZIP, --schema, regen manifest)
+        2. Detect manifest changes and sync subscriptions + publish init broadcasts
         """
+        package_poll_counter = 0
         while not self._manifest_poll_stop.wait(self._manifest_poll_interval):
             try:
+                package_poll_counter += 1
+                if package_poll_counter % 3 == 0:
+                    self._package_processor.process_all()
+
                 self.manifest.install_pending_wheels()
+
                 if self.manifest.has_changed():
+                    old_tools = self._subscribed_tools.copy() if hasattr(self, "_subscribed_tools") else set()
+
                     log.info(
-                        "%s Manifest change detected, syncing subscriptions and packages",
+                        "%s Manifest change detected, syncing subscriptions",
                         self.log_identifier,
                     )
                     self.manifest.ensure_packages_installed()
                     self._sync_subscriptions()
+
+                    new_tools = self.manifest.get_tool_names()
+                    added = new_tools - old_tools
+                    if added:
+                        self._publish_tool_inits_for_names(added)
+                    removed = old_tools - new_tools
+                    for tool_name in removed:
+                        self._publish_tool_removed(tool_name)
             except Exception as e:
                 log.warning(
                     "%s Error in manifest poll loop: %s",
@@ -796,16 +819,28 @@ class SandboxWorkerComponent(SamComponentBase):
         """Broadcast init messages for all tools with schema data.
 
         Follows the Go STR pattern: proactively publish tool schemas to
-        /init/{tool_name} so agents can discover them without requesting.
+        /init/{tool_name} so agents and the platform can discover them.
+        Includes full parameters (JSON Schema), instructions, and artifact params.
         """
-        for tool_name in self.manifest.get_tool_names():
+        self._publish_tool_inits_for_names(self.manifest.get_tool_names())
+
+    def _publish_tool_inits_for_names(self, tool_names: set[str]) -> None:
+        """Broadcast init messages for specific tools."""
+        for tool_name in tool_names:
             entry = self.manifest.get_tool(tool_name)
             if entry is None:
                 continue
 
+            if not entry.description and not entry.parameters:
+                continue
+
             init_params = SandboxToolInitResult(
                 tool_name=tool_name,
-                description=entry.description if hasattr(entry, "description") else None,
+                description=entry.description,
+                parameters=entry.parameters,
+                artifact_params=entry.artifact_params,
+                instructions=entry.instructions,
+                config_schema=entry.config_schema,
             )
             notification = SandboxToolInitBroadcast(params=init_params)
             topic = a2a.get_sam_remote_tool_init_topic(self.namespace, tool_name)
@@ -815,9 +850,10 @@ class SandboxWorkerComponent(SamComponentBase):
                     topic=topic,
                 )
                 log.info(
-                    "%s Published tool init broadcast: %s",
+                    "%s Published tool init broadcast: %s (params=%s)",
                     self.log_identifier,
                     tool_name,
+                    "yes" if entry.parameters else "no",
                 )
             except Exception as e:
                 log.error(
