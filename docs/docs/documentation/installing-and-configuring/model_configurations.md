@@ -40,6 +40,16 @@ The planning model is separated from the general model because orchestration dem
 Both default models (**general** and **planning**) cannot be renamed or deleted. They are system-level configurations that the platform depends on. You can, however, change the underlying provider, model, credentials, and parameters for each.
 :::
 
+## Initial Setup
+
+When no model configurations have been created, the platform will prompt you to set up your default LLM models. A setup dialog appears on first use, guiding you to configure the **general** and **planning** models so that core AI features — such as chatting with AI, agent creation, and orchestration — can function properly.
+
+If you choose to skip the setup initially, a warning banner will appear across the platform indicating that no models have been configured and some features may not work as intended. You can complete the setup at any time by navigating to **Agent Mesh > Models** and creating the general and planning model configurations.
+
+:::note
+Users without write permissions will see a message advising them to contact an administrator to configure models.
+:::
+
 ## Supported Providers
 
 Model Configurations support the following LLM providers through the UI:
@@ -81,7 +91,7 @@ To create a new model configuration from the UI:
 | Field | Required | Description |
 |-------|----------|-------------|
 | **Display Name** | Yes | A unique alias used to reference this model (e.g., `my-gpt4`, `claude-fast`) |
-| **Description** | No | A human-readable description of what this model is used for |
+| **Description** | Yes | A human-readable description of what this model is used for |
 | **Model Provider** | Yes | Select from the supported providers list |
 | **API Base** | Varies | Required for Azure OpenAI, Ollama, and Custom providers |
 | **Authentication Type** | Yes | The authentication method for the provider |
@@ -94,22 +104,31 @@ To create a new model configuration from the UI:
 |-----------|-------------|---------|
 | **Temperature** | Controls randomness in responses (0-2). Lower values produce more deterministic output | Provider default |
 | **Max Tokens** | Maximum number of tokens in the response | Provider default |
-| **Prompt Caching Strategy** | How the model caches prompts for cost optimization: 5 minutes, 1 hour, or disabled | 5 minutes |
+| **Prompt Caching Strategy** | Controls how system prompts and tool definitions are cached across LLM requests to reduce costs and latency. Cached content is reused by the provider instead of being reprocessed on each request. Options: **5 minutes** (short-lived cache), **1 hour** (extended cache), or **Disabled** (no caching). Not all providers support prompt caching — when unsupported, this setting is ignored | 5 minutes |
+
+   You can also add **vendor-specific LLM parameters** as custom key-value pairs. These are passed directly to the provider's API, allowing you to configure provider-specific options not covered by the common settings above (e.g., `top_p`, `frequency_penalty`, `seed`). Refer to your provider's API documentation for available parameters.
 
 5. Use **Test Connection** to verify your credentials and model access before saving
 6. Click **Save** to create the configuration
 
-## Editing and Deleting Models
+## Viewing, Editing, and Deleting Models
+
+### Viewing Details
+
+Click on any model in the Models list to view its details. This shows the model's current configuration including provider, authentication type, and advanced settings.
 
 ### Editing
 
-Click on any model in the Models list to open it for editing. All fields can be modified except the display name of the two default models (general and planning). When editing, credential fields show `<encrypted>` to indicate that existing credentials are stored securely. Leave credential fields unchanged to preserve the current values, or enter new values to update them.
+To edit a model, either use the context menu on the model card or click the **Edit** button at the top when viewing model details. All fields can be modified except the display name of the two default models (general and planning).
 
 After saving changes, any agents using this model configuration will automatically receive the updated settings through the platform's dynamic configuration system.
 
 ### Deleting
 
-To delete a model configuration, click the delete button on the model card. Before deleting, you can check which agents depend on a model by viewing its **dependents**. Deleting a model that agents depend on will cause those agents to lose their model configuration.
+To delete a model configuration, select **Delete** from the context menu on the model card. Deleting a model has the following impact on dependent agents:
+
+- **Code-based agents** that reference the deleted model will no longer function correctly
+- **Agents managed by the platform** (e.g., agents created through Agent Builder) will be undeployed and moved to an inactive state
 
 :::warning
 The **general** and **planning** default models cannot be deleted. They are required for core platform functionality.
@@ -147,13 +166,23 @@ This approach embeds credentials directly in the YAML (typically via environment
 
 #### The `model_provider` Field (Dynamic Approach)
 
-The `model_provider` field references model configurations stored in the platform by their alias. The agent retrieves the full configuration at runtime:
+The `model_provider` field references a model configuration stored in the platform. The agent retrieves the full configuration at runtime. You can reference a model by either its **alias** or its **model ID**:
 
 ```yaml
+# Using the alias
 app_config:
   model_provider:
     - general
+
+# Using the model ID (preferred)
+app_config:
+  model_provider:
+    - abc123-def456
 ```
+
+:::tip
+Using the **model ID** is preferred over the alias. If the model's display name (alias) is changed later, agents referencing the alias will break, while agents referencing the model ID will continue to work.
+:::
 
 To switch a YAML agent from inline model configuration to using Model Configurations:
 
