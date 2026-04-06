@@ -100,6 +100,9 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
         plugin_source = official_plugin_url
 
     install_type = None  # "module", "local", "git", "pypi"
+    module_name = None
+    install_target = None
+    source_path_for_name_extraction = None
 
     # If the resolved official URL is a plain package name (not a URL), install from PyPI
     if official_plugin_url and not plugin_source.startswith(
@@ -108,9 +111,6 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
         install_type = "pypi"
         install_target = plugin_source  # pip-style dashed name
         module_name = plugin_source.strip().replace("-", "_")
-    module_name = None
-    install_target = None
-    source_path_for_name_extraction = None
 
     if plugin_source.startswith(("http://", "https://")) and plugin_source.endswith(
         ".git"
