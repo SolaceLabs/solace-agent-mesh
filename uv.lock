@@ -4861,7 +4861,7 @@ requires-dist = [
     { name = "rouge", specifier = "==1.0.1" },
     { name = "ruff", marker = "extra == 'test'" },
     { name = "setuptools", specifier = "==80.10.2" },
-    { name = "solace-ai-connector", specifier = "==3.3.8" },
+    { name = "solace-ai-connector", specifier = "==3.3.9" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -4876,7 +4876,7 @@ provides-extras = ["employee-tools", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "3.3.8"
+version = "3.3.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -4892,9 +4892,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/5f/fe07430a7981eb4c6d0b605faf00d37353a46fa0c90fd2467393b0f4efb4/solace_ai_connector-3.3.8.tar.gz", hash = "sha256:30f73323a284ab878ea1d4845761ecda3e3a860a500a85e8eb0d7320e420ea2b", size = 428806, upload-time = "2026-03-31T18:39:31.245Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/47/fee852b5bc58851267225ba093f0f526955709c8606f58ea6d721fc2b39f/solace_ai_connector-3.3.9.tar.gz", hash = "sha256:32498d7138f69b2d1840bb368a1c7fe05ebcc0b3d8c22653ca8a4700eec6518e", size = 431749, upload-time = "2026-03-31T19:19:12.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/2e/814889cff0234c74611058b7beeab761a0bf29e3e8b7ec859e9006eef16a/solace_ai_connector-3.3.8-py3-none-any.whl", hash = "sha256:ca7e5c5336d756945e67c225027c1fe8c1f371302a86e8d63acd400d2f9338a4", size = 213800, upload-time = "2026-03-31T18:39:28.999Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/13/46a63f434db13b142af5733b3aec9146e6f30e1d0f3db200469757ee5942/solace_ai_connector-3.3.9-py3-none-any.whl", hash = "sha256:3b40a48ba9971df65ae21907daf3f520501c03daab96ff4c4dfda8f040fa4662", size = 214496, upload-time = "2026-03-31T19:19:10.911Z" },
 ]
 
 [[package]]
