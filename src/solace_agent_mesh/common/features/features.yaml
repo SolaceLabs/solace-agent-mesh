@@ -50,7 +50,6 @@
 
 features:
 
-  # Example flag — additional flags are registered in DATAGO-126647 (flag migration story).
   - key: background_tasks
     name: Background Tasks
     release_phase: general_availability
@@ -60,6 +59,41 @@ features:
       Run long-running agent tasks in the background and receive results
       when they complete.
 
+  - key: mentions
+    name: Mentions
+    release_phase: beta
+    default: false
+    jira: DATAGO-121076
+    description: >
+      Allow users to @mention other users in chat messages.
+
+  - key: auto_title_generation
+    name: Auto Title Generation
+    release_phase: beta
+    default: false
+    jira: DATAGO-118394
+    description: >
+      Automatically generate a descriptive title for new chat sessions
+      using LLM analysis of the first message exchange.
+
+  - key: project_sharing
+    name: Project Sharing
+    release_phase: early_access
+    default: false
+    jira: DATAGO-115145
+    description: >
+      Allow users to share projects with other members of their
+      organisation.
+
+  - key: project_indexing
+    name: Project Indexing
+    release_phase: beta
+    default: true
+    jira: DATAGO-123919
+    description: >
+      Enable document indexing and BM25 search within projects for
+      citation-backed responses.
+
   - key: model_config_ui
     name: Model Configuration UI
     release_phase: general_availability
@@ -68,3 +102,23 @@ features:
     description: >
       Enable the Models tab in the Agent Mesh interface to view and manage
       LLM model configurations. When disabled, the Models tab is hidden.
+
+  - key: inline_activity_timeline
+    name: Inline Activity Timeline
+    release_phase: early_access
+    default: false
+    jira: DATAGO-130230
+    description: >
+      Show progress updates inline within AI response messages as a vertical
+      timeline. When disabled, the old ephemeral LoadingMessageRow is shown
+      above the chat input instead.
+
+  - key: show_thinking_content
+    name: Show Thinking Content
+    release_phase: early_access
+    default: false
+    jira: DATAGO-130230
+    description: >
+      Display LLM thinking/reasoning tokens as expandable entries in the
+      inline activity timeline. When disabled, thinking entries are filtered
+      out and thinking content is not accumulated on messages.

@@ -9,10 +9,10 @@ import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommo
 import { PasswordInput } from "@/lib/components/common";
 import {
     getProviderConfig,
+    buildModelPayload,
     AUTH_FIELDS,
     AUTH_TYPE_LABELS,
     COMMON_MODEL_PARAMS,
-    REDACTED_CREDENTIAL_PLACEHOLDER,
     AUTH_CONFIG_TO_FORM_FIELD_MAP,
     type AuthType,
     type ProviderField,
@@ -29,7 +29,7 @@ import { DEFAULT_MODEL_ALIASES } from "./common";
 interface ModelEditProps {
     isNew: boolean;
     modelToEdit: ModelConfig | null;
-    onSave: (data: ModelFormData) => Promise<void>;
+    onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
     onValidityChange: (isValid: boolean) => void;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
@@ -49,19 +49,23 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     const [providerConfig, setProviderConfig] = useState<ReturnType<typeof getProviderConfig> | null>(null);
     const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
-    const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+    const [storedCredentialFields, setStoredCredentialFields] = useState<Set<string>>(new Set());
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
-    const lastFetchedProviderRef = useRef<string | null>(null);
-    const lastFetchedApiKeyRef = useRef<string | null>(null);
+    const lastFetchSettingsRef = useRef<{
+        provider: string | null;
+        authType: string | null;
+        apiBase: string | null;
+        authConfig: Record<string, unknown> | null;
+    }>({ provider: null, authType: null, apiBase: null, authConfig: null });
     const {
         register,
         control,
-        formState: { errors, isDirty, isValid },
+        formState: { errors, isDirty, isValid, dirtyFields },
         handleSubmit,
         watch,
         setValue,
-        resetField,
+        reset,
         getValues,
     } = methods;
 
@@ -75,6 +79,10 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
+    // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change.
+    // Values aren't used directly — isConfigured() reads via getValues() — but the
+    // watch() subscription is needed to trigger a re-render when any field changes.
+    watch(["clientId", "clientSecret", "tokenUrl", "awsAccessKeyId", "awsSecretAccessKey", "awsRegionName", "vertexCredentials", "vertexProject", "vertexLocation"]);
 
     // Determine if we have sufficient provider and auth config to enable model dropdown
     // For editing: just need provider + auth type (cached models already available)
@@ -84,28 +92,30 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const isAuthCredentialsConfigured = (() => {
         if (!selectedAuthType) return false;
         if (selectedAuthType === "none") return true;
-        if (selectedAuthType === "apikey") return !!apiKey && apiKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+
+        // When editing, stored credentials count as "configured"
+        const isConfigured = (fieldName: string) => {
+            return !!getValues(fieldName) || storedCredentialFields.has(fieldName);
+        };
+
+        if (selectedAuthType === "apikey") return isConfigured("apiKey");
         if (selectedAuthType === "oauth2") {
-            const clientId = getValues("clientId");
-            const clientSecret = getValues("clientSecret");
-            const tokenUrl = getValues("tokenUrl");
-            return !!clientId && clientId !== REDACTED_CREDENTIAL_PLACEHOLDER && !!clientSecret && clientSecret !== REDACTED_CREDENTIAL_PLACEHOLDER && !!tokenUrl;
+            return isConfigured("clientId") && isConfigured("clientSecret") && !!getValues("tokenUrl");
         }
         if (selectedAuthType === "aws_iam") {
-            const accessKey = getValues("awsAccessKeyId");
-            const secretKey = getValues("awsSecretAccessKey");
-            return !!accessKey && accessKey !== REDACTED_CREDENTIAL_PLACEHOLDER && !!secretKey && secretKey !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return isConfigured("awsAccessKeyId") && isConfigured("awsSecretAccessKey");
         }
         if (selectedAuthType === "gcp_service_account") {
-            const json = getValues("gcpServiceAccountJson");
-            return !!json && json !== REDACTED_CREDENTIAL_PLACEHOLDER;
+            return isConfigured("vertexCredentials");
         }
         return false;
     })();
 
     // For editing: enable if provider and auth type are set (cached models available)
     // For creating: also need credentials to be filled in (to fetch models)
-    const isModelDropdownEnabled = isProviderConfigured && (!isNew || isAuthCredentialsConfigured);
+    // Additionally, if the provider requires an API base URL, it must be filled in
+    const isApiBaseReady = !providerConfig?.apiBaseRequired || !!apiBase;
+    const isModelDropdownEnabled = isProviderConfigured && isApiBaseReady && (!isNew || isAuthCredentialsConfigured);
 
     useEffect(() => {
         onDirtyStateChange?.(isDirty);
@@ -121,8 +131,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             const config = getProviderConfig(selectedProvider);
             setProviderConfig(config);
             setDynamicModels([]); // Reset dynamic models when provider changes
-            lastFetchedProviderRef.current = null; // Clear fetch tracking
-            lastFetchedApiKeyRef.current = null;
+            setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
+            lastFetchSettingsRef.current = { provider: null, authType: null, apiBase: null, authConfig: null }; // Clear fetch tracking
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
             if (hasInitializedFromModelRef.current && !isNew && modelToEdit && modelToEdit.provider === selectedProvider) {
@@ -135,31 +145,18 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             // Fetch models for this provider if callback provided
             onProviderChange?.(selectedProvider);
 
-            // Reset model-related fields (keep only alias and description)
-            resetField("modelName");
-            resetField("apiBase");
-
-            // Reset provider-specific and auth fields when provider changes
-            config.fields.forEach((field: ProviderField) => {
-                resetField(field.name);
+            // Reset all fields except alias, description, and custom params —
+            // start fresh for the new provider while preserving user intent
+            reset({
+                alias: getValues("alias"),
+                description: getValues("description"),
+                provider: selectedProvider,
+                authType: config.allowedAuthTypes[0],
+                customParams: getValues("customParams") ?? [],
+                cache_strategy: "5m",
             });
-            // Reset all auth type fields
-            Object.values(AUTH_FIELDS).forEach(fields => {
-                (fields as ProviderField[]).forEach((field: ProviderField) => {
-                    resetField(field.name);
-                });
-            });
-
-            // Reset common model parameters
-            resetField("temperature");
-            resetField("maxTokens");
-
-            // Set default auth type to first allowed type for this provider
-            setValue("authType", config.allowedAuthTypes[0]);
-            // Reset custom params
-            resetField("customParams");
         }
-        // Omitting resetField, setValue, onProviderChange — these are stable refs from useForm/props
+        // Omitting reset, getValues, onProviderChange — these are stable refs from useForm/props
         // and including them would cause unnecessary re-runs of the provider reset logic
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
@@ -169,70 +166,99 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     useEffect(() => {
         if (selectedProvider) {
             setDynamicModels([]);
-            lastFetchedProviderRef.current = null; // Clear fetch tracking
-            lastFetchedApiKeyRef.current = null;
+            lastFetchSettingsRef.current = { provider: null, authType: null, apiBase: null, authConfig: null }; // Clear fetch tracking
         }
-    }, [selectedAuthType, apiKey, selectedProvider]);
+    }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
 
-    // Fetch models when dropdown opens
-    // For editing: use cached models from database (via modelsByProvider)
-    // For creating: fetch from provider API using credentials from form
+    // Fetch models when dropdown opens.
+    // Tracks provider settings to avoid redundant API calls — only refetches
+    // when provider, authType, apiBase, or auth credentials change.
+    // In editing mode, passes modelId so the server can merge stored credentials
+    // with any overrides from the form (e.g., user changed API key but not secret).
     const handleModelDropdownOpen = useCallback(async () => {
         if (!selectedProvider) return;
 
-        // Editing mode: use cached models fetched server-side with stored credentials
-        if (!isNew && modelsByProvider[selectedProvider]) {
-            setDynamicModels(modelsByProvider[selectedProvider]);
+        // Build a fingerprint of current settings that affect model availability
+        const currentAuthConfig: Record<string, unknown> = {};
+        if (selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType]) {
+            (AUTH_FIELDS[selectedAuthType as AuthType] as ProviderField[]).forEach((field: ProviderField) => {
+                const val = getValues(field.name);
+                if (val != null && val !== "") {
+                    currentAuthConfig[field.name] = val;
+                } else if (storedCredentialFields.has(field.name)) {
+                    currentAuthConfig[field.name] = "***stored***";
+                }
+            });
+        }
+
+        const currentSettings = {
+            provider: selectedProvider,
+            authType: selectedAuthType,
+            apiBase: apiBase || null,
+            authConfig: currentAuthConfig,
+        };
+
+        // Check if settings have changed since last successful fetch
+        const lastSettings = lastFetchSettingsRef.current;
+        const settingsChanged =
+            lastSettings.provider !== currentSettings.provider ||
+            lastSettings.authType !== currentSettings.authType ||
+            lastSettings.apiBase !== currentSettings.apiBase ||
+            JSON.stringify(lastSettings.authConfig) !== JSON.stringify(currentSettings.authConfig);
+
+        // Use cached results if nothing changed
+        if (!settingsChanged) {
+            // For editing: populate from parent cache if dynamic list is empty
+            if (!isNew && dynamicModels.length === 0 && modelsByProvider[selectedProvider]) {
+                setDynamicModels(modelsByProvider[selectedProvider]);
+            }
             return;
         }
 
-        // Creating mode: fetch from provider using form credentials
-        if (isNew) {
-            const currentApiKey = apiKey || "";
-            const needsRefetch = lastFetchedProviderRef.current !== selectedProvider || lastFetchedApiKeyRef.current !== currentApiKey;
-            if (!needsRefetch) return;
+        // Settings changed — fetch fresh model list from provider
+        setIsLoadingModels(true);
 
-            setIsLoadingModels(true);
-            const authType: AuthType = (selectedAuthType as AuthType) || "apikey";
-
-            const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
-            const modelParams: Record<string, unknown> = {};
-            for (const field of currentProviderConfig.fields) {
-                const val = getValues(field.name);
-                if (val != null && val !== "") {
-                    modelParams[field.name] = val;
-                }
-            }
-
-            try {
-                const authCredentials: Record<string, unknown> = {};
-                for (const field of AUTH_FIELDS[authType] ?? []) {
-                    const value = getValues(field.name);
-                    if (value != null) {
-                        authCredentials[field.name] = value;
-                    }
-                }
-
-                const models = await fetchSupportedModelsByProvider(selectedProvider, undefined, {
-                    apiBase: apiBase || undefined,
-                    authType,
-                    ...authCredentials,
-                    modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
-                });
-                setDynamicModels(models);
-                lastFetchedProviderRef.current = selectedProvider;
-                lastFetchedApiKeyRef.current = currentApiKey;
-            } catch (error) {
-                // TODO: Surface a subtle UI notification for failed model fetch
-                console.error("Error fetching models:", error);
-                setDynamicModels([]);
-                lastFetchedProviderRef.current = selectedProvider;
-                lastFetchedApiKeyRef.current = currentApiKey;
-            } finally {
-                setIsLoadingModels(false);
+        const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
+        const modelParams: Record<string, unknown> = {};
+        for (const field of currentProviderConfig.fields) {
+            const val = getValues(field.name);
+            if (val != null && val !== "") {
+                modelParams[field.name] = val;
             }
         }
-    }, [selectedProvider, isNew, apiBase, apiKey, selectedAuthType, modelsByProvider, getValues, providerConfig]);
+
+        try {
+            const formData = getValues() as ModelFormData;
+            const payload = buildModelPayload({
+                ...formData,
+                alias: formData.alias || "",
+                modelName: formData.modelName || "",
+            });
+
+            // In editing mode, pass modelId so server can merge stored credentials
+            // with any overrides from the form (handles redacted secret fields)
+            const modelId = !isNew ? modelToEdit?.id : undefined;
+
+            const models = await fetchSupportedModelsByProvider(selectedProvider, modelId, {
+                apiBase: apiBase || undefined,
+                authConfig: payload.authConfig,
+                modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
+            });
+            setDynamicModels(models);
+            lastFetchSettingsRef.current = currentSettings;
+        } catch (error) {
+            console.error("Error fetching models:", error);
+            // On error, fall back to cached models if available (editing mode)
+            if (!isNew && modelsByProvider[selectedProvider]) {
+                setDynamicModels(modelsByProvider[selectedProvider]);
+            } else {
+                setDynamicModels([]);
+            }
+            lastFetchSettingsRef.current = currentSettings;
+        } finally {
+            setIsLoadingModels(false);
+        }
+    }, [selectedProvider, isNew, apiBase, selectedAuthType, modelsByProvider, getValues, providerConfig, storedCredentialFields, dynamicModels.length, modelToEdit]);
 
     useEffect(() => {
         if (!isNew && modelToEdit) {
@@ -255,14 +281,24 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
 
-            // Populate auth credential fields from authConfig
-            // For password fields that are redacted by the server, populate with REDACTED_CREDENTIAL_PLACEHOLDER
+            // Track which credential fields have stored values on the server.
+            // The backend redacts secrets (removes them from the response), so any key
+            // present in authConfig with a truthy value is a non-redacted field (like tokenUrl).
+            // Keys that are absent or have falsy values are redacted secrets — these are
+            // the fields that have stored values server-side.
             if (modelToEdit.authConfig) {
+                const stored = new Set<string>();
                 Object.entries(AUTH_CONFIG_TO_FORM_FIELD_MAP).forEach(([configKey, fieldName]) => {
                     const value = modelToEdit.authConfig[configKey];
-                    // If the value is empty/falsy (redacted by server), use placeholder
-                    setValue(fieldName, value ? String(value) : REDACTED_CREDENTIAL_PLACEHOLDER);
+                    if (value) {
+                        // Non-redacted field — populate with the actual value
+                        setValue(fieldName, String(value));
+                    } else {
+                        // Redacted by server — mark as having a stored value
+                        stored.add(fieldName);
+                    }
                 });
+                setStoredCredentialFields(stored);
             }
 
             // Populate provider-specific fields and custom params from modelParams
@@ -314,14 +350,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // For auth fields during edit, make them optional (credentials are stored server-side)
         // Only auth credential fields are truly optional;
         // structural fields (clientId, tokenUrl, etc.) remain required for setup
-        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "gcpServiceAccountJson"].includes(field.name);
+        const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "vertexCredentials"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
 
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
                 <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
-                    <PasswordInput name={field.name} register={register} placeholder={field.placeholder} showPassword={showPassword[field.name] || false} onToggle={() => setShowPassword(prev => ({ ...prev, [field.name]: !prev[field.name] }))} />
+                    <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
         }
@@ -394,7 +430,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     };
 
     const onFormSubmit = async (data: ModelFormData) => {
-        await onSave(data);
+        await onSave(data, dirtyFields);
     };
 
     const isDefaultModel = !isNew && modelToEdit ? DEFAULT_MODEL_ALIASES.includes(modelToEdit.alias.toLowerCase()) : false;
@@ -555,7 +591,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </details>
 
                                 {/* Test Connection */}
-                                <TestConnectionSection getFormData={() => getValues() as ModelFormData} isNew={isNew} modelAlias={modelToEdit?.alias} disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)} />
+                                <TestConnectionSection
+                                    getFormData={() => getValues() as ModelFormData}
+                                    getDirtyFields={() => dirtyFields}
+                                    isNew={isNew}
+                                    modelId={modelToEdit?.id}
+                                    disabled={!selectedProvider || !selectedModelName || (isNew && !isAuthCredentialsConfigured)}
+                                />
                             </>
                         )}
                     </PageSection>

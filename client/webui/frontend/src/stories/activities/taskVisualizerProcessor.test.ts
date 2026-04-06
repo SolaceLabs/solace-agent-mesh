@@ -1,109 +1,15 @@
 import { describe, test, expect } from "vitest";
 
 import { processTaskForVisualization } from "@/lib/components/activities/taskVisualizerProcessor";
-import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
-
-/**
- * Creates a minimal A2A event for testing purposes.
- */
-function makeEvent(overrides: Partial<A2AEventSSEPayload> = {}): A2AEventSSEPayload {
-    return {
-        event_type: "a2a_message",
-        timestamp: new Date().toISOString(),
-        solace_topic: "test/topic",
-        direction: "response",
-        source_entity: "TestAgent",
-        target_entity: "User",
-        task_id: "task-1",
-        payload_summary: {},
-        full_payload: {},
-        ...overrides,
-    };
-}
-
-/**
- * Creates a minimal TaskFE for testing purposes.
- */
-function makeTask(overrides: Partial<TaskFE> = {}): TaskFE {
-    return {
-        taskId: "task-1",
-        initialRequestText: "Hello",
-        events: [],
-        firstSeen: new Date("2024-01-01T00:00:00.000Z"),
-        lastUpdated: new Date("2024-01-01T00:00:01.000Z"),
-        ...overrides,
-    };
-}
-
-// -- Reusable event factories for common scenarios --
-
-function makeRequestEvent(text: string, timestamp = "2024-01-01T00:00:00.000Z"): A2AEventSSEPayload {
-    return makeEvent({
-        direction: "request",
-        timestamp,
-        source_entity: "User",
-        target_entity: "Orchestrator",
-        payload_summary: { method: "message/send" },
-        full_payload: {
-            method: "message/send",
-            params: {
-                message: {
-                    parts: [{ kind: "text", text }],
-                },
-            },
-        },
-    });
-}
-
-function makeCompletedResponseEvent(text: string, agent = "Orchestrator", timestamp = "2024-01-01T00:00:01.000Z"): A2AEventSSEPayload {
-    return makeEvent({
-        direction: "response",
-        timestamp,
-        source_entity: agent,
-        target_entity: "User",
-        full_payload: {
-            result: {
-                status: { state: "completed", message: { parts: [{ kind: "text", text }] } },
-                metadata: { agent_name: agent },
-            },
-        },
-    });
-}
-
-function makeFailedResponseEvent(errorMessage: string, agent = "Orchestrator", timestamp = "2024-01-01T00:00:01.000Z"): A2AEventSSEPayload {
-    return makeEvent({
-        direction: "response",
-        timestamp,
-        source_entity: agent,
-        target_entity: "User",
-        full_payload: {
-            result: {
-                status: { state: "failed", message: { parts: [{ kind: "text", text: errorMessage }] } },
-                metadata: { agent_name: agent },
-            },
-        },
-    });
-}
-
-function makeStatusUpdateEvent(text: string, agent = "Orchestrator", timestamp = "2024-01-01T00:00:00.500Z"): A2AEventSSEPayload {
-    return makeEvent({
-        direction: "status-update",
-        timestamp,
-        source_entity: agent,
-        full_payload: {
-            result: {
-                status: {
-                    state: "working",
-                    message: {
-                        parts: [{ kind: "text", text }],
-                        metadata: { agent_name: agent },
-                    },
-                },
-                metadata: { agent_name: agent },
-            },
-        },
-    });
-}
+import type { TaskFE } from "@/lib/types";
+import {
+    makeEvent,
+    makeTask,
+    makeRequestEvent,
+    makeCompletedResponseEvent,
+    makeFailedResponseEvent,
+    makeStatusUpdateEvent,
+} from "../data/a2aEventSSEPayloadFactories";
 
 describe("processTaskForVisualization", () => {
     // -- Null / empty input handling --
@@ -146,7 +52,7 @@ describe("processTaskForVisualization", () => {
 
         const completedSteps = result!.steps.filter(s => s.type === "TASK_COMPLETED");
         expect(completedSteps).toHaveLength(1);
-        expect(completedSteps[0].source).toBe("Orchestrator");
+        expect(completedSteps[0].source).toBe("OrchestratorAgent");
     });
 
     test("produces TASK_FAILED step from a failed response", () => {

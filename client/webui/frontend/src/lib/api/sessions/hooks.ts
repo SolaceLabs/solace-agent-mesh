@@ -40,7 +40,7 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
  * Hook to fetch paginated sessions with infinite scroll support.
  * Automatically invalidates on session events (new session, session updated, title updated, background task completed).
  */
-export function useInfiniteSessions(pageSize: number = 20) {
+export function useInfiniteSessions(pageSize: number = 20, source?: string) {
     const queryClient = useQueryClient();
 
     useEffect(() => {
@@ -51,8 +51,8 @@ export function useInfiniteSessions(pageSize: number = 20) {
     }, [queryClient]);
 
     return useInfiniteQuery({
-        queryKey: [...sessionKeys.lists(), "infinite", pageSize],
-        queryFn: ({ pageParam }) => sessionService.getPaginatedSessions(pageParam, pageSize),
+        queryKey: [...sessionKeys.lists(), "infinite", pageSize, source],
+        queryFn: ({ pageParam }) => sessionService.getPaginatedSessions(pageParam, pageSize, source),
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,
         refetchOnMount: "always",

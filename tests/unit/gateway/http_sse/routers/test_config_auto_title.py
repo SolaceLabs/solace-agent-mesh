@@ -1,61 +1,77 @@
 """
-Unit tests for auto_title_generation configuration in config.py router.
+Unit tests for feature-flag-gated configuration helpers in config.py router.
 """
 import pytest
 from unittest.mock import MagicMock
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.gateway.http_sse.routers.config import (
     _determine_auto_title_generation_enabled,
+    _determine_mentions_enabled,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_feature_flags():
+    feature_flags._reset_for_testing()
+    feature_flags.initialize()
+    yield
+    feature_flags._reset_for_testing()
 
 
 class TestDetermineAutoTitleGenerationEnabled:
     """Tests for _determine_auto_title_generation_enabled function."""
 
     def test_disabled_when_persistence_not_enabled(self):
-        """Test disabled when persistence is not enabled."""
-        mock_component = MagicMock()
-        mock_component.get_config.return_value = {}
-        
         result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": False}, "[TEST]"
+            {"persistence_enabled": False}, "[TEST]"
         )
-        
+
         assert result is False
 
-    def test_disabled_when_not_explicitly_enabled(self):
-        """Test disabled by default even with persistence."""
-        mock_component = MagicMock()
-        mock_component.get_config.return_value = {}
-        
-        result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": True}, "[TEST]"
-        )
-        
+    def test_disabled_when_flag_is_off(self):
+        with mock_flags(auto_title_generation=False):
+            result = _determine_auto_title_generation_enabled(
+                {"persistence_enabled": True}, "[TEST]"
+            )
+
         assert result is False
 
-    def test_enabled_via_auto_title_generation_config(self):
-        """Test enabling via auto_title_generation config block."""
-        mock_component = MagicMock()
-        mock_component.get_config.side_effect = lambda k, d=None: (
-            {"enabled": True} if k == "auto_title_generation" else {}
-        )
-        
-        result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": True}, "[TEST]"
-        )
-        
+    def test_enabled_when_persistence_and_flag_on(self):
+        with mock_flags(auto_title_generation=True):
+            result = _determine_auto_title_generation_enabled(
+                {"persistence_enabled": True}, "[TEST]"
+            )
+
         assert result is True
 
-    def test_enabled_via_frontend_feature_enablement(self):
-        """Test enabling via frontend_feature_enablement override."""
+
+class TestDetermineMentionsEnabled:
+    """Tests for _determine_mentions_enabled function."""
+
+    def test_disabled_when_no_identity_service(self):
         mock_component = MagicMock()
-        mock_component.get_config.side_effect = lambda k, d=None: (
-            {"auto_title_generation": True} if k == "frontend_feature_enablement" else {}
-        )
-        
-        result = _determine_auto_title_generation_enabled(
-            mock_component, {"persistence_enabled": True}, "[TEST]"
-        )
-        
+        mock_component.identity_service = None
+
+        result = _determine_mentions_enabled(mock_component, "[TEST]")
+
+        assert result is False
+
+    def test_disabled_when_flag_is_off(self):
+        mock_component = MagicMock()
+        mock_component.identity_service = MagicMock()
+
+        with mock_flags(mentions=False):
+            result = _determine_mentions_enabled(mock_component, "[TEST]")
+
+        assert result is False
+
+    def test_enabled_when_identity_service_and_flag_on(self):
+        mock_component = MagicMock()
+        mock_component.identity_service = MagicMock()
+
+        with mock_flags(mentions=True):
+            result = _determine_mentions_enabled(mock_component, "[TEST]")
+
         assert result is True

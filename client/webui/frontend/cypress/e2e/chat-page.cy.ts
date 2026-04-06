@@ -26,9 +26,9 @@ describe("Chat Page - Navigation and Layout", { tags: ["@community"] }, () => {
 
     it("should expand and collapse side panel", () => {
         cy.findByRole("button", { name: "Expand Panel" }).should("be.visible").click();
-        cy.findByRole("tablist").should("be.visible");
+        cy.findByTestId("collapsePanel").should("be.visible");
         cy.findByRole("button", { name: "Collapse Panel" }).should("be.visible").click();
-        cy.findByRole("tablist").should("not.exist");
+        cy.findByTestId("collapsePanel").should("not.exist");
     });
 });
 
