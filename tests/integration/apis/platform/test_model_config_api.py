@@ -15,6 +15,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy.orm import Session
 
+from sam_test_infrastructure.feature_flags import mock_flags
+from solace_agent_mesh.common.features import core as feature_flags
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
@@ -24,9 +26,8 @@ log = logging.getLogger(__name__)
 @pytest.fixture
 def enable_model_config_feature_flag():
     """Enable the model_config_ui feature flag for testing."""
-    with patch("openfeature.api.get_client") as mock_get_client:
-        mock_client = mock_get_client.return_value
-        mock_client.get_boolean_value.return_value = True
+    feature_flags.initialize()
+    with mock_flags(model_config_ui=True):
         yield
 
 
@@ -244,21 +245,13 @@ class TestModelConfigurationAPI:
         """Test that endpoints return 501 when model_config_ui feature flag is disabled."""
         from fastapi.testclient import TestClient
 
+        feature_flags.initialize()
         app = platform_api_client_factory.app
 
-        # Ensure the feature flag is disabled
-        with patch("openfeature.api.get_client") as mock_get_client:
-            mock_client = mock_get_client.return_value
-            mock_client.get_boolean_value.return_value = False
+        with mock_flags(model_config_ui=False):
             client = TestClient(app)
-
-            # Act: Try to get models with feature flag disabled
             response = client.get("/api/v1/platform/models")
-
-            # Assert: Status code is 501
             assert response.status_code == 501
-
-            # Assert: Response contains error detail
             data = response.json()
             assert "detail" in data
             assert "not enabled" in data["detail"].lower()
@@ -350,7 +343,7 @@ class TestModelConfigurationAPI:
             db.close()
 
     def test_update_model_success(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
-        """Test that PUT /models/{id} updates an existing model configuration."""
+        """Test that PATCH /models/{id} updates an existing model configuration."""
         # Setup: Create a model to update
         db = platform_db_session_factory()
         try:
@@ -380,7 +373,7 @@ class TestModelConfigurationAPI:
             }
 
             # Act: Update the model by ID
-            response = platform_api_client.put(f"/api/v1/platform/models/{model_id}", json=request_data)
+            response = platform_api_client.patch(f"/api/v1/platform/models/{model_id}", json=request_data)
 
             # Assert: Status code is 200
             assert response.status_code == 200
@@ -401,12 +394,12 @@ class TestModelConfigurationAPI:
             db.close()
 
     def test_update_model_not_found_returns_404(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that PUT /models/{id} returns 404 when model doesn't exist."""
+        """Test that PATCH /models/{id} returns 404 when model doesn't exist."""
         # Arrange: Prepare update request for non-existent model
         request_data = {"description": "Updated description"}
 
         # Act: Try to update non-existent model by a random UUID
-        response = platform_api_client.put(f"/api/v1/platform/models/{uuid.uuid4()}", json=request_data)
+        response = platform_api_client.patch(f"/api/v1/platform/models/{uuid.uuid4()}", json=request_data)
 
         # Assert: Status code is 404
         assert response.status_code == 404
@@ -493,8 +486,7 @@ class TestSupportedModelsAPI:
                 "/api/v1/platform/supported-models",
                 json={
                     "provider": "openai",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -531,8 +523,7 @@ class TestSupportedModelsAPI:
                     "/api/v1/platform/supported-models",
                     json={
                         "provider": provider,
-                        "auth_type": "apikey",
-                        "api_key": "sk-test-key",
+                        "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                     }
                 )
 

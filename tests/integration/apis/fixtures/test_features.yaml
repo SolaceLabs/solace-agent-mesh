@@ -1,0 +1,28 @@
+# Test-only feature flags for framework integration tests.
+# These flags must NOT overlap with real production flag keys.
+
+features:
+
+  - key: test_flag_alpha
+    name: Test Flag Alpha
+    release_phase: beta
+    default: false
+    jira: TEST-00001
+    description: >
+      Fake flag for framework integration tests. Default disabled, beta phase.
+
+  - key: test_flag_beta
+    name: Test Flag Beta
+    release_phase: general_availability
+    default: true
+    jira: TEST-00002
+    description: >
+      Fake flag for framework integration tests. Default enabled, GA phase.
+
+  - key: test_flag_gamma
+    name: Test Flag Gamma
+    release_phase: experimental
+    default: false
+    jira: TEST-00003
+    description: >
+      Fake flag for framework integration tests. Default disabled, experimental phase.

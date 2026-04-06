@@ -397,3 +397,181 @@ class TestRepairDanglingToolCallsInSession:
 
             # No repair needed since the call has no ID
             mock_append.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_incoming_content_prevents_false_positive_repair(self):
+        """Dangling tool calls should NOT be repaired if the incoming_content
+        contains a matching function_response (peer response about to be injected).
+
+        This is the key fix for the issue where the orchestrator incorrectly
+        thinks a tool call errored even though the peer agent succeeded.
+        The peer response is passed as new_message to the ADK runner but hasn't
+        been appended to the session yet when the repair runs.
+        """
+        component = _make_component()
+        events = [
+            _make_text_event("Upload this file to S3"),
+            _make_function_call_event("call-1", "peer_ContentUtilityAgent"),
+            # No function_response in session yet — peer response is incoming!
+        ]
+        session = _make_session(events=events)
+
+        # Simulate the incoming peer response content (about to be passed as new_message)
+        incoming_response_part = adk_types.Part.from_function_response(
+            name="peer_ContentUtilityAgent",
+            response={"status": "success", "result": "File uploaded to S3 successfully"},
+        )
+        incoming_response_part.function_response.id = "call-1"
+        incoming_content = adk_types.Content(
+            role="tool", parts=[incoming_response_part]
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.adk.services.append_event_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_append:
+            await _repair_dangling_tool_calls_in_session(
+                component, session, "task-1",
+                incoming_content=incoming_content,
+            )
+
+            # Should NOT repair — the incoming content has the matching response
+            mock_append.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_incoming_content_partial_match_repairs_unmatched(self):
+        """When incoming_content resolves some but not all dangling calls,
+        only the truly dangling ones should be repaired."""
+        component = _make_component()
+        events = [
+            _make_text_event("Do two things"),
+            # Two parallel tool calls
+            _make_function_call_event("call-1", "peer_ContentUtilityAgent"),
+            _make_function_call_event("call-2", "peer_JiraConfluenceAgent"),
+            # No responses in session for either
+        ]
+        session = _make_session(events=events)
+
+        # Incoming content only has response for call-1 (ContentUtilityAgent succeeded)
+        incoming_response_part = adk_types.Part.from_function_response(
+            name="peer_ContentUtilityAgent",
+            response={"status": "success", "result": "Done"},
+        )
+        incoming_response_part.function_response.id = "call-1"
+        incoming_content = adk_types.Content(
+            role="tool", parts=[incoming_response_part]
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.adk.services.append_event_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_append:
+            await _repair_dangling_tool_calls_in_session(
+                component, session, "task-1",
+                incoming_content=incoming_content,
+            )
+
+            # Should repair only call-2 (JiraConfluenceAgent), not call-1
+            assert mock_append.call_count == 1
+            call_kwargs = mock_append.call_args[1]
+            repair_event = call_kwargs["event"]
+            assert len(repair_event.content.parts) == 1
+            assert repair_event.content.parts[0].function_response.id == "call-2"
+            assert (
+                repair_event.content.parts[0].function_response.name
+                == "peer_JiraConfluenceAgent"
+            )
+
+    @pytest.mark.asyncio
+    async def test_incoming_content_with_multiple_responses(self):
+        """Incoming content with multiple function_responses should prevent
+        repair for all matched calls."""
+        component = _make_component()
+        events = [
+            _make_text_event("Do two things"),
+            _make_function_call_event("call-1", "peer_ContentUtilityAgent"),
+            _make_function_call_event("call-2", "peer_ResearchAgent"),
+            # No responses in session
+        ]
+        session = _make_session(events=events)
+
+        # Incoming content has responses for both calls
+        part1 = adk_types.Part.from_function_response(
+            name="peer_ContentUtilityAgent",
+            response={"status": "success", "result": "Uploaded"},
+        )
+        part1.function_response.id = "call-1"
+        part2 = adk_types.Part.from_function_response(
+            name="peer_ResearchAgent",
+            response={"status": "success", "result": "Research done"},
+        )
+        part2.function_response.id = "call-2"
+        incoming_content = adk_types.Content(
+            role="tool", parts=[part1, part2]
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.adk.services.append_event_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_append:
+            await _repair_dangling_tool_calls_in_session(
+                component, session, "task-1",
+                incoming_content=incoming_content,
+            )
+
+            # No repair needed — both calls have incoming responses
+            mock_append.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_incoming_content_none_behaves_as_before(self):
+        """When incoming_content is None, behavior should be unchanged
+        (dangling calls are still repaired)."""
+        component = _make_component()
+        events = [
+            _make_text_event("Hello"),
+            _make_function_call_event("call-1", "peer_TestAgent"),
+            # No response
+        ]
+        session = _make_session(events=events)
+
+        with patch(
+            "solace_agent_mesh.agent.adk.services.append_event_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_append:
+            await _repair_dangling_tool_calls_in_session(
+                component, session, "task-1",
+                incoming_content=None,
+            )
+
+            # Should still repair since no incoming content
+            assert mock_append.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_incoming_content_without_function_responses(self):
+        """Incoming content that has no function_responses (e.g., user text)
+        should not affect repair behavior."""
+        component = _make_component()
+        events = [
+            _make_text_event("Hello"),
+            _make_function_call_event("call-1", "peer_TestAgent"),
+            # No response
+        ]
+        session = _make_session(events=events)
+
+        # Incoming content is a user message, not a tool response
+        incoming_content = adk_types.Content(
+            role="user",
+            parts=[adk_types.Part(text="Follow-up question")],
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.adk.services.append_event_with_retry",
+            new_callable=AsyncMock,
+        ) as mock_append:
+            await _repair_dangling_tool_calls_in_session(
+                component, session, "task-1",
+                incoming_content=incoming_content,
+            )
+
+            # Should still repair — incoming content has no function_responses
+            assert mock_append.call_count == 1

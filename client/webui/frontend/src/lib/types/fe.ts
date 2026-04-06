@@ -342,6 +342,7 @@ export interface Session {
     name: string | null;
     projectId?: string | null;
     projectName?: string | null;
+    source?: string | null; // "chat" or "scheduler"
     hasRunningBackgroundTask?: boolean;
     ownerDisplayName?: string | null;
     ownerEmail?: string | null;

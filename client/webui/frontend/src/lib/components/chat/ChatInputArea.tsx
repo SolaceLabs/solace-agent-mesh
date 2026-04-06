@@ -8,7 +8,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -65,7 +65,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
-    const mentionsEnabled = configFeatureEnablement?.mentions ?? false;
+    const mentionsEnabled = useIsMentionsEnabled();
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);

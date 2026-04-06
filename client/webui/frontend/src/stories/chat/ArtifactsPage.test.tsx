@@ -31,7 +31,6 @@ const mockConfig: ConfigContextValue = {
     backgroundTasksEnabled: false,
     backgroundTasksDefaultTimeoutMs: 3600000,
     platformConfigured: false,
-    autoTitleGenerationEnabled: false,
     identityServiceType: null,
     binaryArtifactPreviewEnabled: true,
     configFeatureEnablement: { artifactsPage: true },

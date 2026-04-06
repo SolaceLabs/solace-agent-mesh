@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate } from "react-router-dom";
-import { Loader2, Check, X, Plus } from "lucide-react";
+import { Loader2, Check, X, Plus, MessageCircle, CalendarClock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 const PAGE_SIZE = 20;
 const BACKGROUND_TASK_POLL_MS = 10_000;
@@ -24,7 +24,7 @@ interface SessionNameProps {
 }
 
 const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isSelected }) => {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {
@@ -94,7 +94,9 @@ export const RecentChatsPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE);
+    const [activeTab, setActiveTab] = useState<"chat" | "scheduler">("chat");
+
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, activeTab);
     const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
 
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -294,33 +296,54 @@ export const RecentChatsPage: React.FC = () => {
             />
 
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-                {/* Search and Filter Bar - only show when there are sessions */}
-                {sessions.length > 0 && (
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                            <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
+                {/* Tabs and Search/Filter Bar */}
+                <div className="flex flex-col gap-4">
+                    {/* Tabs: Chats / Scheduled Tasks */}
+                    {configFeatureEnablement?.scheduler && (
+                        <div className="flex justify-center">
+                            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                                <TabsList className="bg-transparent p-0">
+                                    <TabsTrigger value="chat" className="rounded-none rounded-l-md px-6">
+                                        <MessageCircle className="h-4 w-4 shrink-0" />
+                                        Chats
+                                    </TabsTrigger>
+                                    <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0 px-6">
+                                        <CalendarClock className="h-4 w-4 shrink-0" />
+                                        Scheduled Tasks
+                                    </TabsTrigger>
+                                </TabsList>
+                            </Tabs>
                         </div>
+                    )}
 
-                        {persistenceEnabled && projectNames.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium">Project:</label>
-                                <Select value={selectedProject} onValueChange={setSelectedProject}>
-                                    <SelectTrigger className="w-[200px] rounded-md">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Chats</SelectItem>
-                                        {projectNames.map(projectName => (
-                                            <SelectItem key={projectName} value={projectName}>
-                                                {projectName}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                    {/* Search and Filter Bar - only show when there are sessions */}
+                    {sessions.length > 0 && (
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                                <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
                             </div>
-                        )}
-                    </div>
-                )}
+
+                            {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium">Project:</label>
+                                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                                        <SelectTrigger className="w-[200px] rounded-md">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Chats</SelectItem>
+                                            {projectNames.map(projectName => (
+                                                <SelectItem key={projectName} value={projectName}>
+                                                    {projectName}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 {/* Sessions Grid */}
                 {filteredSessions.length > 0 && (
@@ -398,19 +421,23 @@ export const RecentChatsPage: React.FC = () => {
                 {sessions.length === 0 && !isFetchingNextPage && (
                     <EmptyState
                         variant="noImage"
-                        title="No chat sessions available"
-                        subtitle="Start a new chat to create your first session"
-                        buttons={[
-                            {
-                                icon: <Plus size={16} />,
-                                text: "New Chat",
-                                variant: "default",
-                                onClick: () => {
-                                    navigate("/chat");
-                                    handleNewSession();
-                                },
-                            },
-                        ]}
+                        title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}
+                        subtitle={activeTab === "scheduler" ? "Sessions from scheduled tasks will appear here" : "Start a new chat to create your first session"}
+                        buttons={
+                            activeTab === "chat"
+                                ? [
+                                      {
+                                          icon: <Plus size={16} />,
+                                          text: "New Chat",
+                                          variant: "default" as const,
+                                          onClick: () => {
+                                              navigate("/chat");
+                                              handleNewSession();
+                                          },
+                                      },
+                                  ]
+                                : []
+                        }
                     />
                 )}
 

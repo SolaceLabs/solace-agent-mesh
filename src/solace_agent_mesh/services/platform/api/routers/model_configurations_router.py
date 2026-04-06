@@ -193,7 +193,7 @@ async def create_model(
     _emit_model_config_update(component, config.id, config.alias, raw_config)
     return create_data_response(config)
 
-@router.put(
+@router.patch(
     "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
     summary="Update a model configuration",
@@ -297,37 +297,42 @@ async def list_supported_models_by_provider(
     """
     Fetch supported models from a provider.
 
-    Two modes of operation:
-    - **Editing mode**: Provide model_alias to use stored credentials from database
-    - **Creating mode**: Provide auth_type and appropriate credentials to query provider
+    Three modes of operation:
+    - **Editing (no changes)**: Provide model_id only — uses stored credentials
+    - **Editing (with changes)**: Provide model_id + auth_config — merges stored
+      credentials with overrides (stored values fill in missing fields).
+      If auth type changed, only overrides are used (no cross-provider merging).
+    - **Creating**: Provide auth_config with credentials — queries provider directly
 
     Auth validation and config building is delegated to ModelListService.
     """
-    # Mode 1: Editing - use stored credentials from database
+    auth_config = dict(request.auth_config) if request.auth_config else {}
+
+    # Editing mode: use stored credentials, optionally merged with overrides
     if request.model_id:
-        models = config_service.get_models_from_provider_by_id(db, request.model_id, service)
+        models = config_service.get_models_from_provider_by_id(
+            db,
+            request.model_id,
+            service,
+            provider_override=request.provider,
+            auth_config_overrides=auth_config if auth_config else None,
+            api_base_override=request.api_base,
+        )
         return create_data_response(models)
 
-    # Mode 2: Creating - use credentials from request
-    # Validate that either model_alias or auth_type is provided
-    if not request.auth_type:
+    # Creating mode: use credentials from request
+    auth_type = auth_config.get("type")
+    if not auth_type:
         raise ValidationErrorBuilder().message(
-            "Either model_id (for editing) or auth_type with credentials (for creating) is required"
+            "Either model_id (for editing) or auth_config with 'type' (for creating) is required"
         ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
 
-    # Delegate auth validation and config building to service
+    # Delegate auth validation and model fetching to service
     models = service.get_models_with_new_credentials(
         provider=request.provider,
         api_base=request.api_base,
-        auth_type=request.auth_type,
-        api_key=request.api_key,
-        client_id=request.client_id,
-        client_secret=request.client_secret,
-        token_url=request.token_url,
-        aws_access_key_id=request.aws_access_key_id,
-        aws_secret_access_key=request.aws_secret_access_key,
-        aws_session_token=request.aws_session_token,
-        gcp_service_account_json=request.gcp_service_account_json,
+        auth_type=auth_type,
+        auth_config=auth_config,
         model_params=request.model_params,
     )
 

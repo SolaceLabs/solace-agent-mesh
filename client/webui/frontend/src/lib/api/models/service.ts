@@ -3,8 +3,6 @@
  */
 
 import { api } from "@/lib/api";
-import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
-import type { AuthType } from "@/lib/components/models/modelProviderUtils";
 import type { ModelConfig, ModelConfigStatus } from "./types";
 
 interface ModelData {
@@ -46,35 +44,28 @@ export async function fetchSupportedModelsByProvider(
     modelId?: string,
     options?: {
         apiBase?: string;
-        authType?: AuthType;
+        authConfig?: Record<string, unknown>;
         modelParams?: Record<string, unknown>;
-    } & Record<string, unknown>
+    }
 ): Promise<Array<{ id: string; label: string }>> {
     const body: Record<string, unknown> = {
         provider,
     };
 
+    // Pass modelId for stored credential fallback (editing mode)
     if (modelId) {
         body.modelId = modelId;
-    } else if (options?.authType) {
-        // Creating mode - pass credentials
-        body.authType = options.authType;
+    }
 
-        if (options.apiBase != null) {
-            body.apiBase = options.apiBase;
-        }
-
-        if (options.modelParams != null) {
-            body.modelParams = options.modelParams;
-        }
-
-        // Copy auth fields for the selected auth type
-        for (const field of AUTH_FIELDS[options.authType] ?? []) {
-            const value = options[field.name];
-            if (value != null) {
-                body[field.name] = value;
-            }
-        }
+    // Pass request credentials — server merges with stored when both provided
+    if (options?.authConfig) {
+        body.authConfig = options.authConfig;
+    }
+    if (options?.apiBase != null) {
+        body.apiBase = options.apiBase;
+    }
+    if (options?.modelParams != null) {
+        body.modelParams = options.modelParams;
     }
 
     const response = await api.platform.post("/api/v1/platform/supported-models", body);
@@ -93,7 +84,7 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
  * Update an existing model configuration.
  */
 export async function updateModelConfig(id: string, data: ModelData): Promise<ModelConfig> {
-    const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
+    const response = await api.platform.patch(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
     return response.data;
 }
 
@@ -109,7 +100,6 @@ export interface TestConnectionRequest {
     provider?: string;
     modelName?: string;
     apiBase?: string;
-    authType: string;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
 }

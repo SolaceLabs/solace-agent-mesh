@@ -18,6 +18,7 @@ from openfeature import api as openfeature_api
 
 from solace_agent_mesh.common.features.provider import SamFeatureProvider
 
+from sam_test_infrastructure.feature_flags import mock_flags
 from solace_agent_mesh.common.features.core import (
     _reset_for_testing,
     get_registry,
@@ -312,3 +313,78 @@ class TestResetForTesting:
         initialize()
         assert feature_core_module._initialized is True
         assert len(get_registry().all()) > 0
+
+
+class TestMockFlags:
+    """mock_flags() context manager sets env-var overrides for the test scope."""
+
+    def _register_flag(self, tmp_path, key: str, default: bool):
+        """Write a single-flag YAML and load it into the initialised registry."""
+        yaml_path = tmp_path / f"{key}.yaml"
+        yaml_path.write_text(
+            "features:\n"
+            f"  - key: {key}\n"
+            f"    name: Test {key}\n"
+            "    release_phase: beta\n"
+            f"    default: {str(default).lower()}\n"
+            "    jira: DATAGO-99999\n"
+        )
+        initialize()
+        load_flags_from_yaml(str(yaml_path))
+
+    def test_false_default_overridden_to_true(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_a", False)
+        client = openfeature_api.get_client()
+
+        assert client.get_boolean_value("test_mock_flag_a", False) is False
+        with mock_flags(test_mock_flag_a=True):
+            assert client.get_boolean_value("test_mock_flag_a", False) is True
+        assert client.get_boolean_value("test_mock_flag_a", False) is False
+
+    def test_true_default_overridden_to_false(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_b", True)
+        client = openfeature_api.get_client()
+
+        assert client.get_boolean_value("test_mock_flag_b", True) is True
+        with mock_flags(test_mock_flag_b=False):
+            assert client.get_boolean_value("test_mock_flag_b", True) is False
+        assert client.get_boolean_value("test_mock_flag_b", True) is True
+
+    def test_unspecified_flags_unaffected(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_c", False)
+        self._register_flag(tmp_path, "test_mock_flag_d", False)
+        client = openfeature_api.get_client()
+
+        with mock_flags(test_mock_flag_c=True):
+            assert client.get_boolean_value("test_mock_flag_c", False) is True
+            assert client.get_boolean_value("test_mock_flag_d", False) is False
+
+    def test_env_var_absent_after_context_exits(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_e", False)
+        env_key = "SAM_FEATURE_TEST_MOCK_FLAG_E"
+
+        assert env_key not in os.environ
+        with mock_flags(test_mock_flag_e=True):
+            assert os.environ.get(env_key) == "true"
+        assert env_key not in os.environ
+
+    def test_pre_existing_env_var_restored_after_context(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_f", False)
+        env_key = "SAM_FEATURE_TEST_MOCK_FLAG_F"
+
+        os.environ[env_key] = "true"
+        try:
+            with mock_flags(test_mock_flag_f=False):
+                assert os.environ.get(env_key) == "false"
+            assert os.environ.get(env_key) == "true"
+        finally:
+            os.environ.pop(env_key, None)
+
+    def test_multiple_flags_controlled_independently(self, tmp_path):
+        self._register_flag(tmp_path, "test_mock_flag_g", False)
+        self._register_flag(tmp_path, "test_mock_flag_h", True)
+        client = openfeature_api.get_client()
+
+        with mock_flags(test_mock_flag_g=True, test_mock_flag_h=False):
+            assert client.get_boolean_value("test_mock_flag_g", False) is True
+            assert client.get_boolean_value("test_mock_flag_h", True) is False

@@ -13,11 +13,14 @@ from tests.integration.test_support.lifecycle_tracker import (
 
 @pytest.fixture(autouse=True)
 def reset_metric_registry():
-    """Reset the MetricRegistry singleton before each test to avoid
-    'MetricRegistry already initialized' errors from SAC 3.3.6+."""
-    MetricRegistry.reset()
+    """Save and restore the MetricRegistry singleton around each test.
+    Lifecycle tests create their own SolaceAiConnector instances which
+    need a fresh MetricRegistry, but we must restore the session-scoped
+    singleton afterwards so other tests (programmatic, etc.) still work."""
+    saved_instance = MetricRegistry._instance
+    MetricRegistry._instance = None
     yield
-    MetricRegistry.reset()
+    MetricRegistry._instance = saved_instance
 
 
 @pytest.fixture

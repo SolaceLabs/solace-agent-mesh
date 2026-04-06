@@ -10,7 +10,19 @@ const v4 = () => uuidv4({});
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import {
+    useConfigContext,
+    useArtifacts,
+    useAgentCards,
+    useIsAutoTitleGenerationEnabled,
+    useTaskContext,
+    useErrorDialog,
+    useTitleGeneration,
+    useBackgroundTaskMonitor,
+    useArtifactPreview,
+    useArtifactOperations,
+    useCollaborativeSession,
+} from "@/lib/hooks";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
@@ -48,7 +60,8 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled, configUseAuthorization } = useConfigContext();
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 
@@ -619,10 +632,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
             for (const task of migratedTasks) {
-                if (task.taskMetadata?.feedback) {
+                let meta = null;
+                try {
+                    meta = typeof task.taskMetadata === "string" ? JSON.parse(task.taskMetadata) : task.taskMetadata;
+                } catch {
+                    // Malformed JSON in persisted metadata — skip gracefully
+                }
+
+                if (meta?.feedback) {
                     feedbackMap[task.taskId] = {
-                        type: task.taskMetadata.feedback.type,
-                        text: task.taskMetadata.feedback.text || "",
+                        type: meta.feedback.type,
+                        text: meta.feedback.text || "",
                     };
                 }
             }
@@ -634,8 +654,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // (Use the last task's agent since that's the most recent interaction)
             let agentName: string | null = null;
             for (let i = migratedTasks.length - 1; i >= 0; i--) {
-                if (migratedTasks[i].taskMetadata?.agent_name) {
-                    agentName = migratedTasks[i].taskMetadata.agent_name;
+                let agentMeta = null;
+                try {
+                    agentMeta = typeof migratedTasks[i].taskMetadata === "string" ? JSON.parse(migratedTasks[i].taskMetadata) : migratedTasks[i].taskMetadata;
+                } catch {
+                    // Malformed JSON in persisted metadata — skip gracefully
+                }
+                if (agentMeta?.agent_name) {
+                    agentName = agentMeta.agent_name;
                     break;
                 }
             }

@@ -15,6 +15,7 @@ const mockUseTaskContext = vi.fn();
 const mockUseTitleAnimation = vi.fn();
 const mockUseConfigContext = vi.fn();
 const mockUseIsChatSharingEnabled = vi.fn();
+const mockUseIsAutoTitleGenerationEnabled = vi.fn();
 const mockUseProjectContext = vi.fn();
 const mockUseLocation = vi.fn();
 const mockUseNavigate = vi.fn();
@@ -66,6 +67,7 @@ describe("ChatPage", () => {
         mockUseTitleAnimation.mockReset();
         mockUseConfigContext.mockReset();
         mockUseIsChatSharingEnabled.mockReset();
+        mockUseIsAutoTitleGenerationEnabled.mockReset();
         mockUseProjectContext.mockReset();
         mockUseLocation.mockReset();
         mockUseNavigate.mockReset();
@@ -76,8 +78,9 @@ describe("ChatPage", () => {
         mockUseChatContext.mockReturnValue(makeDefaultChatContext());
         mockUseTaskContext.mockReturnValue(makeDefaultTaskContext());
         mockUseTitleAnimation.mockReturnValue({ text: "Test Session", isAnimating: false, isGenerating: false });
-        mockUseConfigContext.mockReturnValue({ autoTitleGenerationEnabled: false });
+        mockUseConfigContext.mockReturnValue({});
         mockUseIsChatSharingEnabled.mockReturnValue(false);
+        mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
         mockUseProjectContext.mockReturnValue({ activeProject: null });
         mockUseLocation.mockReturnValue({ pathname: "/chat", state: null });
         mockUseNavigate.mockReturnValue(vi.fn());
@@ -90,6 +93,7 @@ describe("ChatPage", () => {
             useTitleAnimation: mockUseTitleAnimation,
             useConfigContext: mockUseConfigContext,
             useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
+            useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
         }));
 
         vi.doMock("@/lib/providers", () => ({
@@ -232,6 +236,7 @@ describe("ChatPage", () => {
 
     test("share button hidden when chatSharingEnabled is false", () => {
         mockUseIsChatSharingEnabled.mockReturnValue(false);
+        mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
 
         renderPage();
         expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();

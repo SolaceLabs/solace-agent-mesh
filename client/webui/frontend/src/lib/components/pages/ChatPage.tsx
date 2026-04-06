@@ -6,7 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useTaskContext, useTitleAnimation, useConfigContext, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -41,7 +41,8 @@ const PANEL_SIZES_OPEN = {
 export function ChatPage() {
     const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
-    const { autoTitleGenerationEnabled, configFeatureEnablement } = useConfigContext();
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
+    const { configFeatureEnablement } = useConfigContext();
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
     const location = useLocation();
