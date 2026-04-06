@@ -2398,7 +2398,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.76.3"
+version = "1.83.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -2414,9 +2414,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/46/57b6539365616452bb6f4401487448ce62e62755738fce55d8222d7a557e/litellm-1.76.3.tar.gz", hash = "sha256:fc81219c59b17b26cc81276ce32582f3715612877ab11c1ea2c26e4853ac67e8", size = 10210403, upload-time = "2025-09-07T01:59:19.55Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/92/6ce9737554994ca8e536e5f4f6a87cc7c4774b656c9eb9add071caf7d54b/litellm-1.83.0.tar.gz", hash = "sha256:860bebc76c4bb27b4cf90b4a77acd66dba25aced37e3db98750de8a1766bfb7a", size = 17333062, upload-time = "2026-03-31T05:08:25.331Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/d9/5f8ed27241b487f51f04573b8ba06d4460ebed9f792ff5cc148649fbf862/litellm-1.76.3-py3-none-any.whl", hash = "sha256:d62e3ff2a80ec5e551c6d7a0fe199ffe718ecb6cbaa43fc9250dd8d7c0944352", size = 9000797, upload-time = "2025-09-07T01:59:16.261Z" },
+    { url = "https://files.pythonhosted.org/packages/19/2c/a670cc050fcd6f45c6199eb99e259c73aea92edba8d5c2fc1b3686d36217/litellm-1.83.0-py3-none-any.whl", hash = "sha256:88c536d339248f3987571493015784671ba3f193a328e1ea6780dbebaa2094a8", size = 15610306, upload-time = "2026-03-31T05:08:21.987Z" },
 ]
 
 [[package]]
@@ -3069,7 +3069,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "1.99.9"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -3081,9 +3081,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/d2/ef89c6f3f36b13b06e271d3cc984ddd2f62508a0972c1cbcc8485a6644ff/openai-1.99.9.tar.gz", hash = "sha256:f2082d155b1ad22e83247c3de3958eb4255b20ccf4a1de2e6681b6957b554e92", size = 506992, upload-time = "2025-08-12T02:31:10.054Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/0c/b9321e12f89e236f5e9a46346c30fb801818e22ba33b798a5aca84be895c/openai-2.8.0.tar.gz", hash = "sha256:4851908f6d6fcacbd47ba659c5ac084f7725b752b6bfa1e948b6fbfc111a6bad", size = 602412, upload-time = "2025-11-13T18:15:25.847Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/fb/df274ca10698ee77b07bff952f302ea627cc12dac6b85289485dd77db6de/openai-1.99.9-py3-none-any.whl", hash = "sha256:9dbcdb425553bae1ac5d947147bebbd630d91bbfc7788394d4c4f3a35682ab3a", size = 786816, upload-time = "2025-08-12T02:31:08.34Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/e1/0a6560bab7fb7b5a88d35a505b859c6d969cb2fa2681b568eb5d95019dec/openai-2.8.0-py3-none-any.whl", hash = "sha256:ba975e347f6add2fe13529ccb94d54a578280e960765e5224c34b08d7e029ddf", size = 1022692, upload-time = "2025-11-13T18:15:23.621Z" },
 ]
 
 [[package]]
@@ -3909,14 +3909,14 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.9.1"
+version = "6.9.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/fb/dc2e8cb006e80b0020ed20d8649106fe4274e82d8e756ad3e24ade19c0df/pypdf-6.9.1.tar.gz", hash = "sha256:ae052407d33d34de0c86c5c729be6d51010bf36e03035a8f23ab449bca52377d", size = 5311551, upload-time = "2026-03-17T10:46:07.876Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/83/691bdb309306232362503083cb15777491045dd54f45393a317dc7d8082f/pypdf-6.9.2.tar.gz", hash = "sha256:7f850faf2b0d4ab936582c05da32c52214c2b089d61a316627b5bfb5b0dab46c", size = 5311837, upload-time = "2026-03-23T14:53:27.983Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/f4/75543fa802b86e72f87e9395440fe1a89a6d149887e3e55745715c3352ac/pypdf-6.9.1-py3-none-any.whl", hash = "sha256:f35a6a022348fae47e092a908339a8f3dc993510c026bb39a96718fc7185e89f", size = 333661, upload-time = "2026-03-17T10:46:06.286Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/7e/c85f41243086a8fe5d1baeba527cb26a1918158a565932b41e0f7c0b32e9/pypdf-6.9.2-py3-none-any.whl", hash = "sha256:662cf29bcb419a36a1365232449624ab40b7c2d0cfc28e54f42eeecd1fd7e844", size = 333744, upload-time = "2026-03-23T14:53:26.573Z" },
 ]
 
 [[package]]
@@ -4821,13 +4821,13 @@ requires-dist = [
     { name = "jsonpath-ng", specifier = "==1.7.0" },
     { name = "jwcrypto", specifier = "==1.5.6" },
     { name = "kaleido", specifier = "==0.2.1" },
-    { name = "litellm", specifier = "==1.76.3" },
+    { name = "litellm", specifier = "==1.83.0" },
     { name = "markdownify", specifier = "==1.2.0" },
     { name = "markitdown", extras = ["all"], specifier = "==0.1.4" },
     { name = "mermaid-cli", specifier = "==0.1.2" },
     { name = "nanoid", specifier = "==2.0.0" },
     { name = "numpy", specifier = "==2.2.6" },
-    { name = "openai", specifier = "==1.99.9" },
+    { name = "openai", specifier = "==2.8.0" },
     { name = "openfeature-sdk", specifier = "==0.8.4" },
     { name = "pandas", specifier = "==2.3.2" },
     { name = "pillow", specifier = "==12.1.1" },
@@ -4841,7 +4841,7 @@ requires-dist = [
     { name = "pydub", specifier = "==0.25.1" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
-    { name = "pypdf", specifier = "==6.9.1" },
+    { name = "pypdf", specifier = "==6.9.2" },
     { name = "pystache", specifier = "==0.6.8" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },
@@ -4921,16 +4921,16 @@ wheels = [
 
 [[package]]
 name = "speechrecognition"
-version = "3.15.2"
+version = "3.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "standard-aifc", marker = "python_full_version >= '3.13'" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/a1/979c4ada54bf81a5c8be8a38b356affdd61fae1f6238018195e2bd1b0a55/speechrecognition-3.15.2.tar.gz", hash = "sha256:b938395178f2138775e4bb553f92e2b629a64113dd7de3b2fd7d1d43ab689770", size = 32855237, upload-time = "2026-03-25T09:30:20.778Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/68/903023341b71dcb0fb2f58984bbd4d0483ed0205f6e3e638aa0cb0442c63/speechrecognition-3.16.0.tar.gz", hash = "sha256:32100621e13ffa58df3c962f7c9e0f1f092be7be305fa5bd9579581d17b78191", size = 32855936, upload-time = "2026-04-05T14:54:40.29Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/10/5221e6e672e41e40f15f5b5d384b1f06dd05ba950a2dad621d00e5ffc58c/speechrecognition-3.15.2-py3-none-any.whl", hash = "sha256:5d4ef35baec50490d6d08978d05448312e451924bb00122e85e5995d0407d6b5", size = 32852189, upload-time = "2026-03-25T09:30:15.26Z" },
+    { url = "https://files.pythonhosted.org/packages/53/6f/a795d6d9c95e14404e381708fb96dbdfc6156ddf20484633a9800847c19c/speechrecognition-3.16.0-py3-none-any.whl", hash = "sha256:045ad40fe255544aea7b1b6182f2b7ba4aa637286f5a1ddb04a75cc808df9718", size = 32853265, upload-time = "2026-04-05T14:54:34.967Z" },
 ]
 
 [[package]]
