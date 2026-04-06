@@ -26,7 +26,7 @@ If you are using the Agent Mesh Enterprise web interface to manage gateways, see
 
 Before you begin, make sure you have the following:
 
-1. Agent Mesh Enterprise deployed via Docker, Kubernetes, or Python
+1. Agent Mesh Enterprise deployed via Docker, Kubernetes, or Wheel file
 2. Access to an Azure Active Directory tenant
 3. An Azure subscription for creating Bot Service resources
 4. A public HTTPS endpoint for production, or ngrok for development and testing
@@ -117,7 +117,7 @@ Key adapter configuration parameters:
 
 ### Running the Gateway
 
-**With wheel/pip install:**
+**With Wheel install:**
 
 Start the gateway using the SAM CLI:
 
