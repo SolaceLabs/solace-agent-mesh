@@ -113,6 +113,7 @@ class TestTitleGenerationService:
             session_id="test-session",
             user_message="Hello",
             agent_response="Hi there!",
+            user_id="test-user",
             update_callback=mock_callback,
         )
 
