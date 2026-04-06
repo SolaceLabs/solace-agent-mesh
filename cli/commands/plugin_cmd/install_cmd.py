@@ -112,7 +112,7 @@ def install_plugin(plugin_source: str, installer_command: str | None = None) -> 
         install_target = plugin_source  # pip-style dashed name
         module_name = plugin_source.strip().replace("-", "_")
 
-    if plugin_source.startswith(("http://", "https://")) and plugin_source.endswith(
+    elif plugin_source.startswith(("http://", "https://")) and plugin_source.endswith(
         ".git"
     ):
         install_type = "repository"
