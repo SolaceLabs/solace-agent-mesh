@@ -45,12 +45,22 @@ After completing these steps, return here to configure and run the gateway.
 
 ### Environment Variables
 
-Set three environment variables for Teams authentication:
+Set the following environment variables for Teams authentication and broker connectivity:
 
 ```bash
+# Teams / Azure authentication
 TEAMS_BOT_ID="<Application (client) ID from Step 1>"
 TEAMS_BOT_PASSWORD="<Client secret Value from Step 1>"
 AZURE_TENANT_ID="<Directory (tenant) ID from Step 1>"
+
+# Solace broker connection
+SOLACE_BROKER_URL="<Solace broker WebSocket URL, e.g. ws://localhost:8080>"
+SOLACE_BROKER_USERNAME="<Solace broker username>"
+SOLACE_BROKER_PASSWORD="<Solace broker password>"
+SOLACE_BROKER_VPN="<Solace broker VPN name>"
+
+# Namespace
+NAMESPACE="<your message broker topic namespace>"
 ```
 
 ### Gateway Configuration
@@ -132,7 +142,6 @@ Use the Docker Compose example below to start the gateway in a container.
 ### Docker Compose Example
 
 ```yaml
-version: '3.8'
 services:
   teams-gateway:
     image: solace-agent-mesh-enterprise:latest
@@ -144,12 +153,33 @@ services:
       - TEAMS_BOT_ID=${TEAMS_BOT_ID}
       - TEAMS_BOT_PASSWORD=${TEAMS_BOT_PASSWORD}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
-      - NAMESPACE=your-namespace
-      - SOLACE_BROKER_URL=ws://broker:8080
+      - SOLACE_BROKER_URL=${SOLACE_BROKER_URL}
+      - SOLACE_BROKER_USERNAME=${SOLACE_BROKER_USERNAME}
+      - SOLACE_BROKER_PASSWORD=${SOLACE_BROKER_PASSWORD}
+      - SOLACE_BROKER_VPN=${SOLACE_BROKER_VPN}
+      - NAMESPACE=${NAMESPACE}
     command: ["run", "/config/teams-gateway.yaml"]
 ```
 
-Set `NAMESPACE` to your message broker topic namespace and `SOLACE_BROKER_URL` to your Solace broker instance.
+The Docker Compose file references environment variables using `${...}` syntax. Create a `.env` file in the same directory as your `docker-compose.yaml` with all the required values:
+
+```bash
+# .env
+TEAMS_BOT_ID=your-app-client-id
+TEAMS_BOT_PASSWORD=your-client-secret
+AZURE_TENANT_ID=your-tenant-id
+SOLACE_BROKER_URL=ws://broker:8080
+SOLACE_BROKER_USERNAME=your-broker-username
+SOLACE_BROKER_PASSWORD=your-broker-password
+SOLACE_BROKER_VPN=your-vpn-name
+NAMESPACE=your-namespace
+```
+
+Docker Compose automatically reads the `.env` file. Then start the gateway:
+
+```bash
+docker compose up -d
+```
 
 ## Configure the Webhook URL
 
