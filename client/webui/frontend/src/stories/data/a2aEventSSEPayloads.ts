@@ -536,12 +536,14 @@ const parallelToolCallEvents: A2AEventSSEPayload[] = [
         "OrchestratorAgent",
         offsetTime(1000)
     ),
+    // parallel_group_id tells the layout engine to render these side-by-side
     makeSignalEvent(
         "tool_invocation_start",
         {
             function_call_id: "fc-ny-1",
             tool_name: "get_weather",
             tool_args: { city: "New York" },
+            parallel_group_id: "pg-weather-1",
         },
         "OrchestratorAgent",
         offsetTime(1100)
@@ -552,6 +554,7 @@ const parallelToolCallEvents: A2AEventSSEPayload[] = [
             function_call_id: "fc-london-1",
             tool_name: "get_weather",
             tool_args: { city: "London" },
+            parallel_group_id: "pg-weather-1",
         },
         "OrchestratorAgent",
         offsetTime(1100)
@@ -593,7 +596,7 @@ const parallelToolCallEvents: A2AEventSSEPayload[] = [
         "OrchestratorAgent",
         offsetTime(2200)
     ),
-    // LLM response to agent (text, not tool call) → AGENT_LLM_RESPONSE_TO_AGENT
+    // LLM response to agent (text, not tool call)
     makeSignalEvent(
         "llm_response",
         {
@@ -620,6 +623,197 @@ export const parallelToolCallTask = makeTask({
 
 export const parallelToolCallMonitoredTasks: Record<string, TaskFE> = {
     "task-1": parallelToolCallTask,
+};
+
+// --- Scenario: Parallel Peer Delegation ---
+// Covers: Multiple peer agents invoked in parallel, each with their own sub-task
+
+const parallelPeerParentEvents: A2AEventSSEPayload[] = [
+    makeRequestEvent("Check order #9999 validity and fetch shipping estimate", offsetTime(0)),
+    makeSignalEvent(
+        "llm_invocation",
+        {
+            request: {
+                model: "claude-sonnet-4-6",
+                contents: [{ role: "user", parts: [{ text: "Check order #9999 validity and fetch shipping estimate" }] }],
+            },
+        },
+        "OrchestratorAgent",
+        offsetTime(200)
+    ),
+    // LLM decides to call two peer agents in parallel
+    makeSignalEvent(
+        "llm_response",
+        {
+            data: {
+                content: {
+                    parts: [
+                        {
+                            function_call: {
+                                id: "fc-validate-9",
+                                name: "peer_ValidatorAgent",
+                                args: { order_id: "9999" },
+                            },
+                        },
+                        {
+                            function_call: {
+                                id: "fc-shipping-9",
+                                name: "peer_ShippingAgent",
+                                args: { order_id: "9999" },
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+        "OrchestratorAgent",
+        offsetTime(1000)
+    ),
+    makeSignalEvent(
+        "tool_invocation_start",
+        {
+            function_call_id: "fc-validate-9",
+            tool_name: "peer_ValidatorAgent",
+            tool_args: { order_id: "9999" },
+        },
+        "OrchestratorAgent",
+        offsetTime(1100)
+    ),
+    makeSignalEvent(
+        "tool_invocation_start",
+        {
+            function_call_id: "fc-shipping-9",
+            tool_name: "peer_ShippingAgent",
+            tool_args: { order_id: "9999" },
+        },
+        "OrchestratorAgent",
+        offsetTime(1100)
+    ),
+    makeSignalEvent(
+        "tool_result",
+        {
+            function_call_id: "fc-validate-9",
+            tool_name: "peer_ValidatorAgent",
+            result_data: { is_valid: true },
+        },
+        "OrchestratorAgent",
+        offsetTime(3000)
+    ),
+    makeSignalEvent(
+        "tool_result",
+        {
+            function_call_id: "fc-shipping-9",
+            tool_name: "peer_ShippingAgent",
+            result_data: { estimated_days: 3, carrier: "FedEx" },
+        },
+        "OrchestratorAgent",
+        offsetTime(3200)
+    ),
+    makeStatusUpdateEvent("Order #9999 is valid. Estimated delivery: 3 days via FedEx.", "OrchestratorAgent", offsetTime(3800)),
+    makeCompletedResponseEvent("Order #9999 is valid. Estimated delivery: 3 days via FedEx.", "OrchestratorAgent", offsetTime(4000)),
+];
+
+const parallelPeerValidatorEvents: A2AEventSSEPayload[] = [
+    makeEvent({
+        direction: "request",
+        timestamp: offsetTime(1200),
+        task_id: "task-pp-2",
+        source_entity: "OrchestratorAgent",
+        target_entity: "ValidatorAgent",
+        payload_summary: { method: "message/send" },
+        full_payload: {
+            method: "message/send",
+            params: {
+                message: {
+                    parts: [{ kind: "text", text: "Validate order #9999" }],
+                    metadata: { function_call_id: "fc-validate-9", parentTaskId: "task-1", agent_name: "ValidatorAgent" },
+                },
+                metadata: { function_call_id: "fc-validate-9", parentTaskId: "task-1" },
+            },
+        },
+    }),
+    makeSignalEvent(
+        "llm_invocation",
+        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Validate order #9999" }] }] } },
+        "ValidatorAgent",
+        offsetTime(1500),
+        "task-pp-2"
+    ),
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ text: "Order #9999 is valid." }] } } },
+        "ValidatorAgent",
+        offsetTime(2200),
+        "task-pp-2"
+    ),
+    makeCompletedResponseEvent("Order #9999 is valid.", "ValidatorAgent", offsetTime(2500), "task-pp-2"),
+];
+
+const parallelPeerShippingEvents: A2AEventSSEPayload[] = [
+    makeEvent({
+        direction: "request",
+        timestamp: offsetTime(1200),
+        task_id: "task-pp-3",
+        source_entity: "OrchestratorAgent",
+        target_entity: "ShippingAgent",
+        payload_summary: { method: "message/send" },
+        full_payload: {
+            method: "message/send",
+            params: {
+                message: {
+                    parts: [{ kind: "text", text: "Get shipping estimate for order #9999" }],
+                    metadata: { function_call_id: "fc-shipping-9", parentTaskId: "task-1", agent_name: "ShippingAgent" },
+                },
+                metadata: { function_call_id: "fc-shipping-9", parentTaskId: "task-1" },
+            },
+        },
+    }),
+    makeSignalEvent(
+        "llm_invocation",
+        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Get shipping estimate for order #9999" }] }] } },
+        "ShippingAgent",
+        offsetTime(1500),
+        "task-pp-3"
+    ),
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ text: "Estimated 3 days via FedEx." }] } } },
+        "ShippingAgent",
+        offsetTime(2500),
+        "task-pp-3"
+    ),
+    makeCompletedResponseEvent("Estimated 3 days via FedEx.", "ShippingAgent", offsetTime(2800), "task-pp-3"),
+];
+
+const parallelPeerParentTask = makeTask({
+    taskId: "task-1",
+    initialRequestText: "Check order #9999 validity and fetch shipping estimate",
+    events: parallelPeerParentEvents,
+    lastUpdated: new Date(offsetTime(4000)),
+});
+
+const parallelPeerValidatorTask = makeTask({
+    taskId: "task-pp-2",
+    initialRequestText: "Validate order #9999",
+    events: parallelPeerValidatorEvents,
+    firstSeen: new Date(offsetTime(1200)),
+    lastUpdated: new Date(offsetTime(2500)),
+    parentTaskId: "task-1",
+});
+
+const parallelPeerShippingTask = makeTask({
+    taskId: "task-pp-3",
+    initialRequestText: "Get shipping estimate for order #9999",
+    events: parallelPeerShippingEvents,
+    firstSeen: new Date(offsetTime(1200)),
+    lastUpdated: new Date(offsetTime(2800)),
+    parentTaskId: "task-1",
+});
+
+export const parallelPeerMonitoredTasks: Record<string, TaskFE> = {
+    "task-1": parallelPeerParentTask,
+    "task-pp-2": parallelPeerValidatorTask,
+    "task-pp-3": parallelPeerShippingTask,
 };
 
 // --- Scenario: Workflow with Map Progress and Agent Request ---
@@ -761,4 +955,213 @@ const workflowAgentSubTask = makeTask({
 export const workflowMapMonitoredTasks: Record<string, TaskFE> = {
     "task-1": workflowMapParentTask,
     "task-wf-agent-1": workflowAgentSubTask,
+};
+
+// --- Scenario: Parallel Peer Delegation with Mixed Tool Patterns ---
+// AnalysisAgent: sequential tool calls (fetch_data → analyze_data)
+// ReportAgent: parallel tool calls (generate_chart + generate_summary)
+
+const mixedParallelParentEvents: A2AEventSSEPayload[] = [
+    makeRequestEvent("Analyze Q1 sales data and produce a report with charts", offsetTime(0)),
+    makeSignalEvent(
+        "llm_invocation",
+        {
+            request: {
+                model: "claude-sonnet-4-6",
+                contents: [{ role: "user", parts: [{ text: "Analyze Q1 sales data and produce a report with charts" }] }],
+            },
+        },
+        "OrchestratorAgent",
+        offsetTime(200)
+    ),
+    // LLM decides to call two peer agents in parallel
+    makeSignalEvent(
+        "llm_response",
+        {
+            data: {
+                content: {
+                    parts: [
+                        { function_call: { id: "fc-analysis-1", name: "peer_AnalysisAgent", args: { dataset: "Q1 sales" } } },
+                        { function_call: { id: "fc-report-1", name: "peer_ReportAgent", args: { dataset: "Q1 sales", include_charts: true } } },
+                    ],
+                },
+            },
+        },
+        "OrchestratorAgent",
+        offsetTime(1000)
+    ),
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-analysis-1", tool_name: "peer_AnalysisAgent", tool_args: { dataset: "Q1 sales" } }, "OrchestratorAgent", offsetTime(1100)),
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-report-1", tool_name: "peer_ReportAgent", tool_args: { dataset: "Q1 sales", include_charts: true } }, "OrchestratorAgent", offsetTime(1100)),
+    // Both peer agents complete
+    makeSignalEvent("tool_result", { function_call_id: "fc-analysis-1", tool_name: "peer_AnalysisAgent", result_data: { trend: "upward", growth: "12%" } }, "OrchestratorAgent", offsetTime(5000)),
+    makeSignalEvent("tool_result", { function_call_id: "fc-report-1", tool_name: "peer_ReportAgent", result_data: { report_url: "/reports/q1.pdf", charts: 3 } }, "OrchestratorAgent", offsetTime(5500)),
+    makeStatusUpdateEvent("Analysis complete: Q1 shows 12% growth. Report generated with 3 charts.", "OrchestratorAgent", offsetTime(6000)),
+    makeCompletedResponseEvent("Analysis complete: Q1 shows 12% growth. Report generated with 3 charts.", "OrchestratorAgent", offsetTime(6500)),
+];
+
+// AnalysisAgent: sequential tool calls (fetch_data → analyze_data)
+const mixedParallelAnalysisEvents: A2AEventSSEPayload[] = [
+    makeEvent({
+        direction: "request",
+        timestamp: offsetTime(1200),
+        task_id: "task-mix-analysis",
+        source_entity: "OrchestratorAgent",
+        target_entity: "AnalysisAgent",
+        payload_summary: { method: "message/send" },
+        full_payload: {
+            method: "message/send",
+            params: {
+                message: {
+                    parts: [{ kind: "text", text: "Analyze Q1 sales data" }],
+                    metadata: { function_call_id: "fc-analysis-1", parentTaskId: "task-1", agent_name: "AnalysisAgent" },
+                },
+                metadata: { function_call_id: "fc-analysis-1", parentTaskId: "task-1" },
+            },
+        },
+    }),
+    // LLM call → decides to fetch data first
+    makeSignalEvent(
+        "llm_invocation",
+        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Analyze Q1 sales data" }] }] } },
+        "AnalysisAgent",
+        offsetTime(1400),
+        "task-mix-analysis"
+    ),
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ function_call: { id: "fc-fetch-1", name: "fetch_data", args: { source: "sales_db", quarter: "Q1" } } }] } } },
+        "AnalysisAgent",
+        offsetTime(1800),
+        "task-mix-analysis"
+    ),
+    // Sequential tool 1: fetch_data
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-fetch-1", tool_name: "fetch_data", tool_args: { source: "sales_db", quarter: "Q1" } }, "AnalysisAgent", offsetTime(1900), "task-mix-analysis"),
+    makeSignalEvent("tool_result", { function_call_id: "fc-fetch-1", tool_name: "fetch_data", result_data: { rows: 5000, columns: ["date", "amount", "region"] } }, "AnalysisAgent", offsetTime(2500), "task-mix-analysis"),
+    // Second LLM call after fetch → decides to analyze
+    makeSignalEvent(
+        "llm_invocation",
+        {
+            request: {
+                model: "claude-sonnet-4-6",
+                contents: [
+                    { role: "user", parts: [{ text: "Analyze Q1 sales data" }] },
+                    { role: "model", parts: [{ function_call: { id: "fc-fetch-1", name: "fetch_data" } }] },
+                    { role: "user", parts: [{ function_response: { name: "fetch_data", response: { rows: 5000 } } }] },
+                ],
+            },
+        },
+        "AnalysisAgent",
+        offsetTime(2600),
+        "task-mix-analysis"
+    ),
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ function_call: { id: "fc-analyze-1", name: "analyze_data", args: { method: "trend_analysis" } } }] } } },
+        "AnalysisAgent",
+        offsetTime(3000),
+        "task-mix-analysis"
+    ),
+    // Sequential tool 2: analyze_data
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-analyze-1", tool_name: "analyze_data", tool_args: { method: "trend_analysis" } }, "AnalysisAgent", offsetTime(3100), "task-mix-analysis"),
+    makeSignalEvent("tool_result", { function_call_id: "fc-analyze-1", tool_name: "analyze_data", result_data: { trend: "upward", growth_rate: "12%", top_region: "North America" } }, "AnalysisAgent", offsetTime(4000), "task-mix-analysis"),
+    // Final LLM response
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ text: "Q1 sales show 12% upward trend. Top region: North America." }] } } },
+        "AnalysisAgent",
+        offsetTime(4200),
+        "task-mix-analysis"
+    ),
+    makeCompletedResponseEvent("Q1 sales show 12% upward trend. Top region: North America.", "AnalysisAgent", offsetTime(4500), "task-mix-analysis"),
+];
+
+// ReportAgent: parallel tool calls (generate_chart + generate_summary)
+const mixedParallelReportEvents: A2AEventSSEPayload[] = [
+    makeEvent({
+        direction: "request",
+        timestamp: offsetTime(1200),
+        task_id: "task-mix-report",
+        source_entity: "OrchestratorAgent",
+        target_entity: "ReportAgent",
+        payload_summary: { method: "message/send" },
+        full_payload: {
+            method: "message/send",
+            params: {
+                message: {
+                    parts: [{ kind: "text", text: "Generate report with charts for Q1 sales" }],
+                    metadata: { function_call_id: "fc-report-1", parentTaskId: "task-1", agent_name: "ReportAgent" },
+                },
+                metadata: { function_call_id: "fc-report-1", parentTaskId: "task-1" },
+            },
+        },
+    }),
+    // LLM call → decides to generate chart and summary in parallel
+    makeSignalEvent(
+        "llm_invocation",
+        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Generate report with charts for Q1 sales" }] }] } },
+        "ReportAgent",
+        offsetTime(1400),
+        "task-mix-report"
+    ),
+    makeSignalEvent(
+        "llm_response",
+        {
+            data: {
+                content: {
+                    parts: [
+                        { function_call: { id: "fc-chart-1", name: "generate_chart", args: { type: "bar", data: "Q1 sales by region" } } },
+                        { function_call: { id: "fc-summary-1", name: "generate_summary", args: { format: "executive", quarter: "Q1" } } },
+                    ],
+                },
+            },
+        },
+        "ReportAgent",
+        offsetTime(1800),
+        "task-mix-report"
+    ),
+    // Parallel tool calls with parallel_group_id
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-chart-1", tool_name: "generate_chart", tool_args: { type: "bar", data: "Q1 sales by region" }, parallel_group_id: "pg-report-1" }, "ReportAgent", offsetTime(1900), "task-mix-report"),
+    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-summary-1", tool_name: "generate_summary", tool_args: { format: "executive", quarter: "Q1" }, parallel_group_id: "pg-report-1" }, "ReportAgent", offsetTime(1900), "task-mix-report"),
+    makeSignalEvent("tool_result", { function_call_id: "fc-chart-1", tool_name: "generate_chart", result_data: { chart_url: "/charts/q1_bar.png", type: "bar" } }, "ReportAgent", offsetTime(3000), "task-mix-report"),
+    makeSignalEvent("tool_result", { function_call_id: "fc-summary-1", tool_name: "generate_summary", result_data: { summary: "Q1 revenue up 12%, led by North America." } }, "ReportAgent", offsetTime(3200), "task-mix-report"),
+    // Final LLM response
+    makeSignalEvent(
+        "llm_response",
+        { data: { content: { parts: [{ text: "Report generated with bar chart and executive summary." }] } } },
+        "ReportAgent",
+        offsetTime(3800),
+        "task-mix-report"
+    ),
+    makeCompletedResponseEvent("Report generated with bar chart and executive summary.", "ReportAgent", offsetTime(4000), "task-mix-report"),
+];
+
+const mixedParallelParentTask = makeTask({
+    taskId: "task-1",
+    initialRequestText: "Analyze Q1 sales data and produce a report with charts",
+    events: mixedParallelParentEvents,
+    lastUpdated: new Date(offsetTime(6500)),
+});
+
+const mixedParallelAnalysisTask = makeTask({
+    taskId: "task-mix-analysis",
+    initialRequestText: "Analyze Q1 sales data",
+    events: mixedParallelAnalysisEvents,
+    firstSeen: new Date(offsetTime(1200)),
+    lastUpdated: new Date(offsetTime(4500)),
+    parentTaskId: "task-1",
+});
+
+const mixedParallelReportTask = makeTask({
+    taskId: "task-mix-report",
+    initialRequestText: "Generate report with charts for Q1 sales",
+    events: mixedParallelReportEvents,
+    firstSeen: new Date(offsetTime(1200)),
+    lastUpdated: new Date(offsetTime(4000)),
+    parentTaskId: "task-1",
+});
+
+export const mixedParallelMonitoredTasks: Record<string, TaskFE> = {
+    "task-1": mixedParallelParentTask,
+    "task-mix-analysis": mixedParallelAnalysisTask,
+    "task-mix-report": mixedParallelReportTask,
 };
