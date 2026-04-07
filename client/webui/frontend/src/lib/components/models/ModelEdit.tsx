@@ -30,7 +30,7 @@ interface ModelEditProps {
     isNew: boolean;
     modelToEdit: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
-    onValidityChange: (isValid: boolean) => void;
+    onValidityChange?: (isValid: boolean) => void;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
     availableProviders?: ModelProvider[];
@@ -123,7 +123,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [isDirty, onDirtyStateChange]);
 
     useEffect(() => {
-        onValidityChange(isValid);
+        onValidityChange?.(isValid);
     }, [isValid, onValidityChange]);
 
     // Update provider config and reset dynamic fields when provider changes

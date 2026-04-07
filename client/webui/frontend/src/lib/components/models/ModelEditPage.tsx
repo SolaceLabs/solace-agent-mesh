@@ -129,7 +129,7 @@ export const ModelEditPage = () => {
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
 
-                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} onValidityChange={() => {}} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
+                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
 
             <Footer>
