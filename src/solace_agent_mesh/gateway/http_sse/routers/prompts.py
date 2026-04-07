@@ -43,6 +43,32 @@ router = APIRouter()
 # Helper Functions
 # ============================================================================
 
+def get_component_name(component: "WebUIBackendComponent") -> str:
+    """
+    Returns component name for observability metrics with controlled cardinality.
+
+    - Agent components: returns actual agent_name (we track individual agents)
+    - Gateway components: returns "gateway" (we don't need per-gateway granularity)
+    - Workflow components: returns "workflow" (we don't need per-workflow granularity)
+    - Unknown: returns "unknown"
+
+    This prevents metric cardinality explosion while preserving useful agent-level metrics.
+    """
+    agent_name = getattr(component, "agent_name", None)
+    if agent_name:
+        return agent_name
+
+    gateway_id = getattr(component, "gateway_id", None)
+    if gateway_id:
+        return "gateway"
+
+    workflow_name = getattr(component, "workflow_name", None)
+    if workflow_name:
+        return "workflow"
+
+    return "unknown"
+
+
 def get_latest_prompt(db: Session, group_id: str) -> Optional[PromptModel]:
     """
     Get the latest prompt version for a group (highest version number).
@@ -1079,7 +1105,7 @@ async def prompt_builder_chat(
         assistant = PromptBuilderAssistant(llm=llm, db=db)
 
         # Process the message using real LLM with conflict checking
-        with ObservabilityContext(component_name=component.agent_name, owner_id=user_id):
+        with ObservabilityContext(component_name=get_component_name(component), owner_id=user_id):
             response = await assistant.process_message(
                 user_message=request.message,
                 conversation_history=[msg.model_dump() for msg in request.conversation_history],
