@@ -18,7 +18,6 @@ export const ModelEditPage = () => {
 
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
-    const [isFormValid, setIsFormValid] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [modelsByProvider, setModelsByProvider] = useState<Record<string, Array<{ id: string; label: string }>>>({});
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
@@ -130,14 +129,14 @@ export const ModelEditPage = () => {
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
 
-                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} onValidityChange={setIsFormValid} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
+                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} onValidityChange={() => {}} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
 
             <Footer>
-                <Button variant="outline" title="Cancel" onClick={handleCancel} disabled={isLoading}>
+                <Button variant="ghost" title="Cancel" onClick={handleCancel} disabled={isLoading}>
                     Cancel
                 </Button>
-                <Button type="submit" form="model-form" disabled={!isFormValid || isLoading} title={isNew ? "Add Model" : "Save Model"}>
+                <Button type="submit" form="model-form" disabled={isLoading} title={isNew ? "Add Model" : "Save Model"}>
                     {isLoading ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
             </Footer>
