@@ -43,7 +43,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const {
         register,
         control,
-        formState: { errors, isDirty, isValid, dirtyFields },
+        formState: { errors, isDirty, dirtyFields },
         handleSubmit,
         watch,
         setValue,
