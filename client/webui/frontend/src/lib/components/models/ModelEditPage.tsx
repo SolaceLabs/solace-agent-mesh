@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
@@ -7,7 +7,8 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelById, fetchSupportedModelsByProvider, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
+import { fetchModelById, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
+import { useSupportedModels } from "@/lib/api/models";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
 
@@ -17,12 +18,9 @@ export const ModelEditPage = () => {
     const isNew = !modelId;
 
     const [isLoading, setIsLoading] = useState(false);
-    const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [modelsByProvider, setModelsByProvider] = useState<Record<string, Array<{ id: string; label: string }>>>({});
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
-    const fetchedRef = useRef<Set<string>>(new Set()); // Track what we've already fetched
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
@@ -42,40 +40,11 @@ export const ModelEditPage = () => {
         }
     }, [isNew, modelId]);
 
-    // When editing an existing model, fetch models for its provider using stored credentials
-    useEffect(() => {
-        if (!isNew && modelToEdit) {
-            const cacheKey = `${modelToEdit.provider}:${modelToEdit.id}`;
-
-            // Skip if we've already fetched this exact provider:id combo
-            if (fetchedRef.current.has(cacheKey)) {
-                return;
-            }
-
-            fetchedRef.current.add(cacheKey);
-            setIsFetchingModels(true);
-
-            fetchSupportedModelsByProvider(modelToEdit.provider, modelToEdit.id)
-                .then(models => {
-                    setModelsByProvider(prev => ({
-                        ...prev,
-                        [modelToEdit.provider]: models,
-                    }));
-                })
-                .catch((error: Error) => {
-                    // TODO: Surface a subtle UI notification so the user knows model fetch failed
-                    // and can fall back to manual entry. Discuss UX approach with design team.
-                    console.error(`Error fetching models for provider ${modelToEdit.provider}:`, error);
-                    setModelsByProvider(prev => ({
-                        ...prev,
-                        [modelToEdit.provider]: [],
-                    }));
-                })
-                .finally(() => {
-                    setIsFetchingModels(false);
-                });
-        }
-    }, [modelToEdit, isNew]);
+    // Fetch models for the provider being edited using stored credentials.
+    // React Query caches the result so ModelEdit's dropdown open with the same params
+    // returns instantly without a duplicate network call.
+    const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
+    const modelsByProvider = modelToEdit ? { [modelToEdit.provider]: initialModels } : {};
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
         setIsLoading(true);
