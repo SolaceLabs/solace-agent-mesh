@@ -51,7 +51,6 @@ export interface ProviderField {
     placeholder?: string;
     helpText?: string;
     storageTarget: "model_params" | "auth";
-    appLayerOnly?: boolean; // true for params handled by SAM, never forwarded to litellm
     min?: number; // for number fields
     max?: number;
     step?: number;
@@ -61,20 +60,6 @@ export interface ProviderField {
 export interface SupportedModel {
     id: string;
     label: string;
-}
-
-/**
- * Returns a warning message if a model_params field is known to be unsupported
- * by the currently selected model. Returns undefined when:
- * - supportedParams is null/empty (params not yet fetched or model unrecognised)
- * - the field is app-layer only (handled by SAM, never forwarded to litellm)
- * - the field is confirmed supported
- */
-export function getParamUnsupportedWarning(field: ProviderField, supportedParams: string[] | null): string | undefined {
-    if (field.appLayerOnly) return undefined;
-    if (!supportedParams || supportedParams.length === 0) return undefined;
-    if (supportedParams.includes(field.name)) return undefined;
-    return "This parameter may not be supported by the selected model";
 }
 
 /**
@@ -274,7 +259,6 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         required: false,
         helpText: "Controls how the model caches prompts for cost optimization",
         storageTarget: "model_params",
-        appLayerOnly: true,
         options: [
             { value: "5m", label: "5 minutes (default)" },
             { value: "1h", label: "1 hour" },

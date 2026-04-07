@@ -8,19 +8,7 @@ import type { ModelConfig } from "@/lib/api/models";
 import { useSupportedModels, type SupportedModelsQueryParams } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
 import { PasswordInput } from "@/lib/components/common";
-import {
-    getProviderConfig,
-    buildModelPayload,
-    getParamUnsupportedWarning,
-    AUTH_FIELDS,
-    AUTH_TYPE_LABELS,
-    COMMON_MODEL_PARAMS,
-    AUTH_CONFIG_TO_FORM_FIELD_MAP,
-    type AuthType,
-    type ProviderField,
-    type ModelProvider,
-    type ModelFormData,
-} from "./modelProviderUtils";
+import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
@@ -312,12 +300,11 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // structural fields (clientId, tokenUrl, etc.) remain required for setup
         const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "vertexCredentials"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
-        const warning = field.storageTarget === "model_params" ? getParamUnsupportedWarning(field, supportedParams) : undefined;
 
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -326,7 +313,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Textarea fields use FormField wrapper
         if (field.type === "textarea") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Textarea
                         rows={6}
                         placeholder={field.placeholder}
@@ -342,7 +329,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Select fields use native Select component
         if (field.type === "select") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Controller
                         name={field.name}
                         control={control}
@@ -375,7 +362,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             if (field.max !== undefined) rules.max = { value: field.max, message: `Maximum value is ${field.max}` };
         }
         return (
-            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
+            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                 <Input
                     {...register(field.name, rules)}
                     type={field.type === "number" ? "number" : "text"}
