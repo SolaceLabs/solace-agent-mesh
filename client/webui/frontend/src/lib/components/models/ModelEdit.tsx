@@ -547,14 +547,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group border-t pt-4">
+                                <details className="group mt-10">
                                     <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
                                         {/* Custom Parameters */}
-                                        <div className="border-t pt-4">
+                                        <div className="mt-10">
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
