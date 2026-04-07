@@ -156,7 +156,7 @@ export const CreateNewModel: Story = {
 
         // Verify buttons
         const addButton = await canvas.findByRole("button", { name: /Add/i });
-        expect(addButton).toBeDisabled(); // Should be disabled until form is filled
+        expect(addButton).not.toBeDisabled(); // Submit is always enabled; validation runs on submit
     },
 };
 
@@ -397,7 +397,7 @@ export const TestConnectionSuccess: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // The Test Connection button should be present and enabled (provider + auth + model are set)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeInTheDocument();
         expect(testButton).not.toBeDisabled();
 
@@ -429,7 +429,7 @@ export const TestConnectionFailure: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // Click Test Connection
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         await userEvent.click(testButton);
 
         // Verify error banner appears
@@ -464,7 +464,7 @@ export const TestConnectionButtonDisabled: Story = {
         await userEvent.click(anthropicOption);
 
         // Test Connection button should now be visible but disabled (no auth or model yet)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeDisabled();
     },
 };

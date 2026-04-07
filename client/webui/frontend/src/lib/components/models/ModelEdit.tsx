@@ -76,7 +76,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [getValues, setValue]);
 
     const selectedProvider = watch("provider");
-    const selectedAuthType = watch("authType");
+    const selectedAuthType = watch("authType") || providerConfig?.allowedAuthTypes[0] || null;
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
