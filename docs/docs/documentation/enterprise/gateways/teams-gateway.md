@@ -230,7 +230,7 @@ You need to make `https://<your-domain>/api/messages` publicly accessible. Commo
 
 **Option 1: Ingress Controller**
 
-Create an Ingress resource that routes traffic to the gateway service. The following is an example using an AWS ALB Ingress (replace `sam-teams.yourdomain.com` with your own hostname):
+Create an Ingress resource that routes traffic to the gateway service. The following is an example using an AWS ALB Ingress (replace `gw-example.yourdomain.com` with your own hostname):
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -243,12 +243,15 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
     alb.ingress.kubernetes.io/certificate-arn: <your-acm-certificate-arn>
+    # Recommended: ensure the ALB health check targets the gateway's health endpoint
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/success-codes: "200"
     # If using external-dns, add this annotation to create DNS records automatically:
-    # external-dns.alpha.kubernetes.io/hostname: sam-teams.yourdomain.com
+    # external-dns.alpha.kubernetes.io/hostname: gw-example.yourdomain.com
 spec:
   ingressClassName: alb
   rules:
-    - host: sam-teams.yourdomain.com
+    - host: gw-example.yourdomain.com
       http:
         paths:
           - path: /
@@ -259,6 +262,50 @@ spec:
                 port:
                   number: 8092
 ```
+
+To expose **multiple Teams gateways**, add a rule per gateway with a unique hostname. You can use a single Ingress resource for all gateways rather than creating separate Ingress resources:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: teams-gateway-ingress
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: <your-acm-certificate-arn>
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/success-codes: "200"
+    # List all gateway hostnames (comma-separated) for external-dns:
+    # external-dns.alpha.kubernetes.io/hostname: gw-first.yourdomain.com,gw-second.yourdomain.com
+spec:
+  ingressClassName: alb
+  rules:
+    - host: gw-first.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gw-<first-dns-id>
+                port:
+                  number: 8092
+    - host: gw-second.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gw-<second-dns-id>
+                port:
+                  number: 8092
+```
+
+When adding a new gateway, add a new rule with its hostname and service name, and update the `external-dns` hostname annotation to include the new hostname.
 
 If your cluster does not have [external-dns](https://github.com/kubernetes-sigs/external-dns) configured, you will also need to create a DNS record manually. For example:
 
