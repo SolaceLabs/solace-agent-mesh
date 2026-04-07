@@ -535,8 +535,7 @@ class ModelConfigService:
             # Build litellm call kwargs
             litellm_kwargs: Dict[str, Any] = {
                 "model": _resolve_litellm_model_name(provider, model_name),
-                "messages": [{"role": "user", "content": "Say OK"}],
-                "max_tokens": 5,
+                "messages": [{"role": "user", "content": "Say OK"}]
             }
 
             # Only pass api_base for providers that need a custom endpoint (e.g., Ollama, Azure,
@@ -559,9 +558,12 @@ class ModelConfigService:
             else:
                 litellm_kwargs.update(auth_kwargs)
 
-            # For connection testing, do NOT include model_params.
-            # The test is purely to verify connectivity and authentication work.
-            # Custom parameters are validated during actual model usage, not in the test.
+            # Include model_params (advanced settings + custom parameters) to verify they are
+            # accepted by the provider. Application-layer params that are never forwarded to
+            # litellm are excluded to avoid unexpected keyword argument errors.
+            _APP_LAYER_PARAMS = {"cache_strategy"}
+            model_params = {k: v for k, v in (request.model_params or {}).items() if k not in _APP_LAYER_PARAMS}
+            litellm_kwargs.update(model_params)
 
             # Make the test call
             response = litellm.completion(**litellm_kwargs)

@@ -6,17 +6,16 @@ from responses to ensure data security through the ModelConfigService business
 logic layer.
 """
 
-import os
 import asyncio
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Union
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from openfeature import api as openfeature_api
 
-from solace_agent_mesh.services.platform.services import ModelConfigService, ModelListService
+from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import (
     get_model_config_service,
-    get_model_list_service,
     get_model_dependents_handler,
     get_platform_db,
     get_component_instance,
@@ -29,16 +28,15 @@ from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelDependentResponse,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationBaseRequest,
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
-    SupportedModelsRequest,
     ModelConfigurationTestRequest,
 )
 from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
-from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
 
 
@@ -174,23 +172,42 @@ async def get_model(
 
 @router.post(
     "/models",
-    response_model=DataResponse[ModelConfigurationResponse],
-    status_code=status.HTTP_201_CREATED,
     summary="Create a model configuration",
-    description="Create a new model configuration. The alias must be unique (case-sensitive).",
+    description="Create a new model configuration. The alias must be unique (case-sensitive). "
+    "Pass validateOnly=true to test connectivity without persisting.",
 )
 async def create_model(
-    request: ModelConfigurationCreateRequest,
+    request: ModelConfigurationBaseRequest,
+    response: Response,
     _: None = Depends(_require_model_config_ui_enabled),
+    validate_only: bool = Query(False, alias="validateOnly"),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
-) -> DataResponse[ModelConfigurationResponse]:
+) -> DataResponse:
+    if validate_only:
+        test_request = ModelConfigurationTestRequest(
+            model_id=request.model_id,
+            provider=request.provider,
+            model_name=request.model_name,
+            api_base=request.api_base,
+            auth_config=request.auth_config or {},
+            model_params=request.model_params or {},
+        )
+        try:
+            success, message = await asyncio.to_thread(service.test_connection, db, test_request)
+        except Exception as e:
+            success = False
+            message = f"Test connection failed. {e}"
+        return create_data_response(ModelConfigurationTestResponse(success=success, message=message))
+
+    create_request = ModelConfigurationCreateRequest.model_validate(request.model_dump(exclude_none=True))
     created_by = user.get("id", "unknown")
-    config = service.create(db, request, created_by=created_by)
+    config = service.create(db, create_request, created_by=created_by)
     raw_config = service.get_by_id(db, config.id, raw=True)
     _emit_model_config_update(component, config.id, config.alias, raw_config)
+    response.status_code = status.HTTP_201_CREATED
     return create_data_response(config)
 
 @router.patch(
@@ -281,92 +298,4 @@ async def delete_model(
     service.delete(db, model_id)
     _emit_model_config_update(component, config.id, config.alias, None)
 
-@router.post(
-    "/supported-models",
-    response_model=DataResponse[list[dict]],
-    summary="List supported models for a provider",
-    description="Retrieve supported models by querying the provider API directly. Use model_alias for editing (stored credentials) or provide credentials for creating new models.",
-)
-async def list_supported_models_by_provider(
-    request: SupportedModelsRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelListService = Depends(get_model_list_service),
-    config_service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[list[dict]]:
-    """
-    Fetch supported models from a provider.
-
-    Three modes of operation:
-    - **Editing (no changes)**: Provide model_id only — uses stored credentials
-    - **Editing (with changes)**: Provide model_id + auth_config — merges stored
-      credentials with overrides (stored values fill in missing fields).
-      If auth type changed, only overrides are used (no cross-provider merging).
-    - **Creating**: Provide auth_config with credentials — queries provider directly
-
-    Auth validation and config building is delegated to ModelListService.
-    """
-    auth_config = dict(request.auth_config) if request.auth_config else {}
-
-    # Editing mode: use stored credentials, optionally merged with overrides
-    if request.model_id:
-        models = config_service.get_models_from_provider_by_id(
-            db,
-            request.model_id,
-            service,
-            provider_override=request.provider,
-            auth_config_overrides=auth_config if auth_config else None,
-            api_base_override=request.api_base,
-        )
-        return create_data_response(models)
-
-    # Creating mode: use credentials from request
-    auth_type = auth_config.get("type")
-    if not auth_type:
-        raise ValidationErrorBuilder().message(
-            "Either model_id (for editing) or auth_config with 'type' (for creating) is required"
-        ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
-
-    # Delegate auth validation and model fetching to service
-    models = service.get_models_with_new_credentials(
-        provider=request.provider,
-        api_base=request.api_base,
-        auth_type=auth_type,
-        auth_config=auth_config,
-        model_params=request.model_params,
-    )
-
-    return create_data_response(models)
-
-@router.post(
-    "/models/test",
-    response_model=DataResponse[ModelConfigurationTestResponse],
-    summary="Test a model configuration",
-    description="Test connectivity by making a minimal LLM call. Supports both new configurations (all config in body) and existing models (provide alias to use stored credentials as fallback).",
-)
-async def test_model_connection(
-    request: ModelConfigurationTestRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[ModelConfigurationTestResponse]:
-    """
-    Test a model configuration connection.
-    Makes a minimal LLM call with the provided configuration to verify connectivity
-    and validate credentials. Supports two scenarios:
-    1. New model: Provide all configuration details
-    2. Editing existing model: Provide alias to use stored credentials as fallback
-    When testing an existing model by alias, any empty auth_config fields will use
-    the stored values. This allows testing a new provider/model with existing credentials.
-    Args:
-        request: Test request with model configuration details
-        _: Feature flag dependency
-        db: Database session
-        service: Model configuration service
-    Returns:
-        DataResponse with success status and message
-    """
-    success, message = await asyncio.to_thread(service.test_connection, db, request)
-    response = ModelConfigurationTestResponse(success=success, message=message)
-    return create_data_response(response)
 

@@ -10,6 +10,7 @@ import { PasswordInput } from "@/lib/components/common";
 import {
     getProviderConfig,
     buildModelPayload,
+    getParamUnsupportedWarning,
     AUTH_FIELDS,
     AUTH_TYPE_LABELS,
     COMMON_MODEL_PARAMS,
@@ -20,7 +21,7 @@ import {
     type ModelProvider,
     type ModelFormData,
 } from "./modelProviderUtils";
-import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
+import { fetchSupportedModelsByProvider, fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
@@ -51,6 +52,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
     const [storedCredentialFields, setStoredCredentialFields] = useState<Set<string>>(new Set());
     const [isLoadingModels, setIsLoadingModels] = useState(false);
+    const [supportedParams, setSupportedParams] = useState<string[] | null>(null);
     const hasInitializedFromModelRef = useRef(false);
     const lastFetchSettingsRef = useRef<{
         provider: string | null;
@@ -71,8 +73,11 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     const handleAddCustomParam = useCallback(() => {
         const currentParams = getValues("customParams") ?? [];
-        setValue("customParams", [...currentParams, { key: "", value: "" }]);
+        setValue("customParams", [{ key: "", value: "" }, ...currentParams]);
     }, [getValues, setValue]);
+
+    const customParams = watch("customParams") ?? [];
+    const hasEmptyCustomParam = customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim());
 
     const selectedProvider = watch("provider");
     const selectedAuthType = watch("authType");
@@ -131,6 +136,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             const config = getProviderConfig(selectedProvider);
             setProviderConfig(config);
             setDynamicModels([]); // Reset dynamic models when provider changes
+            setSupportedParams(null); // Reset supported params when provider changes
             setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
             lastFetchSettingsRef.current = { provider: null, authType: null, apiBase: null, authConfig: null }; // Clear fetch tracking
 
@@ -160,6 +166,25 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // and including them would cause unnecessary re-runs of the provider reset logic
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
+
+    // Fetch supported params when model name or provider changes
+    useEffect(() => {
+        if (!selectedProvider || !selectedModelName) {
+            setSupportedParams(null);
+            return;
+        }
+        let cancelled = false;
+        fetchSupportedParams(selectedProvider, selectedModelName)
+            .then(params => {
+                if (!cancelled) setSupportedParams(params);
+            })
+            .catch(() => {
+                if (!cancelled) setSupportedParams(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedProvider, selectedModelName]);
 
     // Clear dynamic models when auth type or API key changes
     // This prevents showing stale models from previous credentials (avoids flicker)
@@ -315,19 +340,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                 });
 
                 // Populate common model params
-                knownParamNames.add("temperature");
-                knownParamNames.add("max_tokens");
-                knownParamNames.add("cache_strategy");
-
-                if ("temperature" in modelToEdit.modelParams) {
-                    setValue("temperature", String(modelToEdit.modelParams.temperature));
-                }
-                if ("max_tokens" in modelToEdit.modelParams) {
-                    setValue("maxTokens", String(modelToEdit.modelParams.max_tokens));
-                }
-                if ("cache_strategy" in modelToEdit.modelParams) {
-                    setValue("cache_strategy", String(modelToEdit.modelParams.cache_strategy));
-                }
+                COMMON_MODEL_PARAMS.forEach((field: ProviderField) => {
+                    knownParamNames.add(field.name);
+                    if (field.name in modelToEdit.modelParams) {
+                        setValue(field.name, String(modelToEdit.modelParams[field.name]));
+                    }
+                });
 
                 // Extract custom parameters (anything not in known params)
                 const customParamsArray = Object.entries(modelToEdit.modelParams)
@@ -352,11 +370,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // structural fields (clientId, tokenUrl, etc.) remain required for setup
         const isAuthCredentialField = field.storageTarget === "auth" && ["apiKey", "clientSecret", "awsSecretAccessKey", "awsSessionToken", "vertexCredentials"].includes(field.name);
         const isRequiredField = field.required && (!isAuthCredentialField || isNew);
+        const warning = field.storageTarget === "model_params" ? getParamUnsupportedWarning(field, supportedParams) : undefined;
 
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -365,7 +384,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Textarea fields use FormField wrapper
         if (field.type === "textarea") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
                     <Textarea
                         rows={6}
                         placeholder={field.placeholder}
@@ -381,7 +400,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Select fields use native Select component
         if (field.type === "select") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
                     <Controller
                         name={field.name}
                         control={control}
@@ -414,7 +433,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             if (field.max !== undefined) rules.max = { value: field.max, message: `Maximum value is ${field.max}` };
         }
         return (
-            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} warning={warning} helpText={field.helpText}>
                 <Input
                     {...register(field.name, rules)}
                     type={field.type === "number" ? "number" : "text"}
@@ -560,7 +579,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     <PageLabel>Custom Parameters</PageLabel>
                                                     <p className="text-secondary-foreground mt-1 text-sm">Add any additional parameters supported by your model provider.</p>
                                                 </div>
-                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam}>
                                                     <Plus className="mr-2 size-4" />
                                                     New Pair
                                                 </Button>
@@ -583,7 +602,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                             return true;
                                                         },
                                                     }}
-                                                    render={() => <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} />}
+                                                    render={() => (
+                                                        <>
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} />
+                                                            {supportedParams && supportedParams.length > 0 && customParams.some((p: { key: string }) => p.key && !supportedParams.includes(p.key)) && (
+                                                                <p className="mt-2 text-xs text-(--warning-wMain)">
+                                                                    Some custom parameters may not be supported by the selected model:{" "}
+                                                                    {customParams
+                                                                        .filter((p: { key: string }) => p.key && !supportedParams.includes(p.key))
+                                                                        .map((p: { key: string }) => p.key)
+                                                                        .join(", ")}
+                                                                </p>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 />
                                             </div>
                                         </div>

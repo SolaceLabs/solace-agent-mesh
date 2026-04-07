@@ -51,6 +51,7 @@ export interface ProviderField {
     placeholder?: string;
     helpText?: string;
     storageTarget: "model_params" | "auth";
+    appLayerOnly?: boolean; // true for params handled by SAM, never forwarded to litellm
     min?: number; // for number fields
     max?: number;
     step?: number;
@@ -60,6 +61,20 @@ export interface ProviderField {
 export interface SupportedModel {
     id: string;
     label: string;
+}
+
+/**
+ * Returns a warning message if a model_params field is known to be unsupported
+ * by the currently selected model. Returns undefined when:
+ * - supportedParams is null/empty (params not yet fetched or model unrecognised)
+ * - the field is app-layer only (handled by SAM, never forwarded to litellm)
+ * - the field is confirmed supported
+ */
+export function getParamUnsupportedWarning(field: ProviderField, supportedParams: string[] | null): string | undefined {
+    if (field.appLayerOnly) return undefined;
+    if (!supportedParams || supportedParams.length === 0) return undefined;
+    if (supportedParams.includes(field.name)) return undefined;
+    return "This parameter may not be supported by the selected model";
 }
 
 /**
@@ -87,8 +102,6 @@ export interface ModelFormData {
     vertexCredentials?: string;
     vertexProject?: string;
     vertexLocation?: string;
-    temperature?: string;
-    maxTokens?: string;
     customParams?: Array<{ key: string; value: string }>;
     [key: string]: unknown;
 }
@@ -239,18 +252,18 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         label: "Temperature",
         type: "number",
         required: false,
-        helpText: "Controls randomness (0-2)",
+        helpText: "Sampling temperature between 0 and 2. Higher values like 0.8 produce more random outputs, while lower values like 0.2 make outputs more focused and deterministic.",
         storageTarget: "model_params",
         min: 0,
         max: 2,
         step: 0.1,
     },
     {
-        name: "maxTokens",
+        name: "max_tokens",
         label: "Max Tokens",
         type: "number",
         required: false,
-        helpText: "Maximum number of tokens in response",
+        helpText: "The maximum number of tokens to generate in the response. Sets an upper limit on output length.",
         storageTarget: "model_params",
         min: 1,
     },
@@ -261,6 +274,7 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         required: false,
         helpText: "Controls how the model caches prompts for cost optimization",
         storageTarget: "model_params",
+        appLayerOnly: true,
         options: [
             { value: "5m", label: "5 minutes (default)" },
             { value: "1h", label: "1 hour" },
@@ -399,15 +413,12 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         }
     }
 
-    // Add common model params
-    if (data.temperature != null && data.temperature !== "") {
-        modelParams.temperature = Number(data.temperature);
-    }
-    if (data.maxTokens != null && data.maxTokens !== "") {
-        modelParams.max_tokens = Number(data.maxTokens);
-    }
-    if (data.cache_strategy != null && data.cache_strategy !== "") {
-        modelParams.cache_strategy = data.cache_strategy;
+    // Add common model params (iterate over COMMON_MODEL_PARAMS for consistency)
+    for (const field of COMMON_MODEL_PARAMS) {
+        const value = data[field.name];
+        if (value != null && value !== "") {
+            modelParams[field.name] = field.type === "number" ? Number(value) : value;
+        }
     }
 
     // Add custom parameters

@@ -466,10 +466,10 @@ class TestModelConfigurationAPI:
 
 
 class TestSupportedModelsAPI:
-    """Tests for /api/v1/platform/supported-models endpoints."""
+    """Tests for /api/v1/platform/providers/{provider}/models endpoints."""
 
     def test_list_supported_models_by_provider_returns_correct_structure(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /supported-models returns correct structure."""
+        """Test that POST /providers/{provider}/models returns correct structure."""
         # Mock the HTTP call to OpenAI API
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -481,11 +481,10 @@ class TestSupportedModelsAPI:
         mock_response.status_code = 200
 
         with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client.get", return_value=mock_response):
-            # Act: Fetch models for openai provider with apikey auth
+            # Act: Fetch models for openai provider with apikey auth (provider in URL)
             response = platform_api_client.post(
-                "/api/v1/platform/supported-models",
+                "/api/v1/platform/providers/openai/models",
                 json={
-                    "provider": "openai",
                     "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
@@ -507,7 +506,7 @@ class TestSupportedModelsAPI:
                     assert model["provider"] == "openai"
 
     def test_list_supported_models_by_provider_accepts_various_providers(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /supported-models works for different provider IDs."""
+        """Test that POST /providers/{provider}/models works for different provider IDs."""
         # Mock the HTTP call to provider APIs
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": []}
@@ -518,11 +517,10 @@ class TestSupportedModelsAPI:
             providers = ["openai", "anthropic"]
 
             for provider in providers:
-                # Act: Fetch models for the provider
+                # Act: Fetch models for the provider (provider in URL path)
                 response = platform_api_client.post(
-                    "/api/v1/platform/supported-models",
+                    f"/api/v1/platform/providers/{provider}/models",
                     json={
-                        "provider": provider,
                         "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                     }
                 )
@@ -536,7 +534,7 @@ class TestSupportedModelsAPI:
                 assert isinstance(data["data"], list)
 
     def test_supported_models_by_provider_feature_flag_disabled_returns_501(self, platform_api_client_factory):
-        """Test that POST /supported-models returns 501 when feature flag is disabled."""
+        """Test that POST /providers/{provider}/models returns 501 when feature flag is disabled."""
         from fastapi.testclient import TestClient
 
         app = platform_api_client_factory.app
@@ -547,11 +545,9 @@ class TestSupportedModelsAPI:
 
             # Act: Try to fetch models with feature flag disabled
             response = client.post(
-                "/api/v1/platform/supported-models",
+                "/api/v1/platform/providers/openai/models",
                 json={
-                    "provider": "openai",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -565,10 +561,10 @@ class TestSupportedModelsAPI:
 
 
 class TestModelConnectionAPI:
-    """Tests for /api/v1/platform/models/test endpoint."""
+    """Tests for POST /api/v1/platform/models?validateOnly=true endpoint."""
 
     def test_test_connection_with_valid_apikey_returns_success(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /models/test with valid credentials returns success."""
+        """Test that POST /models?validateOnly=true with valid credentials returns success."""
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
             # Mock successful LLM response
             mock_response = MagicMock()
@@ -577,12 +573,11 @@ class TestModelConnectionAPI:
 
             # Act: Test connection with valid apikey
             response = platform_api_client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key-valid",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key-valid"},
                 }
             )
 
@@ -627,7 +622,7 @@ class TestModelConnectionAPI:
 
                 # Act: Test connection using stored credentials by model ID
                 response = platform_api_client.post(
-                    "/api/v1/platform/models/test",
+                    "/api/v1/platform/models?validateOnly=true",
                     json={
                         "modelId": model_id,
                     }
@@ -648,13 +643,13 @@ class TestModelConnectionAPI:
             db.close()
 
     def test_test_connection_missing_alias_and_auth_returns_error(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that test_connection fails gracefully when neither alias nor auth credentials are provided."""
-        # Act: Test connection without alias or credentials
+        """Test that test_connection fails gracefully when neither model_id nor auth credentials are provided."""
+        # Act: Test connection without model_id or authConfig credentials
         response = platform_api_client.post(
-            "/api/v1/platform/models/test",
+            "/api/v1/platform/models?validateOnly=true",
             json={
                 "provider": "openai",
-                "model_name": "gpt-4",
+                "modelName": "gpt-4",
             }
         )
 
@@ -671,7 +666,7 @@ class TestModelConnectionAPI:
         """Test that test_connection returns error for non-existent model ID."""
         # Act: Test connection with non-existent model ID
         response = platform_api_client.post(
-            "/api/v1/platform/models/test",
+            "/api/v1/platform/models?validateOnly=true",
             json={
                 "modelId": str(uuid.uuid4()),
             }
@@ -690,12 +685,11 @@ class TestModelConnectionAPI:
         with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
             # Act: Test connection when litellm is not available
             response = platform_api_client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -708,7 +702,7 @@ class TestModelConnectionAPI:
             assert "litellm" in data["data"]["message"].lower()
 
     def test_test_connection_feature_flag_disabled_returns_501(self, platform_api_client_factory):
-        """Test that POST /models/test returns 501 when feature flag is disabled."""
+        """Test that POST /models?validateOnly=true returns 501 when feature flag is disabled."""
         from fastapi.testclient import TestClient
 
         app = platform_api_client_factory.app
@@ -719,12 +713,11 @@ class TestModelConnectionAPI:
 
             # Act: Try to test connection with feature flag disabled
             response = client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 

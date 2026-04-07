@@ -13,7 +13,7 @@ const createNewModelHandlers = [
     http.get("*/api/v1/platform/models", () => {
         return HttpResponse.json({ data: mockModelConfigs, total: mockModelConfigs.length });
     }),
-    http.post("*/api/v1/platform/supported-models", () => {
+    http.post("*/api/v1/platform/providers/:provider/models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -52,7 +52,7 @@ const editModelHandlers = [
         }
         return HttpResponse.json({ error: "Not found" }, { status: 404 });
     }),
-    http.post("*/api/v1/platform/supported-models", () => {
+    http.post("*/api/v1/platform/providers/:provider/models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -85,14 +85,14 @@ const loadingHandlers = [
 /**
  * Mock handler for test connection success
  */
-const testConnectionSuccessHandler = http.post("*/api/v1/platform/models/test", () => {
+const testConnectionSuccessHandler = http.post("*/api/v1/platform/models", () => {
     return HttpResponse.json({ data: { success: true, message: "Connection successful. Model responded with: OK" } });
 });
 
 /**
  * Mock handler for test connection failure
  */
-const testConnectionFailureHandler = http.post("*/api/v1/platform/models/test", () => {
+const testConnectionFailureHandler = http.post("*/api/v1/platform/models", () => {
     return HttpResponse.json({ data: { success: false, message: "Authentication failed: Invalid API key provided" } });
 });
 
@@ -329,7 +329,7 @@ export const EditModelWithAdvancedParams: Story = {
         const temperatureInput = canvasElement.querySelector('input[name="temperature"]') as HTMLInputElement;
         expect(temperatureInput).toBeTruthy();
 
-        const maxTokensInput = canvasElement.querySelector('input[name="maxTokens"]') as HTMLInputElement;
+        const maxTokensInput = canvasElement.querySelector('input[name="max_tokens"]') as HTMLInputElement;
         expect(maxTokensInput).toBeTruthy();
 
         // Verify values are populated from model

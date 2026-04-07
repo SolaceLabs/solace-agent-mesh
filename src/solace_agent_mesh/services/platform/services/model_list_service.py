@@ -375,6 +375,50 @@ class ModelListService:
         data = response.json()
         return [m["name"].split("/")[-1] for m in data.get("publisherModels", []) if m.get("name")]
 
+    def get_supported_params(self, provider: str, model_name: str) -> List[str]:
+        """Get supported OpenAI-compatible parameters for a model.
+
+        Uses litellm's internal registry to determine which parameters
+        a model supports. This is a local lookup, not a provider API call.
+
+        Args:
+            provider: Our provider ID (e.g., 'openai', 'anthropic')
+            model_name: The model name (e.g., 'gpt-4o', 'openai/gpt-4o')
+
+        Returns:
+            Sorted list of supported parameter names (snake_case).
+            Empty list if litellm is unavailable or doesn't recognize the model.
+        """
+        if litellm is None:
+            log.warning("litellm not available, cannot determine supported params")
+            return []
+
+        # For custom providers, the model name contains the real provider prefix
+        # (e.g., "openai/gpt-4o"). Extract the litellm provider from it.
+        if provider == ModelProviders.CUSTOM and "/" in model_name:
+            litellm_provider = model_name.split("/", 1)[0]
+            bare_model = model_name.split("/", 1)[1]
+        else:
+            # Map our provider IDs to litellm's where they differ
+            litellm_provider_map = {
+                ModelProviders.GOOGLE_AI_STUDIO: "gemini",
+                ModelProviders.AZURE_OPENAI: "azure",
+            }
+            litellm_provider = litellm_provider_map.get(provider, provider)
+            bare_model = model_name.split("/", 1)[1] if "/" in model_name else model_name
+
+        try:
+            params = litellm.get_supported_openai_params(
+                model=bare_model,
+                custom_llm_provider=litellm_provider,
+            )
+            if params is None:
+                return []
+            return sorted(params)
+        except Exception as e:
+            log.warning("Failed to get supported params for %s/%s: %s", provider, model_name, e)
+            return []
+
     def _get_litellm_models_for_provider(self, provider: str) -> List[str]:
         """Return models for a provider from LiteLLM's built-in model registry.
 
