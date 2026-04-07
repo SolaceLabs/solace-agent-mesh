@@ -179,10 +179,9 @@ async def create_model(
         )
         try:
             success, message = await asyncio.to_thread(service.test_connection, db, test_request)
-        except Exception:
-            log.exception("Test connection failed unexpectedly")
+        except Exception as e:
             success = False
-            message = "Test connection failed due to an internal error."
+            message = f"Test connection failed. {e}"
         return create_data_response(ModelConfigurationTestResponse(success=success, message=message))
 
     try:
