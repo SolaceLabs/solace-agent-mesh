@@ -441,8 +441,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 <FormFieldLayoutItem
                                     label="Model Name"
                                     required
-                                    error={errors.modelName as { message?: string }}
-                                    warning={hasFetchError ? "Unable to find models. Verify that your model connection details above are correct." : undefined}
+                                    error={hasFetchError ? { message: "Unable to find models. Verify that your model connection details above are correct." } : (errors.modelName as { message?: string })}
                                     helpText={isLoadingModels ? "Finding your available models..." : !isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}
                                 >
                                     <Controller
