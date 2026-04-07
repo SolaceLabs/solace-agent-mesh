@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
     ExecutionStatus,
@@ -697,12 +698,22 @@ class SchedulerService:
             reply_to_topic = f"{self.namespace}a2a/v1/scheduler/response/{self.instance_id}"
             status_topic = f"{self.namespace}a2a/v1/scheduler/status/{self.instance_id}"
 
+            # Resolve user config for the task creator so the enterprise capability
+            # filter allows peer agent tools.  Without this, the orchestrator's
+            # _filter_tools_by_capability_callback strips peer tools because
+            # _enterprise_capabilities is empty.
+            a2a_user_config = await self._resolve_user_config_for_task(
+                user_id, task_created_by
+            )
+
             user_props = {
                 "replyTo": reply_to_topic,
                 "a2aStatusTopic": status_topic,
                 "clientId": f"scheduler_{self.instance_id}",
                 "userId": task_user_id or task_created_by or "system-scheduler",
             }
+            if a2a_user_config:
+                user_props["a2aUserConfig"] = a2a_user_config
 
             # --- Step 3: Set a2a_task_id on execution (brief session) ---
             with self.session_factory() as session:
@@ -732,6 +743,46 @@ class SchedulerService:
             )
             await self._handle_execution_failure(execution_id, "Execution failed due to an internal error")
             raise
+
+    async def _resolve_user_config_for_task(
+        self, user_id: str, created_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve user configuration for a scheduled task execution.
+
+        The enterprise capability filter requires ``_enterprise_capabilities``
+        in the ``a2aUserConfig`` user-property so that the orchestrator's
+        ``_filter_tools_by_capability_callback`` does not strip peer-agent
+        tools.  Regular chat requests get this from the gateway's
+        ``resolve_user_config`` call; scheduled tasks must do the same.
+
+        Returns the resolved user config dict, or ``None`` on failure.
+        """
+        effective_user = user_id or created_by or "system-scheduler"
+        try:
+            config_resolver = MiddlewareRegistry.get_config_resolver()
+            user_identity = {"id": effective_user, "name": effective_user}
+            gateway_context = {
+                "gateway_id": f"scheduler_{self.instance_id}",
+                "gateway_app_config": {},
+            }
+            user_config = await config_resolver.resolve_user_config(
+                user_identity, gateway_context, {}
+            )
+            user_config["user_profile"] = user_identity
+            log.info(
+                "[SchedulerService:%s] Resolved user config for '%s' with %d enterprise capabilities",
+                self.instance_id,
+                effective_user,
+                len(user_config.get("_enterprise_capabilities", [])),
+            )
+            return user_config
+        except Exception as e:
+            log.warning(
+                "[SchedulerService:%s] Failed to resolve user config for '%s': %s. "
+                "Proceeding without user config — enterprise capability filter may restrict tools.",
+                self.instance_id, effective_user, e,
+            )
+            return None
 
     async def _handle_execution_failure(self, execution_id: str, error_message: str):
         """Mark an execution as failed."""

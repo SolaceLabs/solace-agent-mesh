@@ -133,9 +133,10 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
         setSearchText(searchValue);
         setHighlightedIndex(0);
         setIsOpen(true);
-        // If user clears the search text completely, clear the selection
-        if (searchValue === "") {
-            onValueChange("");
+        // For custom-value inputs, keep the form value in sync while typing.
+        // For list-only inputs, only clear the value when the user erases everything.
+        if (allowCustomValue || searchValue === "") {
+            onValueChange(searchValue);
         }
     };
 

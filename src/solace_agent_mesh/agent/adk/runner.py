@@ -1233,6 +1233,8 @@ async def _run_with_compaction_retry(
         Tuple of (is_paused, updated_adk_session). Returns None for the session
         if the function handled the error gracefully and the caller should return early.
     """
+    from .models.lite_llm import ObservabilityContext
+
     max_retries = 3
     retry_count = 0
 
@@ -1241,16 +1243,16 @@ async def _run_with_compaction_retry(
             # Check if test mode compaction is enabled and should trigger, will always be false for prod.
             if _is_test_mode_trigger_enabled() and compaction_enabled and adk_session.events and adk_content.role == 'user':
                 _test_and_trigger_compaction(_get_test_token_threshold(), adk_session, component)
-
-            is_paused = await run_adk_async_task(
-                component,
-                task_context,
-                adk_session,
-                adk_content,
-                run_config,
-                a2a_context,
-            )
-            return is_paused, adk_session
+            with ObservabilityContext(component_name=component.agent_name, owner_id=adk_session.user_id):
+                is_paused = await run_adk_async_task(
+                    component,
+                    task_context,
+                    adk_session,
+                    adk_content,
+                    run_config,
+                    a2a_context,
+                )
+                return is_paused, adk_session
 
         except BadRequestError as e:
             # Check if this is a context limit error AND auto-summarization is enabled

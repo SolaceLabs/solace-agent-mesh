@@ -4,12 +4,13 @@ Processes A2A responses and updates execution records.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from a2a.types import Task, JSONRPCResponse, JSONRPCError
+from a2a.types import Task, TaskStatusUpdateEvent, JSONRPCResponse, JSONRPCError
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
@@ -32,6 +33,17 @@ def _sanitize_error_message(message: str) -> str:
     return sanitized or "Task execution failed"
 
 
+def _rag_entry_key(entry: dict) -> str:
+    """Return a stable deduplication key for a RAG metadata entry.
+
+    Uses the source URL when available; falls back to a content hash.
+    """
+    source = entry.get("source_url") or entry.get("url") or entry.get("source")
+    if source:
+        return source
+    return hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
+
+
 def _artifact_name_exists(artifacts: list, name: str) -> bool:
     """Check if an artifact with the given name already exists in the list."""
     return any(
@@ -44,6 +56,8 @@ class ResultHandler:
     """
     Handles A2A task responses for scheduled task executions.
     Updates execution records with results, artifacts, and errors.
+    Also accumulates RAG metadata from intermediate status updates
+    so that inline citations are available when the final response arrives.
     """
 
     def __init__(
@@ -60,6 +74,9 @@ class ResultHandler:
         self.pending_executions: Dict[str, str] = {}
         self.execution_sessions: Dict[str, str] = {}
         self.completion_events: Dict[str, asyncio.Event] = {}
+        # Accumulates RAG metadata from intermediate status updates keyed by a2a_task_id.
+        # Populated by _handle_status_update() before the final response arrives.
+        self._accumulated_rag_data: Dict[str, list] = {}
         self.pending_executions_lock = asyncio.Lock()
 
         log.info("%s Initialized", self.log_prefix)
@@ -82,11 +99,19 @@ class ResultHandler:
             await event.wait()
 
     async def handle_response(self, message_data: Dict[str, Any]):
-        """Handle an A2A response message."""
+        """Handle an A2A response or status message.
+
+        Status messages carry intermediate data (RAG metadata, progress signals)
+        that must be accumulated *before* the final response arrives.  Response
+        messages carry the final Task result or error.
+        """
         topic = message_data.get("topic", "")
         payload = message_data.get("payload", {})
 
-        if not self._is_scheduler_response(topic):
+        is_response = self._is_scheduler_response(topic)
+        is_status = self._is_scheduler_status(topic)
+
+        if not is_response and not is_status:
             return
 
         try:
@@ -95,28 +120,101 @@ class ResultHandler:
             if not a2a_task_id:
                 return
 
+            result = a2a.get_response_result(rpc_response)
+            error = a2a.get_response_error(rpc_response)
+
+            if is_status and result:
+                # Intermediate status update – accumulate RAG data without
+                # completing the execution.  Status handling only needs
+                # a2a_task_id, so it must run before the execution_id guard.
+                await self._handle_status_update(a2a_task_id, result)
+                return
+
             async with self.pending_executions_lock:
                 execution_id = self.pending_executions.get(a2a_task_id)
 
             if not execution_id:
                 return
 
-            result = a2a.get_response_result(rpc_response)
-            error = a2a.get_response_error(rpc_response)
+            if is_response:
+                if result:
+                    await self._handle_success(execution_id, result, a2a_task_id)
+                elif error:
+                    await self._handle_error(execution_id, error, a2a_task_id)
 
-            if result:
-                await self._handle_success(execution_id, result)
-            elif error:
-                await self._handle_error(execution_id, error)
-
-            # Remove from pending
-            async with self.pending_executions_lock:
-                self.pending_executions.pop(a2a_task_id, None)
+                # Remove from pending
+                async with self.pending_executions_lock:
+                    self.pending_executions.pop(a2a_task_id, None)
 
         except Exception as e:
             log.error("%s Error handling response: %s", self.log_prefix, e, exc_info=True)
 
-    async def _handle_success(self, execution_id: str, result: Any):
+    # ------------------------------------------------------------------
+    # Status-update accumulation
+    # ------------------------------------------------------------------
+
+    async def _handle_status_update(self, a2a_task_id: str, result: Any):
+        """Extract and accumulate RAG metadata from an intermediate status update.
+
+        When an orchestrator delegates to a peer agent that performs a web search,
+        the peer sends RAG metadata as data parts inside ``TaskStatusUpdateEvent``
+        messages.  The orchestrator forwards these to the scheduler's status topic.
+        By accumulating them here we ensure they are available when the final
+        response arrives – regardless of whether the TaskLoggerService has
+        persisted them to the database yet.
+        """
+        if not isinstance(result, TaskStatusUpdateEvent):
+            return
+
+        status_msg = getattr(result, "status", None)
+        if not status_msg:
+            return
+        message = getattr(status_msg, "message", None)
+        if not message:
+            return
+
+        data_parts = a2a.get_data_parts_from_message(message)
+        if not data_parts:
+            return
+
+        new_entries: List[dict] = []
+        for data_part in data_parts:
+            data = a2a.get_data_from_data_part(data_part)
+            if not isinstance(data, dict) or data.get("type") != "tool_result":
+                continue
+            result_data = data.get("result_data", {})
+            if isinstance(result_data, dict) and "rag_metadata" in result_data:
+                rag_metadata = result_data["rag_metadata"]
+                if isinstance(rag_metadata, dict):
+                    new_entries.append(rag_metadata)
+
+        if new_entries:
+            async with self.pending_executions_lock:
+                existing = self._accumulated_rag_data.setdefault(a2a_task_id, [])
+                existing_keys = {_rag_entry_key(e) for e in existing}
+                for entry in new_entries:
+                    key = _rag_entry_key(entry)
+                    if key not in existing_keys:
+                        existing.append(entry)
+                        existing_keys.add(key)
+            log.info(
+                "%s Accumulated %d RAG metadata entries from status update for task %s (total: %d)",
+                self.log_prefix,
+                len(new_entries),
+                a2a_task_id,
+                len(self._accumulated_rag_data.get(a2a_task_id, [])),
+            )
+
+    async def _cleanup_execution(self, execution_id: str, a2a_task_id: str):
+        """Clean up session tracking, accumulated data, and signal completion."""
+        async with self.pending_executions_lock:
+            self.execution_sessions.pop(execution_id, None)
+            self._accumulated_rag_data.pop(a2a_task_id, None)
+            event = self.completion_events.pop(execution_id, None)
+        if event:
+            event.set()
+
+    async def _handle_success(self, execution_id: str, result: Any, a2a_task_id: str):
         """Handle successful task completion."""
         log.info("%s Handling success for execution %s", self.log_prefix, execution_id)
 
@@ -241,6 +339,24 @@ class ResultHandler:
                             if not _artifact_name_exists(artifacts, artifact_id):
                                 artifacts.append(artifact_obj)
 
+            # Merge in-memory accumulated RAG data (from status updates received
+            # before this final response) so that inline citations are available
+            # even when the TaskLoggerService hasn't persisted them yet.
+            if a2a_task_id:
+                async with self.pending_executions_lock:
+                    accumulated = self._accumulated_rag_data.pop(a2a_task_id, [])
+                existing_keys = {_rag_entry_key(e) for e in rag_data}
+                for entry in accumulated:
+                    key = _rag_entry_key(entry)
+                    if key not in existing_keys:
+                        rag_data.append(entry)
+                        existing_keys.add(key)
+                if accumulated:
+                    log.info(
+                        "%s Merged %d accumulated RAG entries for execution %s",
+                        self.log_prefix, len(accumulated), execution_id,
+                    )
+
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:
                 update_data = {
@@ -259,8 +375,8 @@ class ResultHandler:
                 session.commit()
 
             log.info(
-                "%s Execution %s completed with %s messages and %s artifacts",
-                self.log_prefix, execution_id, len(messages), len(artifacts),
+                "%s Execution %s completed with %s messages, %s artifacts, and %s RAG entries",
+                self.log_prefix, execution_id, len(messages), len(artifacts), len(rag_data),
             )
 
         except Exception as e:
@@ -270,14 +386,9 @@ class ResultHandler:
                 exc_info=True,
             )
         finally:
-            # Always clean up session tracking and signal completion
-            async with self.pending_executions_lock:
-                self.execution_sessions.pop(execution_id, None)
-                event = self.completion_events.pop(execution_id, None)
-            if event:
-                event.set()
+            await self._cleanup_execution(execution_id, a2a_task_id)
 
-    async def _handle_error(self, execution_id: str, error: JSONRPCError):
+    async def _handle_error(self, execution_id: str, error: JSONRPCError, a2a_task_id: str):
         """Handle task execution error."""
         log.warning(
             "%s Handling error for execution %s: %s",
@@ -312,12 +423,7 @@ class ResultHandler:
                 exc_info=True,
             )
         finally:
-            # Always clean up session tracking and signal completion
-            async with self.pending_executions_lock:
-                self.execution_sessions.pop(execution_id, None)
-                event = self.completion_events.pop(execution_id, None)
-            if event:
-                event.set()
+            await self._cleanup_execution(execution_id, a2a_task_id)
 
     def _save_chat_task(
         self,
@@ -513,6 +619,11 @@ class ResultHandler:
         """Check if a topic is a scheduler response topic."""
         response_prefix = f"{self.namespace}a2a/v1/scheduler/response/"
         return topic.startswith(response_prefix)
+
+    def _is_scheduler_status(self, topic: str) -> bool:
+        """Check if a topic is a scheduler status topic."""
+        status_prefix = f"{self.namespace}a2a/v1/scheduler/status/"
+        return topic.startswith(status_prefix)
 
     def get_pending_count(self) -> int:
         """Get count of pending executions."""

@@ -69,6 +69,7 @@ class TitleGenerationService:
                 session_id=session_id,
                 user_message=user_message,
                 agent_response=agent_response,
+                user_id=user_id,
                 update_callback=update_callback,
             )
         )
@@ -88,26 +89,31 @@ class TitleGenerationService:
         session_id: str,
         user_message: str,
         agent_response: str,
+        user_id: str,
         update_callback: Optional[callable] = None,
     ) -> None:
         """Internal method to generate title and update session."""
+        from ....agent.adk.models.lite_llm import ObservabilityContext
+
         log.info(f"[_generate_and_update_title] Starting for session {session_id}")
-        
+
         try:
-            # Generate title via LiteLLM
-            log.info(f"[_generate_and_update_title] Calling LiteLLM for session {session_id}")
-            title = await self._call_litellm(user_message, agent_response)
-            
-            log.info(f"[_generate_and_update_title] Generated title for session {session_id}: '{title}'")
-            
-            # Call update callback to save title to database
-            if update_callback:
-                try:
-                    await update_callback(title)
-                    log.info(f"[_generate_and_update_title] Session name updated via callback for session {session_id}")
-                except Exception as e:
-                    log.error(f"[_generate_and_update_title] Error calling update callback: {e}", exc_info=True)
-                    
+            # Wrap observability context for LLM instrumentation
+            with ObservabilityContext(component_name="title_generation", owner_id=user_id):
+                # Generate title via LiteLLM
+                log.info(f"[_generate_and_update_title] Calling LiteLLM for session {session_id}")
+                title = await self._call_litellm(user_message, agent_response)
+
+                log.info(f"[_generate_and_update_title] Generated title for session {session_id}: '{title}'")
+
+                # Call update callback to save title to database
+                if update_callback:
+                    try:
+                        await update_callback(title)
+                        log.info(f"[_generate_and_update_title] Session name updated via callback for session {session_id}")
+                    except Exception as e:
+                        log.error(f"[_generate_and_update_title] Error calling update callback: {e}", exc_info=True)
+
         except Exception as e:
             log.error(f"[_generate_and_update_title] Error in async title generation for session {session_id}: {e}", exc_info=True)
 
@@ -159,10 +165,11 @@ Title:'''
                         if part.text:
                             content = part.text
                             break
+
             if content is None:
                 log.warning("[_call_litellm] LiteLLM returned None content, using fallback")
                 return self._fallback_title(user_message)
-            
+
             title = content.strip()
 
             # Remove quotes if present

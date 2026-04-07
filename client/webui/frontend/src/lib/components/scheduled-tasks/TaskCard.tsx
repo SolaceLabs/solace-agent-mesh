@@ -122,7 +122,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
                     <div className="mb-2 flex items-center gap-2">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusConfig[task.status]?.className ?? "bg-(--secondary-w10) text-(--secondary-text-wMain)"}`}>{statusConfig[task.status]?.label ?? task.status}</span>
+                        {task.status && (
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusConfig[task.status]?.className ?? "bg-(--secondary-w10) text-(--secondary-text-wMain)"}`}>{statusConfig[task.status]?.label ?? task.status}</span>
+                        )}
                         {task.source === "config" && <span className="inline-block rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-w100)">Config</span>}
                     </div>
                     {task.description && <div className="mb-3 line-clamp-2 text-sm leading-5">{task.description}</div>}
