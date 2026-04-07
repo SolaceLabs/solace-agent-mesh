@@ -59,16 +59,9 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
     return (
         <div className="pt-4">
             <div className="flex items-center gap-3">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span>
-                            <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled}>
-                                Test Connection
-                            </Button>
-                        </span>
-                    </TooltipTrigger>
-                    {disabled && <TooltipContent>Required configuration is missing</TooltipContent>}
-                </Tooltip>
+                <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled} tooltip={disabled ? "Required configuration is missing" : "Test the connection to the model provider using the current configuration"} tooltipSide="top">
+                    Test Connection
+                </Button>
                 {isTesting && (
                     <div className="flex items-center gap-2 text-sm text-(--secondary-text-wMain)">
                         <Loader2 className="size-4 animate-spin" />
