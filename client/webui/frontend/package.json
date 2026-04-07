@@ -1,193 +1,190 @@
 {
-  "name": "@SolaceLabs/solace-agent-mesh-ui",
-  "version": "1.85.1",
-  "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
-  "author": "SolaceLabs <solacelabs@solace.com>",
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/SolaceLabs/solace-agent-mesh",
-    "directory": "client/webui/frontend"
-  },
-  "homepage": "https://github.com/SolaceLabs/solace-agent-mesh/tree/main/client/webui/frontend",
-  "bugs": {
-    "url": "https://github.com/SolaceLabs/solace-agent-mesh/issues"
-  },
-  "keywords": [
-    "solace",
-    "agent-mesh",
-    "ai",
-    "react",
-    "ui-components",
-    "chat",
-    "agents"
-  ],
-  "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+    "name": "@SolaceLabs/solace-agent-mesh-ui",
+    "version": "2.2.7",
+    "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
+    "author": "SolaceLabs <solacelabs@solace.com>",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/SolaceLabs/solace-agent-mesh",
+        "directory": "client/webui/frontend"
     },
-    "./dist/solace-agent-mesh-ui.css": "./dist/solace-agent-mesh-ui.css"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
-  "engines": {
-    "node": ">=25.5.0 <26"
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build-lib": "vite build --config vite.lib.config.ts",
-    "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
-    "build-package": "npm run build-lib && npm run build-types",
-    "lint": "eslint .",
-    "cypress:open": "cypress open",
-    "cypress:run": "cypress run",
-    "precommit": "tsc -b && lint-staged",
-    "preview": "vite preview",
-    "storybook": "storybook dev -p 6006",
-    "test:storybook": "vitest --project=storybook",
-    "test:unit": "vitest --project=unit",
-    "ci:storybook": "CI=true vitest --project=unit --project=storybook",
-    "ci:storybook:coverage": "CI=true vitest --project=unit --project=storybook --coverage"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+    "homepage": "https://github.com/SolaceLabs/solace-agent-mesh/tree/main/client/webui/frontend",
+    "bugs": {
+        "url": "https://github.com/SolaceLabs/solace-agent-mesh/issues"
+    },
+    "keywords": [
+        "solace",
+        "agent-mesh",
+        "ai",
+        "react",
+        "ui-components",
+        "chat",
+        "agents"
     ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ]
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^5.2.2",
-    "@radix-ui/react-accordion": "^1.2.11",
-    "@radix-ui/react-avatar": "^1.1.10",
-    "@radix-ui/react-dialog": "^1.1.14",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-label": "^2.1.7",
-    "@radix-ui/react-popover": "^1.1.14",
-    "@radix-ui/react-scroll-area": "^1.2.10",
-    "@radix-ui/react-select": "^2.2.6",
-    "@radix-ui/react-separator": "^1.1.7",
-    "@radix-ui/react-slot": "^1.2.3",
-    "@radix-ui/react-tabs": "^1.1.12",
-    "@radix-ui/react-tooltip": "^1.2.7",
-    "@stepperize/react": "^5.1.9",
-    "@tanstack/react-query": "5.90.16",
-    "@tanstack/react-table": "^8.21.3",
-    "@use-gesture/react": "^10.3.1",
-    "@xyflow/react": "^12.10.2",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "dompurify": "^3.3.2",
-    "html-react-parser": "^5.2.5",
-    "js-yaml": "^4.1.0",
-    "json-edit-react": "^1.27.2",
-    "jszip": "^3.10.1",
-    "lucide-react": "^0.511.0",
-    "marked": "^15.0.12",
-    "mermaid": "^11.12.2",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-hook-form": "^7.65.0",
-    "react-intersection-observer": "^9.16.0",
-    "react-json-view-lite": "^2.4.1",
-    "react-pdf": "9.2.1",
-    "react-resizable-panels": "^3.0.3",
-    "react-router-dom": "7.12.0",
-    "tailwind-merge": "^3.3.0",
-    "tailwind-scrollbar-hide": "^4.0.0",
-    "tailwindcss": "^4.1.17",
-    "uuid": "^13.0.0",
-    "zod": "^4.1.12"
-  },
-  "peerDependencies": {
-    "@openfeature/core": "^1.9.2",
-    "@openfeature/react-sdk": "^1.2.1",
-    "@openfeature/web-sdk": "^1.7.3",
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-router-dom": "7.12.0"
-  },
-  "devDependencies": {
-    "@a2a-js/sdk": "^0.3.2",
-    "@eslint/js": "^9.25.0",
-    "@openfeature/core": "^1.9.2",
-    "@openfeature/react-sdk": "^1.2.1",
-    "@openfeature/web-sdk": "^1.7.3",
-    "@storybook/addon-vitest": "^10.1.10",
-    "@storybook/react": "^10.1.8",
-    "@storybook/react-vite": "^10.1.10",
-    "@tailwindcss/typography": "^0.5.16",
-    "@tailwindcss/vite": "^4.1.17",
-    "@tanstack/eslint-plugin-query": "5.91.2",
-    "@testing-library/cypress": "^10.0.3",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^22.15.29",
-    "@types/react": "19.0.0",
-    "@types/react-dom": "19.0.0",
-    "@types/react-pdf": "7.0.0",
-    "@vitejs/plugin-react": "^4.4.1",
-    "@vitest/browser-playwright": "^4.0.8",
-    "@vitest/coverage-v8": "^4.0.8",
-    "cypress": "^14.5.4",
-    "eslint": "^9.25.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.19",
-    "eslint-plugin-storybook": "^10.1.10",
-    "globals": "^16.0.0",
-    "jsdom": "^27.0.1",
-    "lint-staged": "^16.2.3",
-    "mocha-junit-reporter": "^2.2.1",
-    "msw": "^2.12.3",
-    "msw-storybook-addon": "^2.0.6",
-    "playwright": "^1.56.1",
-    "prettier": "^3.6.2",
-    "prettier-plugin-tailwindcss": "^0.6.13",
-    "storybook": "^10.1.10",
-    "tw-animate-css": "^1.3.3",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.30.1",
-    "vite": "^6.3.5",
-    "vitest": "^4.0.8"
-  },
-  "optionalDependencies": {
-    "@esbuild/darwin-arm64": "0.25.5",
-    "@esbuild/darwin-x64": "0.25.5",
-    "@esbuild/linux-arm64": "0.25.5",
-    "@esbuild/linux-x64": "0.25.5",
-    "@rollup/rollup-linux-arm64-gnu": "4.44.0",
-    "@rollup/rollup-linux-x64-gnu": "4.44.0",
-    "@tailwindcss/oxide-darwin-arm64": "4.1.11",
-    "@tailwindcss/oxide-darwin-x64": "4.1.11",
-    "@tailwindcss/oxide-linux-arm64-gnu": "4.1.11",
-    "@tailwindcss/oxide-linux-x64-gnu": "4.1.11",
-    "lightningcss-linux-arm64-gnu": "1.30.1",
-    "lightningcss-linux-x64-gnu": "1.30.1"
-  },
-  "overrides": {
-    "cross-spawn": "^7.0.6",
-    "minimatch": "^10.2.1",
-    "lodash-es": "^4.17.23"
-  },
-  "msw": {
-    "workerDirectory": [
-      "public"
-    ]
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com/SolaceLabs"
-  }
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.cjs"
+        },
+        "./dist/solace-agent-mesh-ui.css": "./dist/solace-agent-mesh-ui.css"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "engines": {
+        "node": ">=25.5.0 <26"
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "build-lib": "vite build --config vite.lib.config.ts",
+        "build-types": "tsc --emitDeclarationOnly --outDir dist --project tsconfig.lib.json",
+        "build-package": "npm run build-lib && npm run build-types",
+        "lint": "eslint .",
+        "cypress:open": "cypress open",
+        "cypress:run": "cypress run",
+        "precommit": "tsc -b && lint-staged",
+        "preview": "vite preview",
+        "storybook": "storybook dev -p 6006",
+        "test:storybook": "vitest --project=storybook",
+        "test:unit": "vitest --project=unit",
+        "ci:storybook": "CI=true vitest --project=unit --project=storybook",
+        "ci:storybook:coverage": "CI=true vitest --project=unit --project=storybook --coverage"
+    },
+    "lint-staged": {
+        "*.{js,jsx,ts,tsx}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{json,md,yml,yaml}": [
+            "prettier --write"
+        ]
+    },
+    "dependencies": {
+        "@hookform/resolvers": "^5.2.2",
+        "@radix-ui/react-accordion": "^1.2.11",
+        "@radix-ui/react-avatar": "^1.1.10",
+        "@radix-ui/react-dialog": "^1.1.14",
+        "@radix-ui/react-dropdown-menu": "^2.1.16",
+        "@radix-ui/react-label": "^2.1.7",
+        "@radix-ui/react-popover": "^1.1.14",
+        "@radix-ui/react-scroll-area": "^1.2.10",
+        "@radix-ui/react-select": "^2.2.6",
+        "@radix-ui/react-separator": "^1.1.7",
+        "@radix-ui/react-slot": "^1.2.3",
+        "@radix-ui/react-tabs": "^1.1.12",
+        "@radix-ui/react-tooltip": "^1.2.7",
+        "@stepperize/react": "^5.1.9",
+        "@tanstack/react-query": "5.90.16",
+        "@tanstack/react-table": "^8.21.3",
+        "@use-gesture/react": "^10.3.1",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "dompurify": "^3.3.2",
+        "html-react-parser": "^5.2.5",
+        "js-yaml": "^4.1.0",
+        "json-edit-react": "^1.27.2",
+        "jszip": "^3.10.1",
+        "lucide-react": "^0.511.0",
+        "marked": "^15.0.12",
+        "mermaid": "^11.12.2",
+        "react": "19.0.0",
+        "react-dom": "19.0.0",
+        "react-hook-form": "^7.65.0",
+        "react-intersection-observer": "^9.16.0",
+        "react-json-view-lite": "^2.4.1",
+        "react-pdf": "9.2.1",
+        "react-resizable-panels": "^3.0.3",
+        "react-router-dom": "7.12.0",
+        "tailwind-merge": "^3.3.0",
+        "tailwind-scrollbar-hide": "^4.0.0",
+        "tailwindcss": "^4.1.17",
+        "uuid": "^13.0.0",
+        "zod": "^4.1.12"
+    },
+    "peerDependencies": {
+        "@openfeature/core": "^1.9.2",
+        "@openfeature/react-sdk": "^1.2.1",
+        "@openfeature/web-sdk": "^1.7.3",
+        "@types/react": "19.0.0",
+        "@types/react-dom": "19.0.0",
+        "react": "19.0.0",
+        "react-dom": "19.0.0",
+        "react-router-dom": "7.12.0"
+    },
+    "devDependencies": {
+        "@a2a-js/sdk": "^0.3.2",
+        "@eslint/js": "^9.25.0",
+        "@openfeature/core": "^1.9.2",
+        "@openfeature/react-sdk": "^1.2.1",
+        "@openfeature/web-sdk": "^1.7.3",
+        "@storybook/addon-vitest": "^10.1.10",
+        "@storybook/react": "^10.1.8",
+        "@storybook/react-vite": "^10.1.10",
+        "@tailwindcss/typography": "^0.5.16",
+        "@tailwindcss/vite": "^4.1.17",
+        "@tanstack/eslint-plugin-query": "5.91.2",
+        "@testing-library/cypress": "^10.0.3",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.0",
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^22.15.29",
+        "@types/react": "19.0.0",
+        "@types/react-dom": "19.0.0",
+        "@types/react-pdf": "7.0.0",
+        "@vitejs/plugin-react": "^4.4.1",
+        "@vitest/browser-playwright": "^4.0.8",
+        "@vitest/coverage-v8": "^4.0.8",
+        "@xyflow/react": "^12.10.2",
+        "cypress": "^14.5.4",
+        "eslint": "^9.25.0",
+        "eslint-plugin-react-hooks": "^5.2.0",
+        "eslint-plugin-react-refresh": "^0.4.19",
+        "eslint-plugin-storybook": "^10.1.10",
+        "globals": "^16.0.0",
+        "jsdom": "^27.0.1",
+        "lint-staged": "^16.2.3",
+        "mocha-junit-reporter": "^2.2.1",
+        "msw": "^2.12.3",
+        "msw-storybook-addon": "^2.0.6",
+        "playwright": "^1.56.1",
+        "prettier": "^3.6.2",
+        "prettier-plugin-tailwindcss": "^0.6.13",
+        "storybook": "^10.1.10",
+        "tw-animate-css": "^1.3.3",
+        "typescript": "~5.8.3",
+        "typescript-eslint": "^8.30.1",
+        "vite": "^6.3.5",
+        "vitest": "^4.0.8"
+    },
+    "optionalDependencies": {
+        "@esbuild/darwin-arm64": "0.25.5",
+        "@esbuild/darwin-x64": "0.25.5",
+        "@esbuild/linux-arm64": "0.25.5",
+        "@esbuild/linux-x64": "0.25.5",
+        "@rollup/rollup-linux-arm64-gnu": "4.44.0",
+        "@rollup/rollup-linux-x64-gnu": "4.44.0",
+        "@tailwindcss/oxide-darwin-arm64": "4.1.11",
+        "@tailwindcss/oxide-darwin-x64": "4.1.11",
+        "@tailwindcss/oxide-linux-arm64-gnu": "4.1.11",
+        "@tailwindcss/oxide-linux-x64-gnu": "4.1.11",
+        "lightningcss-linux-arm64-gnu": "1.30.1",
+        "lightningcss-linux-x64-gnu": "1.30.1"
+    },
+    "overrides": {
+        "cross-spawn": "^7.0.6",
+        "minimatch": "^10.2.1",
+        "lodash-es": "^4.18.0"
+    },
+    "msw": {
+        "workerDirectory": [
+            "public"
+        ]
+    }
 }
