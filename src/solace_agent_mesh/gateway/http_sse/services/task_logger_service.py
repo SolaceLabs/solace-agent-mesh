@@ -741,6 +741,34 @@ class TaskLoggerService:
                 log.info(
                     f"{self.log_identifier} Including {len(rag_data)} RAG data entries in task metadata for {task_id}"
                 )
+            elif session_id:
+                # No RAG data from current task — check if the response contains
+                # citation markers (e.g. [[cite:search0]]).  If so, inherit RAG
+                # data from earlier ChatTask records in the same session so the
+                # frontend can resolve the citations into clickable links.
+                agent_text_for_cite_check = ""
+                for bubble in message_bubbles:
+                    if isinstance(bubble, dict) and bubble.get("type") == "agent":
+                        agent_text_for_cite_check += bubble.get("text", "")
+                if "[[cite:" in agent_text_for_cite_check:
+                    try:
+                        inherited = chat_task_repo.find_by_session(db, session_id, user_id)
+                        inherited_rag = []
+                        for prev_task in (inherited or []):
+                            if prev_task.task_metadata:
+                                prev_meta = json.loads(prev_task.task_metadata) if isinstance(prev_task.task_metadata, str) else prev_task.task_metadata
+                                for entry in prev_meta.get("rag_data", []):
+                                    if entry not in inherited_rag:
+                                        inherited_rag.append(entry)
+                        if inherited_rag:
+                            task_metadata_dict["rag_data"] = inherited_rag
+                            log.info(
+                                f"{self.log_identifier} Inherited {len(inherited_rag)} RAG data entries from session {session_id} for task {task_id}"
+                            )
+                    except Exception as e:
+                        log.warning(
+                            f"{self.log_identifier} Failed to inherit RAG data for task {task_id}: {e}"
+                        )
             
             # Create and save the chat task
             chat_task = ChatTask(

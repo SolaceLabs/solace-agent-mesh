@@ -613,6 +613,7 @@ class SchedulerService:
             # Both operations are committed together to avoid orphaned session records
             # if the execution status update were to fail separately.
             user_id = task_user_id or task_created_by or "system-scheduler"
+            stable_session_id = f"scheduled_task_{task_id}"
             session_id = f"scheduled_{execution_id}"
             try:
                 with self.session_factory() as sess:
@@ -663,7 +664,10 @@ class SchedulerService:
                 elif part.get("type") == "file":
                     message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
 
-            context_id = session_id
+            # Use the stable per-task session ID as context_id so the ADK agent
+            # sees the same persistent session across all executions of this task.
+            # This allows conversation history to accumulate naturally.
+            context_id = stable_session_id
             a2a_task_id = f"task-{uuid.uuid4().hex}"
 
             # Filter task_metadata to safe keys only
@@ -673,7 +677,7 @@ class SchedulerService:
                     k: v for k, v in task_metadata_raw.items()
                     if k in _SAFE_METADATA_KEYS
                 }
-            message_metadata["sessionBehavior"] = "RUN_BASED"
+            message_metadata["sessionBehavior"] = "PERSISTENT"
             message_metadata["returnArtifacts"] = True
 
             a2a_message = a2a.create_user_message(
@@ -723,7 +727,9 @@ class SchedulerService:
                     session.commit()
 
             # --- Step 4: Register, publish, and wait (no session held) ---
-            await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+            # Pass the per-execution session_id (not the stable context_id) so
+            # artifact URIs reference the correct gateway session record.
+            await self.result_handler.register_execution(execution_id, a2a_task_id, session_id)
 
             self.publish_func(target_topic, payload, user_props)
 

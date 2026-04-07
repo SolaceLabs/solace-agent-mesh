@@ -712,6 +712,32 @@ async def _submit_task(
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
+        # For scheduled task sessions, resolve the stable ADK session ID so the
+        # agent can find the persistent conversation history.  The context_id
+        # (a2a_session_id) stays as the gateway session ID for TaskLoggerService,
+        # but the agent uses schedulerAdkSessionId for the ADK session lookup.
+        if session_id and session_id.startswith("scheduled_") and SessionLocal is not None:
+            try:
+                db_sched = SessionLocal()
+                try:
+                    from ..repository.scheduled_task_repository import ScheduledTaskRepository
+                    sched_repo = ScheduledTaskRepository()
+                    execution = sched_repo.find_execution_by_session_id(db_sched, session_id)
+                    if execution and execution.scheduled_task_id:
+                        stable_adk_session = f"scheduled_task_{execution.scheduled_task_id}"
+                        additional_metadata["schedulerAdkSessionId"] = stable_adk_session
+                        log.info(
+                            "%sScheduler session %s -> ADK session %s for continue-chat",
+                            log_prefix, session_id, stable_adk_session,
+                        )
+                finally:
+                    db_sched.close()
+            except Exception as e:
+                log.debug(
+                    "%sFailed to resolve scheduler ADK session for %s: %s",
+                    log_prefix, session_id, e,
+                )
+
         # For forked sessions: pass fork metadata so the agent can clone the ADK session
         # on first message. The forked session uses its OWN session_id (true isolation).
         if session_id and SessionLocal is not None:

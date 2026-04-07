@@ -1060,6 +1060,21 @@ async def _handle_send_message_request(
     if session_id_from_data:
         original_session_id = session_id_from_data
 
+    # For scheduled task continued chats, the gateway passes the stable ADK
+    # session ID as metadata so the agent finds the persistent conversation
+    # history.  The context_id remains the gateway session ID (for
+    # TaskLoggerService / ChatTask records), but the ADK session uses the
+    # stable scheduler session.
+    scheduler_adk_session_id = task_metadata.get("schedulerAdkSessionId")
+    if scheduler_adk_session_id:
+        original_session_id = scheduler_adk_session_id
+        log.info(
+            "%s Using schedulerAdkSessionId '%s' as ADK session (gateway contextId='%s').",
+            component.log_identifier,
+            scheduler_adk_session_id,
+            a2a_message.context_id,
+        )
+
     if session_behavior == "RUN_BASED":
         is_run_based_session = True
         effective_session_id = f"{original_session_id}:{logical_task_id}:run"
