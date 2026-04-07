@@ -441,7 +441,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 <FormFieldLayoutItem
                                     label="Model Name"
                                     required
-                                    error={hasFetchError ? { message: "Unable to find models. Verify that your model connection details above are correct." } : (errors.modelName as { message?: string })}
+                                    error={errors.modelName as { message?: string }}
+                                    warning={hasFetchError ? "Unable to find models. Verify that your model connection details above are correct." : undefined}
                                     helpText={isLoadingModels ? "Finding your available models..." : !isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}
                                 >
                                     <Controller
@@ -470,8 +471,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
                                                     placeholder="Type or select a model..."
-                                                    disabled={!isModelDropdownEnabled || hasFetchError}
-                                                    invalid={!!errors.modelName || hasFetchError}
+                                                    disabled={!isModelDropdownEnabled}
+                                                    invalid={!!errors.modelName}
                                                     isLoading={isLoadingModels}
                                                     onOpen={handleModelDropdownOpen}
                                                     allowCustomValue
