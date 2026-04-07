@@ -584,7 +584,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                             return true;
                                                         },
                                                     }}
-                                                    render={() => <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} />}
+                                                    render={() => <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" />}
                                                 />
                                             </div>
                                         </div>
