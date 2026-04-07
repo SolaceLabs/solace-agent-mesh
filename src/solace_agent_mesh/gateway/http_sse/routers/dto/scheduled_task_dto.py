@@ -181,6 +181,7 @@ class ScheduledTaskResponse(BaseModel):
     task_metadata: Optional[Dict[str, Any]]
 
     enabled: bool
+    status: str
     max_retries: int
     retry_delay_seconds: int
     timeout_seconds: int
@@ -198,6 +199,54 @@ class ScheduledTaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm(cls, obj):
+        """Create ScheduledTaskResponse from ORM model, computing status."""
+        data = {
+            'id': obj.id,
+            'name': obj.name,
+            'description': obj.description,
+            'namespace': obj.namespace,
+            'user_id': obj.user_id,
+            'created_by': obj.created_by,
+            'schedule_type': obj.schedule_type.value if hasattr(obj.schedule_type, 'value') else obj.schedule_type,
+            'schedule_expression': obj.schedule_expression,
+            'timezone': obj.timezone,
+            'target_agent_name': obj.target_agent_name,
+            'target_type': obj.target_type,
+            'task_message': obj.task_message,
+            'task_metadata': obj.task_metadata,
+            'enabled': obj.enabled,
+            'status': _derive_task_status(obj.enabled, obj.consecutive_failure_count),
+            'max_retries': obj.max_retries,
+            'retry_delay_seconds': obj.retry_delay_seconds,
+            'timeout_seconds': obj.timeout_seconds,
+            'source': obj.source,
+            'consecutive_failure_count': obj.consecutive_failure_count,
+            'run_count': obj.run_count,
+            'notification_config': obj.notification_config,
+            'created_at': obj.created_at,
+            'updated_at': obj.updated_at,
+            'next_run_at': obj.next_run_at,
+            'last_run_at': obj.last_run_at,
+        }
+        return cls(**data)
+
+
+def _derive_task_status(enabled: bool, consecutive_failure_count: int) -> str:
+    """Derive a display status from task fields.
+
+    Returns:
+        "error"  – if the task has consecutive failures
+        "paused" – if the task is disabled
+        "active" – otherwise
+    """
+    if consecutive_failure_count and consecutive_failure_count > 0:
+        return "error"
+    if not enabled:
+        return "paused"
+    return "active"
 
 
 class ScheduledTaskListResponse(BaseModel):
