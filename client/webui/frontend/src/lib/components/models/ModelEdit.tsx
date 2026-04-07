@@ -41,6 +41,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
+        shouldUnregister: true,
         defaultValues: {
             customParams: [],
             cache_strategy: "5m",
