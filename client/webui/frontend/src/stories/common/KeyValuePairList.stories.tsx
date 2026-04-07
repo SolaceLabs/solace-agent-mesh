@@ -117,6 +117,33 @@ export const WithError: Story = {
     },
 };
 
+export const EmptyState: Story = {
+    args: { name: "pairs", minPairs: 1 },
+    render: () => {
+        const form = useForm({
+            defaultValues: {
+                pairs: [],
+            },
+        });
+
+        return (
+            <FormProvider {...form}>
+                <form className="max-w-md">
+                    <KeyValuePairList name="pairs" minPairs={1} />
+                </form>
+            </FormProvider>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(await canvas.findByText(/no custom parameters added yet/i)).toBeInTheDocument();
+
+        // No inputs should be rendered
+        const inputs = canvasElement.querySelectorAll('input[type="text"]');
+        await expect(inputs.length).toBe(0);
+    },
+};
+
 export const RemoveButtonBehavior: Story = {
     args: { name: "pairs", minPairs: 1 },
     render: () => {
@@ -142,8 +169,10 @@ export const RemoveButtonBehavior: Story = {
         );
     },
     play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
         // Should have 3 remove buttons (more than minPairs of 1)
-        const removeButtons = canvasElement.querySelectorAll('[title="Remove pair"]');
+        const removeButtons = await canvas.findAllByRole("button", { name: /remove pair/i });
         await expect(removeButtons.length).toBe(3);
 
         // Verify all inputs are present
@@ -178,8 +207,10 @@ export const MinPairsEnforcement: Story = {
         );
     },
     play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
         // With 4 pairs and minPairs=3, all pairs should have remove button (because 4 > 3)
-        const removeButtons = canvasElement.querySelectorAll('[title="Remove pair"]');
+        const removeButtons = await canvas.findAllByRole("button", { name: /remove pair/i });
         await expect(removeButtons.length).toBe(4);
 
         // Verify all 4 pairs are rendered
