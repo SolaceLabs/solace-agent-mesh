@@ -145,7 +145,7 @@ export const CreateNewModel: Story = {
         const canvas = within(canvasElement);
 
         // Verify we're in create mode by checking the title (appears in both breadcrumb and title)
-        const createModelTexts = await canvas.findAllByText("Create Model");
+        const createModelTexts = await canvas.findAllByText("Add Model");
         expect(createModelTexts.length).toBeGreaterThanOrEqual(1);
 
         // Verify form fields are present (using text queries since labels are divs, not <label> elements)
@@ -339,7 +339,7 @@ export const EditModelWithAdvancedParams: Story = {
 };
 
 /**
- * Story: Create model with Custom provider
+ * Story: Add model with Custom provider
  * Shows the form for OpenAI-compatible custom providers
  */
 export const CreateCustomProviderModel: Story = {
@@ -455,7 +455,7 @@ export const TestConnectionButtonDisabled: Story = {
 
         // In create mode, Test Connection button should not be visible yet
         // (it only appears after provider selection reveals the full form)
-        await canvas.findAllByText("Create Model");
+        await canvas.findAllByText("Add Model");
 
         // Select a provider to make the button appear
         const providerComboboxes = await canvas.findAllByRole("combobox");
