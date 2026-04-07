@@ -7,6 +7,7 @@ interface KeyValuePairListProps {
     name: string;
     minPairs?: number;
     error?: unknown;
+    emptyMessage?: string;
 }
 
 /**
@@ -17,7 +18,7 @@ interface KeyValuePairListProps {
  * @param minPairs - Minimum number of pairs to show (default: 1)
  * @param error - Form validation error for this field
  */
-export const KeyValuePairList = ({ name, minPairs = 1, error }: KeyValuePairListProps) => {
+export const KeyValuePairList = ({ name, minPairs = 1, error, emptyMessage = "No items added yet" }: KeyValuePairListProps) => {
     const { control, register } = useFormContext();
     const { fields, remove } = useFieldArray({
         control,
@@ -40,7 +41,7 @@ export const KeyValuePairList = ({ name, minPairs = 1, error }: KeyValuePairList
 
     return (
         <div className="space-y-2">
-            {fields.length === 0 && <div className="rounded-lg bg-(--secondary-w10) p-3 text-sm text-(--secondary-text-wMain) italic">No custom parameters added yet</div>}
+            {fields.length === 0 && <div className="rounded-lg bg-(--secondary-w10) p-3 text-sm text-(--secondary-text-wMain) italic">{emptyMessage}</div>}
             {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-[1fr_1fr_auto] items-start gap-2">
                     <div>
