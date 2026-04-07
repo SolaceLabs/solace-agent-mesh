@@ -83,6 +83,7 @@ export default defineConfig({
                 "@tanstack/react-query",
                 "@tanstack/react-table",
                 "@xyflow/react",
+                "@xyflow/react/dist/style.css",
                 "class-variance-authority",
                 "clsx",
                 "dompurify",
