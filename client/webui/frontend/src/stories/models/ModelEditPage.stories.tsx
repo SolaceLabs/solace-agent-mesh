@@ -85,14 +85,18 @@ const loadingHandlers = [
 /**
  * Mock handler for test connection success
  */
-const testConnectionSuccessHandler = http.post("*/api/v1/platform/models", () => {
+const testConnectionSuccessHandler = http.post("*/api/v1/platform/models", ({ request }) => {
+    const url = new URL(request.url);
+    if (url.searchParams.get("validateOnly") !== "true") return;
     return HttpResponse.json({ data: { success: true, message: "Connection successful. Model responded with: OK" } });
 });
 
 /**
  * Mock handler for test connection failure
  */
-const testConnectionFailureHandler = http.post("*/api/v1/platform/models", () => {
+const testConnectionFailureHandler = http.post("*/api/v1/platform/models", ({ request }) => {
+    const url = new URL(request.url);
+    if (url.searchParams.get("validateOnly") !== "true") return;
     return HttpResponse.json({ data: { success: false, message: "Authentication failed: Invalid API key provided" } });
 });
 

@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Generator
 
 from fastapi import Depends, HTTPException, status
+from openfeature import api as openfeature_api
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -253,3 +254,23 @@ def set_model_dependents_handler(handler: ModelDependentsHandler):
 def get_model_dependents_handler() -> ModelDependentsHandler:
     """FastAPI dependency for the model dependents handler."""
     return _model_dependents_handler
+
+
+def require_model_config_ui_enabled() -> bool:
+    """Dependency that checks if model configuration UI feature is enabled.
+
+    Checks the model_config_ui feature flag at request time.
+
+    Returns:
+        True if feature is enabled.
+
+    Raises:
+        HTTPException: 501 Not Implemented if feature is disabled.
+    """
+    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
+    if not is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Model configuration feature is not enabled",
+        )
+    return True

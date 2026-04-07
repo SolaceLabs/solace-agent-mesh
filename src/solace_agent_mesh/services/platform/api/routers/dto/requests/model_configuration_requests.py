@@ -15,7 +15,7 @@ class ModelConfigurationBaseRequest(CamelCaseModel):
 
     model_id: Optional[str] = Field(
         None,
-        description="Model ID (UUID) to use stored credentials as fallback when testing (validateOnly mode)",
+        description="Model ID (UUID) — only used with validateOnly=true for stored credential fallback. Ignored by create/update.",
     )
     alias: Optional[str] = Field(
         None,
@@ -118,18 +118,6 @@ class ProviderQueryBaseRequest(CamelCaseModel):
         default_factory=dict,
         description="Model-specific parameters",
     )
-
-
-class SupportedModelsRequest(ProviderQueryBaseRequest):
-    """Request model for querying supported models from a provider.
-    Supports two modes:
-    1. Editing mode: provide model_id to use stored credentials
-    2. Creating mode: provide auth_config with type and credentials
-
-    Note: provider is passed as a URL path parameter in the providers router.
-    """
-
-    pass
 
 
 class SupportedParamsRequest(CamelCaseModel):

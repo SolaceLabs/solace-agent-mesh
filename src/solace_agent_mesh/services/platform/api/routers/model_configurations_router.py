@@ -8,10 +8,9 @@ logic layer.
 
 import asyncio
 import logging
-from typing import Union
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
-from openfeature import api as openfeature_api
 
 from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import (
@@ -19,6 +18,7 @@ from solace_agent_mesh.services.platform.api.dependencies import (
     get_model_dependents_handler,
     get_platform_db,
     get_component_instance,
+    require_model_config_ui_enabled,
     ModelDependentsHandler,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
@@ -37,30 +37,11 @@ from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.auth.dependencies import get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
+from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
 
 
 router = APIRouter()
-
-
-def _require_model_config_ui_enabled() -> bool:
-    """Dependency that checks if model configuration UI feature is enabled.
-
-    Checks the model_config_ui environment variable at request time.
-
-    Returns:
-        True if feature is enabled, False otherwise.
-
-    Raises:
-        HTTPException: 501 Not Implemented if feature is disabled.
-    """
-    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
-    if not is_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Model configuration feature is not enabled",
-        )
-    return True
 
 
 def _emit_model_config_update(component, model_id: str, alias: str, model_config: dict | None):
@@ -94,7 +75,7 @@ def _emit_model_config_update(component, model_id: str, alias: str, model_config
     description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
 )
 async def list_models(
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
@@ -150,7 +131,7 @@ async def get_models_status(
 )
 async def get_model(
     model_id: str,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
@@ -172,6 +153,7 @@ async def get_model(
 
 @router.post(
     "/models",
+    response_model=DataResponse,
     summary="Create a model configuration",
     description="Create a new model configuration. The alias must be unique (case-sensitive). "
     "Pass validateOnly=true to test connectivity without persisting.",
@@ -179,7 +161,7 @@ async def get_model(
 async def create_model(
     request: ModelConfigurationBaseRequest,
     response: Response,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     validate_only: bool = Query(False, alias="validateOnly"),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
@@ -197,12 +179,21 @@ async def create_model(
         )
         try:
             success, message = await asyncio.to_thread(service.test_connection, db, test_request)
-        except Exception as e:
+        except Exception:
+            log.exception("Test connection failed unexpectedly")
             success = False
-            message = f"Test connection failed. {e}"
+            message = "Test connection failed due to an internal error."
         return create_data_response(ModelConfigurationTestResponse(success=success, message=message))
 
-    create_request = ModelConfigurationCreateRequest.model_validate(request.model_dump(exclude_none=True))
+    try:
+        create_request = ModelConfigurationCreateRequest.model_validate(request.model_dump(exclude_none=True))
+    except PydanticValidationError as e:
+        builder = ValidationErrorBuilder().message("Invalid model configuration request")
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error["loc"])
+            builder.validation_detail(field, [error["msg"]])
+        raise builder.build()
+
     created_by = user.get("id", "unknown")
     config = service.create(db, create_request, created_by=created_by)
     raw_config = service.get_by_id(db, config.id, raw=True)
@@ -219,7 +210,7 @@ async def create_model(
 async def update_model(
     model_id: str,
     request: ModelConfigurationUpdateRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
@@ -240,7 +231,7 @@ async def update_model(
 )
 async def get_model_dependents(
     model_id: str,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelDependentResponse]]:
@@ -286,7 +277,7 @@ async def get_model_dependents(
 )
 async def delete_model(
     model_id: str,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),

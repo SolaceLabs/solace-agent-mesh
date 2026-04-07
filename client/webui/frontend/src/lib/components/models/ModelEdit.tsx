@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
 import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
@@ -59,7 +59,11 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [getValues, setValue]);
 
     const customParams = watch("customParams") ?? [];
-    const hasEmptyCustomParam = customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim());
+    const hasEmptyCustomParam = useMemo(() => customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim()), [customParams]);
+    const unsupportedCustomKeys = useMemo(() => {
+        if (!supportedParams || supportedParams.length === 0) return [];
+        return customParams.filter((p: { key: string }) => p.key && !supportedParams.includes(p.key)).map((p: { key: string }) => p.key);
+    }, [customParams, supportedParams]);
 
     const selectedProvider = watch("provider");
     const selectedAuthType = watch("authType");
@@ -119,6 +123,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setProviderConfig(config);
             setQueryParams(null); // Reset query so next dropdown open fetches fresh
             setSupportedParams(null); // Reset supported params when provider changes
+            lastParamsFetchRef.current = null;
             setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
@@ -148,24 +153,25 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
-    // Fetch supported params when model name or provider changes
-    useEffect(() => {
-        if (!selectedProvider || !selectedModelName) {
-            setSupportedParams(null);
-            return;
-        }
-        let cancelled = false;
-        fetchSupportedParams(selectedProvider, selectedModelName)
-            .then(params => {
-                if (!cancelled) setSupportedParams(params);
-            })
-            .catch(() => {
-                if (!cancelled) setSupportedParams(null);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [selectedProvider, selectedModelName]);
+    // Track which provider+model combo we last fetched params for
+    const lastParamsFetchRef = useRef<string | null>(null);
+
+    // Fetch supported params on demand when the Advanced Settings section is opened
+    const handleAdvancedToggle = useCallback(
+        (e: React.ToggleEvent<HTMLDetailsElement>) => {
+            if (!e.currentTarget.open) return;
+            if (!selectedProvider || !selectedModelName) return;
+
+            const key = `${selectedProvider}:${selectedModelName}`;
+            if (lastParamsFetchRef.current === key) return; // already fetched for this combo
+
+            lastParamsFetchRef.current = key;
+            fetchSupportedParams(selectedProvider, selectedModelName)
+                .then(setSupportedParams)
+                .catch(() => setSupportedParams(null));
+        },
+        [selectedProvider, selectedModelName]
+    );
 
     // Clear query params when credentials change so next dropdown open fetches fresh models
     useEffect(() => {
@@ -500,7 +506,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group border-t pt-4">
+                                <details className="group border-t pt-4" onToggle={handleAdvancedToggle}>
                                     <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
@@ -539,14 +545,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     render={() => (
                                                         <>
                                                             <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" />
-                                                            {supportedParams && supportedParams.length > 0 && customParams.some((p: { key: string }) => p.key && !supportedParams.includes(p.key)) && (
-                                                                <p className="mt-2 text-xs text-(--warning-wMain)">
-                                                                    Some custom parameters may not be supported by the selected model:{" "}
-                                                                    {customParams
-                                                                        .filter((p: { key: string }) => p.key && !supportedParams.includes(p.key))
-                                                                        .map((p: { key: string }) => p.key)
-                                                                        .join(", ")}
-                                                                </p>
+                                                            {unsupportedCustomKeys.length > 0 && (
+                                                                <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
                                                         </>
                                                     )}

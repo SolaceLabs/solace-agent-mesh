@@ -6,18 +6,18 @@ operate on stored model configurations.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from openfeature import api as openfeature_api
 
 from solace_agent_mesh.services.platform.services import ModelConfigService, ModelListService
 from solace_agent_mesh.services.platform.api.dependencies import (
     get_model_config_service,
     get_model_list_service,
     get_platform_db,
+    require_model_config_ui_enabled,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
-    SupportedModelsRequest,
+    ProviderQueryBaseRequest,
     SupportedParamsRequest,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
@@ -32,17 +32,6 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _require_model_config_ui_enabled() -> bool:
-    """Dependency that checks if model configuration UI feature is enabled."""
-    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
-    if not is_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Model configuration feature is not enabled",
-        )
-    return True
-
-
 @router.post(
     "/providers/{provider}/models",
     response_model=DataResponse[list[dict]],
@@ -51,8 +40,8 @@ def _require_model_config_ui_enabled() -> bool:
 )
 async def list_provider_models(
     provider: str,
-    request: SupportedModelsRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
+    request: ProviderQueryBaseRequest,
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelListService = Depends(get_model_list_service),
     config_service: ModelConfigService = Depends(get_model_config_service),
@@ -86,7 +75,7 @@ async def list_provider_models(
     if not auth_type:
         raise ValidationErrorBuilder().message(
             "Either model_id (for editing) or auth_config with 'type' (for creating) is required"
-        ).entity_type("SupportedModelsRequest").entity_identifier(provider).build()
+        ).entity_type("ProviderQueryBaseRequest").entity_identifier(provider).build()
 
     models = service.get_models_with_new_credentials(
         provider=provider,
@@ -108,7 +97,7 @@ async def list_provider_models(
 async def get_supported_params(
     provider: str,
     request: SupportedParamsRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     service: ModelListService = Depends(get_model_list_service),
 ) -> DataResponse[SupportedParamsResponse]:
     """

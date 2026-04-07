@@ -4,7 +4,7 @@ from .model_configuration_requests import (
     ModelConfigurationBaseRequest,
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
-    SupportedModelsRequest,
+    ProviderQueryBaseRequest,
     SupportedParamsRequest,
     ModelConfigurationTestRequest,
 )
@@ -13,7 +13,7 @@ __all__ = [
     "ModelConfigurationBaseRequest",
     "ModelConfigurationCreateRequest",
     "ModelConfigurationUpdateRequest",
-    "SupportedModelsRequest",
+    "ProviderQueryBaseRequest",
     "SupportedParamsRequest",
     "ModelConfigurationTestRequest",
 ]
