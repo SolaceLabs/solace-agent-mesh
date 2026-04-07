@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 
-import { Button } from "@/lib/components/ui";
+import { Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { testModelConnection } from "@/lib/api/models/service";
 import { buildModelPayload } from "./modelProviderUtils";
@@ -59,9 +59,16 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
     return (
         <div className="border-t pt-4">
             <div className="flex items-center gap-3">
-                <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled}>
-                    Test Connection
-                </Button>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span>
+                            <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled}>
+                                Test Connection
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    {disabled && <TooltipContent>Required configuration is missing</TooltipContent>}
+                </Tooltip>
                 {isTesting && (
                     <div className="flex items-center gap-2 text-sm text-(--secondary-text-wMain)">
                         <Loader2 className="size-4 animate-spin" />
