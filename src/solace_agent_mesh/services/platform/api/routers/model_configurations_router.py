@@ -336,7 +336,7 @@ async def list_supported_models_by_provider(
         model_params=request.model_params,
     )
 
-    return create_data_response(models)
+    return create_data_response(sorted(models, key=lambda m: m.get("label", "").lower()))
 
 @router.post(
     "/models/test",
