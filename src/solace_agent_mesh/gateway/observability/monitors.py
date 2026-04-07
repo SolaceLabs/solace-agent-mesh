@@ -1,5 +1,7 @@
 """Concrete monitor implementations for SAM gateway operations."""
 
+import threading
+
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -159,17 +161,20 @@ class SamWebGatewayCounter:
     """
 
     _counter = None
+    _lock = threading.Lock()
 
     @classmethod
     def _get_counter(cls):
-        """Lazy initialization of counter."""
-        if cls._counter is None:
-            from solace_ai_connector.common.observability import MetricRegistry
-            registry = MetricRegistry.get_instance()
-            cls._counter = registry.create_counter(
-                name="gateway.requests",
-                description="Total gateway requests by route, method, and error type"
-            )
+        """Lazy initialization of counter (thread-safe)."""
+        if cls._counter is None:  # Fast path check (avoid lock overhead)
+            with cls._lock:  # Double-checked locking
+                if cls._counter is None:  # Recheck inside lock
+                    from solace_ai_connector.common.observability import MetricRegistry
+                    registry = MetricRegistry.get_instance()
+                    cls._counter = registry.create_counter(
+                        name="gateway.requests",
+                        description="Total gateway requests by route, method, and error type"
+                    )
         return cls._counter
 
     @classmethod

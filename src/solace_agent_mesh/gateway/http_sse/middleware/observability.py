@@ -20,6 +20,7 @@ from solace_ai_connector.common.observability import MonitorLatency
 from ...observability.monitors import SamGatewayMonitor, SamGatewayTTFBMonitor, SamWebGatewayCounter
 
 log = logging.getLogger(__name__)
+LOG_IDENTIFIER = "[GatewayObservability]"
 
 
 class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
@@ -37,7 +38,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
 
     3. gateway.requests (counter): Request counts per route with error breakdown
        Labels: gateway.name, route.template, http.method, error.type
-       Cardinality: ~666 series (1 gateways * ~74 routes * 3 avg methods * ~3 error_types)
+       Cardinality: ~666 series (1 gateways * ~74 routes * ~3 avg methods * ~3 error_types)
 
     Operation groups (collapsed by prefix):
     - task: /api/v1/tasks/*
@@ -184,7 +185,10 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
         """
         # Only wrap if it has a body_iterator (duck typing for streaming responses)
         if not hasattr(response, 'body_iterator'):
-            log.warning(f"Response has no body_iterator attribute, skipping TTFB measurement")
+            log.warning(
+                "%s Response has no body_iterator attribute, skipping TTFB measurement",
+                LOG_IDENTIFIER
+            )
             return response
 
         monitor = MonitorLatency(
