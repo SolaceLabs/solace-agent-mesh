@@ -136,7 +136,7 @@ export const EmptyState: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await expect(await canvas.findByText(/no custom parameters added yet/i)).toBeInTheDocument();
+        await expect(await canvas.findByText(/no items added yet/i)).toBeInTheDocument();
 
         // No inputs should be rendered
         const inputs = canvasElement.querySelectorAll('input[type="text"]');
