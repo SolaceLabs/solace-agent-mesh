@@ -14,6 +14,7 @@ import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
 import { DEFAULT_MODEL_ALIASES } from "./common";
+import { useDebounce } from "@/lib/hooks";
 
 interface ModelEditProps {
     isNew: boolean;
@@ -59,17 +60,21 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [getValues, setValue]);
 
     const customParams = watch("customParams") ?? [];
-    const hasEmptyCustomParam = useMemo(() => customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim()), [customParams]);
+    // Serialize customParams for useMemo deps — watch() returns a mutated array
+    // (same reference), so shallow comparison alone won't detect content changes.
+    const customParamsJson = JSON.stringify(customParams);
+    const hasEmptyCustomParam = useMemo(() => customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim()), [customParamsJson]);
     const unsupportedCustomKeys = useMemo(() => {
         if (!supportedParams || supportedParams.length === 0) return [];
         return customParams.filter((p: { key: string }) => p.key && !supportedParams.includes(p.key)).map((p: { key: string }) => p.key);
-    }, [customParams, supportedParams]);
+    }, [customParamsJson, supportedParams]);
 
     const selectedProvider = watch("provider");
     const selectedAuthType = watch("authType");
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
+    const debouncedModelName = useDebounce(selectedModelName, 500);
     // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change.
     // Values aren't used directly — isConfigured() reads via getValues() — but the
     // watch() subscription is needed to trigger a re-render when any field changes.
@@ -123,7 +128,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setProviderConfig(config);
             setQueryParams(null); // Reset query so next dropdown open fetches fresh
             setSupportedParams(null); // Reset supported params when provider changes
-            lastParamsFetchRef.current = null;
             setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
@@ -153,25 +157,25 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
-    // Track which provider+model combo we last fetched params for
-    const lastParamsFetchRef = useRef<string | null>(null);
-
-    // Fetch supported params on demand when the Advanced Settings section is opened
-    const handleAdvancedToggle = useCallback(
-        (e: React.ToggleEvent<HTMLDetailsElement>) => {
-            if (!e.currentTarget.open) return;
-            if (!selectedProvider || !selectedModelName) return;
-
-            const key = `${selectedProvider}:${selectedModelName}`;
-            if (lastParamsFetchRef.current === key) return; // already fetched for this combo
-
-            lastParamsFetchRef.current = key;
-            fetchSupportedParams(selectedProvider, selectedModelName)
-                .then(setSupportedParams)
-                .catch(() => setSupportedParams(null));
-        },
-        [selectedProvider, selectedModelName]
-    );
+    // Fetch supported params when provider or model name changes (debounced to avoid
+    // excessive requests while the user types a custom model name in the ComboBox)
+    useEffect(() => {
+        if (!selectedProvider || !debouncedModelName) {
+            setSupportedParams(null);
+            return;
+        }
+        let cancelled = false;
+        fetchSupportedParams(selectedProvider, debouncedModelName)
+            .then(params => {
+                if (!cancelled) setSupportedParams(params);
+            })
+            .catch(() => {
+                if (!cancelled) setSupportedParams(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedProvider, debouncedModelName]);
 
     // Clear query params when credentials change so next dropdown open fetches fresh models
     useEffect(() => {
@@ -506,7 +510,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group border-t pt-4" onToggle={handleAdvancedToggle}>
+                                <details className="group border-t pt-4">
                                     <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
