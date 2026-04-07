@@ -1,6 +1,6 @@
 import { useFieldArray, useFormContext } from "react-hook-form";
 import { X } from "lucide-react";
-import { Button, Input } from "@/lib/components/ui";
+import { Button, Input, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
 import { ErrorLabel } from "./ErrorLabel";
 
 interface KeyValuePairListProps {
@@ -52,9 +52,14 @@ export const KeyValuePairList = ({ name, minPairs = 1, error }: KeyValuePairList
                     </div>
                     <div className="flex items-center" style={{ paddingTop: index === 0 ? "24px" : "0" }}>
                         {fields.length > minPairs && (
-                            <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)} title="Remove pair">
-                                <X className="size-4" />
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>
+                                        <X className="size-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Remove pair</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
                 </div>
