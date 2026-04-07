@@ -11,6 +11,7 @@ import { useChatContext, useCitationClick, useUIMode } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { RedirectButton } from "./RedirectButton";
 import { DeepResearchReportContent } from "@/lib/components/research/DeepResearchReportContent";
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
@@ -21,6 +22,7 @@ import { parseCitations } from "@/lib/utils/citations";
 
 import DOMPurify from "dompurify";
 import { ArtifactMessage, FileMessage } from "./file";
+import { BuildPlanCard } from "./artifact/BuildPlanCard";
 import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
@@ -28,6 +30,7 @@ import { decodeBase64Content } from "./preview/previewUtils";
 import { downloadFile } from "@/lib/utils/download";
 import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
+import { UserInputMessage } from "./hil";
 import { CompactionNotification, type CompactionNotificationData } from "./CompactionNotification";
 import { UserInputMessage } from "./hil";
 import { SelectableMessageContent } from "./selection";
@@ -645,7 +648,7 @@ const getChatBubble = (
     inlineActivityTimelineEnabled?: boolean,
     showThinkingContentEnabled?: boolean
 ): React.ReactNode => {
-    const { openSidePanelTab, setTaskIdInSidePanel, ragData, currentUserEmail } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData, builderMode, artifacts, currentUserEmail } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -702,14 +705,40 @@ const getChatBubble = (
         return <CompactionNotification data={compactionPart.data as unknown as CompactionNotificationData} />;
     }
 
+    // Check for redirect data part — render as a clickable button
+    const redirectPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data && ((p as DataPart).data as any).type === "redirect") as DataPart | undefined;
+
     // Group contiguous parts to handle interleaving of text and files
     const groupedParts: (TextPart | FilePart | ArtifactPart)[] = [];
     let currentTextGroup = "";
-
     message.parts?.forEach(part => {
         if (part.kind === "text") {
             currentTextGroup += (part as TextPart).text;
         } else if (part.kind === "file" || part.kind === "artifact") {
+            // In builder mode, hide config artifacts and platform_components.json from the chat.
+            // Build manifest gets a BuildPlanCard rendering instead of the normal artifact bar.
+            if (builderMode && part.kind === "artifact") {
+                const artifactPart = part as ArtifactPart;
+                const name = artifactPart.name || "";
+                // Look up MIME type from the global artifacts list (available even during in-progress)
+                const mimeType = artifactPart.file?.mime_type || artifacts.find(a => a.filename === name)?.mime_type || "";
+                const isSamConfig = mimeType.startsWith("application/vnd.sam-");
+                // Detect build manifests by mime_type or filename fallback (mime_type may not be set during early streaming)
+                const isBuildManifest = mimeType === "application/vnd.sam-build-manifest+yaml" || name === "build_manifest.yaml";
+
+                if (isBuildManifest) {
+                    // Flush pending text before injecting the BuildPlanCard placeholder
+                    if (currentTextGroup) {
+                        groupedParts.push({ kind: "text", text: currentTextGroup });
+                        currentTextGroup = "";
+                    }
+                    // BuildPlanCard manages its own content lifecycle (accumulatedContent → fetch)
+                    groupedParts.push({ kind: "build-plan", filename: name, isComplete: artifactPart.status === "completed" } as any);
+                }
+                if (name === "platform_components.json" || isSamConfig || isBuildManifest) {
+                    return; // Hide all SAM config artifacts, build manifests, and platform_components.json
+                }
+            }
             if (currentTextGroup) {
                 groupedParts.push({ kind: "text", text: currentTextGroup });
                 currentTextGroup = "";
@@ -721,7 +750,7 @@ const getChatBubble = (
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
 
-    const hasContent = groupedParts.some(p => (p.kind === "text" && p.text.trim()) || p.kind === "file" || p.kind === "artifact");
+    const hasContent = groupedParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || p.kind === "artifact" || (p as any).kind === "build-plan");
     const hasProgressUpdates = inlineActivityTimelineEnabled && message.progressUpdates && message.progressUpdates.length > 0;
     if (!hasContent && !hasProgressUpdates) {
         return null;
@@ -882,9 +911,23 @@ const getChatBubble = (
                     );
                 } else if (part.kind === "artifact" || part.kind === "file") {
                     return renderArtifactOrFilePart(part, index, shouldStream);
+                } else if ((part as any).kind === "build-plan") {
+                    const bp = part as any;
+                    return (
+                        <div key={`part-build-plan-${index}`} className="flex justify-start pl-4">
+                            <BuildPlanCard filename={bp.filename} isComplete={bp.isComplete} />
+                        </div>
+                    );
                 }
                 return null;
             })}
+
+            {/* Show redirect button only after the task completes */}
+            {redirectPart && message.isComplete && (
+                <div className="flex justify-start pl-4">
+                    <RedirectButton data={redirectPart.data as any} />
+                </div>
+            )}
 
             {/* Show deep research report content inline (without References and Methodology sections) */}
             {deepResearchReportInfo && <DeepResearchReportBubble deepResearchReportInfo={deepResearchReportInfo} message={message} onContentLoaded={onReportContentLoaded} />}
