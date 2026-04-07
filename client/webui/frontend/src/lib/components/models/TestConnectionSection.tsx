@@ -57,7 +57,7 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
     }, [getFormData, getDirtyFields, isNew, modelId]);
 
     return (
-        <div className="border-t pt-4">
+        <div className="pt-4">
             <div className="flex items-center gap-3">
                 <Tooltip>
                     <TooltipTrigger asChild>

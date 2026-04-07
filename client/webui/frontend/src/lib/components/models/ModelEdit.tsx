@@ -548,7 +548,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group mt-10">
+                                <details className="group mt-4">
                                     <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
