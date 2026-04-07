@@ -17,6 +17,9 @@ from solace_agent_mesh.gateway.http_sse.routers.dto.prompt_dto import (
     PromptBuilderChatRequest,
     PromptBuilderChatResponse,
 )
+from solace_agent_mesh.gateway.http_sse.routers.prompts import (
+    prompt_builder_chat,
+)
 
 
 class TestPromptBuilderChatResponseDTO:
@@ -205,83 +208,12 @@ class TestPromptBuilderChatEndpoint:
         assert "SECRET_CONNECTION_STRING" not in result.message
         assert "postgres" not in result.message
 
-
-class TestGetComponentNameHelper:
-    """Tests for get_component_name() helper function."""
-
-    def test_get_component_name_for_agent(self):
-        """Agent components should return the actual agent_name."""
-        from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-            get_component_name,
-        )
-
-        mock_component = MagicMock()
-        mock_component.agent_name = "my-test-agent"
-
-        result = get_component_name(mock_component)
-
-        assert result == "my-test-agent"
-
-    def test_get_component_name_for_gateway(self):
-        """Gateway components should return 'gateway' literal (not gateway_id)."""
-        from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-            get_component_name,
-        )
-
-        # Simulate WebUIBackendComponent (has gateway_id, NOT agent_name)
-        mock_component = MagicMock()
-        mock_component.gateway_id = "test-gateway-123"
-        # Explicitly delete agent_name to simulate real gateway component
-        del mock_component.agent_name
-
-        result = get_component_name(mock_component)
-
-        assert result == "gateway"
-
-    def test_get_component_name_for_workflow(self):
-        """Workflow components should return 'workflow' literal (not workflow_name)."""
-        from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-            get_component_name,
-        )
-
-        # Simulate workflow component (has workflow_name, NOT agent_name or gateway_id)
-        mock_component = MagicMock()
-        mock_component.workflow_name = "test-workflow-456"
-        del mock_component.agent_name
-        del mock_component.gateway_id
-
-        result = get_component_name(mock_component)
-
-        assert result == "workflow"
-
-    def test_get_component_name_for_unknown(self):
-        """Unknown components should return 'unknown'."""
-        from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-            get_component_name,
-        )
-
-        # Simulate component with no identifying attributes
-        mock_component = MagicMock()
-        del mock_component.agent_name
-        del mock_component.gateway_id
-        del mock_component.workflow_name
-
-        result = get_component_name(mock_component)
-
-        assert result == "unknown"
-
-
 class TestPromptBuilderChatObservability:
     """Tests for ObservabilityContext integration in prompt_builder_chat."""
 
     @pytest.mark.asyncio
-    async def test_observability_context_with_gateway_component(self):
-        """Test that gateway component uses 'gateway' literal for observability."""
-        from solace_agent_mesh.gateway.http_sse.routers.prompts import (
-            prompt_builder_chat,
-        )
-        from unittest.mock import patch
-
+    async def test_observability_context(self):
+        """Test that prompt builder uses 'prompt_builder' literal for observability."""
         # Create mock that simulates WebUIBackendComponent
         mock_component = MagicMock()
         mock_component.gateway_id = "test-gateway-123"
@@ -325,7 +257,7 @@ class TestPromptBuilderChatObservability:
                 component=mock_component,
             )
 
-            # Verify ObservabilityContext was called with "gateway" not component.agent_name
+            # Verify ObservabilityContext was called with hardcoded "prompt_builder"
             MockObservabilityContext.assert_called_once_with(
-                component_name="gateway", owner_id="test-user"
+                component_name="prompt_builder", owner_id="test-user"
             )
