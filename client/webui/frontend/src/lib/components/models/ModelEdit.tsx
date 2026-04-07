@@ -28,7 +28,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
-        shouldUnregister: true,
         defaultValues: {
             customParams: [],
             cache_strategy: "5m",
@@ -57,7 +56,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     }, [getValues, setValue]);
 
     const selectedProvider = watch("provider");
-    const selectedAuthType = watch("authType") || providerConfig?.allowedAuthTypes[0] || null;
+    const selectedAuthType = watch("authType");
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
