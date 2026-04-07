@@ -735,7 +735,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             if not main_broker_config:
                 raise ValueError("Main app broker configuration is missing.")
 
-            subscriptions = [{"topic": f"{self.namespace}a2a/v1/scheduler/response/>"}]
+            subscriptions = [
+                {"topic": f"{self.namespace}a2a/v1/scheduler/response/>"},
+                {"topic": f"{self.namespace}a2a/v1/scheduler/status/>"},
+            ]
 
             broker_input_cfg = {
                 "component_module": "broker_input",
