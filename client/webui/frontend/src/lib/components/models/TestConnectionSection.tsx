@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 
-import { Button, Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui";
+import { Button } from "@/lib/components/ui";
 import { MessageBanner } from "@/lib/components/common";
 import { testModelConnection } from "@/lib/api/models/service";
 import { buildModelPayload } from "./modelProviderUtils";
