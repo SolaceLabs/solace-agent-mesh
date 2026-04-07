@@ -672,3 +672,29 @@ Write unit tests for your tool functions independently. Test them with various i
 Write integration tests that test your agent with real Agent Mesh infrastructure. These tests verify that your configuration is correct and that your tools work properly when called by the LLM.
 
 Mock external dependencies for reliable testing. If your tools call external APIs or databases, create mock versions for testing. This makes your tests faster and more reliable because they don't depend on external services being available.
+
+
+
+
+---
+
+## Agent-to-Agent Communication
+Agents in the mesh can communicate by publishing tasks. This is handled via the `event_mesh` interface.
+
+### Sending a Task
+To delegate a job to another agent (e.g., asking a `WeatherAgent` for data), use the `send_task` method:
+
+```python
+# Agent A (The Requesting Agent)
+self.event_mesh.send_task(
+    target="WeatherAgent",
+    payload={"location": "New York"},
+    callback=self.on_weather_received
+)
+
+
+# Agent B (The Receiving Agent)
+def handle_task(self, event):
+    location = event.payload.get("location")
+    # Logic to process the request
+    return f"The weather in {location} is Sunny!"
