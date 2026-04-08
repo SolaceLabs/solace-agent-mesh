@@ -128,7 +128,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             setProviderConfig(config);
             setQueryParams(null); // Reset query so next dropdown open fetches fresh
             setSupportedParams(null); // Reset supported params when provider changes
-            setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
             if (hasInitializedFromModelRef.current && !isNew && modelToEdit && modelToEdit.provider === selectedProvider) {
@@ -137,6 +136,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                 onProviderChange?.(selectedProvider);
                 return;
             }
+
+            setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
 
             // Fetch models for this provider if callback provided
             onProviderChange?.(selectedProvider);
@@ -314,7 +315,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -323,7 +324,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Textarea fields use FormField wrapper
         if (field.type === "textarea") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Textarea
                         rows={6}
                         placeholder={field.placeholder}
@@ -339,7 +340,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Select fields use native Select component
         if (field.type === "select") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Controller
                         name={field.name}
                         control={control}
@@ -372,7 +373,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             if (field.max !== undefined) rules.max = { value: field.max, message: `Maximum value is ${field.max}` };
         }
         return (
-            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+            <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                 <Input
                     {...register(field.name, rules)}
                     type={field.type === "number" ? "number" : "text"}

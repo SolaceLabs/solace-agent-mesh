@@ -393,23 +393,31 @@ class ModelListService:
             log.warning("litellm not available, cannot determine supported params")
             return []
 
-        # For custom providers, the model name contains the real provider prefix
-        # (e.g., "openai/gpt-4o"). Extract the litellm provider from it.
-        if provider == ModelProviders.CUSTOM and "/" in model_name:
-            litellm_provider = model_name.split("/", 1)[0]
-            bare_model = model_name.split("/", 1)[1]
-        else:
-            # Map our provider IDs to litellm's where they differ
-            litellm_provider_map = {
-                ModelProviders.GOOGLE_AI_STUDIO: "gemini",
-                ModelProviders.AZURE_OPENAI: "azure",
-            }
-            litellm_provider = litellm_provider_map.get(provider, provider)
-            bare_model = model_name.split("/", 1)[1] if "/" in model_name else model_name
+        if provider == ModelProviders.CUSTOM:
+            # For custom providers, let litellm infer the provider from the model
+            # name — this handles proxies that serve multiple providers (e.g., both
+            # OpenAI and Anthropic models behind one endpoint). Fall back to "openai"
+            # if litellm doesn't recognise the model name, since custom providers are
+            # OpenAI-compatible by definition.
+            try:
+                params = litellm.get_supported_openai_params(model=model_name)
+                if params is not None:
+                    return sorted(params)
+            except Exception:
+                pass
+            params = litellm.get_supported_openai_params(model=model_name, custom_llm_provider="openai")
+            return sorted(params) if params else []
+
+        # Map our provider IDs to litellm's where they differ
+        litellm_provider_map = {
+            ModelProviders.GOOGLE_AI_STUDIO: "gemini",
+            ModelProviders.AZURE_OPENAI: "azure",
+        }
+        litellm_provider = litellm_provider_map.get(provider, provider)
 
         try:
             params = litellm.get_supported_openai_params(
-                model=bare_model,
+                model=model_name,
                 custom_llm_provider=litellm_provider,
             )
             if params is None:
