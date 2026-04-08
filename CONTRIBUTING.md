@@ -100,6 +100,20 @@ That's it! Thank you for your contribution!
 
 * Ask any question about the code or how to use Solace technologies in the [Solace community](https://solace.community).
 
+## Developer Tools
+
+### SonarLint (Recommended)
+
+[SonarLint for VS Code](https://marketplace.visualstudio.com/items?itemName=SonarSource.sonarlint-vscode) is recommended to catch SonarQube issues locally before pushing, saving round-trips through CI. The extension is included in the repo's recommended extensions and VS Code will prompt you to install it automatically.
+
+To connect it to the Solace SonarQube server:
+
+1. Open the SonarLint extension settings in VS Code
+2. Add a connected mode configuration pointing to `https://sonarq.solace.com`
+3. Follow the OAuth flow to grant access
+
+Once connected, issues are highlighted inline as you code and quick-fix actions are available. Note that the plugin does not check code test coverage.
+
 ## <a name="dco"></a> Developer Certificate of Origin
 
 Any contributions must only contain code that can legally be contributed to Solace Agent Mesh, and which the Solace Agent Mesh project can distribute under its license.
