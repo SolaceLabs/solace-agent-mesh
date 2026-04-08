@@ -25,9 +25,23 @@ interface ComboBoxProps {
     onOpen?: () => void;
     allowCustomValue?: boolean;
     noItemsFoundText?: string;
+    dropdownMaxHeight?: number;
 }
 
-export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an option...", disabled, invalid, isLoading, renderItem, onOpen, allowCustomValue = false, noItemsFoundText = "No items found" }: ComboBoxProps) => {
+export const ComboBox = ({
+    value,
+    onValueChange,
+    items,
+    placeholder = "Select an option...",
+    disabled,
+    invalid,
+    isLoading,
+    renderItem,
+    onOpen,
+    allowCustomValue = false,
+    noItemsFoundText = "No items found",
+    dropdownMaxHeight = 240,
+}: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
     const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -81,8 +95,7 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
                 const inputRect = inputRef.current.getBoundingClientRect();
                 const spaceBelow = window.innerHeight - inputRect.bottom;
 
-                // If not enough space below (less than 240px for max-h-60), open above
-                setOpenAbove(spaceBelow < 240);
+                setOpenAbove(spaceBelow < dropdownMaxHeight);
             }
         }
     }, [isOpen]);
@@ -215,7 +228,7 @@ export const ComboBox = ({ value, onValueChange, items, placeholder = "Select an
 
             {isOpen && (flatItems.length > 0 || searchText) && (
                 <div ref={dropdownRef} role="listbox" className={`border-input absolute right-0 left-0 z-50 rounded-md border bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
-                    <div className="max-h-60 overflow-y-auto bg-(--background-w10)">
+                    <div className="overflow-y-auto bg-(--background-w10)" style={{ maxHeight: `${dropdownMaxHeight}px` }}>
                         {flatItems.length > 0 ? (
                             <>
                                 {/* Default items */}
