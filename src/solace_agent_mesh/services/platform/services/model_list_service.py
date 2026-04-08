@@ -375,6 +375,58 @@ class ModelListService:
         data = response.json()
         return [m["name"].split("/")[-1] for m in data.get("publisherModels", []) if m.get("name")]
 
+    def get_supported_params(self, provider: str, model_name: str) -> List[str]:
+        """Get supported OpenAI-compatible parameters for a model.
+
+        Uses litellm's internal registry to determine which parameters
+        a model supports. This is a local lookup, not a provider API call.
+
+        Args:
+            provider: Our provider ID (e.g., 'openai', 'anthropic')
+            model_name: The model name (e.g., 'gpt-4o', 'openai/gpt-4o')
+
+        Returns:
+            Sorted list of supported parameter names (snake_case).
+            Empty list if litellm is unavailable or doesn't recognize the model.
+        """
+        if litellm is None:
+            log.warning("litellm not available, cannot determine supported params")
+            return []
+
+        if provider == ModelProviders.CUSTOM:
+            # For custom providers, let litellm infer the provider from the model
+            # name — this handles proxies that serve multiple providers (e.g., both
+            # OpenAI and Anthropic models behind one endpoint). Fall back to "openai"
+            # if litellm doesn't recognise the model name, since custom providers are
+            # OpenAI-compatible by definition.
+            try:
+                params = litellm.get_supported_openai_params(model=model_name)
+                if params is not None:
+                    return sorted(params)
+            except Exception:
+                pass
+            params = litellm.get_supported_openai_params(model=model_name, custom_llm_provider="openai")
+            return sorted(params) if params else []
+
+        # Map our provider IDs to litellm's where they differ
+        litellm_provider_map = {
+            ModelProviders.GOOGLE_AI_STUDIO: "gemini",
+            ModelProviders.AZURE_OPENAI: "azure",
+        }
+        litellm_provider = litellm_provider_map.get(provider, provider)
+
+        try:
+            params = litellm.get_supported_openai_params(
+                model=model_name,
+                custom_llm_provider=litellm_provider,
+            )
+            if params is None:
+                return []
+            return sorted(params)
+        except Exception as e:
+            log.warning("Failed to get supported params for %s/%s: %s", provider, model_name, e)
+            return []
+
     def _get_litellm_models_for_provider(self, provider: str) -> List[str]:
         """Return models for a provider from LiteLLM's built-in model registry.
 

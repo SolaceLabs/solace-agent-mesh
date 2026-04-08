@@ -48,9 +48,7 @@ export async function fetchSupportedModelsByProvider(
         modelParams?: Record<string, unknown>;
     }
 ): Promise<Array<{ id: string; label: string }>> {
-    const body: Record<string, unknown> = {
-        provider,
-    };
+    const body: Record<string, unknown> = {};
 
     // Pass modelId for stored credential fallback (editing mode)
     if (modelId) {
@@ -68,7 +66,7 @@ export async function fetchSupportedModelsByProvider(
         body.modelParams = options.modelParams;
     }
 
-    const response = await api.platform.post("/api/v1/platform/supported-models", body);
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/models`, body);
     return response.data || [];
 }
 
@@ -112,13 +110,23 @@ export interface TestConnectionResponse {
 /**
  * Test a model configuration connection.
  *
- * Two modes:
- * 1. New configuration: Provide provider, model_name, and credentials
- * 2. Existing model: Provide modelId to use stored credentials as fallback
+ * Uses POST /models?validateOnly=true to test connectivity without persisting.
  */
 export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
-    const response = await api.platform.post("/api/v1/platform/models/test", data);
+    const response = await api.platform.post("/api/v1/platform/models?validateOnly=true", data);
     return response.data;
+}
+
+/**
+ * Fetch supported advanced parameters for a model.
+ *
+ * Uses litellm's internal registry — no credentials needed.
+ * Returns a list of parameter names the model supports.
+ * Empty list means litellm doesn't recognize the model (no warnings shown).
+ */
+export async function fetchSupportedParams(provider: string, modelName: string): Promise<string[]> {
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/params`, { modelName });
+    return response.data?.supportedParams || [];
 }
 
 /**

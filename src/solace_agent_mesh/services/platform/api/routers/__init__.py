@@ -31,6 +31,7 @@ def get_community_platform_routers() -> list:
     """
     from .health_router import router as health_router
     from .model_configurations_router import router as model_configurations_router
+    from .providers_router import router as providers_router
 
     routers = [
         {
@@ -40,6 +41,10 @@ def get_community_platform_routers() -> list:
         {
             "router": model_configurations_router,
             "tags": ["Models"],
+        },
+        {
+            "router": providers_router,
+            "tags": ["Providers"],
         },
     ]
 
