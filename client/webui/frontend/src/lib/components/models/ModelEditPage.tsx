@@ -74,7 +74,8 @@ export const ModelEditPage = () => {
         navigate("/agents?tab=models");
     };
 
-    const title = isNew ? "Add Model" : modelToEdit ? `Edit ${modelToEdit.alias}` : "Model";
+    const editTitle = modelToEdit ? `Edit ${modelToEdit.alias}` : "Model";
+    const title = isNew ? "Add Model" : editTitle;
 
     // Loading state for edit mode
     if (!isNew && modelLoading) {
