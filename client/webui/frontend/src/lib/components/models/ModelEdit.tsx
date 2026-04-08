@@ -18,14 +18,13 @@ interface ModelEditProps {
     isNew: boolean;
     modelToEdit: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
-    onValidityChange: (isValid: boolean) => void;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
     availableProviders?: ModelProvider[];
     onProviderChange?: (provider: string) => Promise<void>;
 }
 
-export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
+export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
@@ -43,7 +42,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     const {
         register,
         control,
-        formState: { errors, isDirty, isValid, dirtyFields },
+        formState: { errors, isDirty, dirtyFields },
         handleSubmit,
         watch,
         setValue,
@@ -102,10 +101,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     useEffect(() => {
         onDirtyStateChange?.(isDirty);
     }, [isDirty, onDirtyStateChange]);
-
-    useEffect(() => {
-        onValidityChange(isValid);
-    }, [isValid, onValidityChange]);
 
     // Update provider config and reset dynamic fields when provider changes
     useEffect(() => {
@@ -482,14 +477,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group border-t pt-4">
+                                <details className="group mt-4">
                                     <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
                                         {/* Custom Parameters */}
-                                        <div className="border-t pt-4">
+                                        <div className="mt-10">
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
