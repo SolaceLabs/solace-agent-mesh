@@ -197,12 +197,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             hasInitializedFromModelRef.current = true;
 
             setValue("alias", modelToEdit.alias);
-            setValue("provider", modelToEdit.provider);
+            setValue("provider", modelToEdit.provider ?? "");
 
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
-            let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
+            let modelName = modelToEdit.modelName ?? "";
+            if (modelToEdit.provider === "custom" && modelName.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -233,7 +233,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
             // Populate provider-specific fields and custom params from modelParams
             if (modelToEdit.modelParams) {
-                const config = getProviderConfig(modelToEdit.provider);
+                const config = getProviderConfig(modelToEdit.provider ?? "");
                 const knownParamNames = new Set<string>();
 
                 // Add provider-specific fields to known params

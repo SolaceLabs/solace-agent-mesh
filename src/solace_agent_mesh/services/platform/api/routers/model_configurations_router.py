@@ -127,21 +127,7 @@ async def get_models_status(
     Returns configured=true only when both 'general' and 'planning' aliases
     exist and have a non-empty model_name value.
     """
-    configs = service.list_all(db)
-    if not configs:
-        return create_data_response(ModelConfigStatusResponse(configured=False))
-
-    alias_map = {c.alias: c for c in configs}
-    general = alias_map.get("general")
-    planning = alias_map.get("planning")
-
-    if not general or not planning:
-        return create_data_response(ModelConfigStatusResponse(configured=False))
-
-    configured = bool(
-        general.model_name and general.model_name.strip()
-        and planning.model_name and planning.model_name.strip()
-    )
+    configured = service.are_default_models_configured(db)
     return create_data_response(ModelConfigStatusResponse(configured=configured))
 
 @router.get(

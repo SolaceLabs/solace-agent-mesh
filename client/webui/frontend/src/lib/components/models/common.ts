@@ -1,5 +1,15 @@
 export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
 
+import type { ModelConfig } from "@/lib/api/models/types";
+
+/**
+ * Returns true if the model has a real provider configured (not a placeholder).
+ * Default models (general, planning) are seeded with null provider until configured.
+ */
+export const isModelConfigured = (model: ModelConfig): boolean => {
+    return !!model.provider;
+};
+
 // Re-export from single source of truth
 export { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./modelProviderUtils";
 

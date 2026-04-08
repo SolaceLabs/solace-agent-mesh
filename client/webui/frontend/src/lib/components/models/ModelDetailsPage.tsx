@@ -89,8 +89,8 @@ export const ModelDetailsPage = () => {
                         <PageLabelWithValue>
                             <PageLabel>Model Provider</PageLabel>
                             <PageValue className="flex items-center gap-2">
-                                <ModelProviderIcon provider={modelToView.provider} size="xs" />
-                                <span>{PROVIDER_DISPLAY_NAMES[modelToView.provider] || modelToView.provider}</span>
+                                <ModelProviderIcon provider={modelToView.provider ?? undefined} size="xs" />
+                                <span>{modelToView.provider ? PROVIDER_DISPLAY_NAMES[modelToView.provider] || modelToView.provider : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</span>
                             </PageValue>
                         </PageLabelWithValue>
                     </PageSection>
@@ -99,7 +99,7 @@ export const ModelDetailsPage = () => {
                         <div className="pt-6 font-semibold">Model Connection Details</div>
                         <PageLabelWithValue>
                             <PageLabel>Model Name</PageLabel>
-                            <PageValue>{getDisplayModelName(modelToView.modelName)}</PageValue>
+                            <PageValue>{modelToView.modelName ? getDisplayModelName(modelToView.modelName) : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</PageValue>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (

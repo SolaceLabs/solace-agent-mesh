@@ -44,8 +44,8 @@ export const ModelEditPage = () => {
     // Fetch models for the provider being edited using stored credentials.
     // React Query caches the result so ModelEdit's dropdown open with the same params
     // returns instantly without a duplicate network call.
-    const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
-    const modelsByProvider = modelToEdit ? { [modelToEdit.provider]: initialModels } : {};
+    const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit && modelToEdit.provider ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
+    const modelsByProvider = modelToEdit?.provider ? { [modelToEdit.provider]: initialModels } : {};
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
         setIsLoading(true);

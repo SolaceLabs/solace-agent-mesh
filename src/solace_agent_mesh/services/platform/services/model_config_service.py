@@ -107,6 +107,34 @@ class ModelConfigService:
         db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
 
+    def are_default_models_configured(self, db: Session) -> bool:
+        """
+        Check whether the 'general' and 'planning' default model aliases are configured.
+
+        A model is considered configured when its provider is set to a real value
+        (not the placeholder sentinel). Both aliases must be configured for this
+        to return True.
+
+        Args:
+            db: SQLAlchemy database session
+
+        Returns:
+            True if both 'general' and 'planning' have non-placeholder providers
+        """
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        alias_map = {c.alias: c for c in self.repository.get_all(db)}
+        general = alias_map.get("general")
+        planning = alias_map.get("planning")
+
+        if not general or not planning:
+            return False
+
+        def _is_configured(config) -> bool:
+            return bool(config.provider and config.provider != PLACEHOLDER_VALUE)
+
+        return _is_configured(general) and _is_configured(planning)
+
     def get_by_alias(self, db: Session, alias: str, raw=False) -> ModelConfigurationResponse:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
@@ -426,14 +454,20 @@ class ModelConfigService:
             ModelConfigurationResponse with auth_type from model_auth_type column
             and auth config secrets filtered out
         """
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
         # Redact secrets from auth config based on auth type
         redacted_auth_config = redact_auth_config(db_model.model_auth_config)
+
+        # Strip placeholder sentinel values — return None so clients receive null
+        provider = db_model.provider if db_model.provider != PLACEHOLDER_VALUE else None
+        model_name = db_model.model_name if db_model.model_name != PLACEHOLDER_VALUE else None
 
         return ModelConfigurationResponse(
             id=db_model.id,
             alias=db_model.alias,
-            provider=db_model.provider,
-            model_name=db_model.model_name,
+            provider=provider,
+            model_name=model_name,
             api_base=db_model.api_base,
             auth_type=db_model.model_auth_type,
             auth_config=redacted_auth_config or {},
