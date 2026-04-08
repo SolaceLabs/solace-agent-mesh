@@ -12,9 +12,11 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import JSONResponse
 from fastapi import status
 
+from solace_ai_connector.common.observability import MonitorLatency
 from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
     is_sam_token_enabled,
 )
+from solace_agent_mesh.gateway.observability import OAuthRemoteMonitor
 
 log = logging.getLogger(__name__)
 
@@ -69,13 +71,14 @@ async def _validate_token(
         True if token is valid, False otherwise
     """
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            validation_response = await client.post(
-                f"{auth_service_url}/is_token_valid",
-                json={"provider": auth_provider},
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-        return validation_response.status_code == 200
+        async with MonitorLatency(OAuthRemoteMonitor.validate_token()):
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                validation_response = await client.post(
+                    f"{auth_service_url}/is_token_valid",
+                    json={"provider": auth_provider},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            return validation_response.status_code == 200
     except httpx.TimeoutException as e:
         log.warning(f"AuthMiddleware: Token validation timed out: {e}")
         return False
@@ -99,11 +102,12 @@ async def _get_user_info(
         User info dictionary if successful, None otherwise
     """
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            userinfo_response = await client.get(
-                f"{auth_service_url}/user_info?provider={auth_provider}",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
+        async with MonitorLatency(OAuthRemoteMonitor.get_user_info()):
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                userinfo_response = await client.get(
+                    f"{auth_service_url}/user_info?provider={auth_provider}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
     except httpx.TimeoutException as e:
         log.warning(f"AuthMiddleware: User info request timed out: {e}")
         return None
