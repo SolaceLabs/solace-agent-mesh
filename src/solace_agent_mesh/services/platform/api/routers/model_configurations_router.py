@@ -178,7 +178,7 @@ async def create_model(
             model_params=request.model_params or {},
         )
         try:
-            success, message = await asyncio.to_thread(service.test_connection, db, test_request)
+            success, message = await service.test_connection(db, test_request)
         except Exception as e:
             success = False
             message = f"Test connection failed. {e}"

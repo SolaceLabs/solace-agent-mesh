@@ -60,10 +60,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     }, [getValues, setValue]);
 
     const customParams = watch("customParams") ?? [];
-    // Serialize customParams for useMemo deps — watch() returns a mutated array
-    // (same reference), so shallow comparison alone won't detect content changes.
-    const customParamsJson = JSON.stringify(customParams);
-    const hasEmptyCustomParam = useMemo(() => customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim()), [customParamsJson]);
+    const hasEmptyCustomParam = customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim());
 
     // Only check unsupported keys after the user commits a key (onBlur), not on every keystroke.
     const [committedCustomParamsJson, setCommittedCustomParamsJson] = useState("[]");

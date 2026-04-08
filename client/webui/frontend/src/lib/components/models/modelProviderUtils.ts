@@ -21,6 +21,9 @@ export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
     aws_session_token: "awsSessionToken",
     vertex_credentials: "vertexCredentials",
     // Routing / connection fields (not secret, no placeholder redaction)
+    audience: "oauthAudience",
+    ca_cert: "oauthCaCert",
+    max_retries: "oauthMaxRetries",
     aws_region_name: "awsRegionName",
     vertex_project: "vertexProject",
     vertex_location: "vertexLocation",
@@ -79,7 +82,10 @@ export interface ModelFormData {
     clientSecret?: string;
     tokenUrl?: string;
     oauthScope?: string;
+    oauthAudience?: string;
+    oauthCaCert?: string;
     oauthTokenRefreshBufferSeconds?: string;
+    oauthMaxRetries?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
@@ -162,8 +168,30 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             storageTarget: "auth",
         },
         {
+            name: "oauthAudience",
+            label: "OAuth Audience",
+            type: "text",
+            required: false,
+            storageTarget: "auth",
+        },
+        {
+            name: "oauthCaCert",
+            label: "CA Certificate Path",
+            type: "text",
+            required: false,
+            storageTarget: "auth",
+        },
+        {
             name: "oauthTokenRefreshBufferSeconds",
             label: "Token Refresh Buffer (seconds)",
+            type: "number",
+            required: false,
+            storageTarget: "auth",
+            min: 0,
+        },
+        {
+            name: "oauthMaxRetries",
+            label: "Max Retries",
             type: "number",
             required: false,
             storageTarget: "auth",
@@ -445,8 +473,17 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         if (data.oauthScope) {
             authConfig.scope = data.oauthScope;
         }
+        if (data.oauthAudience) {
+            authConfig.audience = data.oauthAudience;
+        }
+        if (data.oauthCaCert) {
+            authConfig.ca_cert = data.oauthCaCert;
+        }
         if (data.oauthTokenRefreshBufferSeconds) {
             authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
+        }
+        if (data.oauthMaxRetries) {
+            authConfig.max_retries = Number(data.oauthMaxRetries);
         }
     } else if (data.authType === "aws_iam") {
         authConfig = { type: "aws_iam" };

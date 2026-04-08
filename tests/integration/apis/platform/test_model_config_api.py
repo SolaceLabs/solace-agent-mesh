@@ -12,7 +12,7 @@ import logging
 import os
 import uuid
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, Mock, MagicMock
 from sqlalchemy.orm import Session
 
 from sam_test_infrastructure.feature_flags import mock_flags
@@ -565,11 +565,17 @@ class TestModelConnectionAPI:
 
     def test_test_connection_with_valid_apikey_returns_success(self, platform_api_client, enable_model_config_feature_flag):
         """Test that POST /models?validateOnly=true with valid credentials returns success."""
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-            # Mock successful LLM response
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_litellm.completion.return_value = mock_response
+        # Build a mock async generator that yields a successful LLM response
+        mock_llm_response = Mock()
+        mock_llm_response.content = Mock()
+        mock_llm_response.content.parts = [Mock(text="OK")]
+
+        async def _success_gen(*args, **kwargs):
+            yield mock_llm_response
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _success_gen
 
             # Act: Test connection with valid apikey
             response = platform_api_client.post(
@@ -614,11 +620,17 @@ class TestModelConnectionAPI:
             db.add(model_config)
             db.commit()
 
-            with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-                # Mock successful LLM response
-                mock_response = MagicMock()
-                mock_response.choices = [MagicMock()]
-                mock_litellm.completion.return_value = mock_response
+            # Build a mock async generator that yields a successful LLM response
+            mock_llm_response = Mock()
+            mock_llm_response.content = Mock()
+            mock_llm_response.content.parts = [Mock(text="OK")]
+
+            async def _success_gen(*args, **kwargs):
+                yield mock_llm_response
+
+            with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+                mock_instance = MockLiteLlm.return_value
+                mock_instance.generate_content_async = _success_gen
 
                 # Act: Test connection using stored credentials by model ID
                 response = platform_api_client.post(
@@ -636,7 +648,7 @@ class TestModelConnectionAPI:
                 assert data["data"]["success"] is True
 
                 # Assert: Service used the stored credentials
-                call_kwargs = mock_litellm.completion.call_args[1]
+                call_kwargs = MockLiteLlm.call_args[1]
                 assert call_kwargs["api_key"] == "sk-stored-key-12345"
 
         finally:
@@ -681,8 +693,11 @@ class TestModelConnectionAPI:
         assert "not found" in data["data"]["message"].lower()
 
     def test_test_connection_with_litellm_unavailable(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that test_connection fails gracefully when litellm is not available."""
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
+        """Test that test_connection fails gracefully when LiteLlm raises an import error."""
+        with patch(
+            "solace_agent_mesh.services.platform.services.model_config_service.LiteLlm",
+            side_effect=ImportError("No module named 'litellm'"),
+        ):
             # Act: Test connection when litellm is not available
             response = platform_api_client.post(
                 "/api/v1/platform/models?validateOnly=true",
@@ -699,7 +714,7 @@ class TestModelConnectionAPI:
             # Assert: Response shows failure
             data = response.json()
             assert data["data"]["success"] is False
-            assert "litellm" in data["data"]["message"].lower()
+            assert "failed" in data["data"]["message"].lower()
 
     def test_test_connection_feature_flag_disabled_returns_501(self, platform_api_client_factory):
         """Test that POST /models?validateOnly=true returns 501 when feature flag is disabled."""

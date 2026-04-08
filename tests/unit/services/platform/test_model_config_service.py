@@ -6,7 +6,9 @@ Tests:
 - _to_raw_litellm_config builds correct unredacted config dicts
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from solace_agent_mesh.services.platform.services.model_config_service import (
     ModelConfigService,
@@ -254,10 +256,32 @@ class TestGetByAliasOrId:
         service.repository.get_by_alias_or_id.assert_called_once_with(mock_db, "some-id-or-alias")
 
 
+def _mock_llm_success_response():
+    """Create a mock async generator that yields a successful LLM response."""
+    mock_response = Mock()
+    mock_response.content = Mock()
+    mock_response.content.parts = [Mock(text="OK")]
+
+    async def _gen(*args, **kwargs):
+        yield mock_response
+
+    return _gen
+
+
+def _mock_llm_error_response(error):
+    """Create a mock LiteLlm that raises an error on generate_content_async."""
+    async def _gen(*args, **kwargs):
+        raise error
+        yield  # noqa: unreachable — makes this an async generator
+
+    return _gen
+
+
 class TestTestConnection:
     """Tests for ModelConfigService.test_connection method."""
 
-    def test_test_connection_with_valid_apikey(self):
+    @pytest.mark.asyncio
+    async def test_test_connection_with_valid_apikey(self):
         """Test connection succeeds with valid API key credentials."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
@@ -271,39 +295,21 @@ class TestTestConnection:
             auth_config={"type": "apikey", "api_key": "sk-test-key"},
         )
 
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-            # Mock successful response
-            mock_response = Mock()
-            mock_response.choices = [Mock()]
-            mock_litellm.completion.return_value = mock_response
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _mock_llm_success_response()
 
-            success, message = service.test_connection(mock_db, request)
+            success, message = await service.test_connection(mock_db, request)
 
             assert success is True
             assert "successful" in message.lower()
-            mock_litellm.completion.assert_called_once()
+            # Verify LiteLlm was instantiated with the correct model and credentials
+            call_kwargs = MockLiteLlm.call_args[1]
+            assert call_kwargs["model"] == "gpt-4"
+            assert call_kwargs["api_key"] == "sk-test-key"
 
-    def test_test_connection_fails_without_litellm(self):
-        """Test connection fails gracefully when litellm is not available."""
-        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
-
-        service = ModelConfigService()
-        service.repository = Mock()
-        mock_db = Mock()
-
-        request = ModelConfigurationTestRequest(
-            provider="openai",
-            model_name="gpt-4",
-            auth_config={"type": "apikey", "api_key": "sk-test-key"},
-        )
-
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
-            success, message = service.test_connection(mock_db, request)
-
-            assert success is False
-            assert "litellm" in message.lower()
-
-    def test_test_connection_uses_stored_config_as_fallback(self):
+    @pytest.mark.asyncio
+    async def test_test_connection_uses_stored_config_as_fallback(self):
         """Test that stored config is used as fallback when model_id is provided."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
@@ -322,19 +328,19 @@ class TestTestConnection:
         # Request with only model_id
         request = ModelConfigurationTestRequest(model_id="01234567-0123-0123-0123-0123456789ab")
 
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-            mock_response = Mock()
-            mock_response.choices = [Mock()]
-            mock_litellm.completion.return_value = mock_response
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _mock_llm_success_response()
 
-            success, message = service.test_connection(mock_db, request)
+            success, message = await service.test_connection(mock_db, request)
 
             assert success is True
             # Verify stored credentials were used
-            call_kwargs = mock_litellm.completion.call_args[1]
+            call_kwargs = MockLiteLlm.call_args[1]
             assert call_kwargs["api_key"] == "sk-stored-secret"
 
-    def test_test_connection_missing_required_fields(self):
+    @pytest.mark.asyncio
+    async def test_test_connection_missing_required_fields(self):
         """Test connection fails when required fields are missing."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
@@ -348,12 +354,13 @@ class TestTestConnection:
             auth_config={"type": "apikey", "api_key": "sk-test-key"},
         )
 
-        success, message = service.test_connection(mock_db, request)
+        success, message = await service.test_connection(mock_db, request)
 
         assert success is False
         assert "provider" in message.lower() or "required" in message.lower()
 
-    def test_test_connection_nonexistent_model_id(self):
+    @pytest.mark.asyncio
+    async def test_test_connection_nonexistent_model_id(self):
         """Test connection fails when model_id is not found in database."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
@@ -364,12 +371,13 @@ class TestTestConnection:
 
         request = ModelConfigurationTestRequest(model_id="nonexistent-uuid")
 
-        success, message = service.test_connection(mock_db, request)
+        success, message = await service.test_connection(mock_db, request)
 
         assert success is False
         assert "not found" in message.lower()
 
-    def test_test_connection_sanitizes_error_messages(self):
+    @pytest.mark.asyncio
+    async def test_test_connection_sanitizes_error_messages(self):
         """Test that error messages are sanitized to avoid leaking sensitive data."""
         from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
 
@@ -383,13 +391,13 @@ class TestTestConnection:
             auth_config={"type": "apikey", "api_key": "sk-very-secret-key-that-should-not-appear"},
         )
 
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-            # Simulate a long error message
-            mock_litellm.completion.side_effect = Exception(
-                "A" * 600  # Very long error message
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _mock_llm_error_response(
+                Exception("A" * 600)  # Very long error message
             )
 
-            success, message = service.test_connection(mock_db, request)
+            success, message = await service.test_connection(mock_db, request)
 
             assert success is False
             # Check that the error is truncated
