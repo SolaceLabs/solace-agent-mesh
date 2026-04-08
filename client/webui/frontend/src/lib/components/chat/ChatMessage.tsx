@@ -807,7 +807,7 @@ const getChatBubble = (
             {message.isUser && message.contextQuote && (
                 <div className="flex justify-end pr-4">
                     <button
-                        className={`flex max-w-fit items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm ${message.contextQuoteSourceId ? "cursor-pointer transition-colors hover:bg-(--secondary-w20)" : "cursor-default"}`}
+                        className={`flex max-w-fit items-center gap-2 overflow-hidden rounded-md border bg-(--background-w20) px-3 py-2 text-sm ${message.contextQuoteSourceId ? "cursor-pointer transition-colors hover:bg-(--secondary-w20)" : "cursor-default"}`}
                         onClick={() => {
                             if (message.contextQuoteSourceId) {
                                 // Dispatch event to scroll to and highlight the quoted text in the source message

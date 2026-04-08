@@ -502,7 +502,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                     {/* Existing Users Table */}
                     <div className="rounded border">
                         {/* Table Header */}
-                        <div className="flex items-center gap-4 border-b bg-(--secondary-w10) px-4 py-2">
+                        <div className="flex items-center gap-4 border-b bg-(--background-w20) px-4 py-2">
                             <div className="min-w-0 flex-1">
                                 <Label className={TABLE_HEADER_LABEL_CLASS}>Email</Label>
                             </div>
@@ -523,7 +523,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                         ) : (
                             <>
                                 {/* Owner row (current user) - always shown first */}
-                                <div className="flex items-center gap-4 border-b bg-(--secondary-w10) px-4 py-3">
+                                <div className="flex items-center gap-4 border-b bg-(--background-w20) px-4 py-3">
                                     <div className="min-w-0 flex-1 text-sm">{ownerEmail || "You"}</div>
                                     <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
                                     <div className="w-full shrink-0 text-sm text-(--secondary-text-wMain) sm:w-[200px]">Owner</div>
@@ -609,7 +609,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
 
                     {/* Public Link Section - only shown if public link exists */}
                     {showPublicLink && shareLink && (
-                        <div className="rounded bg-(--secondary-w10) p-4">
+                        <div className="rounded bg-(--background-w20) p-4">
                             <div className="mb-4 flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-2">

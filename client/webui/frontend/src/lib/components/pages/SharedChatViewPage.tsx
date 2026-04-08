@@ -90,7 +90,7 @@ export function SharedChatViewPage() {
             <span className="text-xs text-(--secondary-text-wMain)">Viewer</span>
             {session.snapshotTime && (
                 <>
-                    <div className="bg-border h-4 w-px" />
+                    <div className="h-4 w-px bg-(--secondary-w40)" />
                     <span className="text-xs text-(--secondary-text-wMain)">Snapshot from {formatDateYMD(session.snapshotTime)}</span>
                 </>
             )}
@@ -160,7 +160,7 @@ export function SharedChatViewPage() {
 
                                         {/* Read-only banner instead of ChatInputArea */}
                                         <div style={CHAT_STYLES}>
-                                            <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-(--secondary-w20) bg-(--secondary-w10) px-4 py-3 shadow-sm backdrop-blur-sm">
+                                            <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-(--secondary-w20) bg-(--background-w20) px-4 py-3 shadow-sm">
                                                 <Info className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
                                                 <span className="text-sm text-(--secondary-text-wMain)">This chat is read-only. To build off of it, continue a new conversation.</span>
                                                 {!(session?.isOwner && session?.sessionId) && (

@@ -91,7 +91,7 @@ export function SharedSessionPage() {
                                     </TooltipContent>
                                 </Tooltip>
                                 <span>Viewer</span>
-                                <div className="bg-border h-4 w-px" />
+                                <div className="h-4 w-px bg-(--secondary-w40)" />
                                 {session.snapshotTime ? (
                                     <span>
                                         Snapshot from <span className="font-bold">{formatDateYMD(session.snapshotTime)}</span>
@@ -132,7 +132,7 @@ export function SharedSessionPage() {
                                 </main>
                                 {/* Read-only banner pinned to bottom */}
                                 <div className="z-10 flex-shrink-0 px-6 pt-2 pb-4">
-                                    <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-(--secondary-w20) bg-(--secondary-w10) px-4 py-3 shadow-sm backdrop-blur-sm">
+                                    <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-(--secondary-w20) bg-(--background-w20) px-4 py-3 shadow-sm">
                                         <Info className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
                                         <span className="text-sm text-(--secondary-text-wMain)">This chat is read-only. To build off of it, continue a new conversation.</span>
                                         <Button variant="outline" size="sm" onClick={shared.handleForkChat} disabled={shared.isForking} className="ml-auto flex-shrink-0">

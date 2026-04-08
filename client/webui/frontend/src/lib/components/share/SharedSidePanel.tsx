@@ -34,7 +34,7 @@ export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle,
                     <PanelRightIcon className="size-5" />
                 </Button>
 
-                <div className="bg-border my-4 h-px w-8"></div>
+                <div className="my-4 h-px w-8 bg-(--secondary-w40)"></div>
 
                 <Button variant="ghost" size="sm" onClick={() => onOpenTab("files")} className="mb-2 h-10 w-10 p-0" tooltip="Files">
                     <FileText className="size-5" />
@@ -65,7 +65,7 @@ export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle,
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 border-(--secondary-w20) bg-(--secondary-w10) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
+                                className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
                             >
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
@@ -74,7 +74,7 @@ export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle,
                                 value="workflow"
                                 title="Workflow"
                                 className={cn(
-                                    "relative min-w-0 flex-1 cursor-pointer rounded-none border border-(--secondary-w20) bg-(--secondary-w10) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)",
+                                    "relative min-w-0 flex-1 cursor-pointer rounded-none border border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)",
                                     hasRagSources ? "border-r-0" : "rounded-r-md"
                                 )}
                             >
@@ -85,7 +85,7 @@ export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle,
                                 <TabsTrigger
                                     value="sources"
                                     title="Sources"
-                                    className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-(--secondary-w20) bg-(--secondary-w10) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
+                                    className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
                                 >
                                     <Link2 className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>
