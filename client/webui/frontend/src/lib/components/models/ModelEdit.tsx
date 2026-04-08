@@ -64,10 +64,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     // (same reference), so shallow comparison alone won't detect content changes.
     const customParamsJson = JSON.stringify(customParams);
     const hasEmptyCustomParam = useMemo(() => customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim()), [customParamsJson]);
+
+    // Only check unsupported keys after the user commits a key (onBlur), not on every keystroke.
+    const [committedCustomParamsJson, setCommittedCustomParamsJson] = useState("[]");
+    const handleCustomParamKeyCommit = useCallback(() => {
+        setCommittedCustomParamsJson(JSON.stringify(getValues("customParams") ?? []));
+    }, [getValues]);
     const unsupportedCustomKeys = useMemo(() => {
         if (!supportedParams || supportedParams.length === 0) return [];
-        return customParams.filter((p: { key: string }) => p.key && !supportedParams.includes(p.key)).map((p: { key: string }) => p.key);
-    }, [customParamsJson, supportedParams]);
+        const committed: { key: string }[] = JSON.parse(committedCustomParamsJson);
+        return committed.filter(p => p.key && !supportedParams.includes(p.key)).map(p => p.key);
+    }, [committedCustomParamsJson, supportedParams]);
 
     const selectedProvider = watch("provider");
     const selectedAuthType = watch("authType");
@@ -524,7 +531,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     <PageLabel>Custom Parameters</PageLabel>
                                                     <p className="text-secondary-foreground mt-1 text-sm">Add any additional parameters supported by your model provider.</p>
                                                 </div>
-                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
                                                     <Plus className="mr-2 size-4" />
                                                     New Pair
                                                 </Button>
@@ -549,7 +556,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                     }}
                                                     render={() => (
                                                         <>
-                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" />
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
