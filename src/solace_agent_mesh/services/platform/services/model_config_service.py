@@ -27,6 +27,7 @@ from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.exceptions.exceptions import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
+    ValidationErrorBuilder,
 )
 from solace_agent_mesh.common.oauth import OAuth2Client
 
@@ -281,6 +282,8 @@ class ModelConfigService:
         """
         # Check for duplicate alias (case-sensitive, matches unique index)
         alias = request.alias.strip() if request.alias else None
+        if alias is not None and not alias:
+            raise ValidationErrorBuilder().message("Alias cannot be empty or contain only whitespace").build()
         if self.repository.exists_by_alias(db, alias):
             raise EntityAlreadyExistsError("ModelConfiguration", "alias", alias)
 
@@ -346,6 +349,8 @@ class ModelConfigService:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
         alias = request.alias.strip() if request.alias else None
+        if alias is not None and not alias:
+            raise ValidationErrorBuilder().message("Alias cannot be empty or contain only whitespace").build()
         # If updating alias, check for case-sensitive collision with other configs
         if alias is not None and alias != db_config.alias:
             if self.repository.exists_by_alias(db, alias):
