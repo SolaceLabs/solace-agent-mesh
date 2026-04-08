@@ -157,6 +157,7 @@ export type ChatEffect =
               messages: MessageFE[];
               sessionId: string;
               selectedAgentName: string;
+              ragData: RAGSearchResult[];
           };
       }
     | { type: "unregister-background-task"; payload: { taskId: string } }
@@ -172,7 +173,9 @@ export type ChatEffect =
  * and returns state updates plus a list of side-effect descriptors.
  */
 export function processChatEvent(input: ChatEventInput): ChatEventOutput {
-    const { eventData, flags, sessionId, deepResearchQueryHistory, eventSequence, isTaskRunningInBackground } = input;
+    const { eventData, flags, sessionId, eventSequence, isTaskRunningInBackground } = input;
+    // Clone the Map (and its value arrays) to avoid mutating the caller's data
+    const deepResearchQueryHistory = new Map([...input.deepResearchQueryHistory].map(([k, v]) => [k, [...v]]));
     let messages = [...input.messages];
     let ragData: RAGSearchResult[] | undefined;
     let artifacts: ArtifactInfo[] | undefined;
@@ -513,6 +516,9 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             const taskMessagesToSave = messages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
             if (taskMessagesToSave.length > 0) {
                 const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
+                // Snapshot RAG data now so the effect handler doesn't read a stale ref
+                const currentRagData = ragData ?? input.ragData;
+                const taskRagSnapshot = currentRagData.filter(r => r.taskId === currentTaskIdFromResult);
                 effects.push({
                     type: "save-task",
                     payload: {
@@ -520,6 +526,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         messages: taskMessagesToSave,
                         sessionId: taskSessionId,
                         selectedAgentName: input.selectedAgentName,
+                        ragData: taskRagSnapshot,
                     },
                 });
             } else if (isTaskRunningInBackground(currentTaskIdFromResult)) {

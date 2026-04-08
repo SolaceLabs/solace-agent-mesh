@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useCallback } from "react";
 
 import { api } from "@/lib/api";
 import { useIsAutoTitleGenerationEnabled } from "@/lib/hooks/useIsAutoTitleGenerationEnabled";
@@ -9,6 +9,9 @@ interface BackgroundTask {
     sessionId?: string;
 }
 
+// Module-scoped so state survives component re-mounts
+const generatedSessions = new Set<string>();
+
 /**
  * Encapsulates auto title generation logic: feature flag check, session deduplication,
  * and two generation paths (from provided text or from task API lookup).
@@ -16,7 +19,6 @@ interface BackgroundTask {
 export function useAutoGenerateTitle() {
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { generateTitle } = useTitleGeneration();
-    const generatedSessions = useRef<Set<string>>(new Set());
 
     /**
      * Generate a title for a session if auto-generation is enabled and
@@ -25,10 +27,10 @@ export function useAutoGenerateTitle() {
     const autoGenerateTitle = useCallback(
         async (sessionId: string, userText: string, agentText: string): Promise<void> => {
             if (!autoTitleGenerationEnabled) return;
-            if (!sessionId || generatedSessions.current.has(sessionId)) return;
+            if (!sessionId || generatedSessions.has(sessionId)) return;
             if (!userText || !agentText) return;
 
-            generatedSessions.current.add(sessionId);
+            generatedSessions.add(sessionId);
             try {
                 await generateTitle(sessionId, userText, agentText);
             } catch (error) {
@@ -61,11 +63,11 @@ export function useAutoGenerateTitle() {
                 }
             }
 
-            if (!taskSessionId || taskSessionId.trim() === "" || generatedSessions.current.has(taskSessionId)) {
+            if (!taskSessionId || taskSessionId.trim() === "" || generatedSessions.has(taskSessionId)) {
                 return;
             }
 
-            generatedSessions.current.add(taskSessionId);
+            generatedSessions.add(taskSessionId);
 
             try {
                 const titleData = await api.webui.get(`/api/v1/tasks/${taskId}/title-data`);

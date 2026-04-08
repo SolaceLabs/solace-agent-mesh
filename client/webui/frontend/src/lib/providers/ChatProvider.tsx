@@ -126,6 +126,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         currentSessionIdRef.current = sessionId;
     }, [sessionId]);
+    // allArtifactsRef has two write paths:
+    // 1. This useEffect syncs when artifacts load from the API (session switch, initial fetch).
+    // 2. handleSseMessage writes synchronously for SSE freshness during streaming.
+    // Both are needed: the useEffect seeds the ref; the sync write prevents stale reads between events.
     useEffect(() => {
         allArtifactsRef.current = allArtifacts;
     }, [allArtifacts]);
@@ -669,7 +673,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     void artifactsRefetch();
                     break;
                 case "save-task": {
-                    const { taskId, messages: taskMessages, sessionId: taskSessionId, selectedAgentName: agentName } = effect.payload;
+                    const { taskId, messages: taskMessages, sessionId: taskSessionId, selectedAgentName: agentName, ragData: taskRagData } = effect.payload;
                     // taskMessages is already filtered by processChatEvent (taskId match, no status bubbles)
                     if (taskMessages.length === 0) break;
 
@@ -685,7 +689,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                     const hasError = taskMessages.some(m => m.isError);
                     const taskStatus = hasError ? "error" : "completed";
-                    const taskRagData = ragDataRef.current.filter(r => r.taskId === taskId);
 
                     saveTaskToBackend(
                         {
@@ -785,6 +788,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Apply state updates
             if (output.messages) {
+                messagesRef.current = output.messages;
                 setMessages(output.messages);
             }
             if (output.ragData) {
