@@ -280,8 +280,9 @@ class ModelConfigService:
             EntityAlreadyExistsError: If alias already exists (case-sensitive, matches unique index)
         """
         # Check for duplicate alias (case-sensitive, matches unique index)
-        if self.repository.exists_by_alias(db, request.alias):
-            raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
+        alias = request.alias.strip() if request.alias else None
+        if self.repository.exists_by_alias(db, alias):
+            raise EntityAlreadyExistsError("ModelConfiguration", "alias", alias)
 
         # Auto-fill api_base for known providers if not provided
         api_base = request.api_base
@@ -294,7 +295,7 @@ class ModelConfigService:
 
         # Create new configuration
         db_config = ModelConfiguration(
-            alias=request.alias,
+            alias=alias,
             provider=request.provider,
             model_name=request.model_name,
             api_base=api_base,
@@ -344,14 +345,15 @@ class ModelConfigService:
         if not db_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
+        alias = request.alias.strip() if request.alias else None
         # If updating alias, check for case-sensitive collision with other configs
-        if request.alias is not None and request.alias != db_config.alias:
-            if self.repository.exists_by_alias(db, request.alias):
-                raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
+        if alias is not None and alias != db_config.alias:
+            if self.repository.exists_by_alias(db, alias):
+                raise EntityAlreadyExistsError("ModelConfiguration", "alias", alias)
 
         # Update only provided fields
-        if request.alias is not None:
-            db_config.alias = request.alias
+        if alias is not None:
+            db_config.alias = alias
         if request.provider is not None:
             db_config.provider = request.provider
         if request.model_name is not None:
