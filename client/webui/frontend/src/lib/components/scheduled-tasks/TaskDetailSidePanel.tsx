@@ -41,7 +41,7 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
     };
 
     return (
-        <div className="bg-background flex h-full w-full flex-col border-l">
+        <div className="flex h-full w-full flex-col border-l bg-(--background-w10)">
             {/* Header */}
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
@@ -126,7 +126,7 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                     {/* Target Agent/Workflow */}
                     <div>
                         <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Target {task.targetType === "workflow" ? "Workflow" : "Agent"}</h3>
-                        <div className="text-primary bg-primary/10 inline-block rounded px-2 py-0.5 font-mono text-xs">{task.targetAgentName}</div>
+                        <div className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--primary-wMain)">{task.targetAgentName}</div>
                     </div>
                 </div>
 
@@ -161,7 +161,7 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
             </div>
 
             {/* Metadata - Sticky at bottom */}
-            <div className="bg-background space-y-2 border-t p-4">
+            <div className="space-y-2 border-t bg-(--background-w10) p-4">
                 <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                     <User size={12} />
                     <span>Created by: {task.createdBy || task.userId || "System"}</span>

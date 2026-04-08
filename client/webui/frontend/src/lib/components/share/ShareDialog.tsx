@@ -51,7 +51,7 @@ const accessLevelOptions: AccessLevelOption[] = [
 ];
 
 // Shared styling for table header labels
-const TABLE_HEADER_LABEL_CLASS = "text-sm text-secondary-foreground";
+const TABLE_HEADER_LABEL_CLASS = "text-sm text-(--secondary-text-wMain)";
 
 function formatDateYMD(epochMs: number): string {
     const d = new Date(epochMs);
@@ -426,7 +426,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                 <div className="flex-1 space-y-6 overflow-y-auto">
                     {/* Description + Add Button */}
                     <div className="flex items-start justify-between gap-6">
-                        <p className="text-foreground flex-1 text-sm">Users will see a snapshot of the shared chat, including files and conversation history.</p>
+                        <p className="flex-1 text-sm text-(--primary-text-wMain)">Users will see a snapshot of the shared chat, including files and conversation history.</p>
                         <Button variant="outline" size="sm" onClick={handleAddRow} disabled={hasIncompleteRows || isSaving} className="shrink-0">
                             <Plus className="mr-2 h-4 w-4" />
                             Add
@@ -502,7 +502,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                     {/* Existing Users Table */}
                     <div className="rounded border">
                         {/* Table Header */}
-                        <div className="bg-muted/30 flex items-center gap-4 border-b px-4 py-2">
+                        <div className="flex items-center gap-4 border-b bg-(--secondary-w10) px-4 py-2">
                             <div className="min-w-0 flex-1">
                                 <Label className={TABLE_HEADER_LABEL_CLASS}>Email</Label>
                             </div>
@@ -523,10 +523,10 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                         ) : (
                             <>
                                 {/* Owner row (current user) - always shown first */}
-                                <div className="bg-muted/10 flex items-center gap-4 border-b px-4 py-3">
+                                <div className="flex items-center gap-4 border-b bg-(--secondary-w10) px-4 py-3">
                                     <div className="min-w-0 flex-1 text-sm">{ownerEmail || "You"}</div>
                                     <div className="w-full shrink-0 sm:w-[200px]" /> {/* No snapshot time for owner */}
-                                    <div className="text-muted-foreground w-full shrink-0 text-sm sm:w-[200px]">Owner</div>
+                                    <div className="w-full shrink-0 text-sm text-(--secondary-text-wMain) sm:w-[200px]">Owner</div>
                                     <div className="w-8 shrink-0" /> {/* Space for alignment */}
                                 </div>
                                 {displayedViewers.map(user => {
@@ -541,7 +541,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                                         <div key={user.userEmail} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
                                             <div className="min-w-0 flex-1 truncate text-sm">{user.userEmail}</div>
                                             <div className="flex w-full shrink-0 items-center gap-2 sm:w-[200px]">
-                                                <span className="text-muted-foreground text-sm whitespace-nowrap">{formattedDate}</span>
+                                                <span className="text-sm whitespace-nowrap text-(--secondary-text-wMain)">{formattedDate}</span>
                                                 {isSnapshotOutdated && (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -609,14 +609,14 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
 
                     {/* Public Link Section - only shown if public link exists */}
                     {showPublicLink && shareLink && (
-                        <div className="bg-muted rounded p-4">
+                        <div className="rounded bg-(--secondary-w10) p-4">
                             <div className="mb-4 flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <Link2 className="h-4 w-4" />
                                         <Label className="text-sm font-bold">Sharing Link</Label>
                                     </div>
-                                    <p className="text-muted-foreground mt-1 text-sm">Anyone in your organization with this link can view the chat in a read-only mode.</p>
+                                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Anyone in your organization with this link can view the chat in a read-only mode.</p>
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -629,7 +629,7 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
                                             <ExternalLink className="mr-2 h-4 w-4" />
                                             Preview Chat
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={handleDeletePublicLink} className="text-destructive focus:text-destructive">
+                                        <DropdownMenuItem onClick={handleDeletePublicLink} className="text-(--error-wMain) focus:text-(--error-wMain)">
                                             <Trash2 className="mr-2 h-4 w-4" />
                                             Remove Public Link
                                         </DropdownMenuItem>
@@ -639,13 +639,13 @@ export function ShareChatDialog({ sessionId, sessionTitle, sessionUpdatedTime, o
 
                             <div className="flex items-center gap-4">
                                 <div className="relative min-w-0 flex-1">
-                                    <div className="bg-background truncate rounded border px-3 py-2 pr-10 font-mono text-xs">{shareLink.shareUrl}</div>
+                                    <div className="truncate rounded border bg-(--background-w10) px-3 py-2 pr-10 font-mono text-xs">{shareLink.shareUrl}</div>
                                     <Button variant="ghost" size="icon" className="absolute top-1/2 right-1 h-6 w-6 -translate-y-1/2" onClick={handleCopyPublicLink}>
                                         {publicLinkCopied ? <Check className="h-4 w-4 text-(--success-wMain)" /> : <Copy className="h-4 w-4" />}
                                     </Button>
                                 </div>
                                 <div className="flex shrink-0 flex-col items-start px-4">
-                                    <span className="text-muted-foreground text-xs">Shared On</span>
+                                    <span className="text-xs text-(--secondary-text-wMain)">Shared On</span>
                                     <div className="flex items-center gap-1">
                                         <span className="text-sm whitespace-nowrap">{formatDateYMD(shareLink.createdTime)}</span>
                                         <Tooltip>
