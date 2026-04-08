@@ -100,7 +100,7 @@ class TestToRawLitellmConfig:
         }
 
     def test_oauth_auth_config(self):
-        """OAuth auth config merges all fields except 'type'."""
+        """OAuth auth config is mapped to oauth_* prefixed keys for LiteLlm."""
         db_model = _make_db_model(
             model_auth_config={
                 "type": "oauth2",
@@ -111,10 +111,11 @@ class TestToRawLitellmConfig:
             model_params=None,
         )
         result = ModelConfigService._to_raw_litellm_config(db_model)
-        assert result["client_id"] == "my-client"
-        assert result["client_secret"] == "super-secret"
-        assert result["token_url"] == "https://auth.example.com/token"
+        assert result["oauth_client_id"] == "my-client"
+        assert result["oauth_client_secret"] == "super-secret"
+        assert result["oauth_token_url"] == "https://auth.example.com/token"
         assert "type" not in result
+        assert "client_id" not in result
 
     def test_model_name_gets_litellm_prefix(self):
         """Providers in the prefix map get model name prefixed for LiteLLM routing."""
@@ -303,10 +304,10 @@ class TestTestConnection:
 
             assert success is True
             assert "successful" in message.lower()
-            # Verify LiteLlm was instantiated with the correct model and credentials
-            call_kwargs = MockLiteLlm.call_args[1]
-            assert call_kwargs["model"] == "gpt-4"
-            assert call_kwargs["api_key"] == "sk-test-key"
+            # Verify LiteLlm was instantiated with model name only, then configured
+            assert MockLiteLlm.call_args[1]["model"] == "gpt-4"
+            configure_kwargs = mock_instance.configure_model.call_args[0][0]
+            assert configure_kwargs["api_key"] == "sk-test-key"
 
     @pytest.mark.asyncio
     async def test_test_connection_uses_stored_config_as_fallback(self):
@@ -335,9 +336,9 @@ class TestTestConnection:
             success, message = await service.test_connection(mock_db, request)
 
             assert success is True
-            # Verify stored credentials were used
-            call_kwargs = MockLiteLlm.call_args[1]
-            assert call_kwargs["api_key"] == "sk-stored-secret"
+            # Verify stored credentials were used via configure_model
+            configure_kwargs = mock_instance.configure_model.call_args[0][0]
+            assert configure_kwargs["api_key"] == "sk-stored-secret"
 
     @pytest.mark.asyncio
     async def test_test_connection_missing_required_fields(self):

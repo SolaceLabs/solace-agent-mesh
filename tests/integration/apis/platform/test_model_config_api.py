@@ -647,9 +647,9 @@ class TestModelConnectionAPI:
                 data = response.json()
                 assert data["data"]["success"] is True
 
-                # Assert: Service used the stored credentials
-                call_kwargs = MockLiteLlm.call_args[1]
-                assert call_kwargs["api_key"] == "sk-stored-key-12345"
+                # Assert: Service used the stored credentials via configure_model
+                configure_kwargs = mock_instance.configure_model.call_args[0][0]
+                assert configure_kwargs["api_key"] == "sk-stored-key-12345"
 
         finally:
             db.close()
