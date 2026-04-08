@@ -103,7 +103,9 @@ class TestCreateModelEndpoint:
 
         result = await create_model(
             request=request,
+            response=Mock(),
             _=None,
+            validate_only=False,
             db=Mock(),
             user=mock_user,
             service=mock_service,
