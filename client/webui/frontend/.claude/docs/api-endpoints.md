@@ -16,11 +16,11 @@ Reference implementation: `src/lib/api/projects/`
 
 Async functions that call the centralized API client. Two base URLs are available:
 
-- `api.webui.*` — WebUI backend routes (`src/lib/api/client.ts:19`)
-- `api.platform.*` — Platform API routes (`src/lib/api/client.ts:20`)
+- `api.webui.*` — WebUI backend routes (`src/lib/api/client.ts`)
+- `api.platform.*` — Platform API routes (`src/lib/api/client.ts`)
 
 ```ts
-// src/lib/api/projects/service.ts:6
+// src/lib/api/projects/service.ts
 export const getProjects = async () => {
     return api.webui.get<{ projects: Project[]; total: number }>("/api/v1/projects?include_artifact_count=true");
 };
@@ -62,7 +62,7 @@ React hooks wrapping service functions with TanStack Query.
 **Queries** — for reading data:
 
 ```ts
-// src/lib/api/projects/hooks.ts:21
+// src/lib/api/projects/hooks.ts
 export function useProjects() {
     return useQuery({
         queryKey: projectKeys.lists(),
@@ -72,12 +72,12 @@ export function useProjects() {
 }
 ```
 
-Use `skipToken` for conditional queries when an ID may be null (`src/lib/api/projects/hooks.ts:33`).
+Use `skipToken` for conditional queries when an ID may be null (`src/lib/api/projects/hooks.ts`).
 
 **Mutations** — for create/update/delete, with cache invalidation:
 
 ```ts
-// src/lib/api/projects/hooks.ts:70
+// src/lib/api/projects/hooks.ts
 export function useCreateProject() {
     const queryClient = useQueryClient();
     return useMutation({
@@ -89,7 +89,7 @@ export function useCreateProject() {
 }
 ```
 
-After a mutation, invalidate the relevant query keys. Use `removeQueries` for deleted resources (`src/lib/api/projects/hooks.ts:99`).
+After a mutation, invalidate the relevant query keys. Use `removeQueries` for deleted resources (`src/lib/api/projects/hooks.ts`).
 
 ## 4. index.ts
 
