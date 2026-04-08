@@ -528,7 +528,8 @@ def test_llm_server():
     Manages the lifecycle of the TestLLMServer for the test session.
     Yields the TestLLMServer instance.
     """
-    server = TestLLMServer(host="127.0.0.1", port=8088)
+    port = find_free_port()
+    server = TestLLMServer(host="127.0.0.1", port=port)
     server.start()
 
     max_retries = 20
@@ -568,7 +569,8 @@ def test_static_file_server():
     Manages the lifecycle of the TestStaticFileServer for the test session.
     Yields the TestStaticFileServer instance.
     """
-    server = TestStaticFileServer(host="127.0.0.1", port=8089)
+    port = find_free_port()
+    server = TestStaticFileServer(host="127.0.0.1", port=port)
     server.start()
 
     max_retries = 20
@@ -663,10 +665,12 @@ def test_a2a_agent_server_harness(
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
     Automatically clears any primed responses and captured requests from the
-    TestLLMServer before each test that uses it (if session-scoped and reused).
-    Also clears the global static response and resets the response delay.
+    TestLLMServer AFTER each test completes (not before).
+    This prevents race conditions where async operations from test N are still
+    running when test N+1 starts.
     """
-    test_llm_server.clear_all_configurations()
+    yield  # Test runs here
+    test_llm_server.clear_all_configurations()  # Cleanup AFTER test
 
 
 @pytest.fixture(autouse=True)
