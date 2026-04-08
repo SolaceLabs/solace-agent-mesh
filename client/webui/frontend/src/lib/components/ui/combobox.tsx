@@ -44,7 +44,7 @@ export const ComboBox = ({
 }: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
-    const [highlightedIndex, setHighlightedIndex] = useState(0);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [openAbove, setOpenAbove] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -178,7 +178,7 @@ export const ComboBox = ({
             aria-selected={item.id === value}
             variant="ghost"
             size="default"
-            className={`relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal select-none ${index === highlightedIndex ? "bg-[var(--primary-w10)] text-[var(--primary-text-w60)]" : ""}`}
+            className={`relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none ${index === highlightedIndex ? "bg-[var(--primary-w10)]" : ""}`}
             onClick={() => handleItemSelect(item.id)}
             onMouseEnter={() => setHighlightedIndex(index)}
         >
@@ -227,7 +227,12 @@ export const ComboBox = ({
             )}
 
             {isOpen && (flatItems.length > 0 || searchText) && (
-                <div ref={dropdownRef} role="listbox" className={`border-input absolute right-0 left-0 z-50 rounded-md border bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
+                <div
+                    ref={dropdownRef}
+                    role="listbox"
+                    onMouseLeave={() => setHighlightedIndex(-1)}
+                    className={`border-input absolute right-0 left-0 z-50 rounded-md border bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}
+                >
                     <div className="overflow-y-auto bg-(--background-w10)" style={{ maxHeight: `${dropdownMaxHeight}px` }}>
                         {flatItems.length > 0 ? (
                             <>
