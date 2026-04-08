@@ -102,7 +102,6 @@ export interface ProviderConfig {
     label: string;
     showApiBase: boolean;
     apiBaseRequired?: boolean;
-    apiBasePlaceholder?: string;
     description?: string; // optional description of the provider
     fields: ProviderField[]; // provider-specific required/optional fields
     modelNamePlaceholder: string; // example shown in model name input
@@ -321,7 +320,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Azure OpenAI",
         showApiBase: true,
         apiBaseRequired: true,
-        apiBasePlaceholder: "https://<your-resource>.openai.azure.com/",
         fields: AZURE_OPENAI_FIELDS,
         modelNamePlaceholder: "azure/<deployment-name>",
         allowedAuthTypes: ["apikey", "oauth2"],
@@ -355,7 +353,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Ollama",
         showApiBase: true,
         apiBaseRequired: true,
-        apiBasePlaceholder: "http://localhost:11434",
         fields: [],
         modelNamePlaceholder: "ollama/llama2",
         allowedAuthTypes: ["apikey", "none"],
@@ -366,7 +363,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         description: "Configure a provider that implements the OpenAI-compatible API protocol",
         showApiBase: true,
         apiBaseRequired: true,
-        apiBasePlaceholder: "https://api.example.com",
         fields: [],
         modelNamePlaceholder: "my-model-id",
         allowedAuthTypes: ["apikey", "oauth2", "none"],

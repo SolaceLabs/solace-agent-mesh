@@ -149,7 +149,7 @@ export const CreateNewModel: Story = {
         const canvas = within(canvasElement);
 
         // Verify we're in create mode by checking the title (appears in both breadcrumb and title)
-        const createModelTexts = await canvas.findAllByText("Create Model");
+        const createModelTexts = await canvas.findAllByText("Add Model");
         expect(createModelTexts.length).toBeGreaterThanOrEqual(1);
 
         // Verify form fields are present (using text queries since labels are divs, not <label> elements)
@@ -160,7 +160,7 @@ export const CreateNewModel: Story = {
 
         // Verify buttons
         const addButton = await canvas.findByRole("button", { name: /Add/i });
-        expect(addButton).toBeDisabled(); // Should be disabled until form is filled
+        expect(addButton).not.toBeDisabled(); // Submit is always enabled; validation runs on submit
     },
 };
 
@@ -343,7 +343,7 @@ export const EditModelWithAdvancedParams: Story = {
 };
 
 /**
- * Story: Create model with Custom provider
+ * Story: Add model with Custom provider
  * Shows the form for OpenAI-compatible custom providers
  */
 export const CreateCustomProviderModel: Story = {
@@ -401,7 +401,7 @@ export const TestConnectionSuccess: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // The Test Connection button should be present and enabled (provider + auth + model are set)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeInTheDocument();
         expect(testButton).not.toBeDisabled();
 
@@ -433,7 +433,7 @@ export const TestConnectionFailure: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // Click Test Connection
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         await userEvent.click(testButton);
 
         // Verify error banner appears
@@ -459,7 +459,7 @@ export const TestConnectionButtonDisabled: Story = {
 
         // In create mode, Test Connection button should not be visible yet
         // (it only appears after provider selection reveals the full form)
-        await canvas.findAllByText("Create Model");
+        await canvas.findAllByText("Add Model");
 
         // Select a provider to make the button appear
         const providerComboboxes = await canvas.findAllByRole("combobox");
@@ -468,7 +468,7 @@ export const TestConnectionButtonDisabled: Story = {
         await userEvent.click(anthropicOption);
 
         // Test Connection button should now be visible but disabled (no auth or model yet)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeDisabled();
     },
 };
