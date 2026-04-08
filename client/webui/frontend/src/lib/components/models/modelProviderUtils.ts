@@ -488,7 +488,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
     }
 
     return {
-        alias: data.alias,
+        alias: data.alias.trim(),
         provider: data.provider,
         modelName,
         apiBase: data.apiBase || "",
