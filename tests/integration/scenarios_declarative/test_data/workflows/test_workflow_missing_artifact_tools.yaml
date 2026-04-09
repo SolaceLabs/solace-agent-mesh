@@ -1,0 +1,40 @@
+# Test Case: Workflow node agent missing artifact_management fails fast with clear error.
+#
+# When an agent lacks the artifact_management builtin-group, the
+# StructuredInvocationHandler must detect this immediately and return a
+# clear, actionable error — not enter the retry loop with the misleading
+# "mandatory result embed" message.
+#
+# Expected sequence:
+# 1. Workflow dispatches structured invocation to TestPeerAgentNoArtifacts
+# 2. Handler checks the agent's loaded tools — artifact_management absent
+# 3. Handler returns a structured error immediately (no LLM call made)
+# 4. Workflow fails with an error message naming the missing group
+
+test_case_id: "workflow_missing_artifact_tools_001"
+description: "Structured invocation fails fast with actionable error when artifact_management builtin-group is missing."
+tags: ["all", "workflows", "validation"]
+skip_intermediate_events: true
+expected_completion_timeout_seconds: 30
+
+test_runner_config_overrides:
+  agent_config:
+    artifact_scope: "namespace"
+
+gateway_input:
+  target_agent_name: "MissingArtifactToolsWorkflow"
+  user_identity: "missing_artifact_test@example.com"
+  external_context:
+    a2a_session_id: "missing_artifact_test_session"
+  parts:
+    - type: "text"
+      text: "Summarise this text please."
+
+# No llm_interactions — the handler fails before the LLM is ever called.
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "failed"
+    content_parts:
+      - type: "text"
+        text_contains: "artifact_management"

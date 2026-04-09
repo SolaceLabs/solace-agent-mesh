@@ -940,6 +940,17 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
+    # Agent intentionally missing artifact_management — used to verify that
+    # structured invocation fails fast with a clear error rather than hitting
+    # the confusing "mandatory result embed" retry loop.
+    no_artifact_agent_config = create_agent_config(
+        agent_name="TestPeerAgentNoArtifacts",
+        description="Peer agent without artifact_management tools (for negative testing)",
+        allow_list=[],
+        tools=[{"tool_type": "builtin-group", "group_name": "data_analysis"}],
+        model_suffix="noArtifacts",
+    )
+
     # Compaction test agent with auto-summarization enabled
     compaction_agent_config = create_agent_config(
         agent_name="TestAgentCompaction",
@@ -1177,6 +1188,12 @@ def shared_solace_connector(
         {
             "name": "TestPeerAgentD_App",
             "app_config": peer_d_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "TestPeerAgentNoArtifacts_App",
+            "app_config": no_artifact_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -1842,6 +1859,35 @@ def shared_solace_connector(
                     ],
                     "output_mapping": {
                         "result": "{{recursive_call.output}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
+            "name": "TestMissingArtifactWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "MissingArtifactToolsWorkflow",
+                "display_name": "Missing Artifact Tools Workflow (error test)",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "Workflow whose single node points at an agent missing artifact_management",
+                    "nodes": [
+                        {
+                            "id": "summarise",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentNoArtifacts",
+                        }
+                    ],
+                    "output_mapping": {
+                        "result": "{{summarise.output}}",
                     },
                 },
                 "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
