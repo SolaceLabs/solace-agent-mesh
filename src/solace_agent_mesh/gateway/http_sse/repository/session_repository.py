@@ -174,13 +174,13 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 .first()
             )
 
-            if not session_model:
-                return False
+        if not session_model:
+            return False
 
-            # Perform soft delete
-            session_model.deleted_at = now_epoch_ms()
-            session_model.deleted_by = user_id
-            session_model.updated_time = now_epoch_ms()
+        # Perform soft delete
+        session_model.deleted_at = now_epoch_ms()
+        session_model.deleted_by = user_id
+        session_model.updated_time = now_epoch_ms()
         with MonitorLatency(DBMonitor.update(self.table_name)):
             db_session.flush()
 
@@ -190,19 +190,16 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         """
         Soft delete all sessions belonging to a specific project.
         Used when cascading project deletion.
-        
         Args:
             db_session: Database session
             project_id: The project ID
             user_id: The user ID (for deleted_by tracking)
-            
         Returns:
             int: Number of sessions soft deleted
         """
-        with MonitorLatency(DBMonitor.update(self.table_name)):
-            now = now_epoch_ms()
-
-            # Find all non-deleted sessions for this project
+        now = now_epoch_ms()
+        # Find all non-deleted sessions for this project
+        with MonitorLatency(DBMonitor.query(self.table_name)):
             sessions_to_delete = (
                 db_session.query(SessionModel)
                 .filter(
@@ -213,12 +210,13 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 .all()
             )
 
-            # Soft delete each session
-            for session_model in sessions_to_delete:
-                session_model.deleted_at = now
-                session_model.deleted_by = user_id
-                session_model.updated_time = now
+        # Soft delete each session
+        for session_model in sessions_to_delete:
+            session_model.deleted_at = now
+            session_model.deleted_by = user_id
+            session_model.updated_time = now
 
+        with MonitorLatency(DBMonitor.update(self.table_name)):
             db_session.flush()
 
         return len(sessions_to_delete)
