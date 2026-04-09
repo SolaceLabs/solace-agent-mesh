@@ -37,7 +37,7 @@ apps:
       display_name: "Atlassian (Jira/Confluence via Docker)"
       model: *planning_model
       model_provider: 
-        - "planning" # Using the planning model from shared_config.yaml
+        - "planning" 
 
       instruction: |
         You are an AI assistant that can interact with Jira and Confluence through an MCP server running in Docker.

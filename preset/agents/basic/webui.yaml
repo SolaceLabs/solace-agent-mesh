@@ -33,8 +33,6 @@ apps:
       model: *general_model
       model_provider: 
         - "general"
-      model_provider: 
-        - "general"
 
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}
