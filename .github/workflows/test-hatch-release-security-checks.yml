@@ -1,0 +1,33 @@
+name: "[Test] hatch_release_security_checks"
+on:
+  push:
+    branches:
+      - org_container_ci_test
+
+permissions:
+  id-token: write
+  checks: write
+  contents: read
+  pull-requests: write
+  actions: read
+  issues: write
+  statuses: write
+
+jobs:
+  security-checks:
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@dynamic-github-org-image-pull
+    with:
+      prisma_check: false
+      sonarqube_hotspot_check: true
+      fossa_check: false
+    secrets:
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ""
+      PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+      PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
