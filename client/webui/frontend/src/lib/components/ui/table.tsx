@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "./button";
 
 type SortDir = "asc" | "desc";
 
@@ -16,14 +17,14 @@ function SortableTableHead({ column, currentSortKey, sortDir, onSort, children, 
     const isActive = currentSortKey === column;
     return (
         <TableHead className={cn("font-semibold", className)} {...props}>
-            <button className="flex cursor-pointer items-center hover:opacity-80" onClick={() => onSort(column)}>
+            <Button variant="ghost" size="icon" className="h-auto w-auto px-1.5 py-0.5 gap-1" onClick={() => onSort(column)}>
                 {children}
                 {isActive ? (
-                    sortDir === "asc" ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                    sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
                 ) : (
-                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-40" />
+                    <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
                 )}
-            </button>
+            </Button>
         </TableHead>
     );
 }
