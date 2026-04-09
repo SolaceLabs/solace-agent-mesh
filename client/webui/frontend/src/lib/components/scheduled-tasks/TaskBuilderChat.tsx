@@ -252,7 +252,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         return (
             <div className="flex h-full items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                    <Loader2 className="h-8 w-8 animate-spin text-(--primary-wMain)" />
                     <p className="text-sm text-(--secondary-text-wMain)">Initializing AI assistant...</p>
                 </div>
             </div>
@@ -264,8 +264,8 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             {/* Header */}
             <div className="border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                    <div className="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
-                        <Sparkles className="text-primary h-4 w-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--primary-w10)">
+                        <Sparkles className="h-4 w-4 text-(--primary-wMain)" />
                     </div>
                     <h3 className="text-sm font-semibold">AI Task Builder</h3>
                 </div>
@@ -295,7 +295,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             </div>
 
             {/* Input Area */}
-            <div className="bg-background border-t p-4">
+            <div className="border-t bg-(--background-w10) p-4">
                 {/* STT Error Banner */}
                 {sttError && (
                     <div className="mb-3">

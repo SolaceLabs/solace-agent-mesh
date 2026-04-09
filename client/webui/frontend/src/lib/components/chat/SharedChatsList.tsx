@@ -9,10 +9,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
 import type { SharedWithMeItem } from "@/lib/types/share";
 
-const sharedChatButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--color-background-w100)"], {
+const sharedChatButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
         active: {
-            true: "bg-(--color-background-w100)",
+            true: "bg-(--darkSurface-bgActive)",
             false: "",
         },
     },
@@ -22,8 +22,8 @@ const sharedChatButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", 
 const sharedChatTextStyles = cva(["block", "truncate", "text-sm"], {
     variants: {
         active: {
-            true: "text-(--color-primary-text-w10) font-bold",
-            false: "text-(--color-secondary-text-w50)",
+            true: "text-(--darkSurface-text) font-bold",
+            false: "text-(--darkSurface-textMuted)",
         },
     },
     defaultVariants: { active: false },
@@ -95,12 +95,12 @@ export function SharedChatsList({ maxItems = 5 }: SharedChatsListProps) {
 
     return (
         <>
-            <div className="my-4 border-t border-(--color-secondary-w70)" />
+            <div className="my-4 border-t border-(--darkSurface-border)" />
             <div className="mb-2 flex items-center gap-2 pr-4 pl-6">
-                <Share2 className="h-4 w-4 text-(--color-secondary-wMain)" />
+                <Share2 className="h-4 w-4 text-(--darkSurface-textMuted)" />
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <span className="cursor-default text-sm font-bold text-(--color-primary-text-w10)">Shared with Me</span>
+                        <span className="cursor-default text-sm font-bold text-(--darkSurface-textMuted)">Shared with Me</span>
                     </TooltipTrigger>
                     <TooltipContent side="right">Experimental Feature</TooltipContent>
                 </Tooltip>

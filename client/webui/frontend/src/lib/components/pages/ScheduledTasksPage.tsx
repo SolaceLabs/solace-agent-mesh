@@ -134,7 +134,7 @@ export function ScheduledTasksPage() {
 
             {/* Error Display */}
             {error && (
-                <div className="bg-destructive/10 text-destructive mx-6 mt-4 flex items-center gap-2 rounded-md p-4">
+                <div className="mx-6 mt-4 flex items-center gap-2 rounded-md bg-(--error-w10) p-4 text-(--error-wMain)">
                     <AlertCircle className="size-4" />
                     <span>{error.message}</span>
                 </div>

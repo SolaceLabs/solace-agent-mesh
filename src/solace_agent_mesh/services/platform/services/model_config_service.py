@@ -5,12 +5,10 @@ import logging
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 
-try:
-    import litellm
-except ImportError:
-    litellm = None
+from google.adk.models.llm_request import LlmRequest
+from google.genai import types as genai_types
 
-
+from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_agent_mesh.services.platform.repositories import ModelConfigurationRepository
 from solace_agent_mesh.services.platform.services.model_list_service import ModelListService
 from solace_agent_mesh.services.platform.models import ModelConfiguration
@@ -27,8 +25,8 @@ from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.exceptions.exceptions import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
+    ValidationErrorBuilder,
 )
-from solace_agent_mesh.common.oauth import OAuth2Client
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +73,44 @@ _DEFAULT_API_BASES = {
     "bedrock": "https://bedrock-runtime.us-east-1.amazonaws.com",
     "ollama": "http://localhost:11434",
 }
+
+
+_TEST_SYSTEM_PROMPT = (
+    "You are an AI assistant with access to tools. "
+    "When the user asks a question that requires a tool, call the appropriate tool. "
+    "You may call multiple tools in parallel when they are independent. "
+    "Always provide a brief status update before calling tools."
+)
+
+
+def _map_oauth_to_litellm_kwargs(auth_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Map OAuth2 auth_config keys to the oauth_* prefixed kwargs expected by LiteLlm.
+
+    The auth_config stores keys using OAuth2 spec naming (e.g., client_id, token_url),
+    but the LiteLlm constructor expects oauth_* prefixed keys to distinguish them
+    from other kwargs.
+
+    Args:
+        auth_config: OAuth2 auth config dict (the 'type' key is ignored).
+
+    Returns:
+        Dict with oauth_* prefixed keys suitable for LiteLlm constructor.
+    """
+    _OAUTH_KEY_MAP = {
+        "client_id": "oauth_client_id",
+        "client_secret": "oauth_client_secret",
+        "token_url": "oauth_token_url",
+        "scope": "oauth_scope",
+        "audience": "oauth_audience",
+        "ca_cert": "oauth_ca_cert",
+        "token_refresh_buffer_seconds": "oauth_token_refresh_buffer_seconds",
+        "max_retries": "oauth_max_retries",
+    }
+    result = {}
+    for src_key, dst_key in _OAUTH_KEY_MAP.items():
+        if src_key in auth_config:
+            result[dst_key] = auth_config[src_key]
+    return result
 
 
 class ModelConfigService:
@@ -308,8 +344,11 @@ class ModelConfigService:
             EntityAlreadyExistsError: If alias already exists (case-sensitive, matches unique index)
         """
         # Check for duplicate alias (case-sensitive, matches unique index)
-        if self.repository.exists_by_alias(db, request.alias):
-            raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
+        alias = request.alias.strip() if request.alias else None
+        if alias is not None and not alias:
+            raise ValidationErrorBuilder().message("Alias cannot be empty or contain only whitespace").build()
+        if self.repository.exists_by_alias(db, alias):
+            raise EntityAlreadyExistsError("ModelConfiguration", "alias", alias)
 
         # Auto-fill api_base for known providers if not provided
         api_base = request.api_base
@@ -322,7 +361,7 @@ class ModelConfigService:
 
         # Create new configuration
         db_config = ModelConfiguration(
-            alias=request.alias,
+            alias=alias,
             provider=request.provider,
             model_name=request.model_name,
             api_base=api_base,
@@ -372,14 +411,17 @@ class ModelConfigService:
         if not db_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
+        alias = request.alias.strip() if request.alias else None
+        if alias is not None and not alias:
+            raise ValidationErrorBuilder().message("Alias cannot be empty or contain only whitespace").build()
         # If updating alias, check for case-sensitive collision with other configs
-        if request.alias is not None and request.alias != db_config.alias:
-            if self.repository.exists_by_alias(db, request.alias):
-                raise EntityAlreadyExistsError("ModelConfiguration", "alias", request.alias)
+        if alias is not None and alias != db_config.alias:
+            if self.repository.exists_by_alias(db, alias):
+                raise EntityAlreadyExistsError("ModelConfiguration", "alias", alias)
 
         # Update only provided fields
-        if request.alias is not None:
-            db_config.alias = request.alias
+        if alias is not None:
+            db_config.alias = alias
         if request.provider is not None:
             db_config.provider = request.provider
         if request.model_name is not None:
@@ -499,32 +541,36 @@ class ModelConfigService:
         # Merge auth credentials (unredacted)
         if db_model.model_auth_config:
             auth_config = dict(db_model.model_auth_config)
-            auth_config.pop("type", None)
-            config.update(auth_config)
+            auth_type = auth_config.pop("type", None)
+            if auth_type == "oauth2":
+                config.update(_map_oauth_to_litellm_kwargs(auth_config))
+            else:
+                config.update(auth_config)
         # Merge model params
         if db_model.model_params:
             config.update(db_model.model_params)
         return config
 
-    def test_connection(self, db: Session, request: ModelConfigurationTestRequest) -> Tuple[bool, str]:
+    async def test_connection(self, db: Session, request: ModelConfigurationTestRequest) -> Tuple[bool, str]:
         """
-        Test a model configuration connection by making a minimal LLM call.
+        Test a model configuration connection by making a realistic LLM call
+        through the custom LiteLlm class (same path the orchestrator uses).
+
         Supports two scenarios:
         1. New configuration: Provide provider, model_name, and credentials
-        2. Test existing model: Provide alias to load full config from database
+        2. Test existing model: Provide model_id to load full config from database
            - Provider/model_name optional (loaded from database if not provided)
            - Credentials loaded from database as fallback
+
         Args:
             db: SQLAlchemy database session
             request: Test request with model configuration details
+
         Returns:
             Tuple of (success: bool, message: str) where message contains either
             the LLM response (on success) or error details (on failure)
         """
         try:
-            if not litellm:
-                return False, "Test connection failed. litellm library not available"
-
             # Resolve configuration from alias or request
             provider = request.provider
             model_name = request.model_name
@@ -566,86 +612,100 @@ class ModelConfigService:
             if not api_base and provider in _DEFAULT_API_BASES:
                 api_base = _DEFAULT_API_BASES[provider]
 
-            # Build litellm call kwargs
-            litellm_kwargs: Dict[str, Any] = {
+            # Build model config dict for LiteLlm constructor.
+            # This mirrors how the orchestrator initializes the model.
+            model_config: Dict[str, Any] = {
                 "model": _resolve_litellm_model_name(provider, model_name),
-                "messages": [{"role": "user", "content": "Say OK"}],
-                "max_tokens": 5,
             }
 
-            # Only pass api_base for providers that need a custom endpoint (e.g., Ollama, Azure,
-            # custom). For providers where LiteLLM handles the endpoint via its prefix routing
-            # (Google AI Studio, Vertex AI, Bedrock, etc.), passing api_base can cause LiteLLM
-            # to bypass its native auth handling.
+            # Only pass api_base for providers that need a custom endpoint
             if api_base and provider not in _LITELLM_MANAGES_ENDPOINT:
-                litellm_kwargs["api_base"] = api_base
+                model_config["api_base"] = api_base
 
-            # Flatten auth_config into litellm kwargs — same approach as _to_raw_litellm_config().
-            # OAuth2 is the only special case: exchange credentials for a bearer token first.
+            # Map auth credentials to LiteLlm constructor kwargs.
+            # OAuth2 uses oauth_* prefixed keys for the built-in token manager.
             auth_kwargs = dict(auth_config)
             auth_kwargs.pop("type", None)
             if auth_type == "oauth2":
-                token = self._fetch_oauth2_token(auth_kwargs)
-                if token:
-                    litellm_kwargs["api_key"] = token
-                else:
-                    return False, "Test connection failed. Failed to fetch OAuth2 token"
+                model_config.update(_map_oauth_to_litellm_kwargs(auth_kwargs))
             else:
-                litellm_kwargs.update(auth_kwargs)
+                model_config.update(auth_kwargs)
 
-            # For connection testing, do NOT include model_params.
-            # The test is purely to verify connectivity and authentication work.
-            # Custom parameters are validated during actual model usage, not in the test.
+            # Include model_params (advanced settings, cache_strategy, etc.)
+            model_config.update(request.model_params or {})
 
-            # Make the test call
-            response = litellm.completion(**litellm_kwargs)
+# Instantiate LiteLlm the same way the orchestrator does:
+            # create with just the model name, then configure_model() with the
+            # full config dict. This avoids Pydantic validation errors from
+            # provider-specific keys (e.g. aws_access_key_id) that BaseLlm
+            # doesn't recognize as fields.
+            llm = LiteLlm(model=model_config["model"])
+            llm.configure_model(model_config)
 
-            # Extract response message
-            if response and response.choices and len(response.choices) > 0:
-                return True, "Connection test successful"
-            else:
-                return False, "Test connection failed. No response from LLM"
+            # Build a realistic LlmRequest that mirrors what the orchestrator
+            # sends: system instruction, tools with schemas, and a user message.
+            # This catches models that pass a bare "Say OK" test but fail under
+            # real orchestrator usage (e.g. can't handle tools or system prompts).
+            # Temperature must be in GenerateContentConfig (not just model_config)
+            # because _get_completion_inputs requires it to be present.
+            # Use the user's value from model_params if set, otherwise default.
+            model_params = request.model_params or {}
+            temperature = model_params.get("temperature", 0.1)
+
+            llm_request = LlmRequest(
+                contents=[
+                    genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part.from_text(text="What time is it right now?")],
+                    )
+                ],
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=_TEST_SYSTEM_PROMPT,
+                    tools=[
+                        genai_types.Tool(
+                            function_declarations=[
+                                genai_types.FunctionDeclaration(
+                                    name="get_current_time",
+                                    description="Gets the current date and time in the user's local timezone.",
+                                    parameters=genai_types.Schema(
+                                        type=genai_types.Type.OBJECT,
+                                        properties={},
+                                    ),
+                                ),
+                                genai_types.FunctionDeclaration(
+                                    name="web_search",
+                                    description="Search the web for up-to-date information using a search query.",
+                                    parameters=genai_types.Schema(
+                                        type=genai_types.Type.OBJECT,
+                                        properties={
+                                            "query": genai_types.Schema(
+                                                type=genai_types.Type.STRING,
+                                                description="The search query",
+                                            ),
+                                        },
+                                        required=["query"],
+                                    ),
+                                ),
+                            ]
+                        )
+                    ],
+                    temperature=temperature,
+                    max_output_tokens=50,
+                ),
+            )
+
+            # Make the test call (non-streaming)
+            async for response in llm.generate_content_async(llm_request, stream=False):
+                if response.content and response.content.parts:
+                    return True, "Connection test successful"
+
+            return False, "Test connection failed. No response from LLM"
 
         except Exception as e:
-            # Return error message, but sanitize it to avoid exposing sensitive data
             error_msg = str(e)
             # Truncate very long errors
             if len(error_msg) > 500:
                 error_msg = error_msg[:500] + "..."
             return False, f"Test connection failed. {error_msg}"
 
-    @staticmethod
-    def _fetch_oauth2_token(auth_config: Dict[str, Any]) -> Optional[str]:
-        """
-        Fetch an OAuth2 access token using client credentials flow.
-        Args:
-            auth_config: Auth config dict with oauth credentials
-        Returns:
-            Access token string if successful, None otherwise
-        """
-        try:
-            client_id = auth_config.get("client_id")
-            client_secret = auth_config.get("client_secret")
-            token_url = auth_config.get("token_url")
-            scope = auth_config.get("scope")
-            ca_cert_path = auth_config.get("ca_cert")
-
-            if not all([client_id, client_secret, token_url]):
-                log.warning("Missing required OAuth2 fields: client_id, client_secret, token_url")
-                return None
-
-            # Fetch token using OAuth2Client
-            response = OAuth2Client.fetch_client_credentials_token(
-                token_url=token_url,
-                client_id=client_id,
-                client_secret=client_secret,
-                scope=scope,
-                verify=ca_cert_path or True,
-                timeout=10.0,
-            )
-
-            return response.get("access_token") if response else None
-        except Exception as e:
-            log.error(f"Failed to fetch OAuth2 token: {e}")
-            return None
 

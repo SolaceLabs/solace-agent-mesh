@@ -13,6 +13,10 @@ class ModelConfigurationBaseRequest(CamelCaseModel):
     specific fields required based on the operation (create vs update).
     """
 
+    model_id: Optional[str] = Field(
+        None,
+        description="Model ID (UUID) — only used with validateOnly=true for stored credential fallback. Ignored by create/update.",
+    )
     alias: Optional[str] = Field(
         None,
         min_length=1,
@@ -116,18 +120,19 @@ class ProviderQueryBaseRequest(CamelCaseModel):
     )
 
 
-class SupportedModelsRequest(ProviderQueryBaseRequest):
-    """Request model for querying supported models from a provider.
-    Supports two modes:
-    1. Editing mode: provide model_id to use stored credentials
-    2. Creating mode: provide auth_config with type and credentials
+class SupportedParamsRequest(CamelCaseModel):
+    """Request model for querying supported parameters for a model.
+
+    Provider is passed as a URL path parameter. This request only
+    contains the model name in the body. No credentials needed — this
+    is a local litellm registry lookup, not a provider API call.
     """
 
-    provider: str = Field(
+    model_name: str = Field(
         ...,
         min_length=1,
-        max_length=50,
-        description="Provider ID (e.g., 'openai', 'anthropic', 'custom')",
+        max_length=255,
+        description="Model name (e.g., 'gpt-4o', 'claude-3-5-sonnet-20241022')",
     )
 
 

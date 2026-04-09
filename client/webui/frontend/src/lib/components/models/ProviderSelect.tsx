@@ -21,5 +21,5 @@ export const ProviderSelect = ({ value, onValueChange, providers, placeholder, d
         section: provider.id === "custom" ? "advanced" : "default",
     }));
 
-    return <ComboBox value={value} onValueChange={onValueChange} items={dropDownItems} placeholder={placeholder || ""} disabled={disabled} invalid={invalid} />;
+    return <ComboBox value={value} onValueChange={onValueChange} items={dropDownItems} placeholder={placeholder || ""} disabled={disabled} invalid={invalid} dropdownMaxHeight={400} />;
 };

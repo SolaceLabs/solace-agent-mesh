@@ -58,6 +58,18 @@ class ModelConfigurationTestResponse(CamelCaseModel):
     )
 
 
+class SupportedParamsResponse(CamelCaseModel):
+    """Response model for supported model parameters.
+
+    Returns the list of parameter names (snake_case) that a model supports,
+    based on litellm's internal registry.
+    """
+
+    supported_params: list[str] = Field(
+        ..., description="List of supported parameter names (snake_case)"
+    )
+
+
 class ModelDependentResponse(CamelCaseModel):
     """Response model for an agent that depends on a model configuration."""
 

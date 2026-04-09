@@ -83,8 +83,8 @@ export function ShareNotificationMessage(props: ShareNotificationMessageProps) {
 
         return (
             <div className="flex flex-col items-center gap-1 py-4">
-                <p className="text-secondary-foreground text-sm">{formatCollaborativeTimestamp(timestamp)}</p>
-                <p className="text-foreground flex items-center gap-1.5 text-sm">
+                <p className="text-sm text-(--secondary-text-wMain)">{formatCollaborativeTimestamp(timestamp)}</p>
+                <p className="flex items-center gap-1.5 text-sm text-(--primary-text-wMain)">
                     <span>{sharedBy} gave</span>
                     <span className="inline-flex items-center gap-1">
                         <AccessIcon className="h-3.5 w-3.5" />
@@ -98,7 +98,7 @@ export function ShareNotificationMessage(props: ShareNotificationMessageProps) {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <span
-                                            className="text-secondary-foreground hover:bg-accent cursor-pointer"
+                                            className="cursor-pointer text-(--secondary-text-wMain) hover:bg-(--secondary-w20)"
                                             style={{
                                                 borderBottom: "1px dashed var(--color-secondary-wMain)",
                                                 paddingBottom: "2px",
@@ -132,8 +132,8 @@ export function ShareNotificationMessage(props: ShareNotificationMessageProps) {
 
         return (
             <div className="flex flex-col items-center gap-1 py-4">
-                <p className="text-secondary-foreground text-sm">{formatCollaborativeTimestamp(timestamp)}</p>
-                <p className="text-foreground flex flex-wrap items-center justify-center gap-1.5 text-sm">
+                <p className="text-sm text-(--secondary-text-wMain)">{formatCollaborativeTimestamp(timestamp)}</p>
+                <p className="flex flex-wrap items-center justify-center gap-1.5 text-sm text-(--primary-text-wMain)">
                     <span>
                         {sharedBy} changed {recipientsText}&apos;s access from
                     </span>
@@ -155,8 +155,8 @@ export function ShareNotificationMessage(props: ShareNotificationMessageProps) {
 
         return (
             <div className="flex flex-col items-center gap-1 py-4">
-                <p className="text-secondary-foreground text-sm">{formatCollaborativeTimestamp(timestamp)}</p>
-                <p className="text-foreground flex items-center gap-1.5 text-sm">
+                <p className="text-sm text-(--secondary-text-wMain)">{formatCollaborativeTimestamp(timestamp)}</p>
+                <p className="flex items-center gap-1.5 text-sm text-(--primary-text-wMain)">
                     <span>{messageText}</span>
                 </p>
             </div>

@@ -46,8 +46,8 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
 
     if (!iconPath || imageError) {
         return (
-            <div className={cn("flex items-center justify-center rounded-full bg-[#CFD3D9]", config.container)}>
-                <span className={cn("font-semibold text-(--secondary-text-w50)", config.text)}>{providerKey.charAt(0).toUpperCase()}</span>
+            <div className={cn("flex items-center justify-center rounded-full bg-(--secondary-w10)", config.container)}>
+                <span className={cn("font-semibold text-(--primary-text-wMain)", config.text)}>{providerKey.charAt(0).toUpperCase()}</span>
             </div>
         );
     }

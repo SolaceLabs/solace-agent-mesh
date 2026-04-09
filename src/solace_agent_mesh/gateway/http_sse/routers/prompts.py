@@ -42,7 +42,6 @@ router = APIRouter()
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
 def get_latest_prompt(db: Session, group_id: str) -> Optional[PromptModel]:
     """
     Get the latest prompt version for a group (highest version number).
@@ -1079,7 +1078,7 @@ async def prompt_builder_chat(
         assistant = PromptBuilderAssistant(llm=llm, db=db)
 
         # Process the message using real LLM with conflict checking
-        with ObservabilityContext(component_name=component.agent_name, owner_id=user_id):
+        with ObservabilityContext(component_name="prompt_builder", owner_id=user_id):
             response = await assistant.process_message(
                 user_message=request.message,
                 conversation_history=[msg.model_dump() for msg in request.conversation_history],
