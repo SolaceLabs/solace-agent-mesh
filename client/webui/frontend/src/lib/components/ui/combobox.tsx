@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button, Input, useClickOutside } from "@/lib/components/ui";
 
 export interface ComboBoxItem {
@@ -178,7 +179,7 @@ export const ComboBox = ({
             aria-selected={item.id === value}
             variant="ghost"
             size="default"
-            className={`relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none ${index === highlightedIndex ? "bg-[var(--primary-w10)]" : ""}`}
+            className={cn("relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none", index === highlightedIndex && "bg-(--primary-w10)")}
             onClick={() => handleItemSelect(item.id)}
             onMouseEnter={() => setHighlightedIndex(index)}
         >
@@ -217,7 +218,7 @@ export const ComboBox = ({
                 role="combobox"
                 aria-expanded={isOpen}
                 aria-haspopup="listbox"
-                className={`w-full bg-(--background-w10) pr-10 ${invalid ? "border-(--error-w100)" : ""}`}
+                className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
                 autoComplete="off"
             />
             {isLoading ? (
@@ -231,7 +232,7 @@ export const ComboBox = ({
                     ref={dropdownRef}
                     role="listbox"
                     onMouseLeave={() => setHighlightedIndex(-1)}
-                    className={`absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}
+                    className={cn("absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md", openAbove ? "bottom-full mb-1" : "top-full mt-1")}
                 >
                     <div className="overflow-y-auto bg-(--background-w10)" style={{ maxHeight: `${dropdownMaxHeight}px` }}>
                         {flatItems.length > 0 ? (
