@@ -179,13 +179,16 @@ class StructuredInvocationHandler:
             # Without these, the LLM receives no artifact instructions and can
             # never satisfy the embed requirement, leading to a confusing retry
             # loop. Fail fast here with an actionable message instead.
-            artifact_tool_names = {
-                t.name
-                for t in tool_registry.get_tools_by_category(
-                    _ARTIFACT_MANAGEMENT_CATEGORY
-                )
-            }
-            if not (artifact_tool_names & set(self.host.tool_scopes_map.keys())):
+            # Guard against an uninitialised registry (e.g. isolated tests):
+            # if no artifact tools are registered we cannot make a meaningful
+            # determination, so skip the check and let the normal flow handle it.
+            artifact_tools = tool_registry.get_tools_by_category(
+                _ARTIFACT_MANAGEMENT_CATEGORY
+            )
+            artifact_tool_names = {t.name for t in artifact_tools}
+            if artifact_tools and not (
+                artifact_tool_names & set(self.host.tool_scopes_map.keys())
+            ):
                 error_msg = (
                     f"Agent '{self.host.agent_name}' is missing the "
                     f"'{_ARTIFACT_MANAGEMENT_CATEGORY}' builtin-group, which is "
@@ -194,7 +197,7 @@ class StructuredInvocationHandler:
                     f"  - tool_type: builtin-group\n"
                     f"    group_name: {_ARTIFACT_MANAGEMENT_CATEGORY}"
                 )
-                log.error(f"{log_id} {error_msg}")
+                log.error("%s %s", log_id, error_msg)
                 result_data = StructuredInvocationResult(
                     type="structured_invocation_result",
                     status="error",

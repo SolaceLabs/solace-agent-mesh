@@ -38,3 +38,5 @@ expected_gateway_output:
     content_parts:
       - type: "text"
         text_contains: "artifact_management"
+      - type: "text"
+        text_contains: "TestPeerAgentNoArtifacts"
