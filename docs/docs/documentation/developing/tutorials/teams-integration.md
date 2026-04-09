@@ -144,7 +144,7 @@ Use the Docker Compose example below to start the gateway in a container.
 ```yaml
 services:
   teams-gateway:
-    image: solace-agent-mesh-enterprise:latest
+    image: <your-registry>/solace-agent-mesh-enterprise:<version>
     ports:
       - "8092:8092"
     volumes:
@@ -175,10 +175,16 @@ SOLACE_BROKER_VPN=your-vpn-name
 NAMESPACE=your-namespace
 ```
 
-Docker Compose automatically reads the `.env` file. Then start the gateway:
+Docker Compose automatically reads the `.env` file. Start the gateway:
 
 ```bash
 docker compose up -d
+```
+
+If `docker compose` is not available, try the standalone command:
+
+```bash
+docker-compose up -d
 ```
 
 ## Configure the Webhook URL
