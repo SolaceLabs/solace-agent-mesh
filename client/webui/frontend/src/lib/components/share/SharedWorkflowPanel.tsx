@@ -122,7 +122,7 @@ export function SharedWorkflowPanel({ taskEvents, selectedTaskId, onTaskSelect }
     if (!taskEvents || Object.keys(taskEvents).length === 0) {
         return (
             <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
+                <div className="text-center text-(--secondary-text-wMain)">
                     <Network className="mx-auto mb-4 h-12 w-12" />
                     <div className="text-lg font-medium">Workflow</div>
                     <div className="mt-2 text-sm">No workflow data available for this session</div>
@@ -134,7 +134,7 @@ export function SharedWorkflowPanel({ taskEvents, selectedTaskId, onTaskSelect }
     if (!visualizedTask) {
         return (
             <div className="flex h-full items-center justify-center p-4">
-                <div className="text-muted-foreground text-center">
+                <div className="text-center text-(--secondary-text-wMain)">
                     <Network className="mx-auto mb-4 h-12 w-12" />
                     <div className="text-lg font-medium">Workflow</div>
                     <div className="mt-2 text-sm">Unable to process workflow data</div>
@@ -175,12 +175,12 @@ function SharedFlowChartDetails({ task }: { task: VisualizedTask }) {
 
     return (
         <div className="grid grid-cols-[auto_1fr] grid-rows-[32px_32px] items-center gap-x-4 border-b p-4">
-            <div className="text-muted-foreground text-sm">User</div>
+            <div className="text-sm text-(--secondary-text-wMain)">User</div>
             <div className="truncate text-sm" title={task.initialRequestText}>
                 {task.initialRequestText || "No request text"}
             </div>
 
-            <div className="text-muted-foreground text-sm">Status</div>
+            <div className="text-sm text-(--secondary-text-wMain)">Status</div>
             <div>{getStatusBadge(task.status)}</div>
         </div>
     );
