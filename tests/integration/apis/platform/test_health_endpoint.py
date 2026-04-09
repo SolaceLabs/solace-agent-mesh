@@ -35,7 +35,7 @@ class TestPlatformHealthEndpoint:
         mock_component = platform_api_client_factory.mock_component
         assert mock_component.namespace == "test_namespace"
         assert mock_component.get_config("frontend_use_authorization", False) is False
-        assert mock_component.get_cors_origins() == ["*"]
+        assert mock_component.get_cors_origins() == ["http://localhost:3000"]
 
     def test_factory_heartbeat_tracker_available(self, platform_api_client_factory):
         """Test that heartbeat tracker is available in mock component."""
