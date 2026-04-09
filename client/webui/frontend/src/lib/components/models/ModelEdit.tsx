@@ -511,7 +511,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
                                 {/* Advanced Parameters Section - Collapsible */}
                                 <details className="group mt-4">
-                                    <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
+                                    <summary className="cursor-pointer text-sm font-medium text-(--primary-text-wMain) select-none hover:text-(--secondary-text-wMain)">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
@@ -521,7 +521,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
-                                                    <p className="text-secondary-foreground mt-1 text-sm">Add any additional parameters supported by your model provider.</p>
+                                                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Add any additional parameters supported by your model provider.</p>
                                                 </div>
                                                 <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
                                                     <Plus className="mr-2 size-4" />

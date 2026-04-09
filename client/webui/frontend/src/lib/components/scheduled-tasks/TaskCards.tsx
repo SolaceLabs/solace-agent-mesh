@@ -107,7 +107,7 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                                     <Button onClick={() => setShowStatusDropdown(!showStatusDropdown)} variant="outline" testid="taskStatusFilter">
                                         <Filter size={16} />
                                         Status
-                                        {selectedStatuses.length > 0 && <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">{selectedStatuses.length}</span>}
+                                        {selectedStatuses.length > 0 && <span className="rounded-full bg-(--primary-wMain) px-2 py-0.5 text-xs text-(--primary-text-w10)">{selectedStatuses.length}</span>}
                                     </Button>
 
                                     {showStatusDropdown && (
@@ -116,7 +116,7 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                                             <div className="fixed inset-0 z-10" onClick={() => setShowStatusDropdown(false)} />
 
                                             {/* Dropdown */}
-                                            <div className="bg-background absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border shadow-lg">
+                                            <div className="absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border bg-(--background-w10) shadow-lg">
                                                 {selectedStatuses.length > 0 && (
                                                     <div className="border-b">
                                                         <button

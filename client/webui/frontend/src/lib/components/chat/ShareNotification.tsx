@@ -48,8 +48,8 @@ export function ShareNotification({ sharedBy, shareType, sharedWith, sharedAt }:
     };
 
     return (
-        <div className="text-muted-foreground mx-auto my-4 max-w-3xl rounded-lg px-4 py-3 text-center text-sm">
-            <p className="text-muted-foreground/70 mt-0.5 text-xs">{formatRelativeTime(new Date(sharedAt).toISOString())}</p>
+        <div className="mx-auto my-4 max-w-3xl rounded-lg px-4 py-3 text-center text-sm text-(--secondary-text-wMain)">
+            <p className="mt-0.5 text-xs text-(--secondary-text-w50)">{formatRelativeTime(new Date(sharedAt).toISOString())}</p>
             <p>{getShareMessage()}</p>
         </div>
     );

@@ -227,7 +227,7 @@ export const ComboBox = ({
             )}
 
             {isOpen && (flatItems.length > 0 || searchText) && (
-                <div ref={dropdownRef} role="listbox" className={`border-input absolute right-0 left-0 z-50 rounded-md border bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
+                <div ref={dropdownRef} role="listbox" className={`absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
                     <div className="overflow-y-auto bg-(--background-w10)" style={{ maxHeight: `${dropdownMaxHeight}px` }}>
                         {flatItems.length > 0 ? (
                             <>

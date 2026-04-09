@@ -57,7 +57,7 @@ export function UserPresenceAvatars({ users, currentUserId }: UserPresenceAvatar
             {hasOverflow && (
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="bg-muted text-muted-foreground ring-background flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-xs font-semibold ring-2" style={{ marginLeft: "-8px" }}>
+                        <div className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-(--secondary-w20) text-xs font-semibold text-(--secondary-text-wMain) ring-2 ring-(--background-w10)" style={{ marginLeft: "-8px" }}>
                             +{overflowUsers.length}
                         </div>
                     </TooltipTrigger>
