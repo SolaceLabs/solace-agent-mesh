@@ -131,8 +131,6 @@ apps:
       extract_content_from_artifact_config:
           supported_binary_mime_types: ["image/png", "image/jpeg"] # Process PNGs and JPEGs
           model: *general_model
-      model_provider: 
-        - "general" # if not provided, use the parent component's model
 
       # --- Agent Card Definition ---
       agent_card:
