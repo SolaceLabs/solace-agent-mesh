@@ -12,6 +12,7 @@ permissions:
   actions: read
   issues: write
   statuses: write
+  packages: read
 
 jobs:
   security-checks:
