@@ -1756,7 +1756,7 @@ async def test_workflow_cancellation(
                     role="assistant",
                     content="""Processing order.
 «««save_artifact: filename="process_output.json" mime_type="application/json" description="Process result"
-{"status": "processed"}
+{"customer_name": "Test Customer", "order_id": "ORD-CANCEL", "amount": 100, "status": "processed", "processed": true}
 »»»""",
                 ),
                 finish_reason="stop",

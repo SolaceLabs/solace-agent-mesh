@@ -83,7 +83,7 @@ test:
 # Run all tests
 test-all:
 	@echo "Running tests in parallel..."
-	uv run pytest tests -n auto --maxprocesses=3  --dist loadgroup -v
+	uv run pytest tests -n auto --maxprocesses=2  --dist loadgroup -v
 
 # Helper target to validate required environment variables
 check-eval-env:
