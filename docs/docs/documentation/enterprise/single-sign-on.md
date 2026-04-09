@@ -244,6 +244,7 @@ apps:
       session_secret_key: "${SESSION_SECRET_KEY}"
       model_provider: 
         - "general"
+      model: *general_model
       artifact_service: *default_artifact_service
       session_service: 
         type: "sql"
