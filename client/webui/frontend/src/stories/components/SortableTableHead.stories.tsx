@@ -48,7 +48,7 @@ export const Inactive: Story = {
         expect(canvas.getByRole("button")).toBeInTheDocument();
         // Inactive icon has opacity-40
         const svg = canvas.getByRole("button").querySelector("svg");
-        expect(svg?.className).toContain("opacity-40");
+        expect(svg?.getAttribute("class")).toContain("opacity-40");
     },
 };
 
@@ -68,7 +68,7 @@ export const ActiveAscending: Story = {
         const canvas = within(canvasElement);
         // Active icon must NOT be dimmed
         const svg = canvas.getByRole("button").querySelector("svg");
-        expect(svg?.className).not.toContain("opacity-40");
+        expect(svg?.getAttribute("class")).not.toContain("opacity-40");
     },
 };
 
@@ -87,7 +87,7 @@ export const ActiveDescending: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         const svg = canvas.getByRole("button").querySelector("svg");
-        expect(svg?.className).not.toContain("opacity-40");
+        expect(svg?.getAttribute("class")).not.toContain("opacity-40");
     },
 };
 
@@ -151,7 +151,7 @@ export const MultipleColumns: Story = {
         // Only the active column (Name) should have a non-dimmed icon
         const nameSvg = buttons[0].querySelector("svg");
         const modelSvg = buttons[1].querySelector("svg");
-        expect(nameSvg?.className).not.toContain("opacity-40");
-        expect(modelSvg?.className).toContain("opacity-40");
+        expect(nameSvg?.getAttribute("class")).not.toContain("opacity-40");
+        expect(modelSvg?.getAttribute("class")).toContain("opacity-40");
     },
 };

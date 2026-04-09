@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within, expect } from "storybook/test";
+import { within, expect, userEvent } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
 
 import { AgentMeshPage } from "@/lib/components/pages";
@@ -153,15 +153,17 @@ export const Sorting: Story = {
         expect(canvas.getByRole("button", { name: "Model Provider" })).toBeInTheDocument();
 
         // Click Name header to toggle to Z→A
-        canvas.getByRole("button", { name: "Name" }).click();
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
 
         // After toggle: first data row should be "Vertex"
+        await canvas.findByText("Vertex");
         const rowsDesc = canvas.getAllByRole("row");
         expect(within(rowsDesc[1]).getByText("Vertex")).toBeInTheDocument();
         expect(within(rowsDesc.at(-1)!).getByText("Aws")).toBeInTheDocument();
 
         // Click Name header again to restore A→Z
-        canvas.getByRole("button", { name: "Name" }).click();
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
+        await canvas.findByText("Aws");
         const rowsAsc = canvas.getAllByRole("row");
         expect(within(rowsAsc[1]).getByText("Aws")).toBeInTheDocument();
     },
