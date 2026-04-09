@@ -1,18 +1,18 @@
-# Test Case: Workflow node agent missing artifact_management fails fast with clear error.
+# Test Case: Artifact tools are auto-injected for workflow node agents that omit them from YAML.
 #
-# When an agent lacks the artifact_management builtin-group, the
-# StructuredInvocationHandler must detect this immediately and return a
-# clear, actionable error — not enter the retry loop with the misleading
-# "mandatory result embed" message.
+# Even though TestPeerAgentNoArtifacts only configures data_analysis tools in its YAML,
+# the runtime must inject the artifact_management group automatically so the agent
+# can fulfil its role as a structured-invocation workflow node.
 #
 # Expected sequence:
 # 1. Workflow dispatches structured invocation to TestPeerAgentNoArtifacts
-# 2. Handler checks the agent's loaded tools — artifact_management absent
-# 3. Handler returns a structured error immediately (no LLM call made)
-# 4. Workflow fails with an error message naming the missing group
+# 2. Runtime auto-injects artifact_management tools (load_artifact, save_artifact, etc.)
+# 3. LLM call is made — artifact tools are visible in the request
+# 4. Agent saves an output artifact and emits the mandatory result embed
+# 5. Workflow completes successfully
 
-test_case_id: "workflow_missing_artifact_tools_001"
-description: "Structured invocation fails fast with actionable error when artifact_management builtin-group is missing."
+test_case_id: "workflow_artifact_tools_auto_injected_001"
+description: "Artifact management tools are auto-injected for a workflow node agent that omits them from its YAML config."
 tags: ["all", "workflows", "validation"]
 skip_intermediate_events: true
 expected_completion_timeout_seconds: 30
@@ -30,13 +30,34 @@ gateway_input:
     - type: "text"
       text: "Summarise this text please."
 
-# No llm_interactions — the handler fails before the LLM is ever called.
+llm_interactions:
+  # Turn 1: TestPeerAgentNoArtifacts receives the task.
+  # Even though artifact_management is not in its YAML, load_artifact must be present
+  # because the runtime auto-injected the group.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: |
+              «««save_artifact: filename="summary.json" mime_type="application/json" description="Summary output"
+              {"summary": "This is a summary of the input text."}
+              »»»
+    expected_request:
+      tools_present: ["load_artifact"]
+
+  # Turn 2: Artifact saved — agent emits the mandatory result embed.
+  - static_response:
+      choices:
+        - message:
+            role: "assistant"
+            content: "Summary complete. «result:artifact=summary.json:0 status=success»"
+    expected_request:
+      expected_tool_responses_in_llm_messages:
+        - tool_name: "_notify_artifact_save"
+          response_json_matches:
+            filename: "summary.json"
+            status: "success"
 
 expected_gateway_output:
   - type: "final_response"
-    task_state: "failed"
-    content_parts:
-      - type: "text"
-        text_contains: "artifact_management"
-      - type: "text"
-        text_contains: "TestPeerAgentNoArtifacts"
+    task_state: "completed"

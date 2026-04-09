@@ -41,7 +41,6 @@ from ....common.data_parts import (
     StructuredInvocationResult,
 )
 from ....agent.adk.runner import run_adk_async_task_thread_wrapper
-from ....agent.tools.registry import tool_registry
 from ....common.utils.embeds.constants import EMBED_REGEX
 from ....agent.utils.artifact_helpers import parse_artifact_uri
 
@@ -49,11 +48,6 @@ if TYPE_CHECKING:
     from ..component import SamAgentComponent
 
 log = logging.getLogger(__name__)
-
-# Category name for artifact tools. Tools in this group are required for
-# structured invocation — without them the LLM has no way to create the
-# output artifact or produce the mandatory result embed.
-_ARTIFACT_MANAGEMENT_CATEGORY = "artifact_management"
 
 
 class ResultEmbed:
@@ -169,39 +163,6 @@ class StructuredInvocationHandler:
                     type="structured_invocation_result",
                     status="error",
                     error_message=f"Input validation failed: {validation_errors}",
-                )
-                return await self._return_structured_result(
-                    invocation_data, result_data, a2a_context
-                )
-
-            # Verify the agent has artifact management tools — required to create
-            # the output artifact and produce the mandatory result embed.
-            # Without these, the LLM receives no artifact instructions and can
-            # never satisfy the embed requirement, leading to a confusing retry
-            # loop. Fail fast here with an actionable message instead.
-            # Guard against an uninitialised registry (e.g. isolated tests):
-            # if no artifact tools are registered we cannot make a meaningful
-            # determination, so skip the check and let the normal flow handle it.
-            artifact_tools = tool_registry.get_tools_by_category(
-                _ARTIFACT_MANAGEMENT_CATEGORY
-            )
-            artifact_tool_names = {t.name for t in artifact_tools}
-            if artifact_tools and not (
-                artifact_tool_names & set(self.host.tool_scopes_map.keys())
-            ):
-                error_msg = (
-                    f"Agent '{self.host.agent_name}' is missing the "
-                    f"'{_ARTIFACT_MANAGEMENT_CATEGORY}' builtin-group, which is "
-                    f"required for structured invocation as a workflow node. "
-                    f"Add the following to this agent's YAML under 'tools':\n"
-                    f"  - tool_type: builtin-group\n"
-                    f"    group_name: {_ARTIFACT_MANAGEMENT_CATEGORY}"
-                )
-                log.error("%s %s", log_id, error_msg)
-                result_data = StructuredInvocationResult(
-                    type="structured_invocation_result",
-                    status="error",
-                    error_message=error_msg,
                 )
                 return await self._return_structured_result(
                     invocation_data, result_data, a2a_context

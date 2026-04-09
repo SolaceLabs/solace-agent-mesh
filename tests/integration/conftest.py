@@ -940,12 +940,12 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
-    # Agent intentionally missing artifact_management — used to verify that
-    # structured invocation fails fast with a clear error rather than hitting
-    # the confusing "mandatory result embed" retry loop.
+    # Agent intentionally omitting artifact_management from its YAML — used to
+    # verify that the runtime auto-injects artifact tools so the agent can still
+    # serve as a workflow node without explicit configuration.
     no_artifact_agent_config = create_agent_config(
         agent_name="TestPeerAgentNoArtifacts",
-        description="Peer agent without artifact_management tools (for negative testing)",
+        description="Peer agent without explicit artifact_management config (tests auto-injection)",
         allow_list=[],
         tools=[{"tool_type": "builtin-group", "group_name": "data_analysis"}],
         model_suffix="noArtifacts",
@@ -2036,6 +2036,26 @@ def peer_agent_d_app_under_test(
         app_instance, SamAgentApp
     ), "Failed to retrieve TestPeerAgentD_App."
     yield app_instance
+
+
+@pytest.fixture(scope="session")
+def no_artifacts_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the TestPeerAgentNoArtifacts_App instance."""
+    app_instance = shared_solace_connector.get_app("TestPeerAgentNoArtifacts_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentNoArtifacts_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def no_artifacts_agent_component(
+    no_artifacts_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the TestPeerAgentNoArtifacts component instance."""
+    return get_component_from_app(no_artifacts_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
