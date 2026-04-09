@@ -79,7 +79,9 @@ apps:
       supports_streaming: true
       agent_name: "MarkitdownAgent"
       display_name: "Markdown Creator"
-      model: *multimodal_model # Or *planning_model, choose as appropriate
+      model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         The MarkitdownAgent has the following capability:
         * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.
@@ -139,7 +141,7 @@ apps:
       display_name: "Mermaid Diagram Generator"
       model: *planning_model
       model_provider: 
-        - "planning" # Or your preferred model (e.g., *general_model)
+        - "planning"
       instruction: |
         The MermaidAgent can generate PNG images from Mermaid diagram syntax.
         You will be provided with the Mermaid syntax as a string.

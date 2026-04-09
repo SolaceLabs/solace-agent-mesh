@@ -158,8 +158,9 @@ apps:
   #     namespace: ${NAMESPACE}
   #     supports_streaming: true # MCP tools generally don't stream responses
   #     agent_name: "AtlassianAgent"
-  #     model: *multimodal_model
-
+  #     model: *planning_model
+  #     model_provider: 
+  #      - "planning"
   #     instruction: |
   #       You can interact with Jira and Confluence using the Atlassian MCP server.
   #     # --- Tools Definition (including MCP) ---
