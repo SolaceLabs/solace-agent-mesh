@@ -51,7 +51,7 @@ Set the following environment variables for Teams authentication and broker conn
 # Teams / Azure authentication
 TEAMS_BOT_ID="<Application (client) ID from Step 1>"
 TEAMS_BOT_PASSWORD="<Client secret Value from Step 1>"
-AZURE_TENANT_ID="<Directory (tenant) ID from Step 1>"
+TEAMS_TENANT_ID="<Directory (tenant) ID from Step 1>"
 
 # Solace broker connection
 SOLACE_BROKER_URL="<Solace broker WebSocket URL, e.g. ws://localhost:8080>"
@@ -90,7 +90,7 @@ apps:
       adapter_config:
         microsoft_app_id: ${TEAMS_BOT_ID}
         microsoft_app_password: ${TEAMS_BOT_PASSWORD}
-        microsoft_app_tenant_id: ${AZURE_TENANT_ID}
+        microsoft_app_tenant_id: ${TEAMS_TENANT_ID}
         http_host: "0.0.0.0"
         http_port: 8092
         default_agent_name: "OrchestratorAgent"
@@ -152,7 +152,7 @@ services:
     environment:
       - TEAMS_BOT_ID=${TEAMS_BOT_ID}
       - TEAMS_BOT_PASSWORD=${TEAMS_BOT_PASSWORD}
-      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - TEAMS_TENANT_ID=${TEAMS_TENANT_ID}
       - SOLACE_BROKER_URL=${SOLACE_BROKER_URL}
       - SOLACE_BROKER_USERNAME=${SOLACE_BROKER_USERNAME}
       - SOLACE_BROKER_PASSWORD=${SOLACE_BROKER_PASSWORD}
@@ -167,7 +167,7 @@ The Docker Compose file references environment variables using `${...}` syntax. 
 # .env
 TEAMS_BOT_ID=your-app-client-id
 TEAMS_BOT_PASSWORD=your-client-secret
-AZURE_TENANT_ID=your-tenant-id
+TEAMS_TENANT_ID=your-tenant-id
 SOLACE_BROKER_URL=ws://broker:8080
 SOLACE_BROKER_USERNAME=your-broker-username
 SOLACE_BROKER_PASSWORD=your-broker-password
@@ -212,6 +212,6 @@ After the gateway is running, configure the Azure Bot Service to route messages 
 This error occurs when using single-tenant configuration (with `microsoft_app_tenant_id` set) but the app isn't properly registered in that tenant.
 
 **Solution:**
-1. Verify the `AZURE_TENANT_ID` matches your Azure AD tenant
+1. Verify the `TEAMS_TENANT_ID` matches your Azure AD tenant
 2. Register service principal: `az ad sp create --id YOUR-APP-ID`
 3. Verify your configuration in the [Azure Portal](https://portal.azure.com) under your Azure Bot resource
