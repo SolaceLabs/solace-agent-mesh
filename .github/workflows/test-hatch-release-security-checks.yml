@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   security-checks:
-    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@feat/dynamic-github-org-image-pull
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@main
     with:
       prisma_check: false
       sonarqube_hotspot_check: true
