@@ -25,7 +25,7 @@ apps:
       agent_name: "AtlassianAgent"
       model: *general_model
       model_provider: 
-        - "general" # Or another appropriate model from shared_config.yaml
+        - "general"
       instruction: |
         You can interact with Jira and Confluence using the Atlassian MCP server. When calling tools that require a cloudId, you can use the 'getAccessibleAtlassianResources' tool to find the cloudId for the user's Atlassian instance.
         Do NOT use parallel tool calls.
