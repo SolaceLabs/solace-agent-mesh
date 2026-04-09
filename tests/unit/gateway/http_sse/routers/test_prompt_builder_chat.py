@@ -17,6 +17,9 @@ from solace_agent_mesh.gateway.http_sse.routers.dto.prompt_dto import (
     PromptBuilderChatRequest,
     PromptBuilderChatResponse,
 )
+from solace_agent_mesh.gateway.http_sse.routers.prompts import (
+    prompt_builder_chat,
+)
 
 
 class TestPromptBuilderChatResponseDTO:
@@ -204,3 +207,57 @@ class TestPromptBuilderChatEndpoint:
 
         assert "SECRET_CONNECTION_STRING" not in result.message
         assert "postgres" not in result.message
+
+class TestPromptBuilderChatObservability:
+    """Tests for ObservabilityContext integration in prompt_builder_chat."""
+
+    @pytest.mark.asyncio
+    async def test_observability_context(self):
+        """Test that prompt builder uses 'prompt_builder' literal for observability."""
+        # Create mock that simulates WebUIBackendComponent
+        mock_component = MagicMock()
+        mock_component.gateway_id = "test-gateway-123"
+        del mock_component.agent_name  # Gateway doesn't have agent_name
+        mock_component.get_lite_llm_model.return_value = MagicMock()
+
+        request = PromptBuilderChatRequest(
+            message="Create a template",
+            conversation_history=[],
+            current_template={},
+        )
+
+        mock_response = PromptBuilderResponse(
+            message="OK",
+            confidence=0.9,
+            ready_to_save=True,
+            is_error=False,
+        )
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.routers.prompts.PromptBuilderAssistant"
+        ) as MockAssistant, patch(
+            "solace_agent_mesh.agent.adk.models.lite_llm.ObservabilityContext"
+        ) as MockObservabilityContext:
+            mock_assistant = MockAssistant.return_value
+            mock_assistant.process_message = AsyncMock(return_value=mock_response)
+
+            # Mock the context manager
+            mock_context = MagicMock()
+            MockObservabilityContext.return_value.__enter__ = MagicMock(
+                return_value=mock_context
+            )
+            MockObservabilityContext.return_value.__exit__ = MagicMock(
+                return_value=False
+            )
+
+            await prompt_builder_chat(
+                request=request,
+                db=MagicMock(),
+                user_id="test-user",
+                component=mock_component,
+            )
+
+            # Verify ObservabilityContext was called with hardcoded "prompt_builder"
+            MockObservabilityContext.assert_called_once_with(
+                component_name="prompt_builder", owner_id="test-user"
+            )

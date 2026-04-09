@@ -131,7 +131,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick, onDe
                         {onShare && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="text-secondary-foreground cursor-default">{isOwner ? <UserIcon className="h-6 w-6" /> : <Eye className="h-6 w-6" />}</span>
+                                    <span className="cursor-default text-(--secondary-text-wMain)">{isOwner ? <UserIcon className="h-6 w-6" /> : <Eye className="h-6 w-6" />}</span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top">{isOwner ? "You are the owner of this project" : "You are a viewer of this project"}</TooltipContent>
                             </Tooltip>

@@ -16,7 +16,7 @@ interface ArtifactPreviewPanelProps {
 
 export const ArtifactPreviewPanel: React.FC<ArtifactPreviewPanelProps> = ({ artifact, content, mimeType, isLoading, onClose, resolveArtifactUri }) => {
     return (
-        <div className="bg-background flex w-[450px] flex-shrink-0 flex-col">
+        <div className="flex w-[450px] flex-shrink-0 flex-col bg-(--background-w10)">
             {/* Header with back button */}
             <div className="flex items-center gap-2 border-b p-2">
                 <Button variant="ghost" onClick={onClose}>

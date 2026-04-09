@@ -19,7 +19,7 @@ const handlers = [http.get("*/api/v1/sessions", () => HttpResponse.json(paginate
 const emptyHandlers = [http.get("*/api/v1/sessions", () => HttpResponse.json(emptyPaginatedResponse)), http.get("*/api/v1/config/features", () => HttpResponse.json({}))];
 
 const meta = {
-    title: "Pages/RecentChats",
+    title: "Pages/RecentChats/RecentChatsPage",
     component: RecentChatsPage,
     parameters: {
         layout: "fullscreen",

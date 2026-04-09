@@ -11,6 +11,10 @@ from litellm.exceptions import BadRequestError
 
 from ...common.error_handlers import LITELLM_EXCEPTIONS
 
+# Observability instrumentation
+from solace_ai_connector.common.observability import MonitorLatency
+from ...common.observability import AgentMonitor
+
 
 class TaskCancelledError(Exception):
     """Raised when an ADK task is cancelled via external signal."""
@@ -1594,17 +1598,19 @@ async def run_adk_async_task_thread_wrapper(
             )
 
         # Run the ADK task with automatic compaction retry on context limit errors
-        is_paused, adk_session = await _run_with_compaction_retry(
-            component=component,
-            task_context=task_context,
-            adk_session=adk_session,
-            adk_content=adk_content,
-            run_config=run_config,
-            a2a_context=a2a_context,
-            compaction_enabled=compaction_enabled,
-            compaction_percentage=compaction_percentage,
-            logical_task_id=logical_task_id,
-        )
+        # Instrument agent execution latency
+        with MonitorLatency(AgentMonitor.create(name=component.agent_name)):
+            is_paused, adk_session = await _run_with_compaction_retry(
+                component=component,
+                task_context=task_context,
+                adk_session=adk_session,
+                adk_content=adk_content,
+                run_config=run_config,
+                a2a_context=a2a_context,
+                compaction_enabled=compaction_enabled,
+                compaction_percentage=compaction_percentage,
+                logical_task_id=logical_task_id,
+            )
 
         if adk_session is None:
             return  # Graceful early exit (user already notified)
