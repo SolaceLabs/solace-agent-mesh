@@ -1,31 +1,29 @@
 import type { MessageFE, PartFE } from "@/lib/types";
+import type { MessageBubble, ParsedTaskData } from "@/lib/types/storage";
 
 // ============ Types ============
 
-interface StoredBubble {
+/**
+ * Extends the persisted MessageBubble with fields that are serialized
+ * but not yet part of the canonical storage type.
+ *
+ * `parts` is widened to PartFE[] because persisted data includes artifact parts.
+ */
+interface StoredBubble extends Omit<MessageBubble, "id" | "text" | "parts"> {
     id?: string;
-    type: "user" | "agent";
     text?: string;
     parts?: PartFE[];
-    files?: File[];
-    uploadedFiles?: File[];
-    artifactNotification?: unknown;
-    isError?: boolean;
-    displayHtml?: string;
-    contextQuote?: string;
-    contextQuoteSourceId?: string;
-    sender_display_name?: string;
-    sender_email?: string;
     progressUpdates?: MessageFE["progressUpdates"];
     thinkingContent?: string;
     isThinkingComplete?: boolean;
+    // Legacy snake_case variants — older persisted data may use these
+    sender_display_name?: string;
+    sender_email?: string;
 }
 
-interface StoredTask {
-    taskId: string;
+interface StoredTask extends Omit<ParsedTaskData, "messageBubbles" | "taskMetadata"> {
     messageBubbles: StoredBubble[];
     taskMetadata?: unknown;
-    createdTime: number;
 }
 
 // ============ Helpers ============
@@ -135,14 +133,14 @@ export function deserializeChatMessages(task: StoredTask, sessionId: string): Me
             isUser: bubble.type === "user",
             isComplete: true,
             files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles,
+            uploadedFiles: bubble.uploadedFiles as unknown as File[],
             artifactNotification: bubble.artifactNotification,
             isError: bubble.isError,
             displayHtml: bubble.displayHtml,
             contextQuote: bubble.contextQuote,
             contextQuoteSourceId: bubble.contextQuoteSourceId,
-            senderDisplayName: bubble.sender_display_name,
-            senderEmail: bubble.sender_email,
+            senderDisplayName: bubble.senderDisplayName ?? bubble.sender_display_name,
+            senderEmail: bubble.senderEmail ?? bubble.sender_email,
             ...(bubble.progressUpdates && bubble.progressUpdates.length > 0 ? { progressUpdates: bubble.progressUpdates } : {}),
             ...((bubble.thinkingContent?.length ?? 0) > 0 ? { thinkingContent: bubble.thinkingContent, isThinkingComplete: bubble.isThinkingComplete ?? true } : {}),
             metadata: {

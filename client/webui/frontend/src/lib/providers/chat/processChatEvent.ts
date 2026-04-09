@@ -169,8 +169,10 @@ export type ChatEffect =
 // ============ Processor ============
 
 /**
- * Pure function that processes a single chat event against the current state
- * and returns state updates plus a list of side-effect descriptors.
+ * Processes a single chat SSE event against the current state and returns
+ * state updates plus a list of side-effect descriptors.
+ *
+ * I/O side effects are deferred via ChatEffect descriptors.
  */
 export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     const { eventData, flags, sessionId, eventSequence, isTaskRunningInBackground } = input;
@@ -947,7 +949,7 @@ function applyContentToMessages(
             isComplete: isFinalEvent,
             metadata: {
                 messageId,
-                sessionId: contextId,
+                sessionId: contextId ?? fallbackSessionId,
                 lastProcessedEventSequence: eventSequence,
             },
         });
