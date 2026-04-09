@@ -4,6 +4,7 @@ Session repository implementation using SQLAlchemy.
 
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session as DBSession, joinedload
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from solace_agent_mesh.shared.database.base_repository import PaginatedRepository
 from solace_agent_mesh.shared.api.pagination import PaginationParams
@@ -50,9 +51,12 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.page_size)
 
-        models = query.all()
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            models = query.all()
+
         return [Session.model_validate(model) for model in models]
 
+    @MonitorLatency(DBMonitor.query("sessions"))
     def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None, source: str | None = None) -> int:
         """Count total sessions for a specific user with optional project and source filtering."""
         query = session.query(SessionModel).filter(
@@ -74,40 +78,45 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         self, session: DBSession, session_id: SessionId, user_id: UserId
     ) -> Session | None:
         """Find a specific session belonging to a user."""
-        model = (
-            session.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.user_id == user_id,
-                SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            model = (
+                session.query(SessionModel)
+                .filter(
+                    SessionModel.id == session_id,
+                    SessionModel.user_id == user_id,
+                    SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
+                )
+                .first()
             )
-            .first()
-        )
+
         return Session.model_validate(model) if model else None
 
     def find_session_by_id(
         self, session: DBSession, session_id: SessionId
     ) -> Session | None:
         """Find a session by ID without user ownership check.
-        
+
         Used for editor access scenarios where the requesting user
         is not the owner but has been granted editor access via sharing.
         """
-        model = (
-            session.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.deleted_at.is_(None)
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            model = (
+                session.query(SessionModel)
+                .filter(
+                    SessionModel.id == session_id,
+                    SessionModel.deleted_at.is_(None)
+                )
+                .first()
             )
-            .first()
-        )
+
         return Session.model_validate(model) if model else None
 
     def save(self, db_session: DBSession, session: Session) -> Session:
         """Save or update a session."""
-        existing_model = (
-            db_session.query(SessionModel).filter(SessionModel.id == session.id).first()
-        )
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            existing_model = (
+                db_session.query(SessionModel).filter(SessionModel.id == session.id).first()
+            )
 
         if existing_model:
             update_model = UpdateSessionModel(
@@ -134,43 +143,46 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
     def delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Delete a session belonging to a user."""
         # Check if session belongs to user first
-        session_model = (
-            db_session.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.user_id == user_id,
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            session_model = (
+                db_session.query(SessionModel)
+                .filter(
+                    SessionModel.id == session_id,
+                    SessionModel.user_id == user_id,
+                )
+                .first()
             )
-            .first()
-        )
 
         if not session_model:
             return False
 
-        # Use BaseRepository delete method
+        # Use BaseRepository delete method (already monitored)
         super().delete(db_session, session_id)
         return True
 
     def soft_delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Soft delete a session belonging to a user."""
-        session_model = (
-            db_session.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.user_id == user_id,
-                SessionModel.deleted_at.is_(None)
+        with MonitorLatency(DBMonitor.update(self.table_name)):
+            session_model = (
+                db_session.query(SessionModel)
+                .filter(
+                    SessionModel.id == session_id,
+                    SessionModel.user_id == user_id,
+                    SessionModel.deleted_at.is_(None)
+                )
+                .first()
             )
-            .first()
-        )
 
-        if not session_model:
-            return False
+            if not session_model:
+                return False
 
-        # Perform soft delete
-        session_model.deleted_at = now_epoch_ms()
-        session_model.deleted_by = user_id
-        session_model.updated_time = now_epoch_ms()
-        
-        db_session.flush()
+            # Perform soft delete
+            session_model.deleted_at = now_epoch_ms()
+            session_model.deleted_by = user_id
+            session_model.updated_time = now_epoch_ms()
+
+            db_session.flush()
+
         return True
 
     def soft_delete_by_project(self, db_session: DBSession, project_id: str, user_id: UserId) -> int:
@@ -186,52 +198,55 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         Returns:
             int: Number of sessions soft deleted
         """
-        now = now_epoch_ms()
-        
-        # Find all non-deleted sessions for this project
-        sessions_to_delete = (
-            db_session.query(SessionModel)
-            .filter(
-                SessionModel.project_id == project_id,
-                SessionModel.user_id == user_id,
-                SessionModel.deleted_at.is_(None)
+        with MonitorLatency(DBMonitor.update(self.table_name)):
+            now = now_epoch_ms()
+
+            # Find all non-deleted sessions for this project
+            sessions_to_delete = (
+                db_session.query(SessionModel)
+                .filter(
+                    SessionModel.project_id == project_id,
+                    SessionModel.user_id == user_id,
+                    SessionModel.deleted_at.is_(None)
+                )
+                .all()
             )
-            .all()
-        )
-        
-        # Soft delete each session
-        for session_model in sessions_to_delete:
-            session_model.deleted_at = now
-            session_model.deleted_by = user_id
-            session_model.updated_time = now
-        
-        db_session.flush()
+
+            # Soft delete each session
+            for session_model in sessions_to_delete:
+                session_model.deleted_at = now
+                session_model.deleted_by = user_id
+                session_model.updated_time = now
+
+            db_session.flush()
+
         return len(sessions_to_delete)
 
     def move_to_project(
         self, db_session: DBSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
     ) -> Session | None:
         """Move a session to a different project."""
-        session_model = (
-            db_session.query(SessionModel)
-            .filter(
-                SessionModel.id == session_id,
-                SessionModel.user_id == user_id,
-                SessionModel.deleted_at.is_(None)
+        with MonitorLatency(DBMonitor.update(self.table_name)):
+            session_model = (
+                db_session.query(SessionModel)
+                .filter(
+                    SessionModel.id == session_id,
+                    SessionModel.user_id == user_id,
+                    SessionModel.deleted_at.is_(None)
+                )
+                .first()
             )
-            .first()
-        )
 
-        if not session_model:
-            return None
+            if not session_model:
+                return None
 
-        # Update project_id
-        session_model.project_id = new_project_id
-        session_model.updated_time = now_epoch_ms()
-        
-        db_session.flush()
-        db_session.refresh(session_model)
-        
+            # Update project_id
+            session_model.project_id = new_project_id
+            session_model.updated_time = now_epoch_ms()
+
+            db_session.flush()
+            db_session.refresh(session_model)
+
         return Session.model_validate(session_model)
 
     def search(
@@ -266,9 +281,12 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         if pagination:
             search_query = search_query.offset(pagination.offset).limit(pagination.page_size)
 
-        models = search_query.all()
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            models = search_query.all()
+
         return [Session.model_validate(model) for model in models]
 
+    @MonitorLatency(DBMonitor.query("sessions"))
     def count_search_results(
         self,
         db_session: DBSession,

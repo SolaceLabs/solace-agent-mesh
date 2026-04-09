@@ -3,6 +3,7 @@ Feedback repository implementation using SQLAlchemy.
 """
 
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from solace_agent_mesh.shared.api.pagination import PaginationParams
 from solace_agent_mesh.shared.utils.types import UserId
@@ -14,6 +15,7 @@ from .models import FeedbackModel
 class FeedbackRepository(IFeedbackRepository):
     """SQLAlchemy implementation of feedback repository."""
 
+    @MonitorLatency(DBMonitor.insert("feedback"))
     def save(self, session: DBSession, feedback: Feedback) -> Feedback:
         """Save feedback."""
         model = FeedbackModel(
@@ -28,6 +30,7 @@ class FeedbackRepository(IFeedbackRepository):
         session.add(model)
         session.flush()
         session.refresh(model)
+
         return self._model_to_entity(model)
 
     def search(
@@ -72,7 +75,9 @@ class FeedbackRepository(IFeedbackRepository):
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.page_size)
 
-        models = query.all()
+        with MonitorLatency(DBMonitor.query("feedback")):
+            models = query.all()
+
         return [self._model_to_entity(model) for model in models]
 
     def delete_feedback_older_than(self, session: DBSession, cutoff_time_ms: int, batch_size: int) -> int:
@@ -91,12 +96,13 @@ class FeedbackRepository(IFeedbackRepository):
 
         while True:
             # Find a batch of feedback IDs to delete
-            feedback_ids_to_delete = (
-                session.query(FeedbackModel.id)
-                .filter(FeedbackModel.created_time < cutoff_time_ms)
-                .limit(batch_size)
-                .all()
-            )
+            with MonitorLatency(DBMonitor.query("feedback")):
+                feedback_ids_to_delete = (
+                    session.query(FeedbackModel.id)
+                    .filter(FeedbackModel.created_time < cutoff_time_ms)
+                    .limit(batch_size)
+                    .all()
+                )
 
             if not feedback_ids_to_delete:
                 break
@@ -105,13 +111,14 @@ class FeedbackRepository(IFeedbackRepository):
             ids = [feedback_id[0] for feedback_id in feedback_ids_to_delete]
 
             # Delete this batch
-            deleted_count = (
-                session.query(FeedbackModel)
-                .filter(FeedbackModel.id.in_(ids))
-                .delete(synchronize_session=False)
-            )
+            with MonitorLatency(DBMonitor.delete("feedback")):
+                deleted_count = (
+                    session.query(FeedbackModel)
+                    .filter(FeedbackModel.id.in_(ids))
+                    .delete(synchronize_session=False)
+                )
+                session.commit()
 
-            session.commit()
             total_deleted += deleted_count
 
             # If we deleted fewer than batch_size, we're done
