@@ -71,7 +71,7 @@ async def _validate_token(
         True if token is valid, False otherwise
     """
     try:
-        async with MonitorLatency(OAuthRemoteMonitor.validate_token()):
+        with MonitorLatency(OAuthRemoteMonitor.validate_token()):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 validation_response = await client.post(
                     f"{auth_service_url}/is_token_valid",
@@ -102,7 +102,7 @@ async def _get_user_info(
         User info dictionary if successful, None otherwise
     """
     try:
-        async with MonitorLatency(OAuthRemoteMonitor.get_user_info()):
+        with MonitorLatency(OAuthRemoteMonitor.get_user_info()):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 userinfo_response = await client.get(
                     f"{auth_service_url}/user_info?provider={auth_provider}",
