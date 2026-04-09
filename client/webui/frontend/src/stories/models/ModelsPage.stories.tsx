@@ -128,6 +128,45 @@ export const Error: Story = {
     },
 };
 
+export const Sorting: Story = {
+    parameters: {
+        msw: { handlers: successHandlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Wait for table to render
+        await canvas.findByText("Aws");
+
+        // Default sort: Name A→Z (sorted by alias field).
+        // Mock data aliases: aws, azure, custom_model, general, gemini, image_gen, local, planning, vertex
+        const rows = canvas.getAllByRole("row");
+        // rows[0] = header row; rows[1] = first data row
+        expect(within(rows[1]).getByText("Aws")).toBeInTheDocument();
+        expect(within(rows.at(-1)!).getByText("Vertex")).toBeInTheDocument();
+
+        // Verify all three column headers have sort buttons
+        expect(canvas.getByRole("button", { name: "Name" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model Provider" })).toBeInTheDocument();
+
+        // Click Name header to toggle to Z→A
+        canvas.getByRole("button", { name: "Name" }).click();
+
+        // After toggle: first data row should be "Vertex"
+        const rowsDesc = canvas.getAllByRole("row");
+        expect(within(rowsDesc[1]).getByText("Vertex")).toBeInTheDocument();
+        expect(within(rowsDesc.at(-1)!).getByText("Aws")).toBeInTheDocument();
+
+        // Click Name header again to restore A→Z
+        canvas.getByRole("button", { name: "Name" }).click();
+        const rowsAsc = canvas.getAllByRole("row");
+        expect(within(rowsAsc[1]).getByText("Aws")).toBeInTheDocument();
+    },
+};
+
 export const WithPagination: Story = {
     parameters: {
         msw: {

@@ -1,6 +1,33 @@
 import * as React from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+
+type SortDir = "asc" | "desc";
+
+interface SortableTableHeadProps extends React.ComponentProps<"th"> {
+    column: string;
+    currentSortKey: string;
+    sortDir: SortDir;
+    onSort: (column: string) => void;
+}
+
+function SortableTableHead({ column, currentSortKey, sortDir, onSort, children, className, ...props }: SortableTableHeadProps) {
+    const isActive = currentSortKey === column;
+    return (
+        <TableHead className={cn("font-semibold", className)} {...props}>
+            <button className="flex cursor-pointer items-center hover:opacity-80" onClick={() => onSort(column)}>
+                {children}
+                {isActive ? (
+                    sortDir === "asc" ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                ) : (
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 opacity-40" />
+                )}
+            </button>
+        </TableHead>
+    );
+}
+
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
     return (
@@ -38,4 +65,4 @@ function TableCaption({ className, ...props }: React.ComponentProps<"caption">) 
     return <caption data-slot="table-caption" className={cn("mt-4 text-sm text-(--secondary-text-wMain)", className)} {...props} />;
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption, SortableTableHead };

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ellipsis, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
+import { Ellipsis } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, SortableTableHead, useSortableTable, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { useChatContext } from "@/lib/hooks";
 
@@ -23,9 +23,6 @@ const EMPTY_STATE_TITLE = "Match AI Models to Your Team's Workflows";
 const EMPTY_STATE_DESCRIPTION =
     "Different models specialize in different use cases. Organize your models by use case and assign to agents based on what the agent needs. Start with our suggested names or create your own. The 'General' model is required but you can customize everything else to fit your workflow.";
 
-type SortKey = "alias" | "modelName" | "provider";
-type SortDir = "asc" | "desc";
-
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -36,23 +33,12 @@ export const ModelsView: React.FC = () => {
     const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
     const [highlightedModelId, setHighlightedModelId] = useState<string | null>(null);
     const highlightedRowRef = useRef<HTMLTableRowElement>(null);
-    const [sortKey, setSortKey] = useState<SortKey>("alias");
-    const [sortDir, setSortDir] = useState<SortDir>("asc");
+    const { sortedData: sortedModels, sortKey, sortDir, handleSort } = useSortableTable(modelConfigs, ["alias", "modelName", "provider"]);
 
-    const handleSort = (key: SortKey) => {
-        if (sortKey === key) {
-            setSortDir(d => (d === "asc" ? "desc" : "asc"));
-        } else {
-            setSortKey(key);
-            setSortDir("asc");
-        }
+    // Reset to first page whenever sort changes
+    useEffect(() => {
         setCurrentPage(1);
-    };
-
-    const SortIcon = ({ column }: { column: SortKey }) => {
-        if (sortKey !== column) return <ChevronsUpDown className="ml-1 inline h-3.5 w-3.5 opacity-40" />;
-        return sortDir === "asc" ? <ChevronUp className="ml-1 inline h-3.5 w-3.5" /> : <ChevronDown className="ml-1 inline h-3.5 w-3.5" />;
-    };
+    }, [sortKey, sortDir]);
 
     // Check if we're coming back from creating a new model
     const locationState = location.state as { highlightModelId?: string } | null;
@@ -87,19 +73,12 @@ export const ModelsView: React.FC = () => {
 
     const hasModels = modelConfigs && modelConfigs.length > 0;
 
-    // Client-side sorting + pagination
+    // Client-side pagination (sorting is handled by useSortableTable)
     const itemsPerPage = 20;
-    const sortedModels = [...(modelConfigs || [])].sort((a, b) => {
-        const aVal = (a[sortKey] ?? "").toLowerCase();
-        const bVal = (b[sortKey] ?? "").toLowerCase();
-        const cmp = aVal.localeCompare(bVal);
-        return sortDir === "asc" ? cmp : -cmp;
-    });
     const totalPages = Math.ceil(sortedModels.length / itemsPerPage);
     const effectiveCurrentPage = Math.min(currentPage, Math.max(totalPages, 1));
     const startIndex = (effectiveCurrentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentModels = sortedModels.slice(startIndex, endIndex);
+    const currentModels = sortedModels.slice(startIndex, startIndex + itemsPerPage);
 
     const handleSelectModel = (model: ModelConfig) => {
         navigate(`/models/${model.id}`);
@@ -155,24 +134,15 @@ export const ModelsView: React.FC = () => {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="font-semibold">
-                                            <button className="flex cursor-pointer items-center pl-4 hover:opacity-80" onClick={() => handleSort("alias")}>
-                                                Name
-                                                <SortIcon column="alias" />
-                                            </button>
-                                        </TableHead>
-                                        <TableHead className="font-semibold">
-                                            <button className="flex cursor-pointer items-center hover:opacity-80" onClick={() => handleSort("modelName")}>
-                                                Model
-                                                <SortIcon column="modelName" />
-                                            </button>
-                                        </TableHead>
-                                        <TableHead className="font-semibold">
-                                            <button className="flex cursor-pointer items-center hover:opacity-80" onClick={() => handleSort("provider")}>
-                                                Model Provider
-                                                <SortIcon column="provider" />
-                                            </button>
-                                        </TableHead>
+                                        <SortableTableHead column="alias" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="pl-4">
+                                            Name
+                                        </SortableTableHead>
+                                        <SortableTableHead column="modelName" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
+                                            Model
+                                        </SortableTableHead>
+                                        <SortableTableHead column="provider" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
+                                            Model Provider
+                                        </SortableTableHead>
                                         <TableHead className="w-12"></TableHead>
                                     </TableRow>
                                 </TableHeader>
