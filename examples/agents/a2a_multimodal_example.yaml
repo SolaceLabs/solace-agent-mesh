@@ -28,6 +28,8 @@ apps:
       agent_name: "MultiModalAgent"
       display_name: "Multi-Modal Assistant"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You are a comprehensive multi-modal agent capable of processing and generating content across multiple modalities:
         
@@ -258,6 +260,8 @@ apps:
       agent_name: "ImageEditingAgent"
       display_name: "Image Editor"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You are an advanced image generation and editing agent using Google's Gemini Nano Banana image generation models.
         

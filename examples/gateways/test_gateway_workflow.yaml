@@ -17,6 +17,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "SimpleEchoAgent"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Echo back the input data.
@@ -108,6 +110,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ErrorTestAgent"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You are an agent for testing error handling.

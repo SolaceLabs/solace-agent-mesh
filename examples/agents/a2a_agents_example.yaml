@@ -137,7 +137,9 @@ apps:
       supports_streaming: true
       agent_name: "MermaidAgent" # Replaces the old MermaidAgent
       display_name: "Mermaid Diagram Generator"
-      model: *planning_model # Or your preferred model (e.g., *general_model)
+      model: *planning_model
+      model_provider: 
+        - "planning" # Or your preferred model (e.g., *general_model)
       instruction: |
         The MermaidAgent can generate PNG images from Mermaid diagram syntax.
         You will be provided with the Mermaid syntax as a string.
@@ -190,7 +192,9 @@ apps:
       supports_streaming: true
       agent_name: "WebAgent"
       display_name: "Web Agent"
-      model: *planning_model # Or another appropriate model from shared_config.yaml
+      model: *planning_model
+      model_provider: 
+        - "planning" # Or another appropriate model from shared_config.yaml
       instruction: |
         You are an agent that can fetch content from web URLs using the 'web_request' tool.
         You can make various types of HTTP requests (GET, POST, etc.) and include custom headers or a body.

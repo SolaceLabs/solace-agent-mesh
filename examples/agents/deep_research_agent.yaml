@@ -22,6 +22,8 @@ apps:
       agent_name: "DeepResearchAgent"
       display_name: "Deep Research Agent"
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are a research assistant specialized in conducting comprehensive, iterative research.
