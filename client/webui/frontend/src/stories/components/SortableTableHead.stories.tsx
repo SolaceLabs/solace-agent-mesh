@@ -115,6 +115,13 @@ export const ClickCallsOnSort: Story = {
  * Renders without the meta decorator to avoid invalid table nesting.
  */
 export const MultipleColumns: Story = {
+    args: {
+        column: "name",
+        currentSortKey: "name",
+        sortDir: "asc",
+        onSort: fn(),
+        children: "Name",
+    },
     render: () => (
         <table>
             <thead>

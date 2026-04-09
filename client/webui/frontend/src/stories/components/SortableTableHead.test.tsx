@@ -92,7 +92,7 @@ describe("SortableTableHead", () => {
     test("inactive icon has opacity-40 class (dimmed)", () => {
         renderInTable(<SortableTableHead {...baseProps} currentSortKey="other">Name</SortableTableHead>);
         const svg = screen.getByRole("button").querySelector("svg");
-        expect(svg?.className).toContain("opacity-40");
+        expect(svg?.getAttribute("class")).toContain("opacity-40");
     });
 
     test("active icon does not have opacity-40 class", () => {
@@ -102,7 +102,7 @@ describe("SortableTableHead", () => {
             </SortableTableHead>
         );
         const svg = screen.getByRole("button").querySelector("svg");
-        expect(svg?.className).not.toContain("opacity-40");
+        expect(svg?.getAttribute("class")).not.toContain("opacity-40");
     });
 
     test("forwards className to the th element", () => {
