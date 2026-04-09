@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import base64
+import contextvars
 import hashlib
 import json
 import logging
@@ -57,6 +58,7 @@ from litellm import (
     acompletion,
     completion,
     token_counter,
+    cost_per_token,
 )
 
 # Disable litellm's aiohttp transport to prevent memory leaks.
@@ -71,11 +73,63 @@ from pydantic import BaseModel, Field, PrivateAttr
 from typing_extensions import override
 
 from .oauth2_token_manager import OAuth2ClientCredentialsTokenManager
+from solace_ai_connector.common.observability import (
+    MonitorLatency,
+    GenAIMonitor,
+    GenAITTFTMonitor,
+    GenAITokenMonitor,
+    GenAICostMonitor,
+)
+from solace_ai_connector.common.observability.registry import MetricRegistry
 
 logger = logging.getLogger("google_adk." + __name__)
 
 _NEW_LINE = "\n"
 _EXCLUDED_PART_FIELD = {"inline_data": {"data"}}
+
+
+class ObservabilityContext:
+    """
+    Context manager for setting observability metadata (component_name, owner_id).
+
+    Ensures proper cleanup to prevent context leaking between requests.
+    Works with both sync and async code.
+    Usage:
+        with ObservabilityContext(component_name="my-agent", owner_id="alice"):
+            # All LLM calls within this block will use these values
+            await model.generate_content_async(...)
+    The context is automatically cleaned up when exiting the 'with' block.
+    """
+    # Class-level context vars (shared state, but isolated per async task)
+    # These map directly to metric labels: component_name and owner_id
+    _component_name_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+        'observability_component_name', default=None
+    )
+    _owner_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+        'observability_owner_id', default=None
+    )
+
+    def __init__(self, component_name: Optional[str] = None, owner_id: Optional[str] = None):
+        self.component_name = component_name
+        self.owner_id = owner_id
+        self._component_token = None
+        self._owner_token = None
+
+    def __enter__(self):
+        """Set context when entering 'with' block"""
+        if self.component_name is not None:
+            self._component_token = ObservabilityContext._component_name_var.set(self.component_name)
+        if self.owner_id is not None:
+            self._owner_token = ObservabilityContext._owner_id_var.set(self.owner_id)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Reset context when exiting 'with' block (prevents leaking to next request)"""
+        if self._component_token is not None:
+            ObservabilityContext._component_name_var.reset(self._component_token)
+        if self._owner_token is not None:
+            ObservabilityContext._owner_id_var.reset(self._owner_token)
+        return False  # Don't suppress exceptions
 
 
 class FunctionChunk(BaseModel):
@@ -86,6 +140,10 @@ class FunctionChunk(BaseModel):
 
 
 class TextChunk(BaseModel):
+    text: str
+
+
+class ThinkingChunk(BaseModel):
     text: str
 
 
@@ -535,19 +593,19 @@ def _model_response_to_chunk(
     response: ModelResponse,
 ) -> Generator[
     Tuple[
-        Optional[Union[TextChunk, FunctionChunk, UsageMetadataChunk]],
+        Optional[Union[TextChunk, FunctionChunk, UsageMetadataChunk, ThinkingChunk]],
         Optional[str],
     ],
     None,
     None,
 ]:
-    """Converts a litellm message to text, function or usage metadata chunk.
+    """Converts a litellm message to text, function, thinking or usage metadata chunk.
 
     Args:
       response: The response from the model.
 
     Yields:
-      A tuple of text or function or usage metadata chunk and finish reason.
+      A tuple of text, function, thinking or usage metadata chunk and finish reason.
     """
 
     message = None
@@ -557,6 +615,14 @@ def _model_response_to_chunk(
         # check streaming delta
         if message is None and response["choices"][0].get("delta", None):
             message = response["choices"][0]["delta"]
+
+        # Check for reasoning/thinking content (Anthropic extended_thinking, OpenAI reasoning)
+        # This arrives via reasoning_content or provider_specific_fields
+        reasoning = message.get("reasoning_content") or (
+            message.get("provider_specific_fields", {}) or {}
+        ).get("reasoning_content")
+        if reasoning:
+            yield ThinkingChunk(text=reasoning), finish_reason
 
         if message.get("content", None):
             yield TextChunk(text=message.get("content")), finish_reason
@@ -610,6 +676,15 @@ def _model_response_to_generate_content_response(
         raise ValueError("No message in response")
 
     llm_response = _message_to_generate_content_response(message)
+
+    # Extract reasoning/thinking content for non-streaming responses
+    reasoning = message.get("reasoning_content") or (
+        message.get("provider_specific_fields", {}) or {}
+    ).get("reasoning_content")
+    if reasoning:
+        llm_response.custom_metadata = llm_response.custom_metadata or {}
+        llm_response.custom_metadata["thinking_content"] = reasoning
+
     if response.get("usage", None):
         llm_response.usage_metadata = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=response["usage"].get("prompt_tokens", 0),
@@ -870,6 +945,7 @@ class LiteLlm(BaseLlm):
     _model_config: Dict[str, Any] = PrivateAttr(default_factory=dict)
     _oauth_token_manager: Optional[OAuth2ClientCredentialsTokenManager] = PrivateAttr(default=None)
     _cache_strategy: str = PrivateAttr(default="5m") # Default to 5-minute ephemeral cache
+    _thinking_config: Optional[Dict[str, Any]] = PrivateAttr(default=None) # Thinking/reasoning token config
     _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
     _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
 
@@ -885,8 +961,18 @@ class LiteLlm(BaseLlm):
           model: The name of the LiteLlm model.
           on_status_change: Optional callback invoked on status transitions: (old_status, new_status) -> None.
           **kwargs: Additional arguments to pass to the litellm completion api.
-                   Can include OAuth configuration parameters.
+                   Can include OAuth configuration parameters and thinking config.
         """
+        # Extract keys that are NOT Pydantic fields before calling super().__init__()
+        # BaseLlm does not set extra="allow", so unknown fields cause validation errors.
+        # These keys are handled by configure_model() instead.
+        _non_pydantic_keys = [
+            "thinking", "cache_strategy",
+            "oauth_client_id", "oauth_client_secret", "oauth_token_url",
+            "oauth_scope", "oauth_audience",
+        ]
+        _extracted = {k: kwargs.pop(k) for k in _non_pydantic_keys if k in kwargs}
+
         super().__init__(model=model if model else "__pending_initialization__", **kwargs)
         self._status = "initializing"
         self._on_status_change = on_status_change
@@ -896,7 +982,7 @@ class LiteLlm(BaseLlm):
         for logger_name in ["LiteLLM", "LiteLLM Proxy", "LiteLLM Router", "litellm"]:
             logging.getLogger(logger_name).handlers.clear()
 
-        _additional_args = kwargs.copy()
+        _additional_args = {**kwargs, **_extracted}
         # preventing generation call with llm_client
         # and overriding messages, tools and stream which are managed internally
         _additional_args.pop("llm_client", None)
@@ -1008,6 +1094,14 @@ class LiteLlm(BaseLlm):
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 
+        # Extract thinking/reasoning token configuration if present
+        thinking_config = copied_model_config.pop("thinking", None)
+        if thinking_config and isinstance(thinking_config, dict):
+            self._thinking_config = thinking_config
+            logger.info("LiteLlm initialized with thinking config: %s", thinking_config)
+        else:
+            self._thinking_config = None
+
         # Extract OAuth configuration if present
         oauth_config = self._extract_oauth_config(copied_model_config)
         if oauth_config:
@@ -1026,6 +1120,25 @@ class LiteLlm(BaseLlm):
         cancel agent card publishing and reject incoming tasks.
         """
         self._set_status("none")
+
+    async def _acompletion_with_thinking_fallback(self, completion_args: dict):
+        """Call acompletion, retrying without thinking params if the model rejects them."""
+        try:
+            return await self.llm_client.acompletion(**completion_args)
+        except BadRequestError as err:
+            err_msg = str(err).lower()
+            if self._thinking_config and "unsupported parameter: thinking" in err_msg:
+                logger.warning(
+                    "Model does not support thinking tokens, retrying without: %s",
+                    str(err)[:200],
+                )
+                completion_args.pop("thinking", None)
+                if "extra_body" in completion_args and "thinking" in completion_args.get("extra_body", {}):
+                    completion_args["extra_body"].pop("thinking", None)
+                    if not completion_args["extra_body"]:
+                        completion_args.pop("extra_body", None)
+                return await self.llm_client.acompletion(**completion_args)
+            raise
 
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
@@ -1088,6 +1201,41 @@ class LiteLlm(BaseLlm):
         if generation_params:
             completion_args.update(generation_params)
 
+        # Inject thinking/reasoning token configuration if present
+        if self._thinking_config:
+            thinking_budget = self._thinking_config.get("budget_tokens", 0)
+            if thinking_budget and thinking_budget > 0:
+                thinking_param = {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget,
+                }
+                model_name = completion_args.get("model", "")
+                is_native_anthropic = model_name.startswith("anthropic/") or model_name.startswith("claude-")
+
+                if is_native_anthropic:
+                    # Native Anthropic API: pass thinking as top-level param
+                    completion_args["thinking"] = thinking_param
+                else:
+                    # OpenAI-compatible proxy (e.g., vertex-claude, litellm proxy):
+                    # Pass thinking ONLY via extra_body to avoid OpenAI client rejection
+                    extra_body = completion_args.get("extra_body", {})
+                    extra_body["thinking"] = thinking_param
+                    completion_args["extra_body"] = extra_body
+
+                # Anthropic requires temperature=1 when thinking is enabled
+                # Apply for both native Anthropic and proxies running Claude models
+                model_lower = model_name.lower()
+                is_claude_model = is_native_anthropic or "claude" in model_lower
+                if is_claude_model:
+                    if "temperature" in completion_args:
+                        logger.info("Overriding temperature to 1 (required for Claude thinking mode)")
+                    completion_args["temperature"] = 1
+                logger.debug(
+                    "Thinking tokens enabled with budget: %d (native_anthropic=%s)",
+                    thinking_budget,
+                    is_native_anthropic,
+                )
+
         if not tools and completion_args.get("parallel_tool_calls", False):
             # Setting parallel_tool_calls without any tools causes an error from Anthropic.
             completion_args.pop("parallel_tool_calls")
@@ -1104,44 +1252,78 @@ class LiteLlm(BaseLlm):
             aggregated_llm_response_with_tool_call = None
             usage_metadata = None
             fallback_index = 0
-            async for part in await self.llm_client.acompletion(**completion_args):
-                for chunk, finish_reason in _model_response_to_chunk(part):
-                    if isinstance(chunk, FunctionChunk):
-                        index = chunk.index or fallback_index
-                        if index not in function_calls:
-                            function_calls[index] = {"name": "", "args": "", "id": None}
 
-                        if chunk.name:
-                            function_calls[index]["name"] += chunk.name
-                        if chunk.args:
-                            function_calls[index]["args"] += chunk.args
+            # Create monitors for observability
+            gen_ai_monitor = GenAIMonitor.create(model=self.model)
+            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=self.model)).start()
+            ttft_recorded = False
 
-                            # check if args is completed (workaround for improper chunk
-                            # indexing)
-                            try:
-                                json.loads(function_calls[index]["args"])
-                                fallback_index += 1
-                            except json.JSONDecodeError:
-                                pass
+            # Try with thinking params first; if the model doesn't support them,
+            # catch the error and retry without thinking
+            with MonitorLatency(gen_ai_monitor):
+                stream_response = await self._acompletion_with_thinking_fallback(completion_args)
+                async for part in stream_response:
+                    for chunk, finish_reason in _model_response_to_chunk(part):
+                        if isinstance(chunk, FunctionChunk):
+                            index = chunk.index or fallback_index
+                            if index not in function_calls:
+                                function_calls[index] = {"name": "", "args": "", "id": None}
 
-                        function_calls[index]["id"] = (
-                            chunk.id or function_calls[index]["id"] or str(index)
-                        )
-                    elif isinstance(chunk, TextChunk):
-                        text += chunk.text
-                        yield _message_to_generate_content_response(
-                            ChatCompletionAssistantMessage(
-                                role="assistant",
-                                content=chunk.text,
-                            ),
-                            is_partial=True,
-                        )
-                    elif isinstance(chunk, UsageMetadataChunk):
-                        usage_metadata = types.GenerateContentResponseUsageMetadata(
-                            prompt_token_count=chunk.prompt_tokens,
-                            candidates_token_count=chunk.completion_tokens,
-                            total_token_count=chunk.total_tokens,
-                        )
+                            if chunk.name:
+                                function_calls[index]["name"] += chunk.name
+                            if chunk.args:
+                                function_calls[index]["args"] += chunk.args
+
+                                # check if args is completed (workaround for improper chunk
+                                # indexing)
+                                try:
+                                    json.loads(function_calls[index]["args"])
+                                    fallback_index += 1
+                                except json.JSONDecodeError:
+                                    pass
+
+                            function_calls[index]["id"] = (
+                                chunk.id or function_calls[index]["id"] or str(index)
+                            )
+                        elif isinstance(chunk, ThinkingChunk):
+                            # Yield thinking content as a special LlmResponse with metadata
+                            thinking_response = LlmResponse(
+                                content=types.Content(
+                                    role="model",
+                                    parts=[types.Part.from_text(text=chunk.text)],
+                                ),
+                                partial=True,
+                                custom_metadata={"is_thinking_content": True},
+                            )
+                            yield thinking_response
+                        elif isinstance(chunk, TextChunk):
+                            # Record TTFT on first content token
+                            if not ttft_recorded:
+                                ttft_latency.stop()
+                                ttft_recorded = True
+
+                            text += chunk.text
+                            yield _message_to_generate_content_response(
+                                ChatCompletionAssistantMessage(
+                                    role="assistant",
+                                    content=chunk.text,
+                                ),
+                                is_partial=True,
+                            )
+                        elif isinstance(chunk, UsageMetadataChunk):
+                            usage_metadata = types.GenerateContentResponseUsageMetadata(
+                                prompt_token_count=chunk.prompt_tokens,
+                                candidates_token_count=chunk.completion_tokens,
+                                total_token_count=chunk.total_tokens,
+                            )
+
+                            # Update token labels and record metrics
+                            gen_ai_monitor.set_prompt_tokens(chunk.prompt_tokens)
+                            self._record_token_and_cost_metrics(
+                                self.model,
+                                chunk.prompt_tokens,
+                                chunk.completion_tokens
+                            )
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1240,8 +1422,93 @@ class LiteLlm(BaseLlm):
                 yield aggregated_llm_response_with_tool_call
 
         else:
-            response = await self.llm_client.acompletion(**completion_args)
+            monitor = GenAIMonitor.create(model=self.model)
+
+            with MonitorLatency(monitor):
+                response = await self._acompletion_with_thinking_fallback(completion_args)
+                # Extract token usage
+                if response.get("usage"):
+                    prompt_tokens = response["usage"].get("prompt_tokens", 0)
+                    completion_tokens = response["usage"].get("completion_tokens", 0)
+
+                    monitor.set_prompt_tokens(prompt_tokens)
+                    # Record token and cost metrics
+                    self._record_token_and_cost_metrics(
+                        self.model,
+                        prompt_tokens,
+                        completion_tokens
+                    )
+
             yield _model_response_to_generate_content_response(response)
+
+    def _record_token_and_cost_metrics(
+        self, model_name: str, prompt_tokens: int, completion_tokens: int
+    ):
+        """
+        Record token usage and cost counters to observability system.
+
+        Args:
+            model_name: LLM model name
+            prompt_tokens: Number of input tokens
+            completion_tokens: Number of output tokens
+        """
+        try:
+            # Read observability context (set by ObservabilityContext at entry points)
+            component_name = ObservabilityContext._component_name_var.get() or "none"
+            owner_id = ObservabilityContext._owner_id_var.get() or "none"
+
+            # Get registry
+            registry = MetricRegistry.get_instance()
+
+            # Record input tokens
+            input_monitor = GenAITokenMonitor.create(
+                model=model_name,
+                component_name=component_name,
+                owner_id=owner_id,
+                token_type="input"
+            )
+            registry.record_counter_from_monitor(input_monitor, prompt_tokens)
+
+            # Record output tokens
+            output_monitor = GenAITokenMonitor.create(
+                model=model_name,
+                component_name=component_name,
+                owner_id=owner_id,
+                token_type="output"
+            )
+            registry.record_counter_from_monitor(output_monitor, completion_tokens)
+
+            # Calculate and record cost (if pricing is available)
+            try:
+                prompt_cost, completion_cost = cost_per_token(
+                    model=model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens
+                )
+                total_cost = prompt_cost + completion_cost
+
+                logger.debug(
+                    "LLM Cost calculation: model=%s, prompt_tokens=%s, completion_tokens=%s, "
+                    "prompt_cost=$%.6f, completion_cost=$%.6f, total_cost=$%.6f",
+                    model_name, prompt_tokens, completion_tokens, prompt_cost, completion_cost, total_cost
+                )
+
+                cost_monitor = GenAICostMonitor.create(
+                    model=model_name,
+                    component_name=component_name,
+                    owner_id=owner_id
+                )
+                registry.record_counter_from_monitor(cost_monitor, total_cost)
+                logger.debug("Recorded cost metric: $%.6f", total_cost)
+            except Exception as cost_error:
+                # Model pricing not available in litellm - skip cost tracking
+                logger.warning(
+                    "Cost tracking unavailable for model %s: %s. Token metrics will still be recorded.",
+                    model_name, cost_error
+                )
+
+        except Exception:
+            logger.exception("Failed to record token/cost metrics")
 
     @staticmethod
     @override

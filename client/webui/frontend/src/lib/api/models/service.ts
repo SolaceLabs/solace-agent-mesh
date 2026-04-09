@@ -3,8 +3,6 @@
  */
 
 import { api } from "@/lib/api";
-import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
-import type { AuthType } from "@/lib/components/models/modelProviderUtils";
 import type { ModelConfig, ModelConfigStatus } from "./types";
 
 interface ModelData {
@@ -27,10 +25,10 @@ export async function fetchModelConfigs(): Promise<ModelConfig[]> {
 }
 
 /**
- * Fetch a single model configuration by alias.
+ * Fetch a single model configuration by ID.
  */
-export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
-    const response = await api.platform.get(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
+export async function fetchModelById(id: string): Promise<ModelConfig> {
+    const response = await api.platform.get(`/api/v1/platform/models/${encodeURIComponent(id)}`);
     return response.data;
 }
 
@@ -38,46 +36,37 @@ export async function fetchModelByAlias(alias: string): Promise<ModelConfig> {
  * Fetch supported models for a specific provider.
  *
  * Two modes:
- * 1. Editing (modelAlias provided): Uses stored credentials from database
+ * 1. Editing (modelId provided): Uses stored credentials from database
  * 2. Creating (credentials provided): Uses credentials from request
  */
 export async function fetchSupportedModelsByProvider(
     provider: string,
-    modelAlias?: string,
+    modelId?: string,
     options?: {
         apiBase?: string;
-        authType?: AuthType;
+        authConfig?: Record<string, unknown>;
         modelParams?: Record<string, unknown>;
-    } & Record<string, unknown>
+    }
 ): Promise<Array<{ id: string; label: string }>> {
-    const body: Record<string, unknown> = {
-        provider,
-    };
+    const body: Record<string, unknown> = {};
 
-    if (modelAlias) {
-        body.modelAlias = modelAlias;
-    } else if (options?.authType) {
-        // Creating mode - pass credentials
-        body.authType = options.authType;
-
-        if (options.apiBase != null) {
-            body.apiBase = options.apiBase;
-        }
-
-        if (options.modelParams != null) {
-            body.modelParams = options.modelParams;
-        }
-
-        // Copy auth fields for the selected auth type
-        for (const field of AUTH_FIELDS[options.authType] ?? []) {
-            const value = options[field.name];
-            if (value != null) {
-                body[field.name] = value;
-            }
-        }
+    // Pass modelId for stored credential fallback (editing mode)
+    if (modelId) {
+        body.modelId = modelId;
     }
 
-    const response = await api.platform.post("/api/v1/platform/supported-models", body);
+    // Pass request credentials — server merges with stored when both provided
+    if (options?.authConfig) {
+        body.authConfig = options.authConfig;
+    }
+    if (options?.apiBase != null) {
+        body.apiBase = options.apiBase;
+    }
+    if (options?.modelParams != null) {
+        body.modelParams = options.modelParams;
+    }
+
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/models`, body);
     return response.data || [];
 }
 
@@ -92,24 +81,23 @@ export async function createModelConfig(data: ModelData): Promise<ModelConfig> {
 /**
  * Update an existing model configuration.
  */
-export async function updateModelConfig(alias: string, data: ModelData): Promise<ModelConfig> {
-    const response = await api.platform.put(`/api/v1/platform/models/${encodeURIComponent(alias)}`, data);
+export async function updateModelConfig(id: string, data: ModelData): Promise<ModelConfig> {
+    const response = await api.platform.patch(`/api/v1/platform/models/${encodeURIComponent(id)}`, data);
     return response.data;
 }
 
 /**
- * Delete a model configuration by alias.
+ * Delete a model configuration by ID.
  */
-export async function deleteModel(alias: string): Promise<void> {
-    await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(alias)}`);
+export async function deleteModel(id: string): Promise<void> {
+    await api.platform.delete(`/api/v1/platform/models/${encodeURIComponent(id)}`);
 }
 
 export interface TestConnectionRequest {
-    alias?: string;
+    modelId?: string;
     provider?: string;
     modelName?: string;
     apiBase?: string;
-    authType: string;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
 }
@@ -122,13 +110,23 @@ export interface TestConnectionResponse {
 /**
  * Test a model configuration connection.
  *
- * Two modes:
- * 1. New configuration: Provide provider, model_name, and credentials
- * 2. Existing model: Provide alias to use stored credentials as fallback
+ * Uses POST /models?validateOnly=true to test connectivity without persisting.
  */
 export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
-    const response = await api.platform.post("/api/v1/platform/models/test", data);
+    const response = await api.platform.post("/api/v1/platform/models?validateOnly=true", data);
     return response.data;
+}
+
+/**
+ * Fetch supported advanced parameters for a model.
+ *
+ * Uses litellm's internal registry — no credentials needed.
+ * Returns a list of parameter names the model supports.
+ * Empty list means litellm doesn't recognize the model (no warnings shown).
+ */
+export async function fetchSupportedParams(provider: string, modelName: string): Promise<string[]> {
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/params`, { modelName });
+    return response.data?.supportedParams || [];
 }
 
 /**

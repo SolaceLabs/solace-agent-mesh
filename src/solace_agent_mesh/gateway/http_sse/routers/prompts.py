@@ -42,7 +42,6 @@ router = APIRouter()
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
 def get_latest_prompt(db: Session, group_id: str) -> Optional[PromptModel]:
     """
     Get the latest prompt version for a group (highest version number).
@@ -1069,33 +1068,40 @@ async def prompt_builder_chat(
     4. Suggest variable names and descriptions
     5. Avoid command conflicts with existing prompts
     """
+    from ....agent.adk.models.lite_llm import ObservabilityContext
+
     try:
         # Get model configuration from component
 
         llm = component.get_lite_llm_model()
         # Initialize the assistant with database session and model config
         assistant = PromptBuilderAssistant(llm=llm, db=db)
-        
+
         # Process the message using real LLM with conflict checking
-        response = await assistant.process_message(
-            user_message=request.message,
-            conversation_history=[msg.model_dump() for msg in request.conversation_history],
-            current_template=request.current_template or {},
-            user_id=user_id
-        )
+        with ObservabilityContext(component_name="prompt_builder", owner_id=user_id):
+            response = await assistant.process_message(
+                user_message=request.message,
+                conversation_history=[msg.model_dump() for msg in request.conversation_history],
+                current_template=request.current_template or {},
+                user_id=user_id
+            )
         
         return PromptBuilderChatResponse(
             message=response.message,
             template_updates=response.template_updates,
             confidence=response.confidence,
-            ready_to_save=response.ready_to_save
+            ready_to_save=response.ready_to_save,
+            is_error=response.is_error,
         )
-        
+
     except Exception as e:
         log.error(f"Error in prompt builder chat: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process chat message"
+        return PromptBuilderChatResponse(
+            message=(
+                "An unexpected error occurred while processing your request. "
+                "Please try again. If the problem persists, contact an administrator."
+            ),
+            is_error=True,
         )
 
 

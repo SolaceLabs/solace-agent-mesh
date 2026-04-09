@@ -5,6 +5,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 expect.extend(matchers);
 
@@ -14,6 +15,7 @@ const mockUseTaskContext = vi.fn();
 const mockUseTitleAnimation = vi.fn();
 const mockUseConfigContext = vi.fn();
 const mockUseIsChatSharingEnabled = vi.fn();
+const mockUseIsAutoTitleGenerationEnabled = vi.fn();
 const mockUseProjectContext = vi.fn();
 const mockUseLocation = vi.fn();
 const mockUseNavigate = vi.fn();
@@ -65,6 +67,7 @@ describe("ChatPage", () => {
         mockUseTitleAnimation.mockReset();
         mockUseConfigContext.mockReset();
         mockUseIsChatSharingEnabled.mockReset();
+        mockUseIsAutoTitleGenerationEnabled.mockReset();
         mockUseProjectContext.mockReset();
         mockUseLocation.mockReset();
         mockUseNavigate.mockReset();
@@ -75,8 +78,9 @@ describe("ChatPage", () => {
         mockUseChatContext.mockReturnValue(makeDefaultChatContext());
         mockUseTaskContext.mockReturnValue(makeDefaultTaskContext());
         mockUseTitleAnimation.mockReturnValue({ text: "Test Session", isAnimating: false, isGenerating: false });
-        mockUseConfigContext.mockReturnValue({ autoTitleGenerationEnabled: false });
+        mockUseConfigContext.mockReturnValue({});
         mockUseIsChatSharingEnabled.mockReturnValue(false);
+        mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
         mockUseProjectContext.mockReturnValue({ activeProject: null });
         mockUseLocation.mockReturnValue({ pathname: "/chat", state: null });
         mockUseNavigate.mockReturnValue(vi.fn());
@@ -89,6 +93,7 @@ describe("ChatPage", () => {
             useTitleAnimation: mockUseTitleAnimation,
             useConfigContext: mockUseConfigContext,
             useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
+            useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
         }));
 
         vi.doMock("@/lib/providers", () => ({
@@ -179,7 +184,13 @@ describe("ChatPage", () => {
         const queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });
-        return render(React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(MemoryRouter, null, React.createElement(ChatPage))));
+        return render(
+            React.createElement(
+                OpenFeatureTestProvider,
+                { flagValueMap: { inline_activity_timeline: false, show_thinking_content: false } },
+                React.createElement(QueryClientProvider, { client: queryClient }, React.createElement(MemoryRouter, null, React.createElement(ChatPage)))
+            )
+        );
     }
 
     test("renders loading state when isLoadingSession is true", () => {
@@ -225,6 +236,7 @@ describe("ChatPage", () => {
 
     test("share button hidden when chatSharingEnabled is false", () => {
         mockUseIsChatSharingEnabled.mockReturnValue(false);
+        mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
 
         renderPage();
         expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();

@@ -3,7 +3,7 @@
 # This file demonstrates how to configure the REST API Gateway application.
 # It uses the custom RestGatewayApp class defined here: 
 # https://github.com/SolaceLabs/solace-agent-mesh-core-plugins/blob/main/sam-rest-gateway/src/sam_rest_gateway/app.py
-# Import using 'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
+# Import using 'pip install sam-rest-gateway'
 #
 # Required Environment Variables:
 # - NAMESPACE: The A2A topic namespace (e.g., "myorg/dev").

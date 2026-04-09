@@ -55,4 +55,25 @@ class ModelConfigurationTestResponse(CamelCaseModel):
     )
     message: str = Field(
         ..., description="Test result message (error details if failed, response content if succeeded)"
-    )    
+    )
+
+
+class SupportedParamsResponse(CamelCaseModel):
+    """Response model for supported model parameters.
+
+    Returns the list of parameter names (snake_case) that a model supports,
+    based on litellm's internal registry.
+    """
+
+    supported_params: list[str] = Field(
+        ..., description="List of supported parameter names (snake_case)"
+    )
+
+
+class ModelDependentResponse(CamelCaseModel):
+    """Response model for an agent that depends on a model configuration."""
+
+    id: str = Field(..., description="Unique identifier of the agent")
+    name: str = Field(..., description="Name of the agent")
+    type: str = Field(..., description="Type of the agent")
+    deployment_status: str = Field(..., description="Current deployment status of the agent")

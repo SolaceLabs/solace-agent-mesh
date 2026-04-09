@@ -6,29 +6,30 @@ from responses to ensure data security through the ModelConfigService business
 logic layer.
 """
 
-import os
-import asyncio
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
-from openfeature import api as openfeature_api
 
-from solace_agent_mesh.services.platform.services import ModelConfigService, ModelListService
+from solace_agent_mesh.services.platform.services import ModelConfigService
 from solace_agent_mesh.services.platform.api.dependencies import (
     get_model_config_service,
-    get_model_list_service,
+    get_model_dependents_handler,
     get_platform_db,
     get_component_instance,
+    require_model_config_ui_enabled,
+    ModelDependentsHandler,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.responses import (
     ModelConfigurationResponse,
     ModelConfigurationTestResponse,
     ModelConfigStatusResponse,
+    ModelDependentResponse,
 )
 from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationBaseRequest,
     ModelConfigurationCreateRequest,
     ModelConfigurationUpdateRequest,
-    SupportedModelsRequest,
     ModelConfigurationTestRequest,
 )
 from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
@@ -40,26 +41,6 @@ from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilde
 
 
 router = APIRouter()
-
-
-def _require_model_config_ui_enabled() -> bool:
-    """Dependency that checks if model configuration UI feature is enabled.
-
-    Checks the model_config_ui environment variable at request time.
-
-    Returns:
-        True if feature is enabled, False otherwise.
-
-    Raises:
-        HTTPException: 501 Not Implemented if feature is disabled.
-    """
-    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
-    if not is_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Model configuration feature is not enabled",
-        )
-    return True
 
 
 def _emit_model_config_update(component, model_id: str, alias: str, model_config: dict | None):
@@ -93,7 +74,7 @@ def _emit_model_config_update(component, model_id: str, alias: str, model_config
     description="Retrieve all model configurations. Sensitive authentication information (API keys, secrets) is excluded.",
 )
 async def list_models(
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[list[ModelConfigurationResponse]]:
@@ -142,25 +123,22 @@ async def get_models_status(
     return create_data_response(ModelConfigStatusResponse(configured=configured))
 
 @router.get(
-    "/models/{alias}",
+    "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
-    summary="Get model configuration by alias",
-    description="Retrieve a model configuration by alias (e.g., 'gpt-4', 'claude-3'). Sensitive authentication information is excluded.",
+    summary="Get model configuration by ID",
+    description="Retrieve a model configuration by ID (UUID). Sensitive authentication information is excluded.",
 )
 async def get_model(
-    alias: str,
-    _: None = Depends(_require_model_config_ui_enabled),
+    model_id: str,
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     service: ModelConfigService = Depends(get_model_config_service),
 ) -> DataResponse[ModelConfigurationResponse]:
     """
-    Retrieve a model configuration by alias.
-
-    The alias lookup is case-sensitive. Sensitive information (API keys, OAuth
-    client secrets) is excluded from the response.
+    Retrieve a model configuration by ID.
 
     Args:
-        alias: The model alias to look up
+        model_id: The model UUID to look up
 
     Returns:
         DataResponse with model configuration data
@@ -168,153 +146,145 @@ async def get_model(
     Raises:
         HTTPException: 404 if configuration not found
     """
-    config = service.get_by_alias(db, alias)
+    config = service.get_by_id(db, model_id)
     return create_data_response(config)
 
 
 @router.post(
     "/models",
-    response_model=DataResponse[ModelConfigurationResponse],
-    status_code=status.HTTP_201_CREATED,
+    response_model=DataResponse,
     summary="Create a model configuration",
-    description="Create a new model configuration. The alias must be unique (case-sensitive).",
+    description="Create a new model configuration. The alias must be unique (case-sensitive). "
+    "Pass validateOnly=true to test connectivity without persisting.",
 )
 async def create_model(
-    request: ModelConfigurationCreateRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
+    request: ModelConfigurationBaseRequest,
+    response: Response,
+    _: None = Depends(require_model_config_ui_enabled),
+    validate_only: bool = Query(False, alias="validateOnly"),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
-) -> DataResponse[ModelConfigurationResponse]:
+) -> DataResponse:
+    if validate_only:
+        test_request = ModelConfigurationTestRequest(
+            model_id=request.model_id,
+            provider=request.provider,
+            model_name=request.model_name,
+            api_base=request.api_base,
+            auth_config=request.auth_config or {},
+            model_params=request.model_params or {},
+        )
+        try:
+            success, message = await service.test_connection(db, test_request)
+        except Exception as e:
+            success = False
+            message = f"Test connection failed. {e}"
+        return create_data_response(ModelConfigurationTestResponse(success=success, message=message))
+
+    try:
+        create_request = ModelConfigurationCreateRequest.model_validate(request.model_dump(exclude_none=True))
+    except PydanticValidationError as e:
+        builder = ValidationErrorBuilder().message("Invalid model configuration request")
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error["loc"])
+            builder.validation_detail(field, [error["msg"]])
+        raise builder.build()
+
     created_by = user.get("id", "unknown")
-    config = service.create(db, request, created_by=created_by)
-    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    config = service.create(db, create_request, created_by=created_by)
+    raw_config = service.get_by_id(db, config.id, raw=True)
     _emit_model_config_update(component, config.id, config.alias, raw_config)
+    response.status_code = status.HTTP_201_CREATED
     return create_data_response(config)
 
-@router.put(
-    "/models/{alias}",
+@router.patch(
+    "/models/{model_id}",
     response_model=DataResponse[ModelConfigurationResponse],
     summary="Update a model configuration",
-    description="Update an existing model configuration by alias. Only provided fields are updated.",
+    description="Update an existing model configuration by ID. Only provided fields are updated.",
 )
 async def update_model(
-    alias: str,
+    model_id: str,
     request: ModelConfigurationUpdateRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
 ) -> DataResponse[ModelConfigurationResponse]:
     updated_by = user.get("id", "unknown")
-    config = service.update(db, alias, request, updated_by=updated_by)
-    raw_config = service.get_by_alias(db, config.alias, raw=True)
+    config = service.update(db, model_id, request, updated_by=updated_by)
+    raw_config = service.get_by_id(db, config.id, raw=True)
     _emit_model_config_update(component, config.id, config.alias, raw_config)
     return create_data_response(config)
 
 
+@router.get(
+    "/models/{model_id}/dependents",
+    response_model=DataResponse[list[ModelDependentResponse]],
+    summary="Get agents that depend on a model",
+    description="Return deployed agents whose model_provider references the given model by alias or ID. Requires enterprise package.",
+)
+async def get_model_dependents(
+    model_id: str,
+    _: None = Depends(require_model_config_ui_enabled),
+    db: Session = Depends(get_platform_db),
+    service: ModelConfigService = Depends(get_model_config_service),
+) -> DataResponse[list[ModelDependentResponse]]:
+    """Return agents that depend on the given model configuration.
+
+    Attempts to import the enterprise ModelDependentsService. If the enterprise
+    package is not installed, returns an empty list.
+    """
+    config = service.get_by_id(db, model_id)
+
+    try:
+        from solace_agent_mesh_enterprise.platform_service.services.model_dependents_service import (
+            ModelDependentsService,
+        )
+        from solace_agent_mesh_enterprise.platform_service.repositories.agent_repository import (
+            AgentRepository,
+        )
+        from solace_agent_mesh_enterprise.platform_service.repositories.deployment_repository import (
+            DeploymentRepository,
+        )
+
+        dependents_service = ModelDependentsService(AgentRepository(), DeploymentRepository())
+        dependents = dependents_service.get_dependents(db, config.alias, config.id)
+
+        return create_data_response([
+            ModelDependentResponse(
+                id=str(agent.id),
+                name=agent.name,
+                type=agent.type,
+                deployment_status=agent.deployment_status,
+            )
+            for agent in dependents
+        ])
+    except ImportError:
+        return create_data_response([])
+
+
 @router.delete(
-    "/models/{alias}",
+    "/models/{model_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a model configuration",
-    description="Delete a model configuration by alias. This action cannot be undone.",
+    description="Delete a model configuration by ID. Automatically undeploys any agents that depend on this model. This action cannot be undone.",
 )
 async def delete_model(
-    alias: str,
-    _: None = Depends(_require_model_config_ui_enabled),
+    model_id: str,
+    _: None = Depends(require_model_config_ui_enabled),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
     component=Depends(get_component_instance),
+    dependents_handler: ModelDependentsHandler = Depends(get_model_dependents_handler),
 ) -> None:
-    config = service.get_by_alias(db, alias)
-    service.delete(db, alias)
-    _emit_model_config_update(component, config.id, alias, None)
+    config = service.get_by_id(db, model_id)
+    await dependents_handler.undeploy_dependents(config.alias, config.id, component)
+    service.delete(db, model_id)
+    _emit_model_config_update(component, config.id, config.alias, None)
 
-
-@router.post(
-    "/supported-models",
-    response_model=DataResponse[list[dict]],
-    summary="List supported models for a provider",
-    description="Retrieve supported models by querying the provider API directly. Use model_alias for editing (stored credentials) or provide credentials for creating new models.",
-)
-async def list_supported_models_by_provider(
-    request: SupportedModelsRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelListService = Depends(get_model_list_service),
-    config_service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[list[dict]]:
-    """
-    Fetch supported models from a provider.
-
-    Two modes of operation:
-    - **Editing mode**: Provide model_alias to use stored credentials from database
-    - **Creating mode**: Provide auth_type and appropriate credentials to query provider
-
-    Auth validation and config building is delegated to ModelListService.
-    """
-    # Mode 1: Editing - use stored credentials from database
-    if request.model_alias:
-        models = config_service.get_models_from_provider_by_alias(db, request.model_alias, service)
-        return create_data_response(models)
-
-    # Mode 2: Creating - use credentials from request
-    # Validate that either model_alias or auth_type is provided
-    if not request.auth_type:
-        raise ValidationErrorBuilder().message(
-            "Either model_alias (for editing) or auth_type with credentials (for creating) is required"
-        ).entity_type("SupportedModelsRequest").entity_identifier(request.provider).build()
-
-    # Delegate auth validation and config building to service
-    models = service.get_models_with_new_credentials(
-        provider=request.provider,
-        api_base=request.api_base,
-        auth_type=request.auth_type,
-        api_key=request.api_key,
-        client_id=request.client_id,
-        client_secret=request.client_secret,
-        token_url=request.token_url,
-        aws_access_key_id=request.aws_access_key_id,
-        aws_secret_access_key=request.aws_secret_access_key,
-        aws_session_token=request.aws_session_token,
-        gcp_service_account_json=request.gcp_service_account_json,
-        model_params=request.model_params,
-    )
-
-    return create_data_response(models)
-
-@router.post(
-    "/models/test",
-    response_model=DataResponse[ModelConfigurationTestResponse],
-    summary="Test a model configuration",
-    description="Test connectivity by making a minimal LLM call. Supports both new configurations (all config in body) and existing models (provide alias to use stored credentials as fallback).",
-)
-async def test_model_connection(
-    request: ModelConfigurationTestRequest,
-    _: None = Depends(_require_model_config_ui_enabled),
-    db: Session = Depends(get_platform_db),
-    service: ModelConfigService = Depends(get_model_config_service),
-) -> DataResponse[ModelConfigurationTestResponse]:
-    """
-    Test a model configuration connection.
-    Makes a minimal LLM call with the provided configuration to verify connectivity
-    and validate credentials. Supports two scenarios:
-    1. New model: Provide all configuration details
-    2. Editing existing model: Provide alias to use stored credentials as fallback
-    When testing an existing model by alias, any empty auth_config fields will use
-    the stored values. This allows testing a new provider/model with existing credentials.
-    Args:
-        request: Test request with model configuration details
-        _: Feature flag dependency
-        db: Database session
-        service: Model configuration service
-    Returns:
-        DataResponse with success status and message
-    """
-    success, message = await asyncio.to_thread(service.test_connection, db, request)
-    response = ModelConfigurationTestResponse(success=success, message=message)
-    return create_data_response(response)
 

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { UserPresenceAvatars } from "@/lib/components/chat/UserPresenceAvatars";
 import { mockCollaborativeUsers } from "@/lib/mockData/collaborativeChat";
 
@@ -22,6 +23,11 @@ export const Default: Story = {
             { ...mockCollaborativeUsers.bob, isOnline: true },
         ],
     },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText("OO")).toBeInTheDocument();
+        await expect(canvas.getByText("PP")).toBeInTheDocument();
+    },
 };
 
 export const ManyUsers: Story = {
@@ -29,10 +35,15 @@ export const ManyUsers: Story = {
         users: [
             mockCollaborativeUsers.alice,
             mockCollaborativeUsers.bob,
-            mockCollaborativeUsers.charlie,
-            { ...mockCollaborativeUsers.alice, id: "user-4", name: "User Four", email: "user4@example.com", isOnline: false },
-            { ...mockCollaborativeUsers.bob, id: "user-5", name: "User Five", email: "user5@example.com", isOnline: false },
+            { ...mockCollaborativeUsers.charlie, isOnline: true },
+            { ...mockCollaborativeUsers.alice, id: "user-4", name: "User Four", email: "user4@example.com", isOnline: true },
+            { ...mockCollaborativeUsers.bob, id: "user-5", name: "User Five", email: "user5@example.com", isOnline: true },
             { ...mockCollaborativeUsers.charlie, id: "user-6", name: "User Six", email: "user6@example.com", isOnline: true },
+            { ...mockCollaborativeUsers.alice, id: "user-7", name: "User Seven", email: "user7@example.com", isOnline: true },
         ],
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByText("+2")).toBeInTheDocument();
     },
 };

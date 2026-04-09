@@ -19,7 +19,10 @@ apps:
       supports_streaming: __SUPPORTS_STREAMING__
       agent_name: "__AGENT_NAME__"
       display_name: "__AGENT_SPACED_NAME__ Agent"
-      model: __MODEL_ALIAS__ 
+      model: __MODEL_ALIAS__
+      # Optional: Enable LLM thinking/reasoning tokens
+      # thinking:
+      #   budget_tokens: 10000  # Max tokens for thinking (0 = disabled)
 
       instruction: |
         __INSTRUCTION__

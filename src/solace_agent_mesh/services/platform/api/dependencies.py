@@ -10,9 +10,12 @@ import logging
 from typing import TYPE_CHECKING, Generator
 
 from fastapi import Depends, HTTPException, status
+from openfeature import api as openfeature_api
 from sqlalchemy import create_engine, event, pool
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, sessionmaker
+
+from .routers.dto.responses.model_configuration_responses import ModelDependentResponse
 
 if TYPE_CHECKING:
     from ..component import PlatformServiceComponent
@@ -214,4 +217,60 @@ def get_model_list_service() -> "ModelListService":
     """
     from solace_agent_mesh.services.platform.services import ModelListService
 
-    return ModelListService()    
+    return ModelListService()
+
+
+class ModelDependentsHandler:
+    """Interface for handling model-dependent agents on delete.
+
+    The community default is a no-op. Enterprise overrides this to find
+    and undeploy agents that depend on a given model configuration.
+    """
+
+    async def undeploy_dependents(self, model_alias: str, model_id: str, component: "PlatformServiceComponent") -> list[ModelDependentResponse]:
+        """Undeploy agents depending on the given model (by alias or ID).
+
+        Args:
+            model_alias: The model alias being deleted.
+            model_id: The model UUID being deleted.
+            component: PlatformServiceComponent instance for publishing.
+
+        Returns:
+            List of dicts with info about undeployed agents.
+        """
+        return []
+
+
+_model_dependents_handler: ModelDependentsHandler = ModelDependentsHandler()
+
+
+def set_model_dependents_handler(handler: ModelDependentsHandler):
+    """Register an enterprise handler for model-dependent agent management."""
+    global _model_dependents_handler
+    _model_dependents_handler = handler
+    log.info("Model dependents handler registered.")
+
+
+def get_model_dependents_handler() -> ModelDependentsHandler:
+    """FastAPI dependency for the model dependents handler."""
+    return _model_dependents_handler
+
+
+def require_model_config_ui_enabled() -> bool:
+    """Dependency that checks if model configuration UI feature is enabled.
+
+    Checks the model_config_ui feature flag at request time.
+
+    Returns:
+        True if feature is enabled.
+
+    Raises:
+        HTTPException: 501 Not Implemented if feature is disabled.
+    """
+    is_enabled = openfeature_api.get_client().get_boolean_value("model_config_ui", False)
+    if not is_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Model configuration feature is not enabled",
+        )
+    return True

@@ -13,7 +13,7 @@ const createNewModelHandlers = [
     http.get("*/api/v1/platform/models", () => {
         return HttpResponse.json({ data: mockModelConfigs, total: mockModelConfigs.length });
     }),
-    http.post("*/api/v1/platform/supported-models", () => {
+    http.post("*/api/v1/platform/providers/:provider/models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -46,13 +46,13 @@ const editModelHandlers = [
     http.get("*/api/v1/platform/models", () => {
         return HttpResponse.json({ data: [anthropicModelConfig], total: 1 });
     }),
-    http.get("*/api/v1/platform/models/:alias", ({ params }) => {
-        if (params.alias === "anthropic-model") {
+    http.get("*/api/v1/platform/models/:id", ({ params }) => {
+        if (params.id === anthropicModelConfig.id) {
             return HttpResponse.json({ data: anthropicModelConfig });
         }
         return HttpResponse.json({ error: "Not found" }, { status: 404 });
     }),
-    http.post("*/api/v1/platform/supported-models", () => {
+    http.post("*/api/v1/platform/providers/:provider/models", () => {
         return HttpResponse.json({
             data: [
                 { id: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
@@ -61,7 +61,7 @@ const editModelHandlers = [
             ],
         });
     }),
-    http.put("*/api/v1/platform/models/:alias", async ({ request }) => {
+    http.put("*/api/v1/platform/models/:id", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
             ...anthropicModelConfig,
@@ -76,7 +76,7 @@ const editModelHandlers = [
  * Mock handlers for model loading state
  */
 const loadingHandlers = [
-    http.get("*/api/v1/platform/models/:alias", async () => {
+    http.get("*/api/v1/platform/models/:id", async () => {
         await delay("infinite");
         return HttpResponse.json({ data: {} });
     }),
@@ -85,14 +85,18 @@ const loadingHandlers = [
 /**
  * Mock handler for test connection success
  */
-const testConnectionSuccessHandler = http.post("*/api/v1/platform/models/test", () => {
+const testConnectionSuccessHandler = http.post("*/api/v1/platform/models", ({ request }) => {
+    const url = new URL(request.url);
+    if (url.searchParams.get("validateOnly") !== "true") return;
     return HttpResponse.json({ data: { success: true, message: "Connection successful. Model responded with: OK" } });
 });
 
 /**
  * Mock handler for test connection failure
  */
-const testConnectionFailureHandler = http.post("*/api/v1/platform/models/test", () => {
+const testConnectionFailureHandler = http.post("*/api/v1/platform/models", ({ request }) => {
+    const url = new URL(request.url);
+    if (url.searchParams.get("validateOnly") !== "true") return;
     return HttpResponse.json({ data: { success: false, message: "Authentication failed: Invalid API key provided" } });
 });
 
@@ -100,7 +104,7 @@ const testConnectionFailureHandler = http.post("*/api/v1/platform/models/test", 
  * Mock handlers for error state when fetching model for edit
  */
 const notFoundHandlers = [
-    http.get("*/api/v1/platform/models/:alias", () => {
+    http.get("*/api/v1/platform/models/:id", () => {
         return HttpResponse.json({ error: "Model not found" }, { status: 404 });
     }),
 ];
@@ -145,7 +149,7 @@ export const CreateNewModel: Story = {
         const canvas = within(canvasElement);
 
         // Verify we're in create mode by checking the title (appears in both breadcrumb and title)
-        const createModelTexts = await canvas.findAllByText("Create Model");
+        const createModelTexts = await canvas.findAllByText("Add Model");
         expect(createModelTexts.length).toBeGreaterThanOrEqual(1);
 
         // Verify form fields are present (using text queries since labels are divs, not <label> elements)
@@ -156,7 +160,7 @@ export const CreateNewModel: Story = {
 
         // Verify buttons
         const addButton = await canvas.findByRole("button", { name: /Add/i });
-        expect(addButton).toBeDisabled(); // Should be disabled until form is filled
+        expect(addButton).not.toBeDisabled(); // Submit is always enabled; validation runs on submit
     },
 };
 
@@ -221,8 +225,8 @@ export const EditExistingModel: Story = {
     parameters: {
         msw: { handlers: editModelHandlers },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -263,8 +267,8 @@ export const EditModelLoading: Story = {
     parameters: {
         msw: { handlers: loadingHandlers },
         routerValues: {
-            initialPath: "/models/some-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: "/models/some-uuid/edit",
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -283,8 +287,8 @@ export const EditModelNotFound: Story = {
     parameters: {
         msw: { handlers: notFoundHandlers },
         routerValues: {
-            initialPath: "/models/nonexistent-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: "/models/nonexistent-uuid/edit",
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -307,8 +311,8 @@ export const EditModelWithAdvancedParams: Story = {
     parameters: {
         msw: { handlers: editModelHandlers },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -329,7 +333,7 @@ export const EditModelWithAdvancedParams: Story = {
         const temperatureInput = canvasElement.querySelector('input[name="temperature"]') as HTMLInputElement;
         expect(temperatureInput).toBeTruthy();
 
-        const maxTokensInput = canvasElement.querySelector('input[name="maxTokens"]') as HTMLInputElement;
+        const maxTokensInput = canvasElement.querySelector('input[name="max_tokens"]') as HTMLInputElement;
         expect(maxTokensInput).toBeTruthy();
 
         // Verify values are populated from model
@@ -339,7 +343,7 @@ export const EditModelWithAdvancedParams: Story = {
 };
 
 /**
- * Story: Create model with Custom provider
+ * Story: Add model with Custom provider
  * Shows the form for OpenAI-compatible custom providers
  */
 export const CreateCustomProviderModel: Story = {
@@ -386,8 +390,8 @@ export const TestConnectionSuccess: Story = {
     parameters: {
         msw: { handlers: [...editModelHandlers, testConnectionSuccessHandler] },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -397,7 +401,7 @@ export const TestConnectionSuccess: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // The Test Connection button should be present and enabled (provider + auth + model are set)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeInTheDocument();
         expect(testButton).not.toBeDisabled();
 
@@ -418,8 +422,8 @@ export const TestConnectionFailure: Story = {
     parameters: {
         msw: { handlers: [...editModelHandlers, testConnectionFailureHandler] },
         routerValues: {
-            initialPath: "/models/anthropic-model/edit",
-            routePath: "/models/:alias/edit",
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
         },
     },
     play: async ({ canvasElement }) => {
@@ -429,7 +433,7 @@ export const TestConnectionFailure: Story = {
         await canvas.findAllByText("Edit anthropic-model");
 
         // Click Test Connection
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         await userEvent.click(testButton);
 
         // Verify error banner appears
@@ -455,7 +459,7 @@ export const TestConnectionButtonDisabled: Story = {
 
         // In create mode, Test Connection button should not be visible yet
         // (it only appears after provider selection reveals the full form)
-        await canvas.findAllByText("Create Model");
+        await canvas.findAllByText("Add Model");
 
         // Select a provider to make the button appear
         const providerComboboxes = await canvas.findAllByRole("combobox");
@@ -464,7 +468,7 @@ export const TestConnectionButtonDisabled: Story = {
         await userEvent.click(anthropicOption);
 
         // Test Connection button should now be visible but disabled (no auth or model yet)
-        const testButton = await canvas.findByRole("button", { name: /Test Connection/i });
+        const testButton = await canvas.findByTestId("test-connection-button");
         expect(testButton).toBeDisabled();
     },
 };

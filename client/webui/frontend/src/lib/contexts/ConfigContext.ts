@@ -63,13 +63,6 @@ export interface ConfigContextValue {
     platformConfigured: boolean;
 
     /**
-     * Whether automatic title generation is enabled for new chat sessions.
-     * When true, the first message exchange will trigger AI-powered title generation.
-     * Requires persistence to be enabled.
-     */
-    autoTitleGenerationEnabled?: boolean;
-
-    /**
      * Whether Identity Service is configured.
      * When null, Identity Service is not configured.
      */

@@ -26,27 +26,15 @@ interface SharedSidePanelProps {
     ragData: RAGSearchResult[];
 }
 
-export function SharedSidePanel({
-    isCollapsed,
-    activeTab,
-    onTabChange,
-    onToggle,
-    onOpenTab,
-    hasRagSources,
-    handleSharedArtifactDownload,
-    session,
-    selectedTaskId,
-    onTaskSelect,
-    ragData,
-}: SharedSidePanelProps) {
+export function SharedSidePanel({ isCollapsed, activeTab, onTabChange, onToggle, onOpenTab, hasRagSources, handleSharedArtifactDownload, session, selectedTaskId, onTaskSelect, ragData }: SharedSidePanelProps) {
     if (isCollapsed) {
         return (
-            <div className="bg-background flex h-full w-full flex-col items-center border-l py-4">
+            <div className="flex h-full w-full flex-col items-center border-l bg-(--background-w10) py-4">
                 <Button variant="ghost" size="sm" onClick={onToggle} className="h-10 w-10 p-0" tooltip="Expand Panel">
                     <PanelRightIcon className="size-5" />
                 </Button>
 
-                <div className="bg-border my-4 h-px w-8"></div>
+                <div className="my-4 h-px w-8 bg-(--secondary-w40)"></div>
 
                 <Button variant="ghost" size="sm" onClick={() => onOpenTab("files")} className="mb-2 h-10 w-10 p-0" tooltip="Files">
                     <FileText className="size-5" />
@@ -66,7 +54,7 @@ export function SharedSidePanel({
     }
 
     return (
-        <div className="bg-background flex h-full flex-col border-l">
+        <div className="flex h-full flex-col border-l bg-(--background-w10)">
             <div className="m-1 min-h-0 flex-1">
                 <Tabs value={activeTab} onValueChange={value => onTabChange(value as "files" | "workflow" | "sources")} className="flex h-full flex-col">
                     <div className="@container flex gap-2 p-2">
@@ -77,7 +65,7 @@ export function SharedSidePanel({
                             <TabsTrigger
                                 value="files"
                                 title="Files"
-                                className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 px-2 data-[state=active]:z-10"
+                                className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-l-md border border-r-0 border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
                             >
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
@@ -86,8 +74,8 @@ export function SharedSidePanel({
                                 value="workflow"
                                 title="Workflow"
                                 className={cn(
-                                    "border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none border px-2 data-[state=active]:z-10",
-                                    hasRagSources ? "border-r-0" : "rounded-r-md",
+                                    "relative min-w-0 flex-1 cursor-pointer rounded-none border border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)",
+                                    hasRagSources ? "border-r-0" : "rounded-r-md"
                                 )}
                             >
                                 <Network className="h-4 w-4 shrink-0" />
@@ -97,7 +85,7 @@ export function SharedSidePanel({
                                 <TabsTrigger
                                     value="sources"
                                     title="Sources"
-                                    className="border-border bg-muted data-[state=active]:bg-background relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border px-2 data-[state=active]:z-10"
+                                    className="relative min-w-0 flex-1 cursor-pointer rounded-none rounded-r-md border border-(--secondary-w20) bg-(--background-w20) px-2 data-[state=active]:z-10 data-[state=active]:bg-(--background-w10)"
                                 >
                                     <Link2 className="h-4 w-4 shrink-0" />
                                     <span className="ml-1.5 hidden truncate @[240px]:inline">Sources</span>

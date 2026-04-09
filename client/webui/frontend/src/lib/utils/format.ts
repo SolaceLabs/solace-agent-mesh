@@ -29,12 +29,18 @@ export const formatRelativeTime = (dateString: string): string => {
         const diffInHours = Math.floor(diffInMinutes / 60);
         const diffInDays = Math.floor(diffInHours / 24);
 
+        const diffInWeeks = Math.floor(diffInDays / 7);
+        const diffInMonths = Math.floor(diffInDays / 30);
+
         if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
         if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
         if (diffInHours < 24) return `${diffInHours}h ago`;
         if (diffInDays === 1) return `Yesterday`;
         if (diffInDays < 7) return `${diffInDays}d ago`;
-        return date.toLocaleDateString();
+        if (diffInWeeks < 5) return `${diffInWeeks} week${diffInWeeks === 1 ? "" : "s"} ago`;
+        if (diffInMonths < 12) return `${diffInMonths} month${diffInMonths === 1 ? "" : "s"} ago`;
+        const diffInYears = Math.floor(diffInDays / 365);
+        return `${diffInYears} year${diffInYears === 1 ? "" : "s"} ago`;
     } catch (e) {
         console.error("Error formatting date:", e);
         return "Invalid date";
@@ -46,6 +52,26 @@ export const formatRelativeTime = (dateString: string): string => {
  * @param isoString - The ISO date string to format
  * @param format - The format type: "datetime" (default), "date", or "time"
  */
+/**
+ * Format a numeric epoch timestamp (seconds or milliseconds) to locale string.
+ * Auto-detects whether the value is in seconds or milliseconds.
+ */
+export const formatEpochTimestamp = (timestamp: number): string => {
+    const ts = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
+    const date = new Date(ts);
+    return date.toLocaleString();
+};
+
+/**
+ * Format a duration in milliseconds to a human-readable string.
+ */
+export const formatDuration = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 3600000) return `${(ms / 60000).toFixed(1)}m`;
+    return `${(ms / 3600000).toFixed(1)}h`;
+};
+
 export const formatTimestamp = (isoString?: string | null, format: "datetime" | "date" | "time" = "datetime"): string => {
     if (!isoString) return "N/A";
     try {

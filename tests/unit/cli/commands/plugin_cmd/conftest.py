@@ -19,6 +19,7 @@ def temp_project_dir(tmp_path):
     (project_path / "configs" / "agents").mkdir(parents=True)
     (project_path / "configs" / "gateways").mkdir(parents=True)
     (project_path / "configs" / "plugins").mkdir(parents=True)
+    (project_path / "configs" / "workflows").mkdir(parents=True)
     (project_path / "src").mkdir(parents=True)
     
     # Store the original CWD and change to the new project directory
@@ -143,6 +144,8 @@ __PLUGIN_DESCRIPTION__
             "plugin_agent_config_template.yaml": mock_config_template,
             "plugin_gateway_config_template.yaml": mock_config_template,
             "plugin_custom_config_template.yaml": mock_config_template,
+            "plugin_workflow_config_template.yaml": mock_config_template,
+            "plugin_tool_config_template.yaml": mock_config_template,
             "plugin_pyproject_template.toml": mock_pyproject_template,
             "plugin_readme_template.md": mock_readme_template,
             "plugin_tools_template.py": mock_tools_template,

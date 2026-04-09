@@ -4,10 +4,23 @@ from pathlib import Path
 from typing import Dict, Any, Generator
 
 from solace_ai_connector.solace_ai_connector import SolaceAiConnector
+from solace_ai_connector.common.observability.registry import MetricRegistry
 from tests.integration.test_support.lifecycle_tracker import (
     get_tracked_lines,
     cleanup_tracker,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_metric_registry():
+    """Save and restore the MetricRegistry singleton around each test.
+    Lifecycle tests create their own SolaceAiConnector instances which
+    need a fresh MetricRegistry, but we must restore the session-scoped
+    singleton afterwards so other tests (programmatic, etc.) still work."""
+    saved_instance = MetricRegistry._instance
+    MetricRegistry._instance = None
+    yield
+    MetricRegistry._instance = saved_instance
 
 
 @pytest.fixture

@@ -77,12 +77,12 @@ export function useTextToSpeech(options: UseTextToSpeechOptions = {}): UseTextTo
         loadVoices();
 
         // Chrome loads voices asynchronously
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        if (window.speechSynthesis && window.speechSynthesis.onvoiceschanged !== undefined) {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
 
         return () => {
-            if (window.speechSynthesis.onvoiceschanged) {
+            if (window.speechSynthesis && window.speechSynthesis.onvoiceschanged) {
                 window.speechSynthesis.onvoiceschanged = null;
             }
         };

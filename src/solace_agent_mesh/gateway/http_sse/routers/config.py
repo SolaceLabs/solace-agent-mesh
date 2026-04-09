@@ -8,6 +8,7 @@ from typing import Dict, Any
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from openfeature import api as openfeature_api
 
 from ..routers.dto.requests.project_requests import CreateProjectRequest
 from ....gateway.http_sse.dependencies import get_sac_component, get_api_config
@@ -110,43 +111,30 @@ def _determine_background_tasks_enabled(
 
 
 def _determine_auto_title_generation_enabled(
-    component: "WebUIBackendComponent",
     api_config: Dict[str, Any],
     log_prefix: str
 ) -> bool:
     """
     Determines if automatic title generation feature should be enabled.
-    
+
     Logic:
     1. Check if persistence is enabled (required for title generation)
-    2. Check explicit auto_title_generation config (must be explicitly enabled)
-    3. Check frontend_feature_enablement.auto_title_generation override
-    
+    2. Check OpenFeature flag 'auto_title_generation'
+
     Returns:
         bool: True if auto title generation should be enabled
     """
-    # Auto title generation requires persistence
     persistence_enabled = api_config.get("persistence_enabled", False)
     if not persistence_enabled:
         log.debug("%s Auto title generation disabled: persistence is not enabled", log_prefix)
         return False
-    
-    # Check explicit auto_title_generation config - disabled by default
-    auto_title_config = component.get_config("auto_title_generation", {})
-    explicitly_enabled = False
-    if isinstance(auto_title_config, dict):
-        explicitly_enabled = auto_title_config.get("enabled", False)
-    
-    # Check frontend_feature_enablement override
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    if "auto_title_generation" in feature_flags:
-        explicitly_enabled = feature_flags.get("auto_title_generation", False)
-    
-    if not explicitly_enabled:
-        log.debug("%s Auto title generation disabled: not explicitly enabled in config", log_prefix)
+
+    enabled = openfeature_api.get_client().get_boolean_value("auto_title_generation", False)
+    if not enabled:
+        log.debug("%s Auto title generation disabled: feature flag is off", log_prefix)
         return False
-    
-    log.debug("%s Auto title generation enabled: explicitly enabled in config", log_prefix)
+
+    log.debug("%s Auto title generation enabled", log_prefix)
     return True
 
 
@@ -156,36 +144,24 @@ def _determine_mentions_enabled(
 ) -> bool:
     """
     Determines if mentions (@user) feature should be enabled.
-    
+
     Logic:
     1. Check if identity_service is configured (required for user search)
-    2. Check explicit mentions.enabled config (must be explicitly enabled, defaults to False)
-    3. Check frontend_feature_enablement.mentions override
-    
+    2. Check OpenFeature flag 'mentions'
+
     Returns:
         bool: True if mentions should be enabled
     """
-    # Mentions require identity_service to be configured for user search
     if component.identity_service is None:
         log.debug("%s Mentions disabled: no identity_service configured", log_prefix)
         return False
-    
-    # Check explicit mentions config - disabled by default
-    mentions_config = component.get_config("mentions", {})
-    explicitly_enabled = False
-    if isinstance(mentions_config, dict):
-        explicitly_enabled = mentions_config.get("enabled", False)
-    
-    # Check frontend_feature_enablement override
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    if "mentions" in feature_flags:
-        explicitly_enabled = feature_flags.get("mentions", False)
-    
-    if not explicitly_enabled:
-        log.debug("%s Mentions disabled: not explicitly enabled in config", log_prefix)
+
+    enabled = openfeature_api.get_client().get_boolean_value("mentions", False)
+    if not enabled:
+        log.debug("%s Mentions disabled: feature flag is off", log_prefix)
         return False
-    
-    log.debug("%s Mentions enabled: identity_service configured and explicitly enabled", log_prefix)
+
+    log.debug("%s Mentions enabled", log_prefix)
     return True
 
 
@@ -305,6 +281,36 @@ def _determine_projects_enabled(
     
     # All checks passed
     log.debug("%s Projects enabled: persistence enabled and no explicit disable", log_prefix)
+    return True
+
+
+def _determine_scheduler_enabled(
+    component: "WebUIBackendComponent",
+    api_config: Dict[str, Any],
+    log_prefix: str
+) -> bool:
+    """
+    Determines if scheduler feature should be enabled.
+
+    Requires SQL persistence and explicit scheduler_service.enabled=true.
+    """
+    session_config = component.get_config("session_service", {})
+    session_type = session_config.get("type", "memory")
+
+    if session_type != "sql":
+        log.debug("%s Scheduler disabled: session_service type is '%s' (not 'sql')", log_prefix, session_type)
+        return False
+
+    scheduler_config = component.get_config("scheduler_service", {})
+    if isinstance(scheduler_config, dict):
+        if not scheduler_config.get("enabled", False):
+            log.debug("%s Scheduler disabled: scheduler_service.enabled is not true", log_prefix)
+            return False
+    else:
+        log.debug("%s Scheduler disabled: no scheduler_service config section", log_prefix)
+        return False
+
+    log.debug("%s Scheduler enabled", log_prefix)
     return True
 
 
@@ -447,7 +453,7 @@ async def get_app_config(
         feature_enablement["mentions"] = mentions_enabled
         
         # Determine if auto title generation should be enabled
-        auto_title_generation_enabled = _determine_auto_title_generation_enabled(component, api_config, log_prefix)
+        auto_title_generation_enabled = _determine_auto_title_generation_enabled(api_config, log_prefix)
         feature_enablement["auto_title_generation"] = auto_title_generation_enabled
         if auto_title_generation_enabled:
             log.debug("%s Auto title generation feature flag is enabled.", log_prefix)
@@ -469,6 +475,14 @@ async def get_app_config(
             log.debug("%s Chat sharing feature flag is enabled.", log_prefix)
         else:
             log.debug("%s Chat sharing feature flag is disabled.", log_prefix)
+
+        # Determine if scheduler should be enabled
+        scheduler_enabled = _determine_scheduler_enabled(component, api_config, log_prefix)
+        feature_enablement["scheduler"] = scheduler_enabled
+        if scheduler_enabled:
+            log.debug("%s Scheduler feature flag is enabled.", log_prefix)
+        else:
+            log.debug("%s Scheduler feature flag is disabled.", log_prefix)
 
         # Check tool configuration status
         tool_config_status = {}

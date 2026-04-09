@@ -3,8 +3,8 @@
 Tests:
 - _emit_model_config_update publishes on both ID and alias topics
 - POST /models emits events after create
-- PUT /models/{alias} emits events after update
-- DELETE /models/{alias} emits events after delete
+- PUT /models/{model_id} emits events after update
+- DELETE /models/{model_id} emits events after delete
 """
 
 from unittest.mock import Mock, patch, AsyncMock
@@ -96,14 +96,16 @@ class TestCreateModelEndpoint:
         mock_service.create.return_value = created_config
 
         raw_config = {"model": "gpt-4", "api_key": "sk-123"}
-        mock_service.get_by_alias.return_value = raw_config
+        mock_service.get_by_id.return_value = raw_config
 
         mock_component = Mock()
         mock_user = {"id": "user-1"}
 
         result = await create_model(
             request=request,
+            response=Mock(),
             _=None,
+            validate_only=False,
             db=Mock(),
             user=mock_user,
             service=mock_service,
@@ -111,8 +113,8 @@ class TestCreateModelEndpoint:
         )
 
         mock_service.create.assert_called_once()
-        mock_service.get_by_alias.assert_called_once_with(
-            mock_service.create.call_args[0][0], "my-model", raw=True
+        mock_service.get_by_id.assert_called_once_with(
+            mock_service.create.call_args[0][0], "uuid-123", raw=True
         )
         mock_emit.assert_called_once_with(
             mock_component, "uuid-123", "my-model", raw_config
@@ -120,7 +122,7 @@ class TestCreateModelEndpoint:
 
 
 class TestUpdateModelEndpoint:
-    """Tests for PUT /models/{alias} endpoint event emission."""
+    """Tests for PUT /models/{model_id} endpoint event emission."""
 
     @pytest.mark.asyncio
     @patch(
@@ -146,13 +148,13 @@ class TestUpdateModelEndpoint:
         mock_service.update.return_value = updated_config
 
         raw_config = {"model": "claude-3", "api_key": "sk-456"}
-        mock_service.get_by_alias.return_value = raw_config
+        mock_service.get_by_id.return_value = raw_config
 
         mock_component = Mock()
         mock_user = {"id": "user-1"}
 
         result = await update_model(
-            alias="my-alias",
+            model_id="uuid-456",
             request=request,
             _=None,
             db=Mock(),
@@ -168,7 +170,7 @@ class TestUpdateModelEndpoint:
 
 
 class TestDeleteModelEndpoint:
-    """Tests for DELETE /models/{alias} endpoint event emission."""
+    """Tests for DELETE /models/{model_id} endpoint event emission."""
 
     @pytest.mark.asyncio
     @patch(
@@ -183,21 +185,25 @@ class TestDeleteModelEndpoint:
         mock_service = Mock()
         existing_config = Mock()
         existing_config.id = "uuid-789"
-        mock_service.get_by_alias.return_value = existing_config
+        existing_config.alias = "my-alias"
+        mock_service.get_by_id.return_value = existing_config
 
         mock_component = Mock()
         mock_user = {"id": "user-1"}
 
+        from solace_agent_mesh.services.platform.api.dependencies import ModelDependentsHandler
+
         await delete_model(
-            alias="my-alias",
+            model_id="uuid-789",
             _=None,
             db=Mock(),
             user=mock_user,
             service=mock_service,
             component=mock_component,
+            dependents_handler=ModelDependentsHandler(),
         )
 
-        mock_service.get_by_alias.assert_called_once()
+        mock_service.get_by_id.assert_called_once()
         mock_service.delete.assert_called_once()
         mock_emit.assert_called_once_with(
             mock_component, "uuid-789", "my-alias", None
