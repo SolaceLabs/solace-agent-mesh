@@ -185,6 +185,32 @@ View the full list of contributors here: [GitHub Contributors](https://github.co
 
 ---
 
+---
+
+## 🛠️ Troubleshooting
+
+### Common Issues and Fixes
+
+1. SAM command not found
+- Ensure the package is installed correctly using `pip3 install solace-agent-mesh`
+- Restart your terminal after installation
+
+2. Virtual environment not activating
+- Make sure you are using the correct command for your OS
+- On Windows, use:
+.venv\Scripts\activate
+
+3. Port already in use
+- Check if port `8000` or `5002` is already running
+- Stop the existing process or use a different port
+
+4. Python version issues
+- Ensure you are using a supported version (3.10.16 – 3.13.x)
+
+5. Dependencies not installing
+- Upgrade pip:
+pip install --upgrade pip
+
 ## 📄 License
 
 This project is licensed under the **Apache 2.0 License**. See the full license text in the [LICENSE](LICENSE) file.
