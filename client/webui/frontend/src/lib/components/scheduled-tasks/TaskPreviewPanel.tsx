@@ -89,7 +89,7 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                     {isReadyToSave && (
                         <Badge variant="default" className="bg-green-500">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Ready to Save
+                            Ready to Create
                         </Badge>
                     )}
                 </div>
@@ -184,16 +184,16 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                     </div>
                 </div>
 
-                {/* Status */}
+                {/* Activation Setting */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-(--secondary-text-wMain)" />
-                        <label className="text-sm font-medium text-(--secondary-text-wMain)">Status</label>
+                        <label className="text-sm font-medium text-(--secondary-text-wMain)">Activation</label>
                     </div>
                     <div className="rounded-lg border bg-(--background-w10) p-3">
                         <div className="flex items-center gap-2">
                             <div className={`h-2 w-2 rounded-full ${config.enabled ? "bg-(--success-wMain)" : "bg-(--secondary-text-wMain)"}`} />
-                            <span className="text-sm">{config.enabled ? "Enabled" : "Disabled"}</span>
+                            <span className="text-sm">{config.enabled ? "Enable immediately on create" : "Create as disabled (paused)"}</span>
                         </div>
                     </div>
                 </div>
@@ -201,7 +201,7 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                 {/* Help Text */}
                 {!isReadyToSave && (
                     <div className="rounded-lg bg-(--secondary-w20) p-4">
-                        <p className="text-sm text-(--secondary-text-wMain)">Continue chatting with the AI to refine your task configuration. When all required fields are set, you'll be able to save the task.</p>
+                        <p className="text-sm text-(--secondary-text-wMain)">Continue chatting with the AI to refine your task configuration. When all required fields are set, you'll be able to create the task.</p>
                     </div>
                 )}
             </div>

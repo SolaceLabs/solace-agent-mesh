@@ -95,6 +95,9 @@ class SchedulerService:
         self.active_tasks: Dict[str, Any] = {}
         self.running_executions: Dict[str, asyncio.Task] = {}
         self._execution_lock = asyncio.Lock()
+        # Per-task locks prevent overlapping executions of the same scheduled
+        # task from corrupting the shared persistent ADK session.
+        self._task_locks: Dict[str, asyncio.Lock] = {}
 
         # Initialize result handler (in-memory tracking)
         self.result_handler = ResultHandler(
@@ -322,6 +325,10 @@ class SchedulerService:
                 if task_id in self.active_tasks:
                     del self.active_tasks[task_id]
 
+        # Clean up per-task lock to prevent unbounded memory growth
+        # in long-running deployments where tasks are created/deleted.
+        self._task_locks.pop(task_id, None)
+
     def _create_trigger(self, task: ScheduledTaskModel):
         """Create an APScheduler trigger based on task configuration."""
         if task.schedule_type == ScheduleType.CRON:
@@ -349,7 +356,26 @@ class SchedulerService:
 
         Retries are handled iteratively (not recursively) to avoid deep call
         stacks and unnecessary resource retention between attempts.
+
+        A per-task lock ensures only one execution is in-flight at a time,
+        preventing concurrent writes to the shared persistent ADK session.
         """
+        # Acquire a per-task lock so overlapping cron triggers for the same
+        # task wait rather than corrupting the persistent session.
+        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
+
+        if task_lock.locked():
+            log.warning(
+                "[SchedulerService:%s] Task %s already in-flight, skipping overlapping trigger",
+                self.instance_id, task_id,
+            )
+            return
+
+        async with task_lock:
+            await self._execute_scheduled_task_inner(task_id)
+
+    async def _execute_scheduled_task_inner(self, task_id: str):
+        """Inner implementation of scheduled task execution (holds per-task lock)."""
         log.info(
             "[SchedulerService:%s] Executing scheduled task: %s",
             self.instance_id, task_id,
@@ -613,6 +639,7 @@ class SchedulerService:
             # Both operations are committed together to avoid orphaned session records
             # if the execution status update were to fail separately.
             user_id = task_user_id or task_created_by or "system-scheduler"
+            stable_session_id = f"scheduled_task_{task_id}"
             session_id = f"scheduled_{execution_id}"
             try:
                 with self.session_factory() as sess:
@@ -663,7 +690,7 @@ class SchedulerService:
                 elif part.get("type") == "file":
                     message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
 
-            context_id = session_id
+            context_id = stable_session_id
             a2a_task_id = f"task-{uuid.uuid4().hex}"
 
             # Filter task_metadata to safe keys only
@@ -723,7 +750,7 @@ class SchedulerService:
                     session.commit()
 
             # --- Step 4: Register, publish, and wait (no session held) ---
-            await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+            await self.result_handler.register_execution(execution_id, a2a_task_id, session_id)
 
             self.publish_func(target_topic, payload, user_props)
 

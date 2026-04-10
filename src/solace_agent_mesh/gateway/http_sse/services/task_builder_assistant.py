@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from litellm import acompletion
+from litellm import acompletion, supports_response_schema
 from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
@@ -205,6 +205,7 @@ REMEMBER:
 - Suggest appropriate schedule types (cron for recurring, interval for fixed intervals)
 - Set ready_to_save to true when all required fields are complete
 - Be conversational and helpful
+- IMPORTANT: When telling the user to finalize, always say "Click 'Create'" (NOT "Save"). The button is labeled "Create".
 """
     
     def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
@@ -345,14 +346,23 @@ REMEMBER:
             ),
         })
         
-        # Call LLM with JSON mode
+        # Call LLM — only request JSON mode when the model supports it.
+        # Models accessed via an OpenAI-compatible proxy (e.g. openai/claude-*)
+        # often don't support response_format and return {} or empty content.
         try:
             completion_args = {
                 "model": self.model,
                 "messages": messages,
-                "response_format": {"type": "json_object"},
                 "temperature": 0.1,  # Low temperature for consistency
             }
+
+            try:
+                if supports_response_schema(model=self.model, custom_llm_provider=None):
+                    completion_args["response_format"] = {"type": "json_object"}
+                else:
+                    log.info("Model %s does not support response_schema; relying on system prompt for JSON output", self.model)
+            except Exception:
+                log.debug("Could not determine response_schema support for model %s; skipping JSON mode", self.model)
             
             if self.api_base:
                 completion_args["api_base"] = self.api_base

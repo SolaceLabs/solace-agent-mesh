@@ -113,10 +113,10 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                                     {showStatusDropdown && (
                                         <>
                                             {/* Backdrop */}
-                                            <div className="fixed inset-0 z-10" onClick={() => setShowStatusDropdown(false)} />
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)} />
 
                                             {/* Dropdown */}
-                                            <div className="absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border bg-(--background-w10) shadow-lg">
+                                            <div className="absolute top-full left-0 z-50 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border border-(--secondary-w20) bg-(--background-w10) p-1 shadow-md">
                                                 {selectedStatuses.length > 0 && (
                                                     <div className="border-b">
                                                         <button
@@ -150,16 +150,16 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                             </div>
                         )}
 
-                        {filteredTasks.length === 0 && searchQuery ? (
+                        {filteredTasks.length === 0 && hasActiveFilters ? (
                             <EmptyState
                                 title="No Tasks Match Your Filter"
                                 subtitle="Try adjusting your filter terms."
                                 variant="notFound"
                                 buttons={[
                                     {
-                                        text: "Clear Filter",
+                                        text: "Clear All Filters",
                                         variant: "default",
-                                        onClick: () => setSearchQuery(""),
+                                        onClick: clearAllFilters,
                                     },
                                 ]}
                             />
