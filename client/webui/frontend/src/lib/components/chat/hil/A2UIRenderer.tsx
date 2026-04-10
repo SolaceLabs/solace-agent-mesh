@@ -13,6 +13,7 @@ import { Button } from "@/lib/components/ui";
 import { Card, CardContent } from "@/lib/components/ui/card";
 import { Checkbox } from "@/lib/components/ui/checkbox";
 import { Input } from "@/lib/components/ui/input";
+import { Textarea } from "@/lib/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui/tabs";
 import type { A2UIComponent, A2UISurface } from "@/lib/types";
 
@@ -165,12 +166,35 @@ function RenderColumn({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
     );
 }
 
+/** Check whether a component's action has an event with the given name. */
+function hasActionEvent(comp: A2UIComponent, eventName: string): boolean {
+    const action = comp.action as Record<string, unknown> | undefined;
+    const event = action?.event as Record<string, unknown> | undefined;
+    return event?.name === eventName;
+}
+
 function RenderRow({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
     const childIds = getChildrenIds(comp);
     const justify = comp.justify === "end" ? "justify-end" : "justify-start";
+
+    // Sort button children so cancel/ghost buttons come before primary/submit buttons.
+    // This ensures the standard UX convention: secondary action (left) → primary action (right).
+    const sortedChildIds = [...childIds].sort((aId, bId) => {
+        const aComp = ctx.index.get(aId);
+        const bComp = ctx.index.get(bId);
+        if (!aComp || !bComp) return 0;
+        // Only sort Button components
+        if (aComp.component !== "Button" || bComp.component !== "Button") return 0;
+        const aIsPrimary = aComp.variant === "primary" || hasActionEvent(aComp, "submit");
+        const bIsPrimary = bComp.variant === "primary" || hasActionEvent(bComp, "submit");
+        if (aIsPrimary && !bIsPrimary) return 1; // primary goes after non-primary
+        if (!aIsPrimary && bIsPrimary) return -1;
+        return 0;
+    });
+
     return (
         <div className={`flex items-center gap-2 ${justify}`}>
-            <RenderChildren ids={childIds} ctx={ctx} />
+            <RenderChildren ids={sortedChildIds} ctx={ctx} />
         </div>
     );
 }
@@ -257,17 +281,17 @@ function RenderTextField({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx })
     const placeholder = lit(comp.placeholder);
     const valuePath = (comp.value as { path?: string })?.path ?? "";
     const currentValue = valuePath ? String(getByPath(ctx.model, valuePath) ?? "") : "";
+    const isMultiline = comp.multiline === true;
 
-    return (
-        <Input
-            placeholder={placeholder}
-            value={currentValue}
-            onChange={e => {
-                if (valuePath) ctx.onModelChange(setByPath(ctx.model, valuePath, e.target.value));
-            }}
-            disabled={ctx.disabled}
-        />
-    );
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        if (valuePath) ctx.onModelChange(setByPath(ctx.model, valuePath, e.target.value));
+    };
+
+    if (isMultiline) {
+        return <Textarea placeholder={placeholder} value={currentValue} onChange={handleChange} disabled={ctx.disabled} rows={3} className="resize-y" />;
+    }
+
+    return <Input placeholder={placeholder} value={currentValue} onChange={handleChange} disabled={ctx.disabled} />;
 }
 
 function RenderButton({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
@@ -419,7 +443,7 @@ function RenderTabs({ comp, ctx }: { comp: A2UIComponent; ctx: RenderCtx }) {
                     <RenderComponent id={item.child} ctx={tabCtx} />
                     {autoAdvance && idx < tabItems.length - 1 && tabNeedsNextButton(item.child, tabCtx) && (
                         <div className="flex justify-end px-4 pt-2">
-                            <Button size="sm" variant="outline" onClick={() => setActiveTab(tabItems[idx + 1].child)} disabled={ctx.disabled}>
+                            <Button size="sm" variant="default" onClick={() => setActiveTab(tabItems[idx + 1].child)} disabled={ctx.disabled}>
                                 Next
                             </Button>
                         </div>

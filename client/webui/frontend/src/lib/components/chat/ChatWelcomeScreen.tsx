@@ -48,7 +48,7 @@ const DEFAULT_SUGGESTIONS: SuggestionChip[] = [
 
 /** Convert agent-provided WelcomeSuggestions to SuggestionChips. */
 const toChips = (suggestions: WelcomeSuggestion[]): SuggestionChip[] =>
-    suggestions.map((s) => ({
+    suggestions.map(s => ({
         label: s.label,
         icon: <Sparkles className="h-4 w-4" />,
         prompt: s.prompt,
@@ -71,24 +71,14 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
     const botName = configBotName || "SAM";
 
     // Use the selected agent's welcome config if available.
-    const welcomeAgent = useMemo(
-        () => agents.find((a) => a.name === selectedAgentName),
-        [agents, selectedAgentName],
-    );
+    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName), [agents, selectedAgentName]);
 
     // Prefer agent card welcome config; fall back to override (for when card hasn't arrived yet)
     const effectiveWelcome = welcomeAgent?.welcome ?? welcomeOverride;
     const welcomeMessage = effectiveWelcome?.welcome_message;
     // For agents without a welcome config, use a generic greeting with their name
-    const defaultHeading = welcomeAgent
-        ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?`
-        : selectedAgentName
-          ? `Hi, I'm ${selectedAgentName}. How can I help you?`
-          : `What can ${botName} help you with?`;
-    const suggestions = useMemo(
-        () => (effectiveWelcome?.suggestions ? toChips(effectiveWelcome.suggestions) : DEFAULT_SUGGESTIONS),
-        [effectiveWelcome],
-    );
+    const defaultHeading = welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : selectedAgentName ? `Hi, I'm ${selectedAgentName}. How can I help you?` : `What can ${botName} help you with?`;
+    const suggestions = useMemo(() => (effectiveWelcome?.suggestions ? toChips(effectiveWelcome.suggestions) : DEFAULT_SUGGESTIONS), [effectiveWelcome]);
 
     const handleChipClick = async (chip: SuggestionChip) => {
         if (chip.autoSend) {
@@ -105,41 +95,34 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
     };
 
     return (
-        <div className="flex h-full w-full flex-col">
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4">
-                <div className="flex flex-col items-center gap-6" style={{ maxWidth: "640px" }}>
-                    {(effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon) ? (
-                        <img
-                            src={effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon}
-                            alt=""
-                            className={`w-auto opacity-90 ${
-                                { small: "h-12", medium: "h-24", large: "h-40" }[
-                                    effectiveWelcome?.welcome_icon_size || welcomeOverride?.welcome_icon_size || "small"
-                                ]
-                            }`}
-                        />
-                    ) : (
-                        <SolaceIcon variant="short" className="h-12 w-12 opacity-80" />
-                    )}
-                    <h1 className="text-foreground text-center text-3xl font-semibold tracking-tight">
-                        {welcomeMessage || defaultHeading}
-                    </h1>
-                    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-                        {suggestions.map((chip) => (
-                            <button
-                                key={chip.label}
-                                onClick={() => handleChipClick(chip)}
-                                className="border-border bg-background hover:bg-accent text-foreground flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
-                            >
-                                {chip.icon}
-                                {chip.label}
-                            </button>
-                        ))}
-                    </div>
+        <div className="flex h-full w-full flex-col items-center justify-center px-4 pb-32">
+            <div className="flex w-full flex-col items-center gap-6" style={{ maxWidth: "900px" }}>
+                {effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon ? (
+                    <img
+                        src={effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon}
+                        alt=""
+                        className={`w-auto opacity-90 ${{ small: "h-12", medium: "h-24", large: "h-40" }[effectiveWelcome?.welcome_icon_size || welcomeOverride?.welcome_icon_size || "small"]}`}
+                    />
+                ) : (
+                    <SolaceIcon variant="short" className="h-12 w-12 opacity-80" />
+                )}
+                <h1 className="text-foreground text-center text-3xl font-semibold tracking-tight">{welcomeMessage || defaultHeading}</h1>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    {suggestions.map(chip => (
+                        <button
+                            key={chip.label}
+                            onClick={() => handleChipClick(chip)}
+                            className="border-border bg-background hover:bg-accent text-foreground flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+                        >
+                            {chip.icon}
+                            {chip.label}
+                        </button>
+                    ))}
                 </div>
-            </div>
-            <div style={CHAT_STYLES} className="pb-6">
-                <ChatInputArea agents={agents} compact={compact} />
+                {/* Input area centered with the welcome content */}
+                <div className="mt-4 w-full" style={CHAT_STYLES}>
+                    <ChatInputArea agents={agents} compact={compact} />
+                </div>
             </div>
         </div>
     );

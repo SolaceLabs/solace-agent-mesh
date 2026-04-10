@@ -15,6 +15,8 @@ export interface ChatAreaProps {
     compact?: boolean;
     /** When true, never shows the welcome screen (always show input area) */
     hideWelcomeScreen?: boolean;
+    /** When true, hides the agent selector dropdown in the input area */
+    hideAgentSelector?: boolean;
     /** Optional className for the outermost wrapper div */
     className?: string;
     /**
@@ -36,19 +38,9 @@ export interface ChatAreaProps {
  *
  * Used by ChatPage (full-size) and FloatingChatPanel (compact mode).
  */
-export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, className, onViewProgress, welcomeOverride, renderMessageAddon }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, hideAgentSelector = false, className, onViewProgress, welcomeOverride, renderMessageAddon }) => {
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
-    const {
-        messages,
-        agents,
-        isResponding,
-        isLoadingSession,
-        latestStatusText,
-        currentTaskId,
-        selectedAgentName,
-        setTaskIdInSidePanel,
-        openSidePanelTab,
-    } = useChatContext();
+    const { messages, agents, isResponding, isLoadingSession, latestStatusText, currentTaskId, selectedAgentName, setTaskIdInSidePanel, openSidePanelTab } = useChatContext();
 
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
@@ -120,7 +112,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcome
                         </ChatMessageList>
                         <div style={CHAT_STYLES}>
                             {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={resolvedOnViewProgress} />}
-                            <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} compact={compact} />
+                            <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} compact={compact} hideAgentSelector={hideAgentSelector} />
                         </div>
                     </>
                 )}

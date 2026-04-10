@@ -71,7 +71,7 @@ export const RedirectButton: React.FC<RedirectButtonProps> = ({ data }) => {
 
     return (
         <div className="my-3">
-            <Button variant="outline" size="lg" onClick={handleClick} className="gap-2 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10">
+            <Button variant="default" size="lg" onClick={handleClick} className="gap-2">
                 <Sparkles className="h-4 w-4" />
                 {data.label || "Go to Builder"}
             </Button>

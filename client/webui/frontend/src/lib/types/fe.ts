@@ -143,7 +143,7 @@ export type PartFE = Part | ArtifactPart;
 /** A single progress update entry for inline display in AI messages */
 export interface ProgressUpdate {
     /** Type of progress event */
-    type: "status" | "tool_call" | "tool_result" | "artifact" | "delegation" | "thinking";
+    type: "status" | "tool_call" | "tool_result" | "artifact" | "delegation" | "thinking" | "builder_component";
     /** Human-readable text for the update */
     text: string;
     /** Timestamp when this update was received */
@@ -152,6 +152,10 @@ export interface ProgressUpdate {
     expandableContent?: string;
     /** Whether the expandable content is complete */
     isExpandableComplete?: boolean;
+    /** Links this update to a specific builder component (for builder_component type) */
+    builderComponentId?: string;
+    /** Builder component state change (for builder_component type) */
+    builderComponentState?: import("./builder").BuilderComponentState;
 }
 
 export interface MessageFE {
