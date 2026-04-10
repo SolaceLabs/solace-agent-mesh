@@ -358,9 +358,7 @@ class SchedulerService:
         """
         # Acquire a per-task lock so overlapping cron triggers for the same
         # task wait rather than corrupting the persistent session.
-        if task_id not in self._task_locks:
-            self._task_locks[task_id] = asyncio.Lock()
-        task_lock = self._task_locks[task_id]
+        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
 
         if task_lock.locked():
             log.warning(
@@ -688,7 +686,7 @@ class SchedulerService:
                 elif part.get("type") == "file":
                     message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
 
-            context_id = session_id
+            context_id = stable_session_id
             a2a_task_id = f"task-{uuid.uuid4().hex}"
 
             # Filter task_metadata to safe keys only

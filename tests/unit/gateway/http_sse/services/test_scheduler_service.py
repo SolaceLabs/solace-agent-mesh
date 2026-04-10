@@ -405,7 +405,7 @@ class TestMetadataFiltering:
         assert msg_meta.get("priority") == "high"
         assert msg_meta.get("tags") == ["daily"]
         assert "dangerous_key" not in msg_meta
-        assert msg_meta.get("sessionBehavior") == "PERSISTENT"  # protocol override
+        assert msg_meta.get("sessionBehavior") == "RUN_BASED"  # protocol override
         assert msg_meta.get("returnArtifacts") is True
 
         # Verify the request-level metadata also filters
@@ -477,7 +477,7 @@ class TestMetadataFiltering:
         assert msg_meta.get("priority") == "high"
         assert msg_meta.get("tags") == ["daily"]
         assert "dangerous_key" not in msg_meta
-        assert msg_meta.get("sessionBehavior") == "PERSISTENT"
+        assert msg_meta.get("sessionBehavior") == "RUN_BASED"
         assert msg_meta.get("returnArtifacts") is True
 
         # Verify the request-level metadata also filters
@@ -1232,7 +1232,7 @@ class TestPersistentSessionBehavior:
             await service._submit_task_to_agent_mesh("task-1", "exec-1", task_snapshot)
 
         assert len(captured_metadata) == 1
-        assert captured_metadata[0]["sessionBehavior"] == "PERSISTENT"
+        assert captured_metadata[0]["sessionBehavior"] == "RUN_BASED"
 
 
 # ===========================================================================
@@ -1252,8 +1252,11 @@ class TestPerTaskConcurrencyGuard:
 
         started = asyncio.Event()
         proceed = asyncio.Event()
+        submit_call_count = 0
 
         async def slow_submit(task_id, execution_id, task_snapshot):
+            nonlocal submit_call_count
+            submit_call_count += 1
             started.set()
             await proceed.wait()
 
@@ -1269,3 +1272,6 @@ class TestPerTaskConcurrencyGuard:
         # Let the first finish
         proceed.set()
         await first
+
+        # Only the first execution should have called submit
+        assert submit_call_count == 1

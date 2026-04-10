@@ -448,6 +448,7 @@ class TaskLoggerService:
 
         inherited = chat_task_repo.find_by_session(db, session_id, user_id)
         inherited_rag: list = []
+        seen_urls: set = set()
         max_inherit_tasks = 20
         recent_tasks = (inherited or [])[-max_inherit_tasks:]
         for prev_task in recent_tasks:
@@ -458,7 +459,11 @@ class TaskLoggerService:
                     else prev_task.task_metadata
                 )
                 for entry in prev_meta.get("rag_data", []):
-                    if entry not in inherited_rag:
+                    url = entry.get("url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        inherited_rag.append(entry)
+                    elif not url and entry not in inherited_rag:
                         inherited_rag.append(entry)
         if inherited_rag:
             log.info(

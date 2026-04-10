@@ -132,6 +132,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
 
+    // Reset to chat tab when scheduler feature is disabled
+    useEffect(() => {
+        if (!schedulerEnabled) setActiveTab("chat");
+    }, [schedulerEnabled]);
+
     // Shared-with-me (React Query)
     const sharedWithMeQuery = useSharedWithMe();
     const sharedWithMe = sharedWithMeQuery.data ?? [];

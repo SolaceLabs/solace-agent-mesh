@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import yaml
+from cachetools import TTLCache
 from a2a.types import (
     CancelTaskRequest,
     SendMessageRequest,
@@ -69,14 +70,18 @@ log = logging.getLogger(__name__)
 # Cache for fork metadata lookups so the DB is only queried once per session
 _fork_metadata_cache: dict[str, dict | None] = {}
 
-# Cache for scheduler conversation history so the DB is only queried once per session
-_scheduler_history_cache: dict[str, list | None] = {}
+# Cache for scheduler conversation history so the DB is only queried once per session.
+# Bounded to 256 entries with a 5-minute TTL to prevent unbounded memory growth.
+_scheduler_history_cache: TTLCache = TTLCache(maxsize=256, ttl=300)
 
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+MAX_SCHEDULER_HISTORY_ENTRIES = 50
+
+
 def _load_scheduler_conversation_history(
-    session_id: str, session_local_factory, log_prefix: str
+    session_id: str, session_local_factory, user_id: str, log_prefix: str
 ) -> list | None:
     """Load conversation history from ChatTask records for a scheduled-task session.
 
@@ -104,9 +109,7 @@ def _load_scheduler_conversation_history(
         db_sched = session_local_factory()
         try:
             task_repo = ChatTaskRepository()
-            # Use all-users variant since scheduled tasks may run under a
-            # system user different from the one continuing the chat.
-            tasks = task_repo.find_by_session_all_users(db_sched, session_id)
+            tasks = task_repo.find_by_session(db_sched, session_id, user_id)
             if not tasks:
                 log.debug(
                     "%sNo ChatTask records found for scheduler session %s",
@@ -137,6 +140,9 @@ def _load_scheduler_conversation_history(
                         history.append({"role": "assistant", "content": text})
 
             if history:
+                # Cap to the last N entries to avoid OOM / broker payload
+                # limit violations when history is injected as metadata.
+                history = history[-MAX_SCHEDULER_HISTORY_ENTRIES:]
                 log.info(
                     "%sLoaded %d conversation history entries from ChatTask records for scheduler session %s",
                     log_prefix, len(history), session_id,
@@ -807,7 +813,7 @@ async def _submit_task(
         # The original RUN_BASED ADK session is deleted after execution, so we
         # pass the history as metadata instead of trying to find a persistent
         # ADK session.
-        scheduler_history = _load_scheduler_conversation_history(session_id, SessionLocal, log_prefix)
+        scheduler_history = _load_scheduler_conversation_history(session_id, SessionLocal, client_id, log_prefix)
         if scheduler_history:
             additional_metadata["schedulerConversationHistory"] = scheduler_history
 
