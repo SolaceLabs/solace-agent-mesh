@@ -53,7 +53,7 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
     }
 
     return (
-        <div className={cn("flex items-center justify-center rounded-xs", config.container)}>
+        <div className={cn("flex items-center justify-center rounded-sm bg-white/90", config.container)}>
             <img src={iconPath} alt={providerKey} className={cn("object-contain", config.image)} onError={() => setImageError(true)} />
         </div>
     );
