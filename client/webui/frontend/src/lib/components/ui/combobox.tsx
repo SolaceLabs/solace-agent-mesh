@@ -202,22 +202,23 @@ export const ComboBox = ({
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <div role="combobox" aria-expanded={isOpen} aria-haspopup="listbox" className="contents">
-                <Input
-                    ref={inputRef}
-                    type="text"
-                    placeholder={placeholder}
-                    value={searchText || selectedItem?.label || ""}
-                    onChange={e => handleInputChange(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onMouseDown={handleMouseDown}
-                    onFocus={handleFocus}
-                    disabled={disabled || isLoading}
-                    aria-invalid={invalid}
-                    className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
-                    autoComplete="off"
-                />
-            </div>
+            <Input
+                ref={inputRef}
+                type="text"
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                placeholder={placeholder}
+                value={searchText || selectedItem?.label || ""}
+                onChange={e => handleInputChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onMouseDown={handleMouseDown}
+                onFocus={handleFocus}
+                disabled={disabled || isLoading}
+                aria-invalid={invalid}
+                className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
+                autoComplete="off"
+            />
             {isLoading ? (
                 <Loader2 className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin text-(--secondary-text-w50)" />
             ) : (
