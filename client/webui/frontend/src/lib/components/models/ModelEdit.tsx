@@ -336,7 +336,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem
+                    key={field.name}
+                    helpText={!isNew ? "Your API key is securely stored. Leave blank to keep the existing key, or enter a new value to replace it." : field.helpText}
+                    label={field.label}
+                    required={field.required}
+                    error={errors[field.name] as { message?: string }}
+                >
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
