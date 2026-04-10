@@ -103,7 +103,7 @@ jobs:
       - name: Run Tests with Hatch
         continue-on-error: true
         run: |
-          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ -n auto --maxprocesses=3 --dist loadgroup --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}.xml
+          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}.xml
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
