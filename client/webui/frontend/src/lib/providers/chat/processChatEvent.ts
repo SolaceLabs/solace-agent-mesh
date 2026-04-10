@@ -184,6 +184,17 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     let latestStatusText: string | null | undefined;
     const effects: ChatEffect[] = [];
 
+    // Builds the full output from all accumulated state. Used by early returns
+    // and the normal exit to avoid accidentally dropping state.
+    const buildOutput = (): ChatEventOutput => {
+        const output: ChatEventOutput = { messages, effects };
+        if (ragData !== undefined) output.ragData = ragData;
+        if (artifacts !== undefined) output.artifacts = artifacts;
+        if (latestStatusText !== undefined) output.latestStatusText = latestStatusText;
+        output.deepResearchQueryHistory = deepResearchQueryHistory;
+        return output;
+    };
+
     // --- Parse ---
     let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
     try {
@@ -369,16 +380,16 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
 
                             const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
                             if (otherParts.length === 0) {
-                                return { messages, latestStatusText, effects };
+                                return buildOutput();
                             }
                             break;
                         }
                         case "artifact_creation_progress": {
-                            const result = processArtifactCreationProgress(data, messages, input.artifacts, currentTaskIdFromResult, eventSequence, sessionId);
+                            const result = processArtifactCreationProgress(data, messages, artifacts ?? input.artifacts, currentTaskIdFromResult, eventSequence, sessionId);
                             messages = result.messages;
                             artifacts = result.artifacts;
                             effects.push(...result.effects);
-                            return { messages, artifacts, effects };
+                            return buildOutput();
                         }
                         case "tool_invocation_start":
                             break;
@@ -406,7 +417,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         }
                         case "rag_info_update": {
                             if (flags.ragEnabled) {
-                                ragData = processRagInfoUpdate(data, input.ragData, currentTaskIdFromResult);
+                                ragData = processRagInfoUpdate(data, ragData ?? input.ragData, currentTaskIdFromResult);
                             }
                             break;
                         }
@@ -428,7 +439,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         }
                         case "tool_result": {
                             if (flags.ragEnabled) {
-                                ragData = processToolResultRag(data, input.ragData, currentTaskIdFromResult);
+                                ragData = processToolResultRag(data, ragData ?? input.ragData, currentTaskIdFromResult);
                             }
                             break;
                         }
@@ -573,13 +584,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
         }
     }
 
-    const output: ChatEventOutput = { messages, effects };
-    if (ragData !== undefined) output.ragData = ragData;
-    if (artifacts !== undefined) output.artifacts = artifacts;
-    if (latestStatusText !== undefined) output.latestStatusText = latestStatusText;
-    // Always return the (possibly mutated) query history
-    output.deepResearchQueryHistory = deepResearchQueryHistory;
-    return output;
+    return buildOutput();
 }
 
 // ============ Helpers ============

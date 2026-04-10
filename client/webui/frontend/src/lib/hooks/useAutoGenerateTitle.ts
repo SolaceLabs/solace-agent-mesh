@@ -34,6 +34,7 @@ export function useAutoGenerateTitle() {
             try {
                 await generateTitle(sessionId, userText, agentText);
             } catch (error) {
+                generatedSessions.delete(sessionId);
                 console.error("[useAutoGenerateTitle] Title generation failed:", error);
             }
         },
@@ -78,6 +79,7 @@ export function useAutoGenerateTitle() {
                     await generateTitle(taskSessionId, userMessageText, agentResponseText);
                 }
             } catch (error) {
+                generatedSessions.delete(taskSessionId);
                 console.error("[useAutoGenerateTitle] Error generating title for task:", error);
             }
         },
