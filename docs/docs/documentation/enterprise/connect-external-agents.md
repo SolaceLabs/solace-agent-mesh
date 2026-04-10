@@ -9,6 +9,10 @@ The Connect External Agent feature allows you to integrate external A2A (Agent-t
 
 This feature provides a user-friendly alternative to manually configuring YAML proxy files. The wizard guides you through providing agent location details, configuring authentication, and reviewing the final configuration before connecting the agent.
 
+:::info NETWORK ACCESS REQUIRED
+This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## How External Agent Connections Work
 
 When you connect an external agent through the Enterprise UI, the system creates a proxy configuration that bridges the external agent to your Solace event mesh. The proxy performs protocol translation between A2A over HTTPS (used by the external agent) and A2A over Solace event mesh (used by agents in your mesh).

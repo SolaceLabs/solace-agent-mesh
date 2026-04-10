@@ -13,6 +13,10 @@ MCP connectors establish connections to remote MCP servers using one of two tran
 
 Agent Mesh Enterprise supports remote MCP servers only through the connector interface. The system does not support local MCP servers that use stdio (standard input/output) for communication. The connector requires network-accessible MCP servers using SSE or Streamable HTTP transport protocols. The connector supports multiple authentication methods and provides tool selection capabilities to control which MCP tools are available to agents.
 
+:::info NETWORK ACCESS REQUIRED
+This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Prerequisites
 
 Before you create an MCP connector, ensure you have the following:

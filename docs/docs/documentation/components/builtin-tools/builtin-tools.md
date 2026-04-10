@@ -13,6 +13,10 @@ Built-in tools are pre-packaged functionalities that can be granted to agents wi
 
 The Agent Mesh framework manages these tools through a central `tool_registry`, which is responsible for loading the tools, generating instructional prompts for the Large Language Model (LLM), and handling their execution in a consistent manner.
 
+:::info NETWORK ACCESS REQUIRED
+Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Configuration Methods
 
 Tool configuration is managed within the `tools` list in an agent's `app_config` block in the corresponding YAML configuration file.

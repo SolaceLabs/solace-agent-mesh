@@ -16,6 +16,10 @@ Gateways are a crucial component of the Agent Mesh framework that expose the age
 Gateways are the external interfaces that connect various systems to the A2A agent mesh through standardized protocols.
 :::
 
+:::info NETWORK ACCESS REQUIRED
+Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Key Functions
 
 1. **Entry Points**: Gateways act as the entry points from the outside world and translate external requests into A2A protocol messages and route them through the Solace event mesh to appropriate agents.

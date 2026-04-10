@@ -13,6 +13,10 @@ Slack gateways connect to Slack workspaces using the Slack Events API and Socket
 
 Socket Mode establishes a WebSocket connection from the gateway to Slack's servers, eliminating the need for public-facing endpoints or webhook URLs.
 
+:::info NETWORK ACCESS REQUIRED
+This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Prerequisites
 
 Before creating a Slack gateway, verify that you have the following:

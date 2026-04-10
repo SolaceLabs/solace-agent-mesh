@@ -7,6 +7,10 @@ sidebar_position: 10
 
 Gateways connect your Agent Mesh deployment to external systems, enabling agents to receive requests from and send responses to platforms like Slack, Microsoft Teams, and Solace Event Mesh brokers. You configure each gateway with connection details and routing rules for a specific integration target.
 
+:::info NETWORK ACCESS REQUIRED
+Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Gateway Types
 
 Agent Mesh Enterprise provides multiple gateway types, each integrating with a different external system.

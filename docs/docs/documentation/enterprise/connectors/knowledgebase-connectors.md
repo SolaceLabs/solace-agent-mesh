@@ -13,6 +13,10 @@ The connector retrieves information from knowledge bases, which can contain both
 
 This reduces hallucinations and ensures agents provide answers consistent with company policies, procedures, and documentation.
 
+:::info NETWORK ACCESS REQUIRED
+This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
+
 ## Supported Knowledge Bases
 
 Agent Mesh Enterprise supports the following knowledge base platforms:
