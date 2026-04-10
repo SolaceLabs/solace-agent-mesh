@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 
 import { Input } from "@/lib/components/ui";
-import { ConfirmationDialog } from "@/lib/components/common";
+import { ConfirmationDialog, MessageBanner } from "@/lib/components/common";
 import { Button } from "@/lib/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/lib/components/ui/dialog";
 import { pluginRegistry } from "@/lib/plugins";
 import { DEFAULT_MODEL_ALIASES } from "./common";
+import { getErrorMessage } from "@/lib/utils/api";
 
 interface ModelDeleteDialogProps {
     open: boolean;
@@ -66,12 +67,25 @@ const ConfirmDeleteDialog: React.FC<{
     modelAlias: string;
 }> = ({ open, onOpenChange, onConfirm, isLoading, modelId, modelAlias }) => {
     const [confirmText, setConfirmText] = useState("");
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const handleOpenChange = (isOpen: boolean) => {
         if (!isOpen) {
             setConfirmText("");
+            setDeleteError(null);
         }
         onOpenChange(isOpen);
+    };
+
+    const handleConfirm = async () => {
+        setDeleteError(null);
+        try {
+            await onConfirm();
+            setConfirmText("");
+        } catch (error) {
+            setDeleteError(getErrorMessage(error, "An error occurred while deleting the model."));
+            throw error; // Re-throw so ConfirmationDialog does not close
+        }
     };
 
     // Check if enterprise provides a custom delete dialog
@@ -88,12 +102,10 @@ const ConfirmDeleteDialog: React.FC<{
             actionLabels={{ confirm: "Delete" }}
             isEnabled={confirmText === "DELETE"}
             isLoading={isLoading}
-            onConfirm={async () => {
-                await onConfirm();
-                setConfirmText("");
-            }}
+            onConfirm={handleConfirm}
             content={
                 <div className="flex flex-col gap-4">
+                    {deleteError && <MessageBanner variant="error" message={deleteError} dismissible onDismiss={() => setDeleteError(null)} />}
                     <p>If any code-based agents are referencing this model, they will no longer function correctly. This action cannot be undone.</p>
                     <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium">
