@@ -1,3 +1,5 @@
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 # Speech Integration
 
 :::warning Experimental Feature
@@ -11,6 +13,8 @@ Agent Mesh provides speech capabilities through integrated Speech-to-Text (STT) 
 The speech system consists of two complementary services that work together to enable voice interactions. The STT service converts spoken audio into text that agents can process, while the TTS service transforms agent responses into natural-sounding speech. Both services support multiple providers and can be configured independently based on your requirements.
 
 The system integrates with the WebUI gateway to provide seamless voice interactions in chat interfaces. When you enable speech features, users see microphone and speaker controls that allow them to speak their questions and hear agent responses without typing.
+
+<NetworkAccessRequiredSingleFeature />
 
 ## Configuring Speech Services
 
