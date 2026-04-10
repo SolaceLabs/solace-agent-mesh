@@ -222,7 +222,9 @@ REMEMBER:
             "content": user_message + template_context + commands_context
         })
         
-        # Call LLM with JSON mode
+        # Call LLM — only request JSON mode when the model supports it.
+        # Models accessed via an OpenAI-compatible proxy (e.g. openai/claude-*)
+        # often don't support response_schema and return {} or empty content.
         try:
             from google.genai import types
             from google.adk.models.llm_request import LlmRequest
@@ -241,13 +243,24 @@ REMEMBER:
                         )
                     )
 
+            # Determine if the model supports response_schema
+            config_kwargs: dict = {
+                "system_instruction": system_text.strip() if system_text else None,
+                "temperature": 0.1,
+            }
+            try:
+                from litellm import supports_response_schema as _supports_rs
+                model_name = getattr(self.llm, "model", None) or ""
+                if _supports_rs(model=model_name, custom_llm_provider=None):
+                    config_kwargs["response_schema"] = {"type": "json_object"}
+                else:
+                    logger.info("Model %s does not support response_schema; relying on system prompt for JSON output", model_name)
+            except Exception:
+                logger.debug("Could not determine response_schema support; skipping JSON mode")
+
             llm_request = LlmRequest(
                 contents=user_parts,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_text.strip() if system_text else None,
-                    temperature=0.1,
-                    response_schema={"type": "json_object"},
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
 
             content = None
@@ -258,7 +271,16 @@ REMEMBER:
                             content = part.text
                             break
             logger.info(f"LLM Response: {content}")
-            
+
+            # Strip markdown code fences that LLMs commonly wrap JSON in
+            # when response_schema/json_object mode is not active.
+            if content:
+                stripped = content.strip()
+                if stripped.startswith("```"):
+                    stripped = re.sub(r'^```(?:json)?\s*\n?', '', stripped)
+                    stripped = re.sub(r'\n?```\s*$', '', stripped)
+                    content = stripped.strip()
+
             try:
                 parsed = json.loads(content)
             except json.JSONDecodeError as e:

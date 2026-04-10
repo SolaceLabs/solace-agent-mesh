@@ -31,6 +31,8 @@ apps:
       artifact_service: *default_artifact_service
 
       model: *general_model
+      model_provider: 
+        - "general"
 
       gateway_id: ${WEBUI_GATEWAY_ID}
       fastapi_host: ${FASTAPI_HOST}

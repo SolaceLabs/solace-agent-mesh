@@ -19,6 +19,8 @@ apps:
       agent_name: "MarkitdownAgent"
       display_name: "Markdown Agent"
       model: *general_model
+      model_provider: 
+        - "general"
       instruction: |
         The Markitdown Agent has the following capability:
         * convert various file types (like PDF, DOCX, XLSX, HTML, CSV, PPTX, ZIP) to Markdown.

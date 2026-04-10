@@ -46,7 +46,11 @@ describe("SortableTableHead", () => {
 
     test("calls onSort with the column key when clicked", () => {
         const onSort = vi.fn();
-        renderInTable(<SortableTableHead {...baseProps} onSort={onSort}>Name</SortableTableHead>);
+        renderInTable(
+            <SortableTableHead {...baseProps} onSort={onSort}>
+                Name
+            </SortableTableHead>
+        );
         fireEvent.click(screen.getByRole("button"));
         expect(onSort).toHaveBeenCalledWith("name");
         expect(onSort).toHaveBeenCalledTimes(1);
@@ -64,7 +68,11 @@ describe("SortableTableHead", () => {
     });
 
     test("renders one sort icon when inactive", () => {
-        renderInTable(<SortableTableHead {...baseProps} currentSortKey="other">Name</SortableTableHead>);
+        renderInTable(
+            <SortableTableHead {...baseProps} currentSortKey="other">
+                Name
+            </SortableTableHead>
+        );
         const svgs = screen.getByRole("button").querySelectorAll("svg");
         expect(svgs).toHaveLength(1);
     });
@@ -90,7 +98,11 @@ describe("SortableTableHead", () => {
     });
 
     test("inactive icon has opacity-40 class (dimmed)", () => {
-        renderInTable(<SortableTableHead {...baseProps} currentSortKey="other">Name</SortableTableHead>);
+        renderInTable(
+            <SortableTableHead {...baseProps} currentSortKey="other">
+                Name
+            </SortableTableHead>
+        );
         const svg = screen.getByRole("button").querySelector("svg");
         expect(svg?.getAttribute("class")).toContain("opacity-40");
     });

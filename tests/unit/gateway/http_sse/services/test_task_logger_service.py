@@ -928,6 +928,140 @@ class TestSaveChatMessagesForBackgroundTask:
         
         with patch('solace_agent_mesh.gateway.http_sse.services.task_logger_service.log') as mock_log:
             service._save_chat_messages_for_background_task(mock_db, "task-123", mock_task, mock_repo)
-            
+
             mock_log.warning.assert_called()
             assert "No message bubbles" in str(mock_log.warning.call_args)
+
+
+# ===========================================================================
+# RAG citation inheritance
+# ===========================================================================
+
+class TestInheritRagFromSession:
+    """Tests for ``_inherit_rag_from_session`` citation-triggered RAG inheritance."""
+
+    @pytest.fixture
+    def service(self):
+        return TaskLoggerService(None, {})
+
+    def _make_prev_task(self, rag_entries):
+        """Helper to build a mock previous ChatTask with given RAG data."""
+        import json
+        task = Mock()
+        task.task_metadata = json.dumps({"rag_data": rag_entries})
+        return task
+
+    # (a) RAG data inherited when agent text contains [[cite:...]]
+    def test_inherits_rag_when_citation_present(self, service):
+        bubbles = [{"type": "agent", "text": "See [[cite:search0]] for details."}]
+        prev_task = self._make_prev_task([{"source": "A", "url": "http://a.com"}])
+
+        mock_repo = Mock()
+        mock_repo.find_by_session.return_value = [prev_task]
+        mock_db = Mock()
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        assert result == [{"source": "A", "url": "http://a.com"}]
+        mock_repo.find_by_session.assert_called_once_with(mock_db, "session-1", "user-1")
+
+    # (b) No inheritance when no citation markers present
+    def test_no_inheritance_without_citation(self, service):
+        bubbles = [{"type": "agent", "text": "Plain answer with no citations."}]
+        mock_repo = Mock()
+        mock_db = Mock()
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        assert result is None
+        mock_repo.find_by_session.assert_not_called()
+
+    # (c) Deduplication of overlapping entries across tasks
+    def test_deduplicates_overlapping_entries(self, service):
+        shared_entry = {"source": "A", "url": "http://a.com"}
+        unique_entry = {"source": "B", "url": "http://b.com"}
+
+        prev_task_1 = self._make_prev_task([shared_entry, unique_entry])
+        prev_task_2 = self._make_prev_task([shared_entry])  # duplicate
+
+        mock_repo = Mock()
+        mock_repo.find_by_session.return_value = [prev_task_1, prev_task_2]
+        mock_db = Mock()
+
+        bubbles = [{"type": "agent", "text": "See [[cite:search0]]."}]
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        assert result == [shared_entry, unique_entry]
+
+    # (d) Graceful handling when find_by_session raises
+    def test_exception_from_find_by_session_propagates(self, service):
+        """The method lets the exception propagate; the caller catches it."""
+        mock_repo = Mock()
+        mock_repo.find_by_session.side_effect = RuntimeError("DB gone")
+        mock_db = Mock()
+
+        bubbles = [{"type": "agent", "text": "[[cite:search0]]"}]
+
+        with pytest.raises(RuntimeError, match="DB gone"):
+            service._inherit_rag_from_session(
+                mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+            )
+
+    def test_returns_none_when_no_rag_in_previous_tasks(self, service):
+        """If previous tasks have no rag_data, returns None."""
+        prev_task = self._make_prev_task([])
+        mock_repo = Mock()
+        mock_repo.find_by_session.return_value = [prev_task]
+        mock_db = Mock()
+
+        bubbles = [{"type": "agent", "text": "See [[cite:search0]]."}]
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        assert result is None
+
+    def test_caps_to_20_most_recent_tasks(self, service):
+        """Only the last 20 tasks should be considered."""
+        # Create 25 tasks — first 5 have unique data, last 20 have none
+        old_tasks = [self._make_prev_task([{"source": f"old-{i}"}]) for i in range(5)]
+        recent_tasks = [self._make_prev_task([]) for _ in range(20)]
+        all_tasks = old_tasks + recent_tasks
+
+        mock_repo = Mock()
+        mock_repo.find_by_session.return_value = all_tasks
+        mock_db = Mock()
+
+        bubbles = [{"type": "agent", "text": "[[cite:search0]]"}]
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        # The 5 old tasks are outside the 20-task window, so no data inherited
+        assert result is None
+
+    def test_handles_dict_task_metadata(self, service):
+        """task_metadata that is already a dict (not a JSON string) is handled."""
+        prev_task = Mock()
+        prev_task.task_metadata = {"rag_data": [{"source": "X"}]}
+
+        mock_repo = Mock()
+        mock_repo.find_by_session.return_value = [prev_task]
+        mock_db = Mock()
+
+        bubbles = [{"type": "agent", "text": "[[cite:s0]]"}]
+
+        result = service._inherit_rag_from_session(
+            mock_db, mock_repo, "session-1", "user-1", "task-1", bubbles,
+        )
+
+        assert result == [{"source": "X"}]

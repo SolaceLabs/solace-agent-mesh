@@ -1,8 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
-import { Ellipsis } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, SortableTableHead, useSortableTable, type MenuAction } from "@/lib/components/ui";
+import { Ellipsis, AlertTriangle } from "lucide-react";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Button,
+    Badge,
+    Menu,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SortableTableHead,
+    useSortableTable,
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    type MenuAction,
+} from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { useChatContext } from "@/lib/hooks";
 
@@ -10,7 +30,7 @@ import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
-import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES } from "./common";
+import { getProviderDisplayName, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES, isModelConfigured } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -151,7 +171,7 @@ export const ModelsView: React.FC = () => {
                                         <TableRow
                                             key={model.id}
                                             ref={highlightedModelId === model.id ? highlightedRowRef : null}
-                                            className={`transition-colors duration-500 ${highlightedModelId === model.id ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
+                                            className={cn("transition-colors duration-500", highlightedModelId === model.id ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)")}
                                         >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />
@@ -159,9 +179,19 @@ export const ModelsView: React.FC = () => {
                                                     {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
                                                 {DEFAULT_MODEL_ALIASES.includes(model.alias) && <Badge>Default</Badge>}
+                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && !isModelConfigured(model) && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <AlertTriangle className="h-4 w-4 shrink-0 cursor-default text-(--warning-wMain)" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>This model needs connection details configured before it can be used.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                )}
                                             </TableCell>
-                                            <TableCell>{getDisplayModelName(model.modelName)}</TableCell>
-                                            <TableCell>{PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}</TableCell>
+                                            <TableCell>{getDisplayModelName(model.modelName) || <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
+                                            <TableCell>{getProviderDisplayName(model.provider) ?? <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
                                             <TableCell className="pr-4 text-right">
                                                 <Popover>
                                                     <PopoverTrigger asChild>
