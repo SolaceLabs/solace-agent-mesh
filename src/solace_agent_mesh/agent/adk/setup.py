@@ -1015,6 +1015,16 @@ def initialize_adk_agent(
             component.log_identifier,
         )
 
+        model_override_cb = functools.partial(
+            adk_callbacks.apply_model_override_callback,
+            host_component=component,
+        )
+        callbacks_in_order_for_before_model.append(model_override_cb)
+        log.debug(
+            "%s Added apply_model_override_callback to before_model chain.",
+            component.log_identifier,
+        )
+
         if hasattr(component, "_inject_peer_tools_callback"):
             callbacks_in_order_for_before_model.append(
                 component._inject_peer_tools_callback
