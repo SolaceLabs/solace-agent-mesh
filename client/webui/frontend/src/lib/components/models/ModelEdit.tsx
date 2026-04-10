@@ -184,6 +184,22 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
         }
     }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
 
+    // Clear all authentication and model fields when the user switches auth type
+    const handleAuthTypeChange = useCallback(
+        (newAuthType: string, formOnChange: (value: string) => void) => {
+            formOnChange(newAuthType);
+            for (const fields of Object.values(AUTH_FIELDS)) {
+                for (const field of fields) {
+                    setValue(field.name, "");
+                }
+            }
+            setStoredCredentialFields(new Set());
+            setValue("modelName", "");
+            setQueryParams(null);
+        },
+        [setValue]
+    );
+
     // When the model dropdown opens, commit the current form credentials as query params.
     // React Query handles caching: if params haven't changed since the last successful
     // fetch the cached result is returned; if they changed a fresh request is made.
@@ -452,7 +468,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                 <div className="flex gap-4">
                                                     {providerConfig.allowedAuthTypes.map(authType => (
                                                         <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => field.onChange(authType)} />
+                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => handleAuthTypeChange(authType, field.onChange)} />
                                                             <span className="text-sm">{AUTH_TYPE_LABELS[authType as AuthType]}</span>
                                                         </label>
                                                     ))}
@@ -494,6 +510,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
                                             return (
                                                 <ComboBox
+                                                    key={selectedAuthType}
                                                     value={field.value}
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
