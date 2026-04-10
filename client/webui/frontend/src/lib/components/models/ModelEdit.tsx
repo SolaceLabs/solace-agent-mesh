@@ -193,6 +193,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             }
         }
         setStoredCredentialFields(new Set());
+        setValue("modelName", "");
     }, [selectedAuthType, setValue]);
 
     // When the model dropdown opens, commit the current form credentials as query params.
