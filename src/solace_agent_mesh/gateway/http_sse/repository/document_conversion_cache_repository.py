@@ -11,6 +11,7 @@ from typing import Optional
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from .models.document_conversion_cache_model import DocumentConversionCacheModel
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
@@ -45,24 +46,26 @@ class DocumentConversionCacheRepository:
         Returns:
             Cached PDF bytes, or None if not cached
         """
-        entry = db.query(DocumentConversionCacheModel).filter(
-            DocumentConversionCacheModel.content_hash == content_hash,
-            DocumentConversionCacheModel.file_extension == file_extension,
-        ).first()
-        
+        with MonitorLatency(DBMonitor.query("document_conversion_cache")):
+            entry = db.query(DocumentConversionCacheModel).filter(
+                DocumentConversionCacheModel.content_hash == content_hash,
+                DocumentConversionCacheModel.file_extension == file_extension,
+            ).first()
+
         if entry:
             # Get the PDF data before updating stats
             pdf_data = entry.pdf_data
             pdf_size = entry.pdf_size_bytes
-            
+
             # Update access stats atomically using SQL increment
             # This prevents race conditions where concurrent reads could lose count updates
-            db.query(DocumentConversionCacheModel).filter(
-                DocumentConversionCacheModel.id == entry.id
-            ).update({
-                "last_accessed_at": now_epoch_ms(),
-                "access_count": DocumentConversionCacheModel.access_count + 1,
-            })
+            with MonitorLatency(DBMonitor.update("document_conversion_cache")):
+                db.query(DocumentConversionCacheModel).filter(
+                    DocumentConversionCacheModel.id == entry.id
+                ).update({
+                    "last_accessed_at": now_epoch_ms(),
+                    "access_count": DocumentConversionCacheModel.access_count + 1,
+                })
             
             log.debug(
                 "%s Cache HIT for %s.%s (size: %d bytes)",
@@ -120,9 +123,10 @@ class DocumentConversionCacheRepository:
         )
         
         try:
-            db.add(entry)
-            db.flush()  # Trigger constraint check
-            
+            with MonitorLatency(DBMonitor.insert("document_conversion_cache")):
+                db.add(entry)
+                db.flush()  # Trigger constraint check
+
             log.info(
                 "%s Cached PDF for %s.%s (original: %d bytes, pdf: %d bytes)",
                 self.log_identifier,
@@ -132,7 +136,6 @@ class DocumentConversionCacheRepository:
                 len(pdf_data),
             )
             return True
-            
         except IntegrityError:
             # Another request already cached this document (race condition)
             # This is expected and not an error
@@ -145,6 +148,7 @@ class DocumentConversionCacheRepository:
             )
             return False
 
+    @MonitorLatency(DBMonitor.delete("document_conversion_cache"))
     def delete_cached_pdf(
         self,
         db: DBSession,
@@ -153,12 +157,12 @@ class DocumentConversionCacheRepository:
     ) -> bool:
         """
         Delete a cached PDF entry.
-        
+
         Args:
             db: Database session
             content_hash: SHA-256 hex digest of the original document content
             file_extension: File extension (docx, pptx, etc.)
-            
+
         Returns:
             True if deleted, False if not found
         """
@@ -166,7 +170,7 @@ class DocumentConversionCacheRepository:
             DocumentConversionCacheModel.content_hash == content_hash,
             DocumentConversionCacheModel.file_extension == file_extension,
         ).delete()
-        
+
         if deleted > 0:
             log.debug(
                 "%s Deleted cache entry for %s.%s",
@@ -177,6 +181,7 @@ class DocumentConversionCacheRepository:
         
         return deleted > 0
 
+    @MonitorLatency(DBMonitor.delete("document_conversion_cache"))
     def cleanup_old_entries(
         self,
         db: DBSession,
@@ -184,20 +189,16 @@ class DocumentConversionCacheRepository:
     ) -> int:
         """
         Delete cache entries not accessed since the specified time.
-        
         This implements LRU-like cleanup based on last_accessed_at timestamp.
-        
         Args:
             db: Database session
             older_than_ms: Delete entries with last_accessed_at before this epoch time (ms)
-            
         Returns:
             Number of entries deleted
         """
         deleted = db.query(DocumentConversionCacheModel).filter(
             DocumentConversionCacheModel.last_accessed_at < older_than_ms
         ).delete()
-        
         if deleted > 0:
             log.info(
                 "%s Cleaned up %d old cache entries (older than %d ms)",
@@ -208,6 +209,7 @@ class DocumentConversionCacheRepository:
         
         return deleted
 
+    @MonitorLatency(DBMonitor.query("document_conversion_cache"))
     def get_stats(self, db: DBSession) -> dict:
         """
         Get cache statistics.
@@ -230,7 +232,7 @@ class DocumentConversionCacheRepository:
             func.min(DocumentConversionCacheModel.last_accessed_at),
             func.max(DocumentConversionCacheModel.last_accessed_at),
         ).first()
-        
+
         return {
             "cached_conversions": stats[0] or 0,
             "total_cached_bytes": stats[1] or 0,
@@ -239,13 +241,12 @@ class DocumentConversionCacheRepository:
             "newest_entry_ms": stats[4],
         }
 
+    @MonitorLatency(DBMonitor.query("document_conversion_cache"))
     def get_entry_count(self, db: DBSession) -> int:
         """
         Get the number of cached entries.
-        
         Args:
             db: Database session
-            
         Returns:
             Number of cached entries
         """
