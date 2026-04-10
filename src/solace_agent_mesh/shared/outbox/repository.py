@@ -92,7 +92,7 @@ class OutboxEventRepository:
         update_fields = data.model_dump(exclude_none=True)
         for field, value in update_fields.items():
             setattr(event, field, value)
-        with MonitorLatency(DBMonitor.update("outbox_events"))
+        with MonitorLatency(DBMonitor.update("outbox_events")):
             session.flush()
         return OutboxEventEntity.model_validate(event)
 
