@@ -373,8 +373,8 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
  * Get the configuration for a specific provider.
  * Returns the provider config with field definitions, auth types, and placeholders.
  */
-export function getProviderConfig(providerId: string): ProviderConfig {
-    return PROVIDER_CONFIGS[providerId] || PROVIDER_CONFIGS.custom;
+export function getProviderConfig(providerId: string | null | undefined): ProviderConfig {
+    return (providerId && PROVIDER_CONFIGS[providerId]) || PROVIDER_CONFIGS.custom;
 }
 
 /**

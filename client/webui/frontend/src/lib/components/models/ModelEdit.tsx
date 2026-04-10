@@ -268,7 +268,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
             // Populate provider-specific fields and custom params from modelParams
             if (modelToEdit.modelParams) {
-                const config = getProviderConfig(modelToEdit.provider ?? "");
+                const config = getProviderConfig(modelToEdit.provider);
                 const knownParamNames = new Set<string>();
 
                 // Add provider-specific fields to known params

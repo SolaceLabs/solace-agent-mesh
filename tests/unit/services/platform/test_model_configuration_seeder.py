@@ -14,9 +14,7 @@ from solace_agent_mesh.services.platform.services.model_configuration_seeder imp
     _infer_provider,
     _seed_from_models_config,
     _seed_from_env_vars,
-    _ensure_default_aliases,
 )
-from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
 
 
 class TestInferProvider:
