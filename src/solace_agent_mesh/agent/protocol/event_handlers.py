@@ -854,6 +854,12 @@ async def _inject_scheduler_conversation_history(
             )
             return
 
+        # Re-fetch interval: proactively refresh the session every N appends
+        # to reduce stale-session retries inside append_event_with_retry.
+        # A value of 10 means at most 1 in 10 appends may trigger a retry
+        # instead of every single one, cutting session lookups by ~80%.
+        _REFETCH_INTERVAL = 10
+
         injected_count = 0
         for entry in conversation_history:
             role = entry.get("role", "")
@@ -885,12 +891,15 @@ async def _inject_scheduler_conversation_history(
                 session_id=effective_session_id,
                 log_identifier=f"{component.log_identifier}[SchedulerHistory:{logical_task_id}]",
             )
-
-            # Re-fetch session after each append to keep it fresh
-            adk_session = await component.session_service.get_session(
-                app_name=agent_name, user_id=user_id, session_id=effective_session_id
-            )
             injected_count += 1
+
+            # Periodically re-fetch the session to keep it fresh and avoid
+            # stale-session retries on every subsequent append.  The retry
+            # helper handles any remaining staleness between refreshes.
+            if injected_count % _REFETCH_INTERVAL == 0:
+                adk_session = await component.session_service.get_session(
+                    app_name=agent_name, user_id=user_id, session_id=effective_session_id
+                )
 
         log.info(
             "%s Injected %d scheduler conversation history events into ADK session '%s' for task '%s'.",

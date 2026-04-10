@@ -101,9 +101,15 @@ def _load_scheduler_conversation_history(
     if not session_id or not session_id.startswith("scheduled_") or session_local_factory is None:
         return None
 
+    # Include user_id in the cache key for defense-in-depth.  Scheduled
+    # session IDs already contain a UUID so collisions across users are
+    # extremely unlikely, but keying on both values prevents any
+    # theoretical cross-user cache hit.
+    cache_key = f"{session_id}:{user_id}"
+
     # Return cached result if available
-    if session_id in _scheduler_history_cache:
-        return _scheduler_history_cache[session_id]
+    if cache_key in _scheduler_history_cache:
+        return _scheduler_history_cache[cache_key]
 
     try:
         db_sched = session_local_factory()
@@ -115,7 +121,7 @@ def _load_scheduler_conversation_history(
                     "%sNo ChatTask records found for scheduler session %s",
                     log_prefix, session_id,
                 )
-                _scheduler_history_cache[session_id] = None
+                _scheduler_history_cache[cache_key] = None
                 return None
 
             history: list[dict[str, str]] = []
@@ -147,14 +153,14 @@ def _load_scheduler_conversation_history(
                     "%sLoaded %d conversation history entries from ChatTask records for scheduler session %s",
                     log_prefix, len(history), session_id,
                 )
-                _scheduler_history_cache[session_id] = history
+                _scheduler_history_cache[cache_key] = history
                 return history
             else:
                 log.debug(
                     "%sNo extractable conversation history in ChatTask records for scheduler session %s",
                     log_prefix, session_id,
                 )
-                _scheduler_history_cache[session_id] = None
+                _scheduler_history_cache[cache_key] = None
                 return None
         finally:
             db_sched.close()
@@ -164,7 +170,7 @@ def _load_scheduler_conversation_history(
             log_prefix, session_id, e,
             exc_info=True,
         )
-        _scheduler_history_cache[session_id] = None
+        _scheduler_history_cache[cache_key] = None
     return None
 
 

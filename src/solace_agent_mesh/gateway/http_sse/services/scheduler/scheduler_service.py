@@ -325,6 +325,10 @@ class SchedulerService:
                 if task_id in self.active_tasks:
                     del self.active_tasks[task_id]
 
+        # Clean up per-task lock to prevent unbounded memory growth
+        # in long-running deployments where tasks are created/deleted.
+        self._task_locks.pop(task_id, None)
+
     def _create_trigger(self, task: ScheduledTaskModel):
         """Create an APScheduler trigger based on task configuration."""
         if task.schedule_type == ScheduleType.CRON:
