@@ -34,7 +34,7 @@ export function useAutoGenerateTitle() {
             try {
                 await generateTitle(sessionId, userText, agentText);
             } catch (error) {
-                console.error("[useAutoTitleGeneration] Title generation failed:", error);
+                console.error("[useAutoGenerateTitle] Title generation failed:", error);
             }
         },
         [autoTitleGenerationEnabled, generateTitle]
@@ -78,7 +78,7 @@ export function useAutoGenerateTitle() {
                     await generateTitle(taskSessionId, userMessageText, agentResponseText);
                 }
             } catch (error) {
-                console.error("[useAutoTitleGeneration] Error generating title for task:", error);
+                console.error("[useAutoGenerateTitle] Error generating title for task:", error);
             }
         },
         [autoTitleGenerationEnabled, generateTitle]
