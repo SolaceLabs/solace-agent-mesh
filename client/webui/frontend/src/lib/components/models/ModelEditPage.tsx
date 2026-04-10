@@ -106,7 +106,7 @@ export const ModelEditPage = () => {
 
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
-                {isFetchModelsError && <MessageBanner variant="warning" message="Unable to load available models for this provider. You can still select a model manually." dismissible />}
+                {isNew && isFetchModelsError && <MessageBanner variant="warning" message="Unable to load available models for this provider. You can still select a model manually." dismissible />}
 
                 <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
