@@ -40,7 +40,8 @@ def alembic_config(dialect_db) -> Config:
             cursor.execute("PRAGMA journal_mode = WAL")
             cursor.execute("PRAGMA temp_store = MEMORY")
             cursor.execute("PRAGMA cache_size = -64000")
-            cursor.execute("PRAGMA foreign_keys=ON")
+            # NOTE: PRAGMA foreign_keys=ON removed - it's connection-specific and causes issues
+            # when different engines/connections are used (e.g., Alembic vs test inspector)
             cursor.close()
 
     Base.metadata.create_all(engine)

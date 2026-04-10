@@ -149,21 +149,38 @@ def clean_sqlite_db() -> Generator[str, None, None]:
 
     Using file-based instead of :memory: because in-memory creates
     a separate database per connection, breaking alembic + inspector isolation.
+
+    Performance optimizations:
+    - WAL mode set once (persists in DB file, speeds up all writes)
     """
     import tempfile
     import os
+    from sqlalchemy import create_engine
 
     # Create temporary file
     fd, path = tempfile.mkstemp(suffix='.db')
     os.close(fd)
 
+    # Set WAL mode (persists in DB file across all connections)
     url = f"sqlite:///{path}"
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        conn.exec_driver_sql("PRAGMA journal_mode = WAL")
+        conn.commit()
+    engine.dispose()
+
     yield url
 
     # Cleanup
     try:
         os.unlink(path)
-    except:
+        # Clean up WAL files
+        for suffix in ['-shm', '-wal']:
+            try:
+                os.unlink(f"{path}{suffix}")
+            except FileNotFoundError:
+                pass
+    except FileNotFoundError:
         pass
 
 
@@ -246,22 +263,7 @@ def db_engine(dialect_db):
 
     Automatically disposed after test.
     """
-    from sqlalchemy import event
-
     engine = create_engine(dialect_db)
-
-    # Speed optimizations for SQLite tests (50-100x faster writes)
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, connection_record):
-        if dialect_db.startswith("sqlite"):
-            cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA synchronous = OFF")        # Don't wait for disk sync
-            cursor.execute("PRAGMA journal_mode = WAL")       # Write-Ahead Logging
-            cursor.execute("PRAGMA temp_store = MEMORY")      # Temp tables in memory
-            cursor.execute("PRAGMA cache_size = -64000")      # 64MB cache
-            cursor.execute("PRAGMA foreign_keys=ON")          # Keep FK enforcement
-            cursor.close()
-
     yield engine
     engine.dispose()
 
