@@ -248,12 +248,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             hasInitializedFromModelRef.current = true;
 
             setValue("alias", modelToEdit.alias);
-            setValue("provider", modelToEdit.provider);
+            setValue("provider", modelToEdit.provider ?? "");
 
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
-            let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
+            let modelName = modelToEdit.modelName ?? "";
+            if (modelToEdit.provider === "custom" && modelName.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
