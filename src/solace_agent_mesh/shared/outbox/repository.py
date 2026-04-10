@@ -2,6 +2,7 @@ import logging
 
 from solace_agent_mesh.shared.api.pagination import PaginationParams
 from sqlalchemy.orm import Session
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from ..database import generate_uuidv7
 from .entity import OutboxEventEntity
@@ -16,6 +17,7 @@ log = logging.getLogger(__name__)
 
 class OutboxEventRepository:
 
+    @MonitorLatency(DBMonitor.insert("outbox_events"))
     def create_event(self, session: Session, data: CreateOutboxEventModel) -> OutboxEventEntity:
         event = OutboxEventModel(
             id=generate_uuidv7(),
@@ -28,8 +30,10 @@ class OutboxEventRepository:
         )
         session.add(event)
         session.flush()
+
         return OutboxEventEntity.model_validate(event)
 
+    @MonitorLatency(DBMonitor.insert("outbox_events"))
     def create_events_batch(self, session: Session, events: list[CreateOutboxEventModel]) -> list[OutboxEventEntity]:
         db_events = []
         for data in events:
@@ -45,8 +49,10 @@ class OutboxEventRepository:
             session.add(event)
             db_events.append(event)
         session.flush()
+
         return [OutboxEventEntity.model_validate(e) for e in db_events]
 
+    @MonitorLatency(DBMonitor.query("outbox_events"))
     def get_pending_events(self, session: Session, now_ms: int, limit: int = 50) -> list[OutboxEventEntity]:
         rows = (
             session.query(OutboxEventModel)
@@ -58,8 +64,10 @@ class OutboxEventRepository:
             .limit(limit)
             .all()
         )
+
         return [OutboxEventEntity.model_validate(r) for r in rows]
 
+    @MonitorLatency(DBMonitor.query("outbox_events"))
     def has_pending_event(
         self, session: Session, entity_type: str, entity_id: str, event_type: str
     ) -> bool:
@@ -76,22 +84,27 @@ class OutboxEventRepository:
         )
 
     def update_event(self, session: Session, event_id: str, data: UpdateOutboxEventModel) -> OutboxEventEntity:
-        event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
-        if event is None:
-            raise ValueError(f"Outbox event not found: {event_id}")
+        with MonitorLatency(DBMonitor.query("outbox_events")):
+            event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
+            if event is None:
+                raise ValueError(f"Outbox event not found: {event_id}")
 
         update_fields = data.model_dump(exclude_none=True)
         for field, value in update_fields.items():
             setattr(event, field, value)
-        session.flush()
+        with MonitorLatency(DBMonitor.update("outbox_events")):
+            session.flush()
         return OutboxEventEntity.model_validate(event)
 
+    @MonitorLatency(DBMonitor.query("outbox_events"))
     def get_event_by_id(self, session: Session, event_id: str) -> OutboxEventEntity | None:
         event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
+
         if event is None:
             return None
         return OutboxEventEntity.model_validate(event)
 
+    @MonitorLatency(DBMonitor.query("outbox_events"))
     def get_events_paginated(
         self,
         session: Session,
@@ -122,15 +135,16 @@ class OutboxEventRepository:
         if not event_ids:
             return set()
 
-        events = (
-            session.query(OutboxEventModel)
-            .filter(
-                OutboxEventModel.id.in_(event_ids),
-                OutboxEventModel.status == "pending",
+        with MonitorLatency(DBMonitor.query("outbox_events")):
+            events = (
+                session.query(OutboxEventModel)
+                .filter(
+                    OutboxEventModel.id.in_(event_ids),
+                    OutboxEventModel.status == "pending",
+                )
+                .order_by(OutboxEventModel.created_time.desc())
+                .all()
             )
-            .order_by(OutboxEventModel.created_time.desc())
-            .all()
-        )
 
         groups: dict[tuple[str, str], list[OutboxEventModel]] = {}
         for event in events:
@@ -147,22 +161,25 @@ class OutboxEventRepository:
                 deduplicated_ids.add(older.id)
 
         if deduplicated_ids:
-            session.flush()
+            with MonitorLatency(DBMonitor.update("outbox_events")):
+                session.flush()
+
         return deduplicated_ids
 
     def deduplicate_stale_events(
         self, session: Session, event_id: str, entity_type: str, entity_id: str
     ) -> bool:
-        pending_events = (
-            session.query(OutboxEventModel)
-            .filter(
-                OutboxEventModel.entity_type == entity_type,
-                OutboxEventModel.entity_id == entity_id,
-                OutboxEventModel.status == "pending",
+        with MonitorLatency(DBMonitor.query("outbox_events")):
+            pending_events = (
+                session.query(OutboxEventModel)
+                .filter(
+                    OutboxEventModel.entity_type == entity_type,
+                    OutboxEventModel.entity_id == entity_id,
+                    OutboxEventModel.status == "pending",
+                )
+                .order_by(OutboxEventModel.created_time.desc())
+                .all()
             )
-            .order_by(OutboxEventModel.created_time.desc())
-            .all()
-        )
         if len(pending_events) <= 1:
             return True
 
@@ -173,9 +190,12 @@ class OutboxEventRepository:
         for older in pending_events[1:]:
             older.status = "skipped"
             older.error_message = "Deduplicated by newer event"
-        session.flush()
+        with MonitorLatency(DBMonitor.update("outbox_events")):
+            session.flush()
+
         return True
 
+    @MonitorLatency(DBMonitor.delete("outbox_events"))
     def cleanup_old_events(self, session: Session, older_than_ms: int) -> int:
         count = (
             session.query(OutboxEventModel)
