@@ -107,6 +107,11 @@
         box-shadow: none;
     }
 
+    html {
+        /* Prevents extra vertical scroll bar since inner content is managing overflow */
+        overflow-y: hidden;
+    }
+
     body {
         background-color: var(--background-w10);
         color: var(--primary-text-wMain);
