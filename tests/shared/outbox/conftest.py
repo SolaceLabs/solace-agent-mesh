@@ -1,5 +1,3 @@
-import time
-
 import pytest
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
@@ -8,7 +6,6 @@ from sqlalchemy.pool import StaticPool
 from solace_agent_mesh.shared.database import Base
 from solace_agent_mesh.shared.outbox import (
     CreateOutboxEventModel,
-    OutboxEventModel,
     OutboxEventRepository,
 )
 
@@ -46,7 +43,9 @@ def db_session(session_factory):
 
 @pytest.fixture(autouse=True)
 def cleanup_tables(engine):
+    """Clean outbox_events table between tests."""
     yield
+    # Directly clean only the outbox_events table between tests
     with engine.connect() as conn:
         conn.execute(text("DELETE FROM outbox_events"))
         conn.commit()

@@ -3,13 +3,15 @@ Test that template resolution happens automatically when resolving late embeds.
 """
 
 import pytest
+from sam_test_infrastructure.artifact_service.service import (
+    TestInMemoryArtifactService,
+)
 from solace_agent_mesh.common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
     resolve_embeds_recursively_in_string,
 )
 from solace_agent_mesh.common.utils.embeds.types import ResolutionMode
-from tests.integration.conftest import TestInMemoryArtifactService
 
 
 @pytest.mark.asyncio
