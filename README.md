@@ -69,7 +69,7 @@ The result? A fully asynchronous, event-driven and decoupled AI agent architectu
 
 ## 🚀 Quick Start (5 minutes)
 
-Set up Solace Agent Mesh in just a few steps.
+Set up Solace Agent Mesh locally in just a few steps.
 
 ### ⚙️ System Requirements
 
@@ -112,13 +112,15 @@ pip3 install solace-agent-mesh
 ```bash
 sam init --gui
 ```
-Note: This initialization UI runs on port 5002
+Note: This initialization UI runs on port 5002.
 #### 5. Run the project
 ```bash
 sam run
 ```
 #### 6. Verify SAM is running
 Open the Web UI at [http://localhost:8000](http://localhost:8000) for the chat interface and ask a question
+
+> **Tip:** If the application does not start, ensure that your Python version and virtual environment are properly configured.
 
 ### 🔧 Customize SAM
 
@@ -222,3 +224,9 @@ pytest
 <h3 align="center">
   <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
+
+---
+
+## 📝 Additional Notes
+- Ensure all dependencies are installed before running the project.
+- Verify that required ports are available to avoid runtime issues.
