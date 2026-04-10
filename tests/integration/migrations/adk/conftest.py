@@ -25,10 +25,24 @@ def alembic_config(dialect_db) -> Config:
         Alembic Config object configured for ADK
     """
     from google.adk.sessions.database_session_service import Base
+    from sqlalchemy import event
 
     # Create the ADK base schema (sessions, events, app_states, user_states)
     # before Alembic runs — mirrors what ADK does on startup in production.
     engine = create_engine(dialect_db)
+
+    # Speed optimizations for SQLite tests
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        if dialect_db.startswith("sqlite"):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA synchronous = OFF")
+            cursor.execute("PRAGMA journal_mode = WAL")
+            cursor.execute("PRAGMA temp_store = MEMORY")
+            cursor.execute("PRAGMA cache_size = -64000")
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
     Base.metadata.create_all(engine)
     engine.dispose()
 

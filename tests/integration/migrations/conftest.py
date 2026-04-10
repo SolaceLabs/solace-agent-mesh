@@ -246,7 +246,22 @@ def db_engine(dialect_db):
 
     Automatically disposed after test.
     """
+    from sqlalchemy import event
+
     engine = create_engine(dialect_db)
+
+    # Speed optimizations for SQLite tests (50-100x faster writes)
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        if dialect_db.startswith("sqlite"):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA synchronous = OFF")        # Don't wait for disk sync
+            cursor.execute("PRAGMA journal_mode = WAL")       # Write-Ahead Logging
+            cursor.execute("PRAGMA temp_store = MEMORY")      # Temp tables in memory
+            cursor.execute("PRAGMA cache_size = -64000")      # 64MB cache
+            cursor.execute("PRAGMA foreign_keys=ON")          # Keep FK enforcement
+            cursor.close()
+
     yield engine
     engine.dispose()
 

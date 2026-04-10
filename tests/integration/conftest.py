@@ -105,7 +105,13 @@ def test_db_engine():
         def set_sqlite_pragma(dbapi_conn, connection_record):
             if database_url.startswith("sqlite"):
                 cursor = dbapi_conn.cursor()
-                cursor.execute("PRAGMA foreign_keys=ON")
+                # Speed optimizations for tests (50-100x faster writes)
+                # Since tests use temp databases that get deleted, we don't need durability
+                cursor.execute("PRAGMA synchronous = OFF")        # Don't wait for disk sync (biggest speedup)
+                cursor.execute("PRAGMA journal_mode = WAL")       # Write-Ahead Logging for better concurrency
+                cursor.execute("PRAGMA temp_store = MEMORY")      # Keep temp tables in memory
+                cursor.execute("PRAGMA cache_size = -64000")      # 64MB cache (negative = KB)
+                cursor.execute("PRAGMA foreign_keys=ON")          # Keep foreign key enforcement
                 cursor.close()
 
         # Run Alembic migrations
