@@ -33,7 +33,8 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu";
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, SortableTableHead } from "./table";
+export { useSortableTable } from "./hooks/useSortableTable";
 export { type StepperConfigProps, type StepperDefineProps, type CircleStepIndicatorProps, type StepperVariant, type StepperLabelOrientation, defineStepper } from "./stepper";
 
 // Chat Components

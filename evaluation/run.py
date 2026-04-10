@@ -114,7 +114,7 @@ def _ensure_sam_rest_gateway_installed():
         _error_exit(
             "Error: 'sam-rest-gateway' is not installed. "
             "Please install it using: "
-            'pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"'
+            "pip install sam-rest-gateway"
         )
 
 

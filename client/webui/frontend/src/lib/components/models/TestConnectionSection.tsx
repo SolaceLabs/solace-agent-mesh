@@ -57,9 +57,9 @@ export const TestConnectionSection = ({ getFormData, getDirtyFields, isNew, mode
     }, [getFormData, getDirtyFields, isNew, modelId]);
 
     return (
-        <div className="border-t pt-4">
+        <div className="pt-4">
             <div className="flex items-center gap-3">
-                <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled}>
+                <Button type="button" variant="outline" onClick={handleTestConnection} disabled={isTesting || disabled} tooltip={disabled ? "Required configuration is missing" : undefined} tooltipSide="top" testid="test-connection-button">
                     Test Connection
                 </Button>
                 {isTesting && (

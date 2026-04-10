@@ -11,6 +11,10 @@ from litellm.exceptions import BadRequestError
 
 from ...common.error_handlers import LITELLM_EXCEPTIONS
 
+# Observability instrumentation
+from solace_ai_connector.common.observability import MonitorLatency
+from ...common.observability import AgentMonitor
+
 
 class TaskCancelledError(Exception):
     """Raised when an ADK task is cancelled via external signal."""
@@ -1233,6 +1237,8 @@ async def _run_with_compaction_retry(
         Tuple of (is_paused, updated_adk_session). Returns None for the session
         if the function handled the error gracefully and the caller should return early.
     """
+    from .models.lite_llm import ObservabilityContext
+
     max_retries = 3
     retry_count = 0
 
@@ -1241,16 +1247,16 @@ async def _run_with_compaction_retry(
             # Check if test mode compaction is enabled and should trigger, will always be false for prod.
             if _is_test_mode_trigger_enabled() and compaction_enabled and adk_session.events and adk_content.role == 'user':
                 _test_and_trigger_compaction(_get_test_token_threshold(), adk_session, component)
-
-            is_paused = await run_adk_async_task(
-                component,
-                task_context,
-                adk_session,
-                adk_content,
-                run_config,
-                a2a_context,
-            )
-            return is_paused, adk_session
+            with ObservabilityContext(component_name=component.agent_name, owner_id=adk_session.user_id):
+                is_paused = await run_adk_async_task(
+                    component,
+                    task_context,
+                    adk_session,
+                    adk_content,
+                    run_config,
+                    a2a_context,
+                )
+                return is_paused, adk_session
 
         except BadRequestError as e:
             # Check if this is a context limit error AND auto-summarization is enabled
@@ -1592,17 +1598,19 @@ async def run_adk_async_task_thread_wrapper(
             )
 
         # Run the ADK task with automatic compaction retry on context limit errors
-        is_paused, adk_session = await _run_with_compaction_retry(
-            component=component,
-            task_context=task_context,
-            adk_session=adk_session,
-            adk_content=adk_content,
-            run_config=run_config,
-            a2a_context=a2a_context,
-            compaction_enabled=compaction_enabled,
-            compaction_percentage=compaction_percentage,
-            logical_task_id=logical_task_id,
-        )
+        # Instrument agent execution latency
+        with MonitorLatency(AgentMonitor.create(name=component.agent_name)):
+            is_paused, adk_session = await _run_with_compaction_retry(
+                component=component,
+                task_context=task_context,
+                adk_session=adk_session,
+                adk_content=adk_content,
+                run_config=run_config,
+                a2a_context=a2a_context,
+                compaction_enabled=compaction_enabled,
+                compaction_percentage=compaction_percentage,
+                logical_task_id=logical_task_id,
+            )
 
         if adk_session is None:
             return  # Graceful early exit (user already notified)
