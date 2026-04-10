@@ -184,6 +184,18 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
         }
     }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
 
+    // Clear all authentication fields when auth type changes to "none"
+    useEffect(() => {
+        if (selectedAuthType === "none") {
+            for (const fields of Object.values(AUTH_FIELDS)) {
+                for (const field of fields) {
+                    setValue(field.name, "");
+                }
+            }
+            setStoredCredentialFields(new Set());
+        }
+    }, [selectedAuthType, setValue]);
+
     // When the model dropdown opens, commit the current form credentials as query params.
     // React Query handles caching: if params haven't changed since the last successful
     // fetch the cached result is returned; if they changed a fresh request is made.
