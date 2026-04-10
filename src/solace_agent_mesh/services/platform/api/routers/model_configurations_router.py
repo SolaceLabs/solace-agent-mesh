@@ -103,7 +103,7 @@ async def get_models_status(
     """Check whether the required default model aliases are configured.
 
     Returns configured=true only when both 'general' and 'planning' aliases
-    exist and have a non-empty model_name value.
+    exist and have a non-placeholder provider value.
     """
     configured = service.are_default_models_configured(db)
     return create_data_response(ModelConfigStatusResponse(configured=configured))

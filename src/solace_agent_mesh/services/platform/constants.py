@@ -5,6 +5,10 @@
 # Stripped to None before returning in API responses.
 PLACEHOLDER_VALUE = "undefined"
 
+# Default model aliases that must always exist in the system.
+# Seeded as placeholders on first startup; checked by the status endpoint.
+DEFAULT_MODEL_ALIASES = ["general", "planning"]
+
 # Column length constraints for model_configurations table
 MODEL_CONFIGURATION_CONSTRAINTS = {
     "ALIAS_MIN_LENGTH": 1,

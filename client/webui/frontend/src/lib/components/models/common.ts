@@ -1,6 +1,6 @@
-export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
-
 import type { ModelConfig } from "@/lib/api/models/types";
+
+export const DEFAULT_MODEL_ALIASES = ["general", "planning"];
 
 /**
  * Returns true if the model has a real provider configured (not a placeholder).

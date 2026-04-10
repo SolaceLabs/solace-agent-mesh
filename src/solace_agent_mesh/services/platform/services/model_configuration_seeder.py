@@ -190,18 +190,16 @@ def seed_model_configurations(
     existing_count = db.query(func.count(ModelConfiguration.id)).scalar()
 
     if existing_count == 0:
+        # Try seeding from models_config if provided
         count = 0
+        if models_config:
+            log.info("[Model Seed] Seeding from config with %d entries", len(models_config))
+            count = _seed_from_models_config(db, models_config)
 
-        # TODO: TEMP - seeding from config/env disabled for testing placeholder seeding
-        # # Try seeding from models_config if provided
-        # if models_config:
-        #     log.info("[Model Seed] Seeding from config with %d entries", len(models_config))
-        #     count = _seed_from_models_config(db, models_config)
-
-        # # If no models_config provided or empty, seed from environment variables
-        # if count == 0:
-        #     log.info("[Model Seed] No models_config provided, seeding from environment variables")
-        #     count = _seed_from_env_vars(db)
+        # If no models_config provided or empty, seed from environment variables
+        if count == 0:
+            log.info("[Model Seed] No models_config provided, seeding from environment variables")
+            count = _seed_from_env_vars(db)
 
         if count > 0:
             log.info("[Model Seed] Successfully seeded %d model configurations", count)
@@ -227,11 +225,9 @@ def _ensure_default_aliases(db: Session) -> None:
     """
     from solace_agent_mesh.services.platform.models import ModelConfiguration
     from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
-    from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+    from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE, DEFAULT_MODEL_ALIASES
 
-    default_aliases = ["general", "planning"]
-
-    for alias in default_aliases:
+    for alias in DEFAULT_MODEL_ALIASES:
         existing = db.query(ModelConfiguration).filter(
             ModelConfiguration.alias == alias
         ).first()

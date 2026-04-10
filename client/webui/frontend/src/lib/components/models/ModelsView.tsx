@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 import { Ellipsis, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipTrigger, TooltipContent, type MenuAction } from "@/lib/components/ui";
@@ -142,7 +143,7 @@ export const ModelsView: React.FC = () => {
                                         <TableRow
                                             key={model.id}
                                             ref={highlightedModelId === model.id ? highlightedRowRef : null}
-                                            className={`transition-colors duration-500 ${highlightedModelId === model.id ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)"}`}
+                                            className={cn("transition-colors duration-500", highlightedModelId === model.id ? "bg-(--success-w10)" : "hover:bg-(--primary-w10)")}
                                         >
                                             <TableCell className="flex items-center gap-2 pl-4 font-semibold">
                                                 <ModelProviderIcon provider={model.provider} size="sm" />

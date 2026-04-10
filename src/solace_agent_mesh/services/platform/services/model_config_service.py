@@ -20,6 +20,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationUpdateRequest,
     ModelConfigurationTestRequest,
 )
+from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE, DEFAULT_MODEL_ALIASES
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.exceptions.exceptions import (
@@ -157,19 +158,13 @@ class ModelConfigService:
         Returns:
             True if both 'general' and 'planning' have non-placeholder providers
         """
-        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
-
         alias_map = {c.alias: c for c in self.repository.get_all(db)}
-        general = alias_map.get("general")
-        planning = alias_map.get("planning")
 
-        if not general or not planning:
-            return False
-
-        def _is_configured(config) -> bool:
-            return bool(config.provider and config.provider != PLACEHOLDER_VALUE)
-
-        return _is_configured(general) and _is_configured(planning)
+        for alias in DEFAULT_MODEL_ALIASES:
+            config = alias_map.get(alias)
+            if not config or not config.provider or config.provider == PLACEHOLDER_VALUE:
+                return False
+        return True
 
     def get_by_alias(self, db: Session, alias: str, raw=False) -> ModelConfigurationResponse:
         """
@@ -466,6 +461,8 @@ class ModelConfigService:
         """
         Delete a model configuration by ID.
 
+        Default model aliases (general, planning) cannot be deleted.
+
         Args:
             db: SQLAlchemy database session
             model_id: Model UUID to delete
@@ -477,6 +474,12 @@ class ModelConfigService:
 
         if not db_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
+
+        if db_config.alias in DEFAULT_MODEL_ALIASES:
+            raise ValidationErrorBuilder().message(
+                f"Cannot delete default model '{db_config.alias}'. "
+                "Default models can be reconfigured but not removed."
+            ).build()
 
         self.repository.delete(db, db_config)
 
@@ -496,8 +499,6 @@ class ModelConfigService:
             ModelConfigurationResponse with auth_type from model_auth_type column
             and auth config secrets filtered out
         """
-        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
-
         # Redact secrets from auth config based on auth type
         redacted_auth_config = redact_auth_config(db_model.model_auth_config)
 
@@ -535,7 +536,9 @@ class ModelConfigService:
         Returns:
             Dict with keys: model, api_base (optional), auth credentials, model params
         """
-        config = {"model": _resolve_litellm_model_name(db_model.provider, db_model.model_name)}
+        provider = db_model.provider if db_model.provider != PLACEHOLDER_VALUE else None
+        model_name = db_model.model_name if db_model.model_name != PLACEHOLDER_VALUE else None
+        config = {"model": _resolve_litellm_model_name(provider, model_name)}
         if db_model.api_base:
             config["api_base"] = db_model.api_base
         # Merge auth credentials (unredacted)
