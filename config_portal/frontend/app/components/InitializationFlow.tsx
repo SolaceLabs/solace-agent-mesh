@@ -46,7 +46,7 @@ export const advancedInitSteps: Step[] = [
   {
     id: "ai-provider-setup",
     title: "AI Provider",
-    description: "Configure your AI services",
+    description: "Configure your AI services (optional)",
     component: AIProviderSetup,
   },
   {
@@ -73,7 +73,7 @@ export const quickInitSteps: Step[] = [
   {
     id: "ai-provider-setup",
     title: "AI Provider",
-    description: "Configure your AI services",
+    description: "Configure your AI services (optional)",
     component: AIProviderSetup,
   },
   {

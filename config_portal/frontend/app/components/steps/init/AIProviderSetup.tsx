@@ -232,9 +232,10 @@ export default function AIProviderSetup({
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
         <InfoBox className="mb-4">
-          Configure your AI service provider for language models. To use a LLM
-          provider not in the dropdown choose "OpenAI Compatible Provider" and
-          enter your base URL, API key and model name.
+          Configure your AI service provider for language models. This step is
+          optional — you can skip it and configure your AI provider later. To
+          use a LLM provider not in the dropdown choose "OpenAI Compatible
+          Provider" and enter your base URL, API key and model name.
         </InfoBox>
 
         <div className="border-b border-gray-200 pb-4 mb-4">
@@ -422,15 +423,25 @@ export default function AIProviderSetup({
         </div>
       </div>
 
-      <div className="mt-8 flex justify-end space-x-4">
+      <div className="mt-8 flex justify-between">
         <Button
           onClick={onPrevious}
           disabled={(data as {setupPath?: string}).setupPath === "quick"}
           variant="outline"
+          type="button"
         >
           Previous
         </Button>
-        <Button type="submit">Next</Button>
+        <div className="flex space-x-4">
+          <Button
+            onClick={() => onNext()}
+            variant="outline"
+            type="button"
+          >
+            Skip
+          </Button>
+          <Button type="submit">Next</Button>
+        </div>
       </div>
 
       {isTestingConfig && (
