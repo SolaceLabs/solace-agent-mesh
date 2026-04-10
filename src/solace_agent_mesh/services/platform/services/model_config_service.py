@@ -24,6 +24,7 @@ from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE, DEF
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.exceptions.exceptions import (
+    BusinessRuleViolationError,
     EntityAlreadyExistsError,
     EntityNotFoundError,
     ValidationErrorBuilder,
@@ -476,10 +477,11 @@ class ModelConfigService:
             raise EntityNotFoundError("ModelConfiguration", model_id)
 
         if db_config.alias in DEFAULT_MODEL_ALIASES:
-            raise ValidationErrorBuilder().message(
-                f"Cannot delete default model '{db_config.alias}'. "
-                "Default models can be reconfigured but not removed."
-            ).build()
+            raise BusinessRuleViolationError(
+                rule="CANNOT_DELETE_DEFAULT_MODEL",
+                message=f"Cannot delete default model '{db_config.alias}'. "
+                "Default models can be reconfigured but not removed.",
+            )
 
         self.repository.delete(db, db_config)
 
