@@ -3,7 +3,26 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 import { Ellipsis, AlertTriangle } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipTrigger, TooltipContent, type MenuAction } from "@/lib/components/ui";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Button,
+    Badge,
+    Menu,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SortableTableHead,
+    useSortableTable,
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    type MenuAction,
+} from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { useChatContext } from "@/lib/hooks";
 
@@ -34,6 +53,12 @@ export const ModelsView: React.FC = () => {
     const [modelToDelete, setModelToDelete] = useState<ModelConfig | null>(null);
     const [highlightedModelId, setHighlightedModelId] = useState<string | null>(null);
     const highlightedRowRef = useRef<HTMLTableRowElement>(null);
+    const { sortedData: sortedModels, sortKey, sortDir, handleSort } = useSortableTable(modelConfigs, ["alias", "modelName", "provider"]);
+
+    // Reset to first page whenever sort changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [sortKey, sortDir]);
 
     // Check if we're coming back from creating a new model
     const locationState = location.state as { highlightModelId?: string } | null;
@@ -68,13 +93,12 @@ export const ModelsView: React.FC = () => {
 
     const hasModels = modelConfigs && modelConfigs.length > 0;
 
-    // Client-side pagination
+    // Client-side pagination (sorting is handled by useSortableTable)
     const itemsPerPage = 20;
-    const totalPages = Math.ceil((modelConfigs?.length || 0) / itemsPerPage);
+    const totalPages = Math.ceil(sortedModels.length / itemsPerPage);
     const effectiveCurrentPage = Math.min(currentPage, Math.max(totalPages, 1));
     const startIndex = (effectiveCurrentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentModels = modelConfigs?.slice(startIndex, endIndex) || [];
+    const currentModels = sortedModels.slice(startIndex, startIndex + itemsPerPage);
 
     const handleSelectModel = (model: ModelConfig) => {
         navigate(`/models/${model.id}`);
@@ -130,11 +154,15 @@ export const ModelsView: React.FC = () => {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="font-semibold">
-                                            <div className="pl-4">Name</div>
-                                        </TableHead>
-                                        <TableHead className="font-semibold">Model</TableHead>
-                                        <TableHead className="font-semibold">Model Provider</TableHead>
+                                        <SortableTableHead column="alias" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="pl-4">
+                                            Name
+                                        </SortableTableHead>
+                                        <SortableTableHead column="modelName" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
+                                            Model
+                                        </SortableTableHead>
+                                        <SortableTableHead column="provider" currentSortKey={sortKey} sortDir={sortDir} onSort={handleSort}>
+                                            Model Provider
+                                        </SortableTableHead>
                                         <TableHead className="w-12"></TableHead>
                                     </TableRow>
                                 </TableHeader>
