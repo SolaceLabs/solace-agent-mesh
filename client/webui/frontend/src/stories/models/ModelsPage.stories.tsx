@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within, expect } from "storybook/test";
+import { within, expect, userEvent } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
 
 import { AgentMeshPage } from "@/lib/components/pages";
@@ -125,6 +125,47 @@ export const Error: Story = {
         // Verify error state is shown
         await canvas.findByText(/Error loading models/);
         expect(canvas.getByText(/Error loading models/)).toBeInTheDocument();
+    },
+};
+
+export const Sorting: Story = {
+    parameters: {
+        msw: { handlers: successHandlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Wait for table to render
+        await canvas.findByText("Aws");
+
+        // Default sort: Name A→Z (sorted by alias field).
+        // Mock data aliases: aws, azure, custom_model, general, gemini, image_gen, local, planning, vertex
+        const rows = canvas.getAllByRole("row");
+        // rows[0] = header row; rows[1] = first data row
+        expect(within(rows[1]).getByText("Aws")).toBeInTheDocument();
+        expect(within(rows.at(-1)!).getByText("Vertex")).toBeInTheDocument();
+
+        // Verify all three column headers have sort buttons
+        expect(canvas.getByRole("button", { name: "Name" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model Provider" })).toBeInTheDocument();
+
+        // Click Name header to toggle to Z→A
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
+
+        // After toggle: first data row should be "Vertex"
+        await canvas.findByText("Vertex");
+        const rowsDesc = canvas.getAllByRole("row");
+        expect(within(rowsDesc[1]).getByText("Vertex")).toBeInTheDocument();
+        expect(within(rowsDesc.at(-1)!).getByText("Aws")).toBeInTheDocument();
+
+        // Click Name header again to restore A→Z
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
+        await canvas.findByText("Aws");
+        const rowsAsc = canvas.getAllByRole("row");
+        expect(within(rowsAsc[1]).getByText("Aws")).toBeInTheDocument();
     },
 };
 
