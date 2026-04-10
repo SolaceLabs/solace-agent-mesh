@@ -15,8 +15,6 @@ Built-in tools are pre-packaged functionalities that can be granted to agents wi
 
 The Agent Mesh framework manages these tools through a central `tool_registry`, which is responsible for loading the tools, generating instructional prompts for the Large Language Model (LLM), and handling their execution in a consistent manner.
 
-<NetworkAccessRequiredSomeFeatures />
-
 ## Configuration Methods
 
 Tool configuration is managed within the `tools` list in an agent's `app_config` block in the corresponding YAML configuration file.
@@ -73,6 +71,8 @@ The Agent Mesh framework automatically handles duplicate tool registrations. If 
 ## Available Tool Groups and Tools
 
 The following sections detail the available tool groups and the individual tools they contain.
+
+<NetworkAccessRequiredSomeFeatures />
 
 ### Artifact Management
 **Group Name**: `artifact_management`

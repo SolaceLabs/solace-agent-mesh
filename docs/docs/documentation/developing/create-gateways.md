@@ -15,7 +15,9 @@ This guide walks you through creating custom gateways using the gateway adapter 
 Gateway adapters are custom interfaces that connect external platforms to the agent mesh by translating events and responses between platform formats and the A2A protocol.
 :::
 
-<NetworkAccessRequiredSingleFeature />
+:::info NETWORK ACCESS REQUIRED
+This feature may require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
+:::
 
 ## Key Functions
 
