@@ -15,6 +15,7 @@ from openfeature import api as openfeature_api
 from solace_ai_connector.components.component_base import ComponentBase
 from ...agent.adk.models.lite_llm import LiteLlm
 from ...agent.adk.models.dynamic_model_provider import start_model_listener
+from ...agent.adk.model_override_resolver import ModelOverrideResolver
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..features import core as feature_flags
 from ..utils.message_utils import validate_message_size
@@ -71,6 +72,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
+
+        # Per-request model override resolver (resolves aliases via platform service)
+        self.model_override_resolver: Optional[ModelOverrideResolver] = None
 
         feature_flags.initialize()
 
@@ -637,6 +641,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 "%s Error during _pre_async_cleanup(): %s", self.log_identifier, e
             )
 
+        if self.model_override_resolver:
+            self.model_override_resolver.cleanup()
+            self.model_override_resolver = None
+
         if self._async_loop and self._async_loop.is_running():
             log.info("%s Requesting asyncio loop to stop...", self.log_identifier)
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)
@@ -844,6 +852,17 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         if self._lazy_model_mode and self.model_provider:
             asyncio.create_task(self._start_model_listener())
+
+        try:
+            self.model_override_resolver = ModelOverrideResolver(self)
+            await self.model_override_resolver.setup()
+        except Exception as e:
+            log.warning(
+                "%s ModelOverrideResolver initialization failed: %s",
+                self.log_identifier,
+                e,
+            )
+            self.model_override_resolver = None
 
     @abc.abstractmethod
     def _pre_async_cleanup(self) -> None:

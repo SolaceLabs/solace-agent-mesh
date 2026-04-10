@@ -1121,6 +1121,47 @@ async def _handle_send_message_request(
     original_session_id = a2a_message.context_id
     message_id = a2a_message.message_id
     task_metadata = a2a_message.metadata or {}
+
+    # Resolve model_override alias to raw config dict via platform service.
+    # Expected format: {"model_id": "<alias-or-uuid>"}
+    model_override = task_metadata.get("model_override")
+    if (
+        isinstance(model_override, dict)
+        and isinstance(model_override.get("model_id"), str)
+        and model_override["model_id"]
+    ):
+        model_id = model_override["model_id"]
+        if component.model_override_resolver:
+            resolved = await component.model_override_resolver.resolve(model_id)
+            if resolved:
+                task_metadata["model_override"] = resolved
+                log.info(
+                    "%s Resolved model override alias '%s' to model=%s",
+                    component.log_identifier,
+                    model_id,
+                    resolved.get("model"),
+                )
+            else:
+                log.warning(
+                    "%s Failed to resolve model override alias '%s', falling back to default",
+                    component.log_identifier,
+                    model_id,
+                )
+                task_metadata.pop("model_override", None)
+        else:
+            log.warning(
+                "%s Model override alias '%s' provided but resolver not available",
+                component.log_identifier,
+                model_id,
+            )
+            task_metadata.pop("model_override", None)
+    elif model_override is not None:
+        log.warning(
+            "%s Unrecognized model_override format, ignoring",
+            component.log_identifier,
+        )
+        task_metadata.pop("model_override", None)
+
     system_purpose = task_metadata.get("system_purpose")
     response_format = task_metadata.get("response_format")
     session_behavior_from_meta = task_metadata.get("sessionBehavior")
