@@ -175,12 +175,6 @@ export const solaceDark: ThemePalette = {
         bg: "#CFD3D9",
         bgActive: "#F3F4F6",
     },
-
-    temporary: {
-        primary: {
-            wMain: "#E6EFF2",
-        },
-    },
 };
 
 export const solaceDarkTheme: ThemeDefinition = {

@@ -174,12 +174,6 @@ export const solace: ThemePalette = {
         bg: "#CFD3D9", // light secondary-w40
         bgActive: "#F3F4F6", // light secondary-w10
     },
-
-    temporary: {
-        primary: {
-            wMain: "#015B82",
-        },
-    },
 };
 
 export const solaceTheme: ThemeDefinition = {

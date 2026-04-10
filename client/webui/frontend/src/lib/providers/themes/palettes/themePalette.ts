@@ -180,12 +180,6 @@ export type ThemePalette = {
         bg: string;
         bgActive: string;
     };
-
-    temporary: {
-        primary: {
-            wMain: string;
-        };
-    };
 };
 
 export interface ThemeDefinition {
