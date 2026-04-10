@@ -89,6 +89,9 @@ class BaseProxyComponent(ComponentBase, ABC):
         self.task_cleanup_interval_minutes = self.get_config(
             "task_cleanup_interval_minutes", 10
         )
+        self.stream_batching_threshold_bytes = self.get_config(
+            "stream_batching_threshold_bytes", 100
+        )
 
         self.agent_registry = AgentRegistry()
         self.artifact_service: Optional[BaseArtifactService] = None
@@ -228,8 +231,12 @@ class BaseProxyComponent(ComponentBase, ABC):
                     "is_streaming": isinstance(a2a_request.root, SendStreamingMessageRequest),
                     "user_properties": message.get_user_properties(),
                 }
+                # Get effective batching threshold for this agent
+                batching_threshold = self._get_effective_batching_threshold(target_agent_name)
                 task_context = ProxyTaskContext(
-                    task_id=logical_task_id, a2a_context=a2a_context
+                    task_id=logical_task_id,
+                    a2a_context=a2a_context,
+                    _batching_threshold_bytes=batching_threshold,
                 )
                 with self.active_tasks_lock:
                     self.active_tasks[logical_task_id] = (time.time(), task_context)
@@ -802,6 +809,10 @@ class BaseProxyComponent(ComponentBase, ABC):
                 if timestamp < cutoff_time
             ]
             for task_id in stale_task_ids:
+                # Clear streaming buffer before removing task to avoid memory leaks
+                _, task_context = self.active_tasks[task_id]
+                task_context.clear_streaming_buffer()
+
                 del self.active_tasks[task_id]
                 log.warning(
                     "%s Cleaned up stale task %s (exceeded TTL of %d minutes)",
@@ -973,5 +984,19 @@ class BaseProxyComponent(ComponentBase, ABC):
         """
         Forwards a request to the downstream agent using its specific protocol.
         To be implemented by concrete proxy classes.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_effective_batching_threshold(self, agent_name: str) -> int:
+        """
+        Resolves the effective batching threshold for a specific agent.
+        To be implemented by concrete proxy classes.
+
+        Args:
+            agent_name: The name of the agent
+
+        Returns:
+            The batching threshold in bytes
         """
         raise NotImplementedError
