@@ -172,6 +172,13 @@ export type ThemePalette = {
         brandMain: string;
         brandAccent: string;
         border: string;
+        buttonText: string;
+        buttonTextHover: string;
+    };
+
+    lightSurface: {
+        bg: string;
+        bgActive: string;
     };
 
     temporary: {

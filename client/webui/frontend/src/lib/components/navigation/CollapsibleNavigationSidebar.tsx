@@ -315,8 +315,7 @@ export const CollapsibleNavigationSidebar = ({
                     <div className="border-t border-(--secondary-w70)" />
                     <div className="mb-2 flex items-center justify-between pt-6 pr-6 pl-6">
                         <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
-                        {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
-                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-[#679DB4] no-underline hover:text-[#E6EFF2]">
+                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-(--darkSurface-buttonText) no-underline hover:text-(--darkSurface-buttonTextHover)">
                             View All
                         </Link>
                     </div>
