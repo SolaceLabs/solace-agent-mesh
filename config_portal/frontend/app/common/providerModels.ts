@@ -7,6 +7,7 @@ export const PROVIDER_ENDPOINTS: Record<string, string> = {
 };
 
 export const LLM_PROVIDER_OPTIONS = [
+  { value: "", label: "Setup Later" },
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic" },
   { value: "google", label: "Google Gemini" },
