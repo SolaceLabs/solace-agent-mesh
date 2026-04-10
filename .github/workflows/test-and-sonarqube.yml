@@ -103,11 +103,11 @@ jobs:
       - name: Run Tests with Hatch
         continue-on-error: true
         run: |
-          # Run tests in parallel with separate coverage files
-          COVERAGE_FILE=.coverage.1 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration --cov --cov-report= --junitxml=junit-non-integration.xml &
+          # Run tests in parallel with unbuffered output
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.1 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-non-integration.xml &
           PID1=$!
 
-          COVERAGE_FILE=.coverage.2 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/integration/ --cov --cov-report= --junitxml=junit-integration.xml &
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.2 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/integration/ --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-integration.xml &
           PID2=$!
 
           # Wait and capture exit codes
@@ -128,8 +128,10 @@ jobs:
 
           # Fail if either test suite failed
           if [ $EXIT1 -ne 0 ] || [ $EXIT2 -ne 0 ]; then
-            echo "Tests failed: non-integration=$EXIT1, integration=$EXIT2"
+            echo "❌ Tests failed: non-integration=$EXIT1, integration=$EXIT2"
             exit 1
+          else
+            echo "✅ All tests passed"
           fi
 
       - name: Upload Test Results
