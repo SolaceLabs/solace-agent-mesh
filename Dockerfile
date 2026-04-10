@@ -61,6 +61,7 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 # Pin libc6=2.41-12+deb13u2 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
+# Pin libtiff6=4.7.0-3+deb13u2 to fix CVE-2026-4775 (signed integer overflow in putcontig8bitYCbCr44tile)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -72,6 +73,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     git \
     libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
+    libtiff6=4.7.0-3+deb13u2 \
     libpng16-16t64=1.6.48-1+deb13u4 \
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
@@ -159,6 +161,7 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Add unstable repo with APT pinning to only upgrade libtasn1-6 (CVE-2025-13151 fix)
 # Pin libc6=2.41-12+deb13u2 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
+# Pin libtiff6=4.7.0-3+deb13u2 to fix CVE-2026-4775 (signed integer overflow in putcontig8bitYCbCr44tile)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -169,6 +172,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libatomic1 \
     libc6=2.41-12+deb13u2 \
     libtasn1-6/unstable \
+    libtiff6=4.7.0-3+deb13u2 \
     libpng16-16t64=1.6.48-1+deb13u4 \
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
