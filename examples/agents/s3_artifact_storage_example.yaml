@@ -33,6 +33,8 @@ apps:
       agent_name: "S3BasicAgent"
       display_name: "S3 Basic Storage Agent"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You can create and manage artifacts stored in Amazon S3.
   
@@ -75,6 +77,8 @@ apps:
       agent_name: "S3CompatibleAgent"
       display_name: "S3 Compatible Storage Agent"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You can create and manage artifacts stored in S3-compatible storage like MinIO.
   
@@ -118,6 +122,8 @@ apps:
       agent_name: "S3CustomScopeAgent"
       display_name: "S3 Custom Scope Agent"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You can create and manage artifacts with custom scoping in S3 storage.
   

@@ -51,7 +51,9 @@ apps:
       frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}  # Set to true for production with OAuth
 
       # --- Optional with Defaults ---
-      model: *general_model # Optional: defaults to None - Points to shared_config.yaml
+      model: *general_model
+      model_provider: 
+        - "general"    
       gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
       fastapi_host: ${FASTAPI_HOST, localhost} # Host for the FastAPI server
       fastapi_port: ${FASTAPI_PORT, 8000} # Port for the FastAPI server

@@ -23,6 +23,8 @@ apps:
       supports_streaming: true
       agent_name: "CloudflareAgent"
       model: *general_model
+      model_provider: 
+        - "general"
       instruction: |
         An agent that handles cloudflare operations.
         Do NOT use parallel tool calls.

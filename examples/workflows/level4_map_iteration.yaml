@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ItemProcessor"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You process individual items by doubling their value.

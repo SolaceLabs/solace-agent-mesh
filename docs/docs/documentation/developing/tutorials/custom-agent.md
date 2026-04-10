@@ -817,6 +817,8 @@ apps:
       
       # LLM model configuration
       model: *general_model
+      model_provider: 
+        - "general"
       
       # Agent instructions
       instruction: |

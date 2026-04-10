@@ -34,6 +34,8 @@ apps:
       display_name: "Test"
       # The alias for the LLM model configuration to use (defined in shared_config.yaml).
       model: *planning_model
+      model_provider: 
+        - "planning"
       # The core instructions that define the agent's persona and primary goal.
       instruction: |
         You are an agent that helps test the system. You will do as asked to ensure that
@@ -134,6 +136,8 @@ apps:
       display_name: "Test Agent B"
       # The alias for the LLM model configuration to use (defined in shared_config.yaml).
       model: *planning_model
+      model_provider: 
+        - "planning"
       # The core instructions that define the agent's persona and primary goal.
       instruction: |
         You are an agent that helps test the system. You will do as asked to ensure that

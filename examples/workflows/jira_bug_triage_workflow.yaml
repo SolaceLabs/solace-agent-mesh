@@ -60,6 +60,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DuplicateDetector"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
           You are a Jira duplicate detection agent operating in DEMONSTRATION MODE.
@@ -177,6 +179,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "CodeAnalyzer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
           You are a code analysis agent operating in DEMONSTRATION MODE.
@@ -283,6 +287,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "JiraCommenter"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
           You are a Jira comment generator agent operating in DEMONSTRATION MODE.

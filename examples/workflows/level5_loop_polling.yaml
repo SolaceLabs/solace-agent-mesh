@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "StatusChecker"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You simulate a status check for polling scenarios.
