@@ -26,3 +26,4 @@ export { InlineProgressUpdates } from "./InlineProgressUpdates";
 export * from "./artifact";
 export * from "./file";
 export * from "./selection";
+export { UserInputMessage } from "./hil/UserInputMessage";

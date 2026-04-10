@@ -193,6 +193,8 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             isLoadingSession: false,
             builderMode: false,
             setBuilderMode: () => {},
+            builderCreationState: { isBuilding: false, components: [], overallStatus: "idle" as const },
+            setBuilderCreationState: () => {},
 
             // Agents - Empty for shared sessions
             agents: [],

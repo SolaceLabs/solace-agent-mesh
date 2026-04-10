@@ -11,7 +11,7 @@ import { useChatContext, useCitationClick, useUIMode } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
-import { RedirectButton } from "./RedirectButton";
+import { RedirectButton, type RedirectData } from "./RedirectButton";
 import { DeepResearchReportContent } from "@/lib/components/research/DeepResearchReportContent";
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
@@ -23,6 +23,7 @@ import { parseCitations } from "@/lib/utils/citations";
 import DOMPurify from "dompurify";
 import { ArtifactMessage, FileMessage } from "./file";
 import { BuildPlanCard } from "./artifact/BuildPlanCard";
+import { BuilderProgressCard } from "./artifact/BuilderProgressCard";
 import { FeedbackModal } from "./FeedbackModal";
 import { ContentRenderer } from "./preview/ContentRenderer";
 import { extractEmbeddedContent } from "./preview/contentUtils";
@@ -37,6 +38,13 @@ import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MessageAttribution } from "./MessageAttribution";
 import { InlineProgressUpdates } from "./InlineProgressUpdates";
+
+/** A synthetic part used to represent a build-plan placeholder in grouped parts. */
+interface BuildPlanPart {
+    kind: "build-plan";
+    filename: string;
+    isComplete: boolean;
+}
 
 /**
  * Returns true if a user message is from another user (not the current viewer).
@@ -104,7 +112,11 @@ const MessageActions: React.FC<{
     const shouldShowFeedback = showFeedbackActions && configCollectFeedback;
 
     if (isOnboardMode) {
-        return sourcesElement ? <div className="mt-3"><div className="flex items-center justify-start">{sourcesElement}</div></div> : null;
+        return sourcesElement ? (
+            <div className="mt-3">
+                <div className="flex items-center justify-start">{sourcesElement}</div>
+            </div>
+        ) : null;
     }
 
     if (!showWorkflowButton && !shouldShowFeedback && !sourcesElement) {
@@ -517,6 +529,11 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         return parseCitations(modifiedText, taskRagData);
     }, [modifiedText, taskRagData, message.isUser]);
 
+    // Skip rendering entirely for hidden builder messages (e.g., plan approval)
+    if (message.isUser && message.displayHtml?.includes("builder-hidden-message")) {
+        return null;
+    }
+
     // If user message has displayHtml (with mention chips), render that instead
     if (message.isUser && message.displayHtml) {
         // Strip out any embedded context quote HTML from displayHtml
@@ -648,7 +665,7 @@ const getChatBubble = (
     inlineActivityTimelineEnabled?: boolean,
     showThinkingContentEnabled?: boolean
 ): React.ReactNode => {
-    const { openSidePanelTab, setTaskIdInSidePanel, ragData, builderMode, artifacts, currentUserEmail } = chatContext;
+    const { openSidePanelTab, setTaskIdInSidePanel, ragData, builderMode, builderCreationState, artifacts, allArtifacts, currentUserEmail } = chatContext;
 
     if (message.isStatusBubble) {
         return null;
@@ -659,6 +676,13 @@ const getChatBubble = (
     }
 
     if (message.userInputRequest) {
+        // In builder mode, skip rendering the PENDING A2UI surface here — the
+        // enterprise BuilderChatPanel renders it via renderMessageAddon AFTER the
+        // build activity timeline so the credential input appears below the timeline.
+        // Responded / timed-out states still render inline as summary banners.
+        if (builderMode && !message.userInputRequest.responded && !message.userInputRequest.timedOut) {
+            return null;
+        }
         return <UserInputMessage message={message} />;
     }
 
@@ -706,10 +730,10 @@ const getChatBubble = (
     }
 
     // Check for redirect data part — render as a clickable button
-    const redirectPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data && ((p as DataPart).data as any).type === "redirect") as DataPart | undefined;
+    const redirectPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "redirect") as DataPart | undefined;
 
     // Group contiguous parts to handle interleaving of text and files
-    const groupedParts: (TextPart | FilePart | ArtifactPart)[] = [];
+    const groupedParts: (TextPart | FilePart | ArtifactPart | BuildPlanPart)[] = [];
     let currentTextGroup = "";
     message.parts?.forEach(part => {
         if (part.kind === "text") {
@@ -720,8 +744,10 @@ const getChatBubble = (
             if (builderMode && part.kind === "artifact") {
                 const artifactPart = part as ArtifactPart;
                 const name = artifactPart.name || "";
-                // Look up MIME type from the global artifacts list (available even during in-progress)
-                const mimeType = artifactPart.file?.mime_type || artifacts.find(a => a.filename === name)?.mime_type || "";
+                // Look up MIME type from allArtifacts (includes __working tagged items).
+                // This ensures builder config artifacts are detected even when returning
+                // to a previous session where filtered artifacts may not include them.
+                const mimeType = artifactPart.file?.mime_type || allArtifacts?.find(a => a.filename === name)?.mime_type || artifacts.find(a => a.filename === name)?.mime_type || "";
                 const isSamConfig = mimeType.startsWith("application/vnd.sam-");
                 // Detect build manifests by mime_type or filename fallback (mime_type may not be set during early streaming)
                 const isBuildManifest = mimeType === "application/vnd.sam-build-manifest+yaml" || name === "build_manifest.yaml";
@@ -733,7 +759,7 @@ const getChatBubble = (
                         currentTextGroup = "";
                     }
                     // BuildPlanCard manages its own content lifecycle (accumulatedContent → fetch)
-                    groupedParts.push({ kind: "build-plan", filename: name, isComplete: artifactPart.status === "completed" } as any);
+                    groupedParts.push({ kind: "build-plan", filename: name, isComplete: artifactPart.status === "completed" });
                 }
                 if (name === "platform_components.json" || isSamConfig || isBuildManifest) {
                     return; // Hide all SAM config artifacts, build manifests, and platform_components.json
@@ -750,7 +776,7 @@ const getChatBubble = (
         groupedParts.push({ kind: "text", text: currentTextGroup });
     }
 
-    const hasContent = groupedParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || p.kind === "artifact" || (p as any).kind === "build-plan");
+    const hasContent = groupedParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || p.kind === "artifact" || p.kind === "build-plan");
     const hasProgressUpdates = inlineActivityTimelineEnabled && message.progressUpdates && message.progressUpdates.length > 0;
     if (!hasContent && !hasProgressUpdates) {
         return null;
@@ -911,11 +937,26 @@ const getChatBubble = (
                     );
                 } else if (part.kind === "artifact" || part.kind === "file") {
                     return renderArtifactOrFilePart(part, index, shouldStream);
-                } else if ((part as any).kind === "build-plan") {
-                    const bp = part as any;
+                } else if (part.kind === "build-plan") {
+                    const bp = part as BuildPlanPart;
+                    // When builder is actively creating components, show BuilderProgressCard
+                    // instead of the static BuildPlanCard
+                    if (builderCreationState?.isBuilding && builderCreationState.components.length > 0) {
+                        return (
+                            <div key={`part-build-plan-${index}`} className="flex justify-start pl-4">
+                                <BuilderProgressCard components={builderCreationState.components} isBuilding={builderCreationState.isBuilding} buildName={bp.filename?.replace(/\.ya?ml$/, "")} />
+                            </div>
+                        );
+                    }
+                    // Fallback: show BuildPlanCard during planning phase or when
+                    // backend doesn't emit builder_component_progress events.
+                    // Hide action buttons when the agent has a pending follow-up question
+                    // or the message is still streaming (not yet complete).
+                    const hasFollowUpQuestion = !!message.userInputRequest && !message.userInputRequest.responded;
+                    const shouldHideActions = hasFollowUpQuestion || !message.isComplete;
                     return (
                         <div key={`part-build-plan-${index}`} className="flex justify-start pl-4">
-                            <BuildPlanCard filename={bp.filename} isComplete={bp.isComplete} />
+                            <BuildPlanCard filename={bp.filename} isComplete={bp.isComplete} hideActions={shouldHideActions} isMessageComplete={!!message.isComplete} />
                         </div>
                     );
                 }
@@ -925,7 +966,7 @@ const getChatBubble = (
             {/* Show redirect button only after the task completes */}
             {redirectPart && message.isComplete && (
                 <div className="flex justify-start pl-4">
-                    <RedirectButton data={redirectPart.data as any} />
+                    <RedirectButton data={redirectPart.data as unknown as RedirectData} />
                 </div>
             )}
 
@@ -1077,6 +1118,11 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
 
     // Early return after all hooks
     if (!message) {
+        return null;
+    }
+
+    // Hide the entire message (including bubble wrapper and avatar) for hidden builder messages
+    if (message.isUser && message.displayHtml?.includes("builder-hidden-message")) {
         return null;
     }
 

@@ -1,7 +1,7 @@
 import React, { createContext, type FormEvent } from "react";
 import type { ReactNode } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, BuilderCreationState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
 
 /** Custom side panel tab injected by extensions (e.g., enterprise builder) */
 export interface CustomSidePanelTab {
@@ -80,6 +80,8 @@ export interface ChatState {
     // Builder Mode
     /** Whether the chat is in builder mode (hides agent selector, auto-selects builder agent) */
     builderMode: boolean;
+    /** Builder creation progress state — tracks component-level progress during building */
+    builderCreationState: BuilderCreationState;
     /** Optional ReactNode rendered in the input area's left button bar (used for builder mode toggle) */
     inputAreaLeftSlot?: React.ReactNode;
     /** Agent IDs whose sessions should be hidden from the session list (e.g., ["Builder"]) */
@@ -144,6 +146,8 @@ export interface ChatActions {
 
     /** Builder Mode Actions */
     setBuilderMode: React.Dispatch<React.SetStateAction<boolean>>;
+    /** Update builder creation state */
+    setBuilderCreationState: React.Dispatch<React.SetStateAction<BuilderCreationState>>;
 
     /** Background Task Monitoring Actions */
     isTaskRunningInBackground: (taskId: string) => boolean;
