@@ -3,6 +3,8 @@ title: Research Tools
 sidebar_position: 50
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 # Research Tools
 
 Agent Mesh provides research tools that enable agents to search the web and conduct comprehensive research on complex topics. These tools give agents access to current information beyond their training data and the ability to synthesize findings from multiple sources into detailed reports.
@@ -13,9 +15,7 @@ The research tools consist of two categories:
 
 The web search tools provide direct access to web search engines, allowing agents to retrieve current information, news, and facts. The deep research tool builds on web search to conduct iterative research with LLM-powered reflection and report generation.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Setup and Configuration
 

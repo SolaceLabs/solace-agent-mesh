@@ -3,6 +3,8 @@ title: MCP Connectors
 sidebar_position: 2
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 MCP connectors allow agents to communicate with remote MCP servers and access external tools.
 
 ## Overview
@@ -13,9 +15,7 @@ MCP connectors establish connections to remote MCP servers using one of two tran
 
 Agent Mesh Enterprise supports remote MCP servers only through the connector interface. The system does not support local MCP servers that use stdio (standard input/output) for communication. The connector requires network-accessible MCP servers using SSE or Streamable HTTP transport protocols. The connector supports multiple authentication methods and provides tool selection capabilities to control which MCP tools are available to agents.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Prerequisites
 

@@ -3,6 +3,8 @@ title: Configuring Built-in Tools
 sidebar_position: 60
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Configuring Built-in Tools
 
 This guide provides instructions for enabling and configuring the built-in tools provided by Agent Mesh framework.
@@ -13,9 +15,7 @@ Built-in tools are pre-packaged functionalities that can be granted to agents wi
 
 The Agent Mesh framework manages these tools through a central `tool_registry`, which is responsible for loading the tools, generating instructional prompts for the Large Language Model (LLM), and handling their execution in a consistent manner.
 
-:::info NETWORK ACCESS REQUIRED
-Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSomeFeatures />
 
 ## Configuration Methods
 

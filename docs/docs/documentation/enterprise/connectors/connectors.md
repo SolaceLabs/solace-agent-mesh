@@ -3,13 +3,13 @@ title: Connectors
 sidebar_position: 10
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Connectors
 
 Connectors allow your agents to access external data sources and services. You configure each connector with credentials and connection details for a specific system. Agents use connectors to retrieve information, execute queries, and interact with external platforms through natural language conversations.
 
-:::info NETWORK ACCESS REQUIRED
-Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSomeFeatures />
 
 ## Connector Types
 

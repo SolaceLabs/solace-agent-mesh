@@ -3,6 +3,8 @@ title: Gateways
 sidebar_position: 260
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Gateways
 
 Gateways are a crucial component of the Agent Mesh framework that expose the agent mesh to external systems through various protocols. Built on a common base gateway architecture, they provide the following functions:
@@ -16,9 +18,7 @@ Gateways are a crucial component of the Agent Mesh framework that expose the age
 Gateways are the external interfaces that connect various systems to the A2A agent mesh through standardized protocols.
 :::
 
-:::info NETWORK ACCESS REQUIRED
-Some of the features on this page require network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSomeFeatures />
 
 ## Key Functions
 

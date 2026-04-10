@@ -3,6 +3,8 @@ title: Audio Tools
 sidebar_position: 30
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 # Using Text-to-Speech (TTS) Tools
 
 This guide provides technical documentation for the text-to-speech (TTS) tools available in Agent Mesh.
@@ -14,9 +16,7 @@ The `audio` tool group provides two primary TTS tools for generating high-qualit
 1.  **`text_to_speech`**: Converts a string of text to speech using a single voice, featuring intelligent tone selection.
 2.  **`multi_speaker_text_to_speech`**: Converts a conversational script, delineated by speaker, into a multi-speaker audio file.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Setup and Configuration
 

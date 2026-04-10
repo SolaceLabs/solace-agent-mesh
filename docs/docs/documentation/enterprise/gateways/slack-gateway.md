@@ -3,6 +3,8 @@ title: Slack Gateway
 sidebar_position: 2
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 # Slack Gateway
 
 Slack gateways integrate Agent Mesh with Slack workspaces, enabling users to interact with agents through Slack channels and direct messages. The gateway uses Socket Mode for real-time message processing without requiring public endpoints.
@@ -13,9 +15,7 @@ Slack gateways connect to Slack workspaces using the Slack Events API and Socket
 
 Socket Mode establishes a WebSocket connection from the gateway to Slack's servers, eliminating the need for public-facing endpoints or webhook URLs.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Prerequisites
 

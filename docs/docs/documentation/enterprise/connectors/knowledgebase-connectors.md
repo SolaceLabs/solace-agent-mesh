@@ -3,6 +3,8 @@ title: Knowledge Base Connectors
 sidebar_position: 1
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories.
 
 ## Overview
@@ -13,9 +15,7 @@ The connector retrieves information from knowledge bases, which can contain both
 
 This reduces hallucinations and ensures agents provide answers consistent with company policies, procedures, and documentation.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Supported Knowledge Bases
 

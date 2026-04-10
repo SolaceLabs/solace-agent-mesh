@@ -3,6 +3,8 @@ title: OpenAPI Connectors
 sidebar_position: 3
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications.
 
 ## Overview
@@ -21,9 +23,7 @@ The connector converts API operations into tools that agents invoke. It derives 
 
 The connector supports OpenAPI 3.0+ specifications in JSON or YAML format and provides flexible authentication options to accommodate different API security models.
 
-:::info NETWORK ACCESS REQUIRED
-This feature requires network access. In network restricted environments, ensure the necessary routes and firewall rules are in place before use.
-:::
+<NetworkAccessRequiredSingleFeature />
 
 ## Prerequisites
 
