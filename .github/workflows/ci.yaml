@@ -45,6 +45,7 @@ jobs:
   # ----------------------------------------------------
   test-and-sonarqube:
     name: Test and SonarQube
+    if: ${{ github.event_name != 'pull_request' || !contains(github.head_ref, 'release-please') }}
     uses: ./.github/workflows/test-and-sonarqube.yml
     with:
       min-python-version: "3.10"
@@ -65,11 +66,18 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
       short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
       commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
+      security_version: ${{ steps.resolve-security-baseline.outputs.security_version }}
+      security_short_sha: ${{ steps.resolve-security-baseline.outputs.security_short_sha }}
+      security_commit_sha: ${{ steps.resolve-security-baseline.outputs.security_commit_sha }}
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       docker_push: ${{ steps.set_build_params.outputs.docker_push }}
+      should_push_image: ${{ steps.set_build_params.outputs.should_push_image }}
+      is_release_please_pr: ${{ steps.set_build_params.outputs.is_release_please_pr }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
@@ -93,6 +101,32 @@ jobs:
           echo "version=$(hatch version)" >> $GITHUB_OUTPUT
           echo "Found version: $(hatch version)"
 
+      - name: Resolve security baseline metadata
+        id: resolve-security-baseline
+        env:
+          HEAD_VERSION: ${{ steps.get_version.outputs.version }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          SECURITY_COMMIT_SHA="$(git rev-parse HEAD)"
+          SECURITY_SHORT_SHA="${SECURITY_COMMIT_SHA:0:10}"
+          SECURITY_VERSION="${HEAD_VERSION}"
+
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == *"release-please"* ]]; then
+            SECURITY_COMMIT_SHA="${PR_BASE_SHA}"
+            SECURITY_SHORT_SHA="${SECURITY_COMMIT_SHA:0:10}"
+            SECURITY_VERSION="$(git show "${SECURITY_COMMIT_SHA}:cli/__init__.py" | sed -nE 's/^__version__ = "([^"]+)".*/\1/p')"
+            if [[ -z "${SECURITY_VERSION}" ]]; then
+              echo "::error::Unable to resolve security baseline version from cli/__init__.py at ${SECURITY_COMMIT_SHA}"
+              exit 1
+            fi
+          fi
+
+          echo "security_commit_sha=${SECURITY_COMMIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "security_short_sha=${SECURITY_SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "security_version=${SECURITY_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Security baseline commit: ${SECURITY_COMMIT_SHA}"
+          echo "Security baseline version: ${SECURITY_VERSION}"
+
       - name: Determine Release Tag
         id: release_tag
         run: |
@@ -106,12 +140,27 @@ jobs:
         id: set_build_params
         run: |
           docker_push=false
-          # Only update manifest for default branch pushes
-          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          is_release_please_pr=false
+
+          # Detect release-please PRs.
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == *"release-please"* ]]; then
+            is_release_please_pr=true
+          fi
+
+          # Only update release manifest for default branch pushes.
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
             docker_push=true
           fi
-          echo "Will Push Images: ${docker_push}"
+
+          # PR builds remain local-only. We only push on default-branch pushes.
+          should_push_image="${docker_push}"
+
+          echo "Will Push Images: ${should_push_image}"
+          echo "Main branch push: ${docker_push}"
+          echo "Is release-please PR: ${is_release_please_pr}"
           echo "docker_push=${docker_push}" >> $GITHUB_OUTPUT
+          echo "should_push_image=${should_push_image}" >> $GITHUB_OUTPUT
+          echo "is_release_please_pr=${is_release_please_pr}" >> $GITHUB_OUTPUT
           echo "Always building multiplatform for all scenarios"
 
   # ----------------------------------------------------
@@ -201,17 +250,17 @@ jobs:
           file: Dockerfile
           platforms: ${{ matrix.platform.name }}
           tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
-          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          push: ${{ fromJSON(needs.prepare-metadata.outputs.should_push_image) }}
           cache-from: ${{ steps.cache_list.outputs.cache_from }}
-          load: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          load: ${{ !fromJSON(needs.prepare-metadata.outputs.should_push_image) }}
           cache-to: ${{ steps.image_name.outputs.cache_to }}
           provenance: false
           sbom: false
           build-args: |
             INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
 
-      - name: Run Prisma Cloud Scan on Local Image
-        if: ${{ github.event_name == 'pull_request' }}
+      - name: Run Prisma Cloud Scan on Local Image (non-release PR)
+        if: ${{ github.event_name == 'pull_request' && !contains(github.head_ref, 'release-please') }}
         id: prisma_scan
         continue-on-error: true
         uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
@@ -224,7 +273,39 @@ jobs:
           pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
           twistcli_publish: "true"
           vulnerability_grace_period_days: "7"
-          skip_image_pull: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
+          skip_image_pull: "true"
+
+      - name: Run Prisma Cloud Scan on Release Candidate Image
+        if: ${{ github.event_name == 'pull_request' && contains(github.head_ref, 'release-please') && matrix.platform.tag_suffix == 'amd64' }}
+        id: prisma_scan_release_candidate
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
+        with:
+          image_registry: ${{ steps.login-ecr.outputs.registry }}
+          image_repo: ${{ github.event.repository.name }}
+          image_tag: ${{ format('{0}-{1}-{2}', needs.prepare-metadata.outputs.security_version, needs.prepare-metadata.outputs.security_short_sha, matrix.platform.tag_suffix) }}
+          pcc_console_url: ${{ vars.PRISMACLOUD_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+          pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+          twistcli_publish: "true"
+          vulnerability_grace_period_days: "7"
+          skip_image_pull: "false"
+
+      - name: Export release PR Prisma image metadata
+        if: ${{ github.event_name == 'pull_request' && contains(github.head_ref, 'release-please') && matrix.platform.tag_suffix == 'amd64' }}
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ github.event.repository.name }}:${{ needs.prepare-metadata.outputs.security_version }}-${{ needs.prepare-metadata.outputs.security_short_sha }}-amd64"
+          echo "prisma_image_to_check=${IMAGE_URI}" > release-prisma-metadata.env
+          echo "release_prisma_scan_step_outcome=${{ steps.prisma_scan_release_candidate.outcome }}" >> release-prisma-metadata.env
+          echo "Exported Prisma metadata: ${IMAGE_URI}"
+
+      - name: Upload release PR Prisma metadata
+        if: ${{ github.event_name == 'pull_request' && contains(github.head_ref, 'release-please') && matrix.platform.tag_suffix == 'amd64' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-prisma-metadata
+          path: release-prisma-metadata.env
+          retention-days: 1
 
   # ----------------------------------------------------
   # PHASE 3: Merge Multi-Platform Manifest (Always)
@@ -250,6 +331,8 @@ jobs:
 
       - name: Determine Image Name and Tags
         id: image_tags
+        env:
+          DOCKER_PUSH: ${{ needs.prepare-metadata.outputs.docker_push }}
         run: |
           # Reconstruct image name based on registry type
           image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
@@ -262,11 +345,11 @@ jobs:
 
           tags="${image_name}:${version}-${short_sha}"
 
-          if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+          if [[ "${DOCKER_PUSH}" == "true" ]]; then
             tags="${tags},${image_name}:${version}"
             tags="${tags},${image_name}:${release_tag}"
+            tags="${tags},${image_name}:${release_tag}-${short_sha}"
           fi
-          tags="${tags},${image_name}:${release_tag}-${short_sha}"
 
 
           echo "image_name=${image_name}" >> $GITHUB_OUTPUT
@@ -274,7 +357,6 @@ jobs:
           echo "Created tags: ${tags}"
 
       - name: Create and Push Multi-Platform Manifest
-        if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
         run: |
           # Define the platform-specific tags
           AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
@@ -380,3 +462,201 @@ jobs:
               console.error('Failed to trigger RC workflow:', error.message);
               throw error;
             }
+
+  # ----------------------------------------------------
+  # Release-Please PR Prisma metadata for downstream security workflow
+  # ----------------------------------------------------
+  release-pr-prisma-metadata:
+    name: Resolve Release PR Prisma Metadata
+    needs: [prepare-metadata, build-platform]
+    if: ${{ github.event_name == 'pull_request' && fromJSON(needs.prepare-metadata.outputs.is_release_please_pr) }}
+    runs-on: ubuntu-latest
+    outputs:
+      prisma_image_to_check: ${{ steps.read-prisma-metadata.outputs.prisma_image_to_check }}
+      release_prisma_scan_step_outcome: ${{ steps.read-prisma-metadata.outputs.release_prisma_scan_step_outcome }}
+    steps:
+      - name: Download release PR Prisma metadata
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: release-prisma-metadata
+          path: .
+
+      - name: Read Prisma metadata
+        id: read-prisma-metadata
+        run: |
+          if [[ ! -f "release-prisma-metadata.env" ]]; then
+            echo "::error::release-prisma-metadata.env artifact was not found."
+            exit 1
+          fi
+
+          source release-prisma-metadata.env
+
+          if [[ -z "${prisma_image_to_check:-}" ]]; then
+            echo "::error::Missing prisma_image_to_check in release-prisma-metadata.env"
+            exit 1
+          fi
+
+          echo "prisma_image_to_check=${prisma_image_to_check}" >> "$GITHUB_OUTPUT"
+          echo "release_prisma_scan_step_outcome=${release_prisma_scan_step_outcome:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Prisma image for release security checks: ${prisma_image_to_check}"
+
+  # ----------------------------------------------------
+  # Release-Please PR security checks (reusable release gate with Prisma + hotspots)
+  # ----------------------------------------------------
+  release-pr-security-checks:
+    name: Release PR Security Checks
+    needs:
+      [
+        prepare-metadata,
+        fossa_scan,
+        build-platform,
+        test-and-sonarqube,
+        release-pr-prisma-metadata,
+      ]
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      fromJSON(needs.prepare-metadata.outputs.is_release_please_pr) &&
+      (needs.fossa_scan.result == 'success' || needs.fossa_scan.result == 'skipped') &&
+      needs.build-platform.result == 'success' &&
+      (needs.test-and-sonarqube.result == 'success' || needs.test-and-sonarqube.result == 'skipped') &&
+      needs.release-pr-prisma-metadata.result == 'success'
+    uses: SolaceDev/solace-public-workflows/.github/workflows/hatch_release_security_checks.yml@fix-security-workflow
+    with:
+      git_ref: ${{ needs.prepare-metadata.outputs.security_commit_sha }}
+      prisma_check: true
+      sonarqube_hotspot_check: true
+      fossa_check: false
+    secrets:
+      PRISMA_DOCKER_IMAGE_TO_CHECK: ${{ needs.release-pr-prisma-metadata.outputs.prisma_image_to_check }}
+      PRISMA_ACCESS_KEY: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+      PRISMA_ACCESS_KEY_SECRET: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_ACCESS_KEY_ID: ${{ secrets.MANIFEST_READ_ONLY_AWS_ACCESS_KEY_ID }}
+      MANIFEST_AWS_SECRET_ACCESS_KEY: ${{ secrets.MANIFEST_READ_ONLY_AWS_SECRET_ACCESS_KEY }}
+      MANIFEST_AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+      SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+      SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+      SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+
+  # ----------------------------------------------------
+  # Release-Please PR RC verification gate
+  # ----------------------------------------------------
+  verify-release-pr-rc:
+    name: Verify RC Status
+    needs: [prepare-metadata, build-platform]
+    if: ${{ github.event_name == 'pull_request' && fromJSON(needs.prepare-metadata.outputs.is_release_please_pr) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      rc_state: ${{ steps.propagate-rc.outputs.rc_state }}
+      propagated_context: ${{ steps.propagate-rc.outputs.propagated_context }}
+      source_commit_sha: ${{ steps.propagate-rc.outputs.source_commit_sha }}
+      target_commit_sha: ${{ steps.propagate-rc.outputs.target_commit_sha }}
+    steps:
+      - name: Propagate RC status from main commit to release PR commit
+        id: propagate-rc
+        uses: ./.github/actions/release-pr-rc-check
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_commit_sha: ${{ needs.prepare-metadata.outputs.security_commit_sha }}
+          target_commit_sha: ${{ github.event.pull_request.head.sha }}
+          status_context: RC / Integration Tests (Community)
+          propagated_context: RC / Integration Tests (Community) [Release PR]
+          poll_interval_seconds: "60"
+          max_attempts: "75"
+
+  # ----------------------------------------------------
+  # Unified required status check for branch protection
+  # ----------------------------------------------------
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs:
+      - fossa_scan
+      - test-and-sonarqube
+      - prepare-metadata
+      - build-platform
+      - merge-manifest
+      - release-pr-prisma-metadata
+      - release-pr-security-checks
+      - verify-release-pr-rc
+    if: always()
+    steps:
+      - name: Evaluate required checks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IS_RELEASE_PLEASE_PR: ${{ needs.prepare-metadata.outputs.is_release_please_pr }}
+          FOSSA_SCAN_RESULT: ${{ needs.fossa_scan.result }}
+          TEST_AND_SONAR_RESULT: ${{ needs.test-and-sonarqube.result }}
+          PREPARE_METADATA_RESULT: ${{ needs.prepare-metadata.result }}
+          BUILD_PLATFORM_RESULT: ${{ needs.build-platform.result }}
+          MERGE_MANIFEST_RESULT: ${{ needs.merge-manifest.result }}
+          RELEASE_PR_PRISMA_METADATA_RESULT: ${{ needs.release-pr-prisma-metadata.result }}
+          RELEASE_PR_PRISMA_IMAGE: ${{ needs.release-pr-prisma-metadata.outputs.prisma_image_to_check }}
+          RELEASE_PR_PRISMA_LOCAL_SCAN_RESULT: ${{ needs.release-pr-prisma-metadata.outputs.release_prisma_scan_step_outcome }}
+          RELEASE_PR_SECURITY_RESULT: ${{ needs.release-pr-security-checks.result }}
+          RELEASE_PR_SECURITY_GIT_REF: ${{ needs.release-pr-security-checks.outputs.git_ref_used }}
+          RELEASE_PR_SECURITY_PRISMA_RESULT: ${{ needs.release-pr-security-checks.outputs.prisma_result }}
+          RELEASE_PR_SECURITY_SONAR_RESULT: ${{ needs.release-pr-security-checks.outputs.sonarqube_hotspot_result }}
+          RELEASE_PR_SECURITY_FOSSA_LICENSE_RESULT: ${{ needs.release-pr-security-checks.outputs.fossa_licensing_result }}
+          RELEASE_PR_SECURITY_FOSSA_VULN_RESULT: ${{ needs.release-pr-security-checks.outputs.fossa_vulnerability_result }}
+          RELEASE_PR_RC_RESULT: ${{ needs.verify-release-pr-rc.result }}
+          RELEASE_PR_RC_STATE: ${{ needs.verify-release-pr-rc.outputs.rc_state }}
+          RELEASE_PR_RC_CONTEXT: ${{ needs.verify-release-pr-rc.outputs.propagated_context }}
+        run: |
+          set -euo pipefail
+
+          require_result() {
+            local check_name="$1"
+            local result="$2"
+            shift 2
+            local allowed=("$@")
+
+            for allowed_result in "${allowed[@]}"; do
+              if [[ "$result" == "$allowed_result" ]]; then
+                echo "✅ ${check_name}: ${result}"
+                return 0
+              fi
+            done
+
+            echo "::error::${check_name} is '${result}' (expected: ${allowed[*]})"
+            exit 1
+          }
+
+          echo "Event: ${EVENT_NAME}"
+          echo "Release-please PR: ${IS_RELEASE_PLEASE_PR}"
+
+          require_result "Prepare Build Metadata" "${PREPARE_METADATA_RESULT}" success
+          require_result "Build Platform Matrix" "${BUILD_PLATFORM_RESULT}" success
+          require_result "FOSSA Scan" "${FOSSA_SCAN_RESULT}" success skipped
+
+          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
+            require_result "Test and SonarQube" "${TEST_AND_SONAR_RESULT}" success
+            require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" success
+            echo "All required checks passed for push event."
+            exit 0
+          fi
+
+          if [[ "${IS_RELEASE_PLEASE_PR}" == "true" ]]; then
+            require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" skipped success
+            require_result "Release PR Prisma Metadata" "${RELEASE_PR_PRISMA_METADATA_RESULT}" success
+            require_result "Release PR Security Checks" "${RELEASE_PR_SECURITY_RESULT}" success
+            require_result "Verify RC Status" "${RELEASE_PR_RC_RESULT}" success
+            echo "Release readiness details:"
+            echo "  - Security workflow git ref: ${RELEASE_PR_SECURITY_GIT_REF}"
+            echo "  - Prisma image: ${RELEASE_PR_PRISMA_IMAGE}"
+            echo "  - Build-platform Prisma scan outcome (amd64): ${RELEASE_PR_PRISMA_LOCAL_SCAN_RESULT}"
+            echo "  - Security workflow Prisma result: ${RELEASE_PR_SECURITY_PRISMA_RESULT}"
+            echo "  - Security workflow Sonar hotspots result: ${RELEASE_PR_SECURITY_SONAR_RESULT}"
+            echo "  - Security workflow FOSSA licensing result: ${RELEASE_PR_SECURITY_FOSSA_LICENSE_RESULT}"
+            echo "  - Security workflow FOSSA vulnerability result: ${RELEASE_PR_SECURITY_FOSSA_VULN_RESULT}"
+            echo "  - RC propagated context: ${RELEASE_PR_RC_CONTEXT}"
+            echo "  - RC final state: ${RELEASE_PR_RC_STATE}"
+            echo "All required checks passed for release-please PR."
+            exit 0
+          fi
+
+          require_result "Test and SonarQube" "${TEST_AND_SONAR_RESULT}" success
+          require_result "Create Multi-Platform Manifest" "${MERGE_MANIFEST_RESULT}" skipped success
+          echo "All required checks passed for standard PR."
