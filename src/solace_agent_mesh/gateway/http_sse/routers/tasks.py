@@ -69,38 +69,96 @@ log = logging.getLogger(__name__)
 # Cache for fork metadata lookups so the DB is only queried once per session
 _fork_metadata_cache: dict[str, dict | None] = {}
 
+# Cache for scheduler conversation history so the DB is only queried once per session
+_scheduler_history_cache: dict[str, list | None] = {}
+
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
-def _resolve_scheduler_adk_session(session_id: str, session_local_factory, log_prefix: str) -> str | None:
-    """Resolve the stable ADK session ID for a scheduled-task session.
+def _load_scheduler_conversation_history(
+    session_id: str, session_local_factory, log_prefix: str
+) -> list | None:
+    """Load conversation history from ChatTask records for a scheduled-task session.
 
-    Returns the stable session ID (``scheduled_task_{task_id}``) or None
-    when the session is not a scheduler session or the lookup fails.
+    When a user clicks "Go to Chat" from a scheduled task execution, the
+    original ADK session (RUN_BASED) has been deleted.  Instead of trying to
+    find a persistent ADK session, we reconstruct the conversation from the
+    ChatTask ``message_bubbles`` stored in the database and pass it as
+    metadata so the agent can inject it into a fresh ADK session.
+
+    Returns a list of ``{"role": "user"|"assistant", "content": "..."}``
+    dicts, or *None* when the session is not a scheduler session or the
+    lookup fails / yields no history.
+
+    Results are cached in ``_scheduler_history_cache`` to avoid repeated DB
+    queries for the same session.
     """
     if not session_id or not session_id.startswith("scheduled_") or session_local_factory is None:
         return None
+
+    # Return cached result if available
+    if session_id in _scheduler_history_cache:
+        return _scheduler_history_cache[session_id]
+
     try:
         db_sched = session_local_factory()
         try:
-            from ..repository.scheduled_task_repository import ScheduledTaskRepository
-            sched_repo = ScheduledTaskRepository()
-            execution = sched_repo.find_execution_by_session_id(db_sched, session_id)
-            if execution and execution.scheduled_task_id:
-                stable_adk_session = f"scheduled_task_{execution.scheduled_task_id}"
-                log.info(
-                    "%sScheduler session %s -> ADK session %s for continue-chat",
-                    log_prefix, session_id, stable_adk_session,
+            task_repo = ChatTaskRepository()
+            # Use all-users variant since scheduled tasks may run under a
+            # system user different from the one continuing the chat.
+            tasks = task_repo.find_by_session_all_users(db_sched, session_id)
+            if not tasks:
+                log.debug(
+                    "%sNo ChatTask records found for scheduler session %s",
+                    log_prefix, session_id,
                 )
-                return stable_adk_session
+                _scheduler_history_cache[session_id] = None
+                return None
+
+            history: list[dict[str, str]] = []
+            for task in tasks:
+                try:
+                    bubbles = json.loads(task.message_bubbles) if isinstance(
+                        task.message_bubbles, str
+                    ) else task.message_bubbles
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                for bubble in bubbles:
+                    if not isinstance(bubble, dict):
+                        continue
+                    bubble_type = bubble.get("type", "")
+                    text = bubble.get("text", "")
+                    if not text:
+                        continue
+                    if bubble_type == "user":
+                        history.append({"role": "user", "content": text})
+                    elif bubble_type == "agent":
+                        history.append({"role": "assistant", "content": text})
+
+            if history:
+                log.info(
+                    "%sLoaded %d conversation history entries from ChatTask records for scheduler session %s",
+                    log_prefix, len(history), session_id,
+                )
+                _scheduler_history_cache[session_id] = history
+                return history
+            else:
+                log.debug(
+                    "%sNo extractable conversation history in ChatTask records for scheduler session %s",
+                    log_prefix, session_id,
+                )
+                _scheduler_history_cache[session_id] = None
+                return None
         finally:
             db_sched.close()
     except Exception as e:
         log.warning(
-            "%sFailed to resolve scheduler ADK session for %s: %s",
+            "%sFailed to load scheduler conversation history for %s: %s",
             log_prefix, session_id, e,
             exc_info=True,
         )
+        _scheduler_history_cache[session_id] = None
     return None
 
 
@@ -744,13 +802,14 @@ async def _submit_task(
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
 
-        # For scheduled task sessions, resolve the stable ADK session ID so the
-        # agent can find the persistent conversation history.  The context_id
-        # (a2a_session_id) stays as the gateway session ID for TaskLoggerService,
-        # but the agent uses schedulerAdkSessionId for the ADK session lookup.
-        stable_adk = _resolve_scheduler_adk_session(session_id, SessionLocal, log_prefix)
-        if stable_adk:
-            additional_metadata["schedulerAdkSessionId"] = stable_adk
+        # For scheduled task sessions, reconstruct conversation history from
+        # ChatTask records so the agent can inject it into a fresh ADK session.
+        # The original RUN_BASED ADK session is deleted after execution, so we
+        # pass the history as metadata instead of trying to find a persistent
+        # ADK session.
+        scheduler_history = _load_scheduler_conversation_history(session_id, SessionLocal, log_prefix)
+        if scheduler_history:
+            additional_metadata["schedulerConversationHistory"] = scheduler_history
 
         # For forked sessions: pass fork metadata so the agent can clone the ADK session
         # on first message. The forked session uses its OWN session_id (true isolation).

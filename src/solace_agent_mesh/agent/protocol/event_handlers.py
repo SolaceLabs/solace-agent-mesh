@@ -806,6 +806,109 @@ async def _copy_history_for_run_based_session(
         )
 
 
+async def _inject_scheduler_conversation_history(
+    component: "SamAgentComponent",
+    agent_name: str,
+    user_id: str,
+    effective_session_id: str,
+    conversation_history: list,
+    logical_task_id: str,
+) -> None:
+    """
+    Inject reconstructed conversation history into an ADK session.
+
+    When a user continues a chat from a scheduled task execution, the
+    original RUN_BASED ADK session has been deleted.  The gateway
+    reconstructs the conversation from ChatTask ``message_bubbles`` and
+    passes it as ``schedulerConversationHistory`` in the task metadata.
+
+    This function creates ADK events for each user/assistant turn and
+    appends them to the (freshly created) ADK session so the agent has
+    context about the prior execution.
+
+    Args:
+        component: The SamAgentComponent instance.
+        agent_name: The agent name for session operations.
+        user_id: The user ID for session operations.
+        effective_session_id: The session ID to inject history into.
+        conversation_history: List of ``{"role": "user"|"assistant", "content": "..."}`` dicts.
+        logical_task_id: The task ID for logging.
+    """
+    if not conversation_history:
+        return
+
+    try:
+        from google.adk.events import Event as ADKEvent
+        from google.adk.events.event_actions import EventActions
+        from google.genai import types as adk_types
+        from ...agent.adk.services import append_event_with_retry
+
+        adk_session = await component.session_service.get_session(
+            app_name=agent_name, user_id=user_id, session_id=effective_session_id
+        )
+        if adk_session is None:
+            log.warning(
+                "%s Cannot inject scheduler history - ADK session '%s' not found.",
+                component.log_identifier,
+                effective_session_id,
+            )
+            return
+
+        injected_count = 0
+        for entry in conversation_history:
+            role = entry.get("role", "")
+            content = entry.get("content", "")
+            if not content or role not in ("user", "assistant"):
+                continue
+
+            # Map "assistant" to "model" for ADK content role
+            adk_role = "user" if role == "user" else "model"
+            author = "user" if role == "user" else "agent"
+
+            history_event = ADKEvent(
+                invocation_id=f"scheduler_history_{logical_task_id}_{injected_count}",
+                author=author,
+                content=adk_types.Content(
+                    role=adk_role,
+                    parts=[adk_types.Part(text=content)],
+                ),
+                actions=EventActions(),
+                branch=None,
+            )
+
+            await append_event_with_retry(
+                session_service=component.session_service,
+                session=adk_session,
+                event=history_event,
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=effective_session_id,
+                log_identifier=f"{component.log_identifier}[SchedulerHistory:{logical_task_id}]",
+            )
+
+            # Re-fetch session after each append to keep it fresh
+            adk_session = await component.session_service.get_session(
+                app_name=agent_name, user_id=user_id, session_id=effective_session_id
+            )
+            injected_count += 1
+
+        log.info(
+            "%s Injected %d scheduler conversation history events into ADK session '%s' for task '%s'.",
+            component.log_identifier,
+            injected_count,
+            effective_session_id,
+            logical_task_id,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to inject scheduler conversation history for task '%s': %s. Proceeding without history.",
+            component.log_identifier,
+            logical_task_id,
+            e,
+            exc_info=True,
+        )
+
+
 async def _prepare_adk_content_with_artifacts(
     component: "SamAgentComponent",
     a2a_message,
@@ -1060,21 +1163,6 @@ async def _handle_send_message_request(
     if session_id_from_data:
         original_session_id = session_id_from_data
 
-    # For scheduled task continued chats, the gateway passes the stable ADK
-    # session ID as metadata so the agent finds the persistent conversation
-    # history.  The context_id remains the gateway session ID (for
-    # TaskLoggerService / ChatTask records), but the ADK session uses the
-    # stable scheduler session.
-    scheduler_adk_session_id = task_metadata.get("schedulerAdkSessionId")
-    if scheduler_adk_session_id:
-        original_session_id = scheduler_adk_session_id
-        log.info(
-            "%s Using schedulerAdkSessionId '%s' as ADK session (gateway contextId='%s').",
-            component.log_identifier,
-            scheduler_adk_session_id,
-            a2a_message.context_id,
-        )
-
     if session_behavior == "RUN_BASED":
         is_run_based_session = True
         effective_session_id = f"{original_session_id}:{logical_task_id}:run"
@@ -1106,6 +1194,17 @@ async def _handle_send_message_request(
         await _copy_history_for_run_based_session(
             component, agent_name, user_id, original_session_id,
             effective_session_id, logical_task_id,
+        )
+
+    # For scheduled task continued chats, inject conversation history from
+    # ChatTask records into the ADK session.  The original RUN_BASED ADK
+    # session was deleted after execution, so we reconstruct the history
+    # from the gateway's persisted message bubbles.
+    scheduler_history = task_metadata.get("schedulerConversationHistory")
+    if scheduler_history:
+        await _inject_scheduler_conversation_history(
+            component, agent_name, user_id, effective_session_id,
+            scheduler_history, logical_task_id,
         )
 
     a2a_context = {
