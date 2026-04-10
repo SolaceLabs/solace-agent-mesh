@@ -41,6 +41,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const [queryParams, setQueryParams] = useState<SupportedModelsQueryParams | null>(null);
     const { data: dynamicModels = [], isLoading: isLoadingModels, isError: hasFetchError } = useSupportedModels(queryParams);
     const [supportedParams, setSupportedParams] = useState<string[] | null>(null);
+    const [paramsError, setParamsError] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
     const {
         register,
@@ -162,15 +163,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     useEffect(() => {
         if (!selectedProvider || !debouncedModelName) {
             setSupportedParams(null);
+            setParamsError(false);
             return;
         }
         let cancelled = false;
+        setParamsError(false);
         fetchSupportedParams(selectedProvider, debouncedModelName)
             .then(params => {
                 if (!cancelled) setSupportedParams(params);
             })
             .catch(() => {
-                if (!cancelled) setSupportedParams(null);
+                if (!cancelled) {
+                    setSupportedParams(null);
+                    setParamsError(true);
+                }
             });
         return () => {
             cancelled = true;
@@ -569,6 +575,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
+                                                            {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
                                                         </>
                                                     )}
                                                 />
