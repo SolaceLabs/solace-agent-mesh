@@ -72,6 +72,38 @@ _fork_metadata_cache: dict[str, dict | None] = {}
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+def _resolve_scheduler_adk_session(session_id: str, session_local_factory, log_prefix: str) -> str | None:
+    """Resolve the stable ADK session ID for a scheduled-task session.
+
+    Returns the stable session ID (``scheduled_task_{task_id}``) or None
+    when the session is not a scheduler session or the lookup fails.
+    """
+    if not session_id or not session_id.startswith("scheduled_") or session_local_factory is None:
+        return None
+    try:
+        db_sched = session_local_factory()
+        try:
+            from ..repository.scheduled_task_repository import ScheduledTaskRepository
+            sched_repo = ScheduledTaskRepository()
+            execution = sched_repo.find_execution_by_session_id(db_sched, session_id)
+            if execution and execution.scheduled_task_id:
+                stable_adk_session = f"scheduled_task_{execution.scheduled_task_id}"
+                log.info(
+                    "%sScheduler session %s -> ADK session %s for continue-chat",
+                    log_prefix, session_id, stable_adk_session,
+                )
+                return stable_adk_session
+        finally:
+            db_sched.close()
+    except Exception as e:
+        log.warning(
+            "%sFailed to resolve scheduler ADK session for %s: %s",
+            log_prefix, session_id, e,
+            exc_info=True,
+        )
+    return None
+
+
 # Background Task Status Models and Endpoints
 class TaskStatusResponse(BaseModel):
     """Response model for task status queries."""
@@ -716,27 +748,9 @@ async def _submit_task(
         # agent can find the persistent conversation history.  The context_id
         # (a2a_session_id) stays as the gateway session ID for TaskLoggerService,
         # but the agent uses schedulerAdkSessionId for the ADK session lookup.
-        if session_id and session_id.startswith("scheduled_") and SessionLocal is not None:
-            try:
-                db_sched = SessionLocal()
-                try:
-                    from ..repository.scheduled_task_repository import ScheduledTaskRepository
-                    sched_repo = ScheduledTaskRepository()
-                    execution = sched_repo.find_execution_by_session_id(db_sched, session_id)
-                    if execution and execution.scheduled_task_id:
-                        stable_adk_session = f"scheduled_task_{execution.scheduled_task_id}"
-                        additional_metadata["schedulerAdkSessionId"] = stable_adk_session
-                        log.info(
-                            "%sScheduler session %s -> ADK session %s for continue-chat",
-                            log_prefix, session_id, stable_adk_session,
-                        )
-                finally:
-                    db_sched.close()
-            except Exception as e:
-                log.debug(
-                    "%sFailed to resolve scheduler ADK session for %s: %s",
-                    log_prefix, session_id, e,
-                )
+        stable_adk = _resolve_scheduler_adk_session(session_id, SessionLocal, log_prefix)
+        if stable_adk:
+            additional_metadata["schedulerAdkSessionId"] = stable_adk
 
         # For forked sessions: pass fork metadata so the agent can clone the ADK session
         # on first message. The forked session uses its OWN session_id (true isolation).

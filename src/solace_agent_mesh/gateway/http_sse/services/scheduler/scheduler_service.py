@@ -95,6 +95,9 @@ class SchedulerService:
         self.active_tasks: Dict[str, Any] = {}
         self.running_executions: Dict[str, asyncio.Task] = {}
         self._execution_lock = asyncio.Lock()
+        # Per-task locks prevent overlapping executions of the same scheduled
+        # task from corrupting the shared persistent ADK session.
+        self._task_locks: Dict[str, asyncio.Lock] = {}
 
         # Initialize result handler (in-memory tracking)
         self.result_handler = ResultHandler(
@@ -349,7 +352,28 @@ class SchedulerService:
 
         Retries are handled iteratively (not recursively) to avoid deep call
         stacks and unnecessary resource retention between attempts.
+
+        A per-task lock ensures only one execution is in-flight at a time,
+        preventing concurrent writes to the shared persistent ADK session.
         """
+        # Acquire a per-task lock so overlapping cron triggers for the same
+        # task wait rather than corrupting the persistent session.
+        if task_id not in self._task_locks:
+            self._task_locks[task_id] = asyncio.Lock()
+        task_lock = self._task_locks[task_id]
+
+        if task_lock.locked():
+            log.warning(
+                "[SchedulerService:%s] Task %s already in-flight, skipping overlapping trigger",
+                self.instance_id, task_id,
+            )
+            return
+
+        async with task_lock:
+            await self._execute_scheduled_task_inner(task_id)
+
+    async def _execute_scheduled_task_inner(self, task_id: str):
+        """Inner implementation of scheduled task execution (holds per-task lock)."""
         log.info(
             "[SchedulerService:%s] Executing scheduled task: %s",
             self.instance_id, task_id,
@@ -729,6 +753,8 @@ class SchedulerService:
             # --- Step 4: Register, publish, and wait (no session held) ---
             # Pass the per-execution session_id (not the stable context_id) so
             # artifact URIs reference the correct gateway session record.
+            # Note: response correlation uses a2a_task_id (not session_id),
+            # so the mismatch between context_id and session_id is intentional.
             await self.result_handler.register_execution(execution_id, a2a_task_id, session_id)
 
             self.publish_func(target_topic, payload, user_props)

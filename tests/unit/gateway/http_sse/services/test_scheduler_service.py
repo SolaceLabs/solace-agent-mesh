@@ -405,7 +405,7 @@ class TestMetadataFiltering:
         assert msg_meta.get("priority") == "high"
         assert msg_meta.get("tags") == ["daily"]
         assert "dangerous_key" not in msg_meta
-        assert msg_meta.get("sessionBehavior") == "RUN_BASED"  # protocol override
+        assert msg_meta.get("sessionBehavior") == "PERSISTENT"  # protocol override
         assert msg_meta.get("returnArtifacts") is True
 
         # Verify the request-level metadata also filters
@@ -477,7 +477,7 @@ class TestMetadataFiltering:
         assert msg_meta.get("priority") == "high"
         assert msg_meta.get("tags") == ["daily"]
         assert "dangerous_key" not in msg_meta
-        assert msg_meta.get("sessionBehavior") == "RUN_BASED"
+        assert msg_meta.get("sessionBehavior") == "PERSISTENT"
         assert msg_meta.get("returnArtifacts") is True
 
         # Verify the request-level metadata also filters
@@ -1098,3 +1098,174 @@ class TestSubmitSessionCreationFailure:
 
         with pytest.raises(RuntimeError, match="Cannot proceed without a valid session"):
             await service._submit_task_to_agent_mesh("task-1", "exec-1", task_snapshot)
+
+
+# ===========================================================================
+# Persistent session behavior and stable session IDs
+# ===========================================================================
+
+class TestPersistentSessionBehavior:
+    """Tests for PERSISTENT session and stable context_id wiring."""
+
+    @pytest.mark.asyncio
+    async def test_context_id_is_stable_session_id(self):
+        """context_id passed to create_user_message should be scheduled_task_{task_id}."""
+        service, mocks = _build_scheduler_service()
+
+        task_snapshot = {
+            "task_message": [{"type": "text", "text": "test"}],
+            "name": "test-task",
+            "run_count": 0,
+            "task_metadata": None,
+            "target_agent_name": "agent-a",
+            "user_id": "user-1",
+            "created_by": "user-1",
+            "timezone": "UTC",
+        }
+
+        mocks["session"].get.return_value = _make_mock_execution()
+
+        captured_kwargs = []
+
+        def capture_publish(topic, payload, user_props):
+            pass
+
+        service.publish_func = capture_publish
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.a2a"
+        ) as mock_a2a:
+            mock_a2a.create_text_part.return_value = {"type": "text", "text": "test"}
+
+            def capture_create_user_message(**kwargs):
+                captured_kwargs.append(kwargs)
+                return MagicMock()
+
+            mock_a2a.create_user_message.side_effect = capture_create_user_message
+
+            mock_request = MagicMock()
+            mock_request.model_dump.return_value = {"test": "payload"}
+            mock_a2a.create_send_streaming_message_request.return_value = mock_request
+            mock_a2a.get_agent_request_topic.return_value = "ns1/agent-a"
+
+            await service._submit_task_to_agent_mesh("task-42", "exec-1", task_snapshot)
+
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0]["context_id"] == "scheduled_task_task-42"
+
+    @pytest.mark.asyncio
+    async def test_register_execution_receives_per_execution_session(self):
+        """register_execution should receive the per-execution session_id, not the stable one."""
+        service, mocks = _build_scheduler_service()
+
+        task_snapshot = {
+            "task_message": [{"type": "text", "text": "test"}],
+            "name": "test-task",
+            "run_count": 0,
+            "task_metadata": None,
+            "target_agent_name": "agent-a",
+            "user_id": "user-1",
+            "created_by": "user-1",
+            "timezone": "UTC",
+        }
+
+        mocks["session"].get.return_value = _make_mock_execution()
+
+        service.publish_func = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.a2a"
+        ) as mock_a2a:
+            mock_a2a.create_text_part.return_value = {"type": "text", "text": "test"}
+            mock_a2a.create_user_message.return_value = MagicMock()
+
+            mock_request = MagicMock()
+            mock_request.model_dump.return_value = {"test": "payload"}
+            mock_a2a.create_send_streaming_message_request.return_value = mock_request
+            mock_a2a.get_agent_request_topic.return_value = "ns1/agent-a"
+
+            await service._submit_task_to_agent_mesh("task-1", "exec-99", task_snapshot)
+
+        register_call = mocks["result_handler"].register_execution
+        register_call.assert_called_once()
+        args = register_call.call_args
+        # Third positional arg is the per-execution session_id
+        assert args[0][2] == "scheduled_exec-99"
+
+    @pytest.mark.asyncio
+    async def test_session_behavior_is_persistent(self):
+        """sessionBehavior in message metadata should be PERSISTENT."""
+        service, mocks = _build_scheduler_service()
+
+        task_snapshot = {
+            "task_message": [{"type": "text", "text": "test"}],
+            "name": "test-task",
+            "run_count": 0,
+            "task_metadata": None,
+            "target_agent_name": "agent-a",
+            "user_id": "user-1",
+            "created_by": "user-1",
+            "timezone": "UTC",
+        }
+
+        mocks["session"].get.return_value = _make_mock_execution()
+
+        service.publish_func = MagicMock()
+        captured_metadata = []
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.a2a"
+        ) as mock_a2a:
+            mock_a2a.create_text_part.return_value = {"type": "text", "text": "test"}
+
+            def capture_create_user_message(**kwargs):
+                captured_metadata.append(kwargs.get("metadata", {}))
+                return MagicMock()
+
+            mock_a2a.create_user_message.side_effect = capture_create_user_message
+
+            mock_request = MagicMock()
+            mock_request.model_dump.return_value = {"test": "payload"}
+            mock_a2a.create_send_streaming_message_request.return_value = mock_request
+            mock_a2a.get_agent_request_topic.return_value = "ns1/agent-a"
+
+            await service._submit_task_to_agent_mesh("task-1", "exec-1", task_snapshot)
+
+        assert len(captured_metadata) == 1
+        assert captured_metadata[0]["sessionBehavior"] == "PERSISTENT"
+
+
+# ===========================================================================
+# Per-task concurrency guard
+# ===========================================================================
+
+class TestPerTaskConcurrencyGuard:
+    """Tests for the per-task lock preventing overlapping executions."""
+
+    @pytest.mark.asyncio
+    async def test_overlapping_trigger_is_skipped(self):
+        """A second trigger for the same task while one is in-flight should be skipped."""
+        service, mocks = _build_scheduler_service()
+
+        task = _make_mock_task(max_retries=0, timeout_seconds=60)
+        mocks["session"].get.return_value = task
+
+        started = asyncio.Event()
+        proceed = asyncio.Event()
+
+        async def slow_submit(task_id, execution_id, task_snapshot):
+            started.set()
+            await proceed.wait()
+
+        service._submit_task_to_agent_mesh = slow_submit
+
+        # Start first execution (will block on proceed)
+        first = asyncio.create_task(service._execute_scheduled_task("task-1"))
+        await started.wait()
+
+        # Second trigger should return immediately (skipped)
+        await service._execute_scheduled_task("task-1")
+
+        # Let the first finish
+        proceed.set()
+        await first
