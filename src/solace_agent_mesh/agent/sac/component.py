@@ -3553,16 +3553,22 @@ class SamAgentComponent(SamComponentBase):
                             }
                         )
                 else:
-                    tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
+                    # For DynamicTool subclasses, use tool_name/tool_description properties
+                    # (the inherited 'name'/'description' attrs may still be placeholders)
+                    if hasattr(tool, "tool_name"):
+                        tool_name = tool.tool_name
+                        tool_description = tool.tool_description
+                    else:
+                        tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
+                        tool_description = getattr(
+                            tool, "description", getattr(tool, "__doc__", None)
+                        )
                     if tool_name is not None:
                         tool_manifest.append(
                             {
                                 "id": tool_name,
                                 "name": tool_name,
-                                "description": getattr(
-                                    tool, "description", getattr(tool, "__doc__", None)
-                                )
-                                or "No description available.",
+                                "description": tool_description or "No description available.",
                                 "required_scopes": self.tool_scopes_map.get(tool_name, []),
                             }
                         )
