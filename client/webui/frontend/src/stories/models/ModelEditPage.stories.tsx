@@ -281,7 +281,7 @@ export const EditModelLoading: Story = {
 
 /**
  * Story: Attempting to edit a model that doesn't exist
- * Shows the not found error state
+ * Shows the fetch error state with the actual error message
  */
 export const EditModelNotFound: Story = {
     parameters: {
@@ -294,8 +294,8 @@ export const EditModelNotFound: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify error state is shown
-        await expect(await canvas.findByText("Model Not Found")).toBeInTheDocument();
+        // Verify error state is shown with actual error message
+        await expect(await canvas.findByText(/Error loading model:/)).toBeInTheDocument();
 
         // Verify the Go To Models button is present
         const goToButton = await canvas.findByRole("button", { name: /Go To Models/i });
