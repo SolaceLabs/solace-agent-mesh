@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button, Input, useClickOutside } from "@/lib/components/ui";
+import { Input, useClickOutside } from "@/lib/components/ui";
 
 export interface ComboBoxItem {
     id: string;
@@ -173,13 +173,11 @@ export const ComboBox = ({
     };
 
     const renderOption = (item: ComboBoxItem, index: number) => (
-        <Button
+        <div
             key={item.id}
             role="option"
             aria-selected={item.id === value}
-            variant="ghost"
-            size="default"
-            className={cn("relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none", index === highlightedIndex && "bg-(--primary-w10)")}
+            className={cn("relative flex h-auto w-full cursor-pointer justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none", index === highlightedIndex && "bg-(--primary-w10)")}
             onClick={() => handleItemSelect(item.id)}
             onMouseEnter={() => setHighlightedIndex(index)}
         >
@@ -199,28 +197,27 @@ export const ComboBox = ({
                     <Check className="h-4 w-4" />
                 </div>
             )}
-        </Button>
+        </div>
     );
 
     return (
         <div ref={containerRef} className="relative w-full">
-            <Input
-                ref={inputRef}
-                type="text"
-                placeholder={placeholder}
-                value={searchText || selectedItem?.label || ""}
-                onChange={e => handleInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onMouseDown={handleMouseDown}
-                onFocus={handleFocus}
-                disabled={disabled || isLoading}
-                aria-invalid={invalid}
-                role="combobox"
-                aria-expanded={isOpen}
-                aria-haspopup="listbox"
-                className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
-                autoComplete="off"
-            />
+            <div role="combobox" aria-expanded={isOpen} aria-haspopup="listbox" className="contents">
+                <Input
+                    ref={inputRef}
+                    type="text"
+                    placeholder={placeholder}
+                    value={searchText || selectedItem?.label || ""}
+                    onChange={e => handleInputChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    onMouseDown={handleMouseDown}
+                    onFocus={handleFocus}
+                    disabled={disabled || isLoading}
+                    aria-invalid={invalid}
+                    className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
+                    autoComplete="off"
+                />
+            </div>
             {isLoading ? (
                 <Loader2 className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin text-(--secondary-text-w50)" />
             ) : (
@@ -231,6 +228,7 @@ export const ComboBox = ({
                 <div
                     ref={dropdownRef}
                     role="listbox"
+                    tabIndex={-1}
                     onMouseLeave={() => setHighlightedIndex(-1)}
                     className={cn("absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md", openAbove ? "bottom-full mb-1" : "top-full mt-1")}
                 >
