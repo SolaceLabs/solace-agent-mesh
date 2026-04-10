@@ -179,6 +179,7 @@ export const ComboBox = ({
             aria-selected={item.id === value}
             className={cn("relative flex h-auto w-full cursor-pointer justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none", index === highlightedIndex && "bg-(--primary-w10)")}
             onClick={() => handleItemSelect(item.id)}
+            onKeyDown={e => e.key === "Enter" && handleItemSelect(item.id)}
             onMouseEnter={() => setHighlightedIndex(index)}
         >
             {item.icon && <div className="flex-shrink-0">{item.icon}</div>}
