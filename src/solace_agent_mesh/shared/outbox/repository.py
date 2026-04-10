@@ -71,7 +71,7 @@ class OutboxEventRepository:
     def has_pending_event(
         self, session: Session, entity_type: str, entity_id: str, event_type: str
     ) -> bool:
-        result = (
+        return (
             session.query(OutboxEventModel)
             .filter(
                 OutboxEventModel.entity_type == entity_type,
@@ -80,20 +80,20 @@ class OutboxEventRepository:
                 OutboxEventModel.status == "pending",
             )
             .first()
+            is not None
         )
 
-        return result is not None
-
-    @MonitorLatency(DBMonitor.update("outbox_events"))
     def update_event(self, session: Session, event_id: str, data: UpdateOutboxEventModel) -> OutboxEventEntity:
-        event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
-        if event is None:
-            raise ValueError(f"Outbox event not found: {event_id}")
+        with MonitorLatency(DBMonitor.query("outbox_events")):
+            event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
+            if event is None:
+                raise ValueError(f"Outbox event not found: {event_id}")
 
         update_fields = data.model_dump(exclude_none=True)
         for field, value in update_fields.items():
             setattr(event, field, value)
-        session.flush()
+        with MonitorLatency(DBMonitor.update("outbox_events"))
+            session.flush()
         return OutboxEventEntity.model_validate(event)
 
     @MonitorLatency(DBMonitor.query("outbox_events"))
@@ -180,16 +180,16 @@ class OutboxEventRepository:
                 .order_by(OutboxEventModel.created_time.desc())
                 .all()
             )
-            if len(pending_events) <= 1:
-                return True
+        if len(pending_events) <= 1:
+            return True
 
-            latest_id = pending_events[0].id
-            if event_id != latest_id:
-                return False
+        latest_id = pending_events[0].id
+        if event_id != latest_id:
+            return False
 
-            for older in pending_events[1:]:
-                older.status = "skipped"
-                older.error_message = "Deduplicated by newer event"
+        for older in pending_events[1:]:
+            older.status = "skipped"
+            older.error_message = "Deduplicated by newer event"
         with MonitorLatency(DBMonitor.update("outbox_events")):
             session.flush()
 

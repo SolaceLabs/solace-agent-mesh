@@ -138,6 +138,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
                 created_time=session.created_time,
                 updated_time=session.updated_time,
             )
+            # metric already covered
             return self.create(db_session, create_model.model_dump())
 
     def delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
@@ -162,7 +163,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
 
     def soft_delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Soft delete a session belonging to a user."""
-        with MonitorLatency(DBMonitor.update(self.table_name)):
+        with MonitorLatency(DBMonitor.query(self.table_name)):
             session_model = (
                 db_session.query(SessionModel)
                 .filter(
@@ -180,7 +181,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
             session_model.deleted_at = now_epoch_ms()
             session_model.deleted_by = user_id
             session_model.updated_time = now_epoch_ms()
-
+        with MonitorLatency(DBMonitor.update(self.table_name)):
             db_session.flush()
 
         return True
@@ -226,7 +227,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         self, db_session: DBSession, session_id: SessionId, user_id: UserId, new_project_id: str | None
     ) -> Session | None:
         """Move a session to a different project."""
-        with MonitorLatency(DBMonitor.update(self.table_name)):
+        with MonitorLatency(DBMonitor.query(self.table_name)):
             session_model = (
                 db_session.query(SessionModel)
                 .filter(
@@ -244,6 +245,7 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
             session_model.project_id = new_project_id
             session_model.updated_time = now_epoch_ms()
 
+        with MonitorLatency(DBMonitor.update(self.table_name)):
             db_session.flush()
             db_session.refresh(session_model)
 
