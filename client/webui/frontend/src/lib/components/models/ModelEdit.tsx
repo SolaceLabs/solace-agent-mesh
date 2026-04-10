@@ -510,6 +510,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
                                             return (
                                                 <ComboBox
+                                                    key={selectedAuthType}
                                                     value={field.value}
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
