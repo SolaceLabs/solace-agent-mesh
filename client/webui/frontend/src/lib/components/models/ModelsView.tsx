@@ -190,7 +190,7 @@ export const ModelsView: React.FC = () => {
                                                     </Tooltip>
                                                 )}
                                             </TableCell>
-                                            <TableCell>{model.modelName ? getDisplayModelName(model.modelName) : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
+                                            <TableCell>{getDisplayModelName(model.modelName) || <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
                                             <TableCell>{getProviderDisplayName(model.provider) ?? <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
                                             <TableCell className="pr-4 text-right">
                                                 <Popover>

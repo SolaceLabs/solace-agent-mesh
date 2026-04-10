@@ -29,7 +29,7 @@ export const getProviderDisplayName = (provider: string | null | undefined): str
  * LiteLLM prefixes model names with the provider routing path (e.g., "openai/", "anthropic/").
  * e.g., "openai/gpt-4o" → "gpt-4o", "anthropic/claude-sonnet" → "claude-sonnet"
  */
-export const getDisplayModelName = (modelName: string): string => {
+export const getDisplayModelName = (modelName: string | null | undefined): string => {
     if (!modelName) return "";
     const slashIndex = modelName.indexOf("/");
     if (slashIndex > 0 && slashIndex < modelName.length - 1) {

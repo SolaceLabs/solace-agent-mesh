@@ -99,7 +99,7 @@ export const ModelDetailsPage = () => {
                         <div className="pt-6 font-semibold">Model Connection Details</div>
                         <PageLabelWithValue>
                             <PageLabel>Model Name</PageLabel>
-                            <PageValue>{modelToView.modelName ? getDisplayModelName(modelToView.modelName) : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</PageValue>
+                            <PageValue>{getDisplayModelName(modelToView.modelName) || <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</PageValue>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (
