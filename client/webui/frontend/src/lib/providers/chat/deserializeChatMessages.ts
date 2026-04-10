@@ -1,29 +1,47 @@
 import type { MessageFE, PartFE } from "@/lib/types";
-import type { MessageBubble, ParsedTaskData } from "@/lib/types/storage";
 
 // ============ Types ============
 
-/**
- * Extends the persisted MessageBubble with fields that are serialized
- * but not yet part of the canonical storage type.
- *
- * `parts` is widened to PartFE[] because persisted data includes artifact parts.
- */
-interface StoredBubble extends Omit<MessageBubble, "id" | "text" | "parts"> {
+interface StoredFileAttachment {
+    name: string;
+    type?: string;
+    uri?: string;
+    size?: number;
+}
+
+interface StoredUploadedFile {
+    name: string;
+    type: string;
+}
+
+interface StoredBubble {
     id?: string;
+    type: "user" | "agent";
     text?: string;
     parts?: PartFE[];
+    files?: StoredFileAttachment[];
+    uploadedFiles?: StoredUploadedFile[];
+    artifactNotification?: unknown;
+    isError?: boolean;
+    displayHtml?: string;
+    contextQuote?: string;
+    contextQuoteSourceId?: string;
+    senderDisplayName?: string;
+    senderEmail?: string;
     progressUpdates?: MessageFE["progressUpdates"];
     thinkingContent?: string;
     isThinkingComplete?: boolean;
+
     // Legacy snake_case variants — older persisted data may use these
     sender_display_name?: string;
     sender_email?: string;
 }
 
-interface StoredTask extends Omit<ParsedTaskData, "messageBubbles" | "taskMetadata"> {
+interface StoredTask {
+    taskId: string;
     messageBubbles: StoredBubble[];
     taskMetadata?: unknown;
+    createdTime: number;
 }
 
 // ============ Helpers ============
@@ -133,7 +151,7 @@ export function deserializeChatMessages(task: StoredTask, sessionId: string): Me
             isUser: bubble.type === "user",
             isComplete: true,
             files: bubble.files,
-            uploadedFiles: bubble.uploadedFiles as unknown as File[],
+            uploadedFiles: bubble.uploadedFiles as MessageFE["uploadedFiles"],
             artifactNotification: bubble.artifactNotification,
             isError: bubble.isError,
             displayHtml: bubble.displayHtml,
