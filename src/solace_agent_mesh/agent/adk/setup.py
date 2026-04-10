@@ -809,21 +809,6 @@ async def load_adk_tools(
     tool_scopes_map: Dict[str, List[str]] = {}
     tools_config = list(component.get_config("tools", []))
 
-    # Always make artifact_management available, even if the agent's YAML omits it.
-    # Prepend it so explicit user config can override its settings if needed.
-    # tools_config entries may be plain dicts (raw YAML) or already-parsed Pydantic
-    # model instances (when the app validated app_config via SamAgentAppConfig).
-    _REQUIRED_GROUPS = ["artifact_management"]
-    configured_groups = set()
-    for t in tools_config:
-        if isinstance(t, BuiltinGroupToolConfig):
-            configured_groups.add(t.group_name)
-        elif isinstance(t, dict) and t.get("tool_type") == "builtin-group":
-            configured_groups.add(t.get("group_name"))
-    for group in reversed(_REQUIRED_GROUPS):
-        if group not in configured_groups:
-            tools_config.insert(0, {"tool_type": "builtin-group", "group_name": group})
-
     from pydantic import TypeAdapter, ValidationError
 
     any_tool_adapter = TypeAdapter(AnyToolConfig)
