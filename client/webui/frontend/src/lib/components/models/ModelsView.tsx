@@ -30,7 +30,7 @@ import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
-import { PROVIDER_DISPLAY_NAMES, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES, isModelConfigured } from "./common";
+import { getProviderDisplayName, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES, isModelConfigured } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
 const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
@@ -191,7 +191,7 @@ export const ModelsView: React.FC = () => {
                                                 )}
                                             </TableCell>
                                             <TableCell>{model.modelName ? getDisplayModelName(model.modelName) : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
-                                            <TableCell>{model.provider ? PROVIDER_DISPLAY_NAMES[model.provider] || model.provider : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
+                                            <TableCell>{getProviderDisplayName(model.provider) ?? <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>
                                             <TableCell className="pr-4 text-right">
                                                 <Popover>
                                                     <PopoverTrigger asChild>

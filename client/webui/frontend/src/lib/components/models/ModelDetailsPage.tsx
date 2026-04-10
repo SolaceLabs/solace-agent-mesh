@@ -7,7 +7,7 @@ import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
-import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS, getDisplayModelName } from "./common";
+import { AUTH_TYPE_LABELS, getDisplayModelName, getProviderDisplayName } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
 
@@ -89,8 +89,8 @@ export const ModelDetailsPage = () => {
                         <PageLabelWithValue>
                             <PageLabel>Model Provider</PageLabel>
                             <PageValue className="flex items-center gap-2">
-                                <ModelProviderIcon provider={modelToView.provider ?? undefined} size="xs" />
-                                <span>{modelToView.provider ? PROVIDER_DISPLAY_NAMES[modelToView.provider] || modelToView.provider : <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</span>
+                                <ModelProviderIcon provider={modelToView.provider} size="xs" />
+                                {getProviderDisplayName(modelToView.provider) ?? <span className="text-(--secondary-text-wMain) italic">Not configured</span>}
                             </PageValue>
                         </PageLabelWithValue>
                     </PageSection>

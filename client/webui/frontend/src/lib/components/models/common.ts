@@ -10,8 +10,19 @@ export const isModelConfigured = (model: ModelConfig): boolean => {
     return !!model.provider;
 };
 
+import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./modelProviderUtils";
+
 // Re-export from single source of truth
-export { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS } from "./modelProviderUtils";
+export { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS };
+
+/**
+ * Returns the human-readable display name for a provider, or null if not configured.
+ * e.g., "openai" → "OpenAI", null → null
+ */
+export const getProviderDisplayName = (provider: string | null | undefined): string | null => {
+    if (!provider) return null;
+    return PROVIDER_DISPLAY_NAMES[provider] || provider;
+};
 
 /**
  * Strip LiteLLM provider prefix from model name for display purposes.
