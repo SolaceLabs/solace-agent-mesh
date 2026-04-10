@@ -205,6 +205,7 @@ REMEMBER:
 - Suggest appropriate schedule types (cron for recurring, interval for fixed intervals)
 - Set ready_to_save to true when all required fields are complete
 - Be conversational and helpful
+- IMPORTANT: When telling the user to finalize, always say "Click 'Create'" (NOT "Save"). The button is labeled "Create".
 """
     
     def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
