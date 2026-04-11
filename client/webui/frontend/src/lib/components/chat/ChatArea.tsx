@@ -30,6 +30,11 @@ export interface ChatAreaProps {
     welcomeOverride?: AgentWelcomeConfig;
     /** Optional callback to render extra content after each chat message (e.g. action buttons). */
     renderMessageAddon?: (message: MessageFE, index: number) => React.ReactNode;
+    /**
+     * Optional filter to exclude messages from rendering.
+     * Return false to hide a message. Called for each message before rendering.
+     */
+    messageFilter?: (message: MessageFE, index: number) => boolean;
 }
 
 /**
@@ -38,7 +43,7 @@ export interface ChatAreaProps {
  *
  * Used by ChatPage (full-size) and FloatingChatPanel (compact mode).
  */
-export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, hideAgentSelector = false, className, onViewProgress, welcomeOverride, renderMessageAddon }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, hideAgentSelector = false, className, onViewProgress, welcomeOverride, renderMessageAddon, messageFilter }) => {
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const { messages, agents, isResponding, isLoadingSession, latestStatusText, currentTaskId, selectedAgentName, setTaskIdInSidePanel, openSidePanelTab } = useChatContext();
 
@@ -52,11 +57,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcome
         return map;
     }, [messages]);
 
+    // Apply message filter if provided
+    const filteredMessages = useMemo(() => {
+        if (!messageFilter) return messages;
+        return messages.filter((msg, idx) => messageFilter(msg, idx));
+    }, [messages, messageFilter]);
+
     const isWelcomeState = useMemo(() => {
-        if (messages.length === 0) return true;
-        if (messages.length === 1 && !messages[0].isUser && messages[0].metadata?.sessionId === "") return true;
+        if (filteredMessages.length === 0) return true;
+        if (filteredMessages.length === 1 && !filteredMessages[0].isUser && filteredMessages[0].metadata?.sessionId === "") return true;
         return false;
-    }, [messages]);
+    }, [filteredMessages]);
 
     const loadingMessage = useMemo(() => {
         return messages.find(message => message.isStatusBubble);
@@ -97,10 +108,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcome
                 ) : (
                     <>
                         <ChatMessageList className={textSizeClass} ref={chatMessageListRef}>
-                            {messages.map((message, index) => {
+                            {filteredMessages.map((message, index) => {
                                 const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                 const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                const isLastMessage = index === messages.length - 1;
+                                const isLastMessage = index === filteredMessages.length - 1;
                                 const shouldStream = isLastMessage && isResponding && !message.isUser;
                                 return (
                                     <React.Fragment key={messageKey}>
