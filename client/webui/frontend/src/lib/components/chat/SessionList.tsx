@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock, Hammer } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
@@ -88,7 +88,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId, sessionListExcludeAgentIds, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const schedulerEnabled = configFeatureEnablement?.scheduler ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
@@ -268,10 +268,18 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
-        if (editingSessionId !== clickedSessionId) {
-            await handleSwitchSession(clickedSessionId);
+    const handleSessionClick = async (session: Session) => {
+        if (editingSessionId === session.id) return;
+        const route = session.agentId && agentSessionRoutes?.[session.agentId];
+        if (route) {
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+            return;
         }
+        await handleSwitchSession(session.id);
     };
 
     const handleEditClick = (session: Session) => {
@@ -558,10 +566,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             className="min-w-0 flex-1 bg-transparent focus:outline-none"
                                         />
                                     ) : (
-                                        <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
+                                        <button onClick={() => handleSessionClick(session)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
+                                                        {session.agentId === "Builder" && <Hammer className="text-muted-foreground h-3.5 w-3.5 shrink-0" />}
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>
