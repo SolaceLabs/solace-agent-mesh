@@ -344,6 +344,59 @@ class FilesystemArtifactService(BaseArtifactService):
                 e,
             )
 
+    async def delete_session_artifacts(
+        self, *, user_id: str, session_id: str
+    ) -> int:
+        """Delete all session-scoped artifacts across app scopes."""
+        log_prefix = "[FSArtifact:DeleteSession] "
+        user_id_sanitized = os.path.basename(user_id)
+        session_id_sanitized = os.path.basename(session_id)
+
+        if not await asyncio.to_thread(os.path.isdir, self.base_path):
+            logger.debug("%sBase path does not exist: %s", log_prefix, self.base_path)
+            return 0
+
+        total_deleted = 0
+        app_names = await asyncio.to_thread(os.listdir, self.base_path)
+        for app_name in app_names:
+            app_path = os.path.join(self.base_path, app_name)
+            if not await asyncio.to_thread(os.path.isdir, app_path):
+                continue
+
+            session_path = os.path.join(app_path, user_id_sanitized, session_id_sanitized)
+            if not await asyncio.to_thread(os.path.isdir, session_path):
+                continue
+
+            def _count_data_files(path: str) -> int:
+                count = 0
+                for _, _, files in os.walk(path):
+                    for f in files:
+                        # Count only artifact version files, not metadata sidecars.
+                        if f.isdigit():
+                            count += 1
+                return count
+
+            try:
+                deleted_in_scope = await asyncio.to_thread(_count_data_files, session_path)
+                await asyncio.to_thread(shutil.rmtree, session_path)
+                total_deleted += deleted_in_scope
+            except OSError as e:
+                logger.warning(
+                    "%sFailed deleting session artifacts for app '%s': %s",
+                    log_prefix,
+                    app_name,
+                    e,
+                )
+
+        logger.info(
+            "%sDeleted %d artifacts for user=%s session=%s",
+            log_prefix,
+            total_deleted,
+            user_id,
+            session_id,
+        )
+        return total_deleted
+
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str

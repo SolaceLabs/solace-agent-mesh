@@ -418,6 +418,54 @@ class S3ArtifactService(BaseArtifactService):
             len(versions),
         )
 
+    async def delete_session_artifacts(
+        self, *, user_id: str, session_id: str
+    ) -> int:
+        """Delete all objects for a session across all app scopes."""
+        log_prefix = "[S3Artifact:DeleteSession] "
+        marker = f"/{user_id}/{session_id}/"
+        total_deleted = 0
+
+        try:
+            def _collect_keys() -> list[str]:
+                paginator = self.s3.get_paginator("list_objects_v2")
+                keys: list[str] = []
+                for page in paginator.paginate(Bucket=self.bucket_name, Prefix=""):
+                    for obj in page.get("Contents", []):
+                        key = obj.get("Key", "")
+                        if marker in f"/{key}":
+                            keys.append(key)
+                return keys
+
+            keys = await asyncio.to_thread(_collect_keys)
+            if not keys:
+                return 0
+
+            for i in range(0, len(keys), 1000):
+                batch = keys[i : i + 1000]
+
+                def _delete_batch() -> dict:
+                    return self.s3.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={"Objects": [{"Key": k} for k in batch]},
+                    )
+
+                response = await asyncio.to_thread(_delete_batch)
+                total_deleted += len(response.get("Deleted", []))
+
+        except ClientError as e:
+            logger.error("%sError listing or deleting objects: %s", log_prefix, e)
+            return total_deleted
+
+        logger.info(
+            "%sDeleted %d artifacts for user=%s session=%s",
+            log_prefix,
+            total_deleted,
+            user_id,
+            session_id,
+        )
+        return total_deleted
+
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str

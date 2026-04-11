@@ -394,6 +394,51 @@ class AzureArtifactService(BaseArtifactService):
             len(versions),
         )
 
+    async def delete_session_artifacts(
+        self, *, user_id: str, session_id: str
+    ) -> int:
+        """Delete all session-scoped blobs across all app scopes."""
+        log_prefix = "[AzureArtifact:DeleteSession] "
+        marker = f"/{user_id}/{session_id}/"
+        total_deleted = 0
+
+        try:
+            def _list_blobs() -> list[str]:
+                result: list[str] = []
+                for blob in self.container_client.list_blobs(name_starts_with=""):
+                    name = getattr(blob, "name", "")
+                    if marker in f"/{name}":
+                        result.append(name)
+                return result
+
+            blobs = await asyncio.to_thread(_list_blobs)
+            if not blobs:
+                return 0
+
+            for blob_name in blobs:
+                try:
+                    def _delete_blob(name: str):
+                        self.container_client.get_blob_client(name).delete_blob()
+
+                    await asyncio.to_thread(_delete_blob, blob_name)
+                    total_deleted += 1
+                except HttpResponseError as e:
+                    if e.status_code == 404 or "not found" in str(e).lower():
+                        continue
+                    logger.warning("%sFailed to delete blob %s: %s", log_prefix, blob_name, e)
+        except HttpResponseError as e:
+            logger.error("%sError listing or deleting blobs: %s", log_prefix, e)
+            return total_deleted
+
+        logger.info(
+            "%sDeleted %d artifacts for user=%s session=%s",
+            log_prefix,
+            total_deleted,
+            user_id,
+            session_id,
+        )
+        return total_deleted
+
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
