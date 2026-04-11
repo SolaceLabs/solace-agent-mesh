@@ -81,6 +81,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [contextText, setContextText] = useState<string | null>(null);
     const [contextSourceId, setContextSourceId] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
+    // Multiple context quotes — appended by repeated "follow-up-question" events
+    const [contextQuotes, setContextQuotes] = useState<Array<{ text: string; sourceId?: string }>>([]);
 
     const chatInputRef = useRef<HTMLDivElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
@@ -271,7 +273,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return;
                 }
             } else {
-                // No prompt provided - show the selected text as a badge above the input
+                // No prompt provided - show the selected text as a badge above the input.
+                // Append to multi-quote list; also set single contextText for backward compat.
+                setContextQuotes(prev => {
+                    // Avoid duplicates
+                    if (prev.some(q => q.text === text)) return prev;
+                    return [...prev, { text, sourceId: sourceMessageId ?? undefined }];
+                });
                 setContextText(text);
                 setContextSourceId(sourceMessageId ?? null);
                 setShowContextBadge(true);
@@ -445,9 +453,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
-            // If there's context text from "Ask Followup", include it in the message sent to the agent
-            // The contextQuote will be passed separately for UI display
-            if (contextText && showContextBadge) {
+            // If there are context quotes from "Ask Followup" / "Add Comment",
+            // include all of them in the message sent to the agent.
+            if (contextQuotes.length > 0) {
+                const quotesText = contextQuotes.map(q => `- "${escapeMarkdown(q.text)}"`).join("\n");
+                fullMessage = `Context:\n${quotesText}\n\n${fullMessage}`;
+            } else if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
@@ -546,7 +557,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
             // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
-            const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
+            const contextQuoteToPass = contextQuotes.length > 0 ? contextQuotes.map(q => q.text).join(" | ") : contextText && showContextBadge ? contextText : null;
             const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
             await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
             setSelectedFiles([]);
@@ -556,6 +567,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             setContextText(null);
             setContextSourceId(null);
             setShowContextBadge(false);
+            setContextQuotes([]);
             scrollToBottom?.();
         }
     };
@@ -813,8 +825,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Context Text Badge (from text selection) */}
-            {showContextBadge && contextText && (
+            {/* Context Text Badges (from text selection / Add Comment) */}
+            {contextQuotes.length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-1.5 overflow-hidden">
+                    {contextQuotes.map((q, i) => (
+                        <div key={i} className="inline-flex max-w-full items-center gap-1.5 overflow-hidden rounded-md border bg-(--secondary-w10) px-2.5 py-1.5 text-xs">
+                            <Quote className="h-3 w-3 flex-shrink-0 text-(--secondary-text-wMain)" />
+                            <span className="min-w-0 truncate text-(--secondary-text-wMain) italic">"{q.text}"</span>
+                            <Button
+                                variant="ghost"
+                                className="h-4 w-4 shrink-0"
+                                onClick={() => {
+                                    setContextQuotes(prev => prev.filter((_, idx) => idx !== i));
+                                    if (contextQuotes.length <= 1) {
+                                        setContextText(null);
+                                        setShowContextBadge(false);
+                                    }
+                                }}
+                                tooltip="Remove"
+                            >
+                                <X />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            ) : showContextBadge && contextText ? (
                 <div className="mb-2 overflow-hidden">
                     <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
                         <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
@@ -832,7 +867,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         </Button>
                     </div>
                 </div>
-            )}
+            ) : null}
 
             {/* Pending Pasted Text Items (not yet uploaded as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
