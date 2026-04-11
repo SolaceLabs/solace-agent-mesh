@@ -43,7 +43,7 @@ export interface ChatAreaProps {
  *
  * Used by ChatPage (full-size) and FloatingChatPanel (compact mode).
  */
-export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, hideAgentSelector = false, className, onViewProgress, welcomeOverride, renderMessageAddon, messageFilter }) => {
+export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcomeScreen = false, className, onViewProgress, welcomeOverride, renderMessageAddon, messageFilter }) => {
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const { messages, agents, isResponding, isLoadingSession, latestStatusText, currentTaskId, selectedAgentName, setTaskIdInSidePanel, openSidePanelTab } = useChatContext();
 
@@ -123,7 +123,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcome
                         </ChatMessageList>
                         <div style={CHAT_STYLES}>
                             {isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={resolvedOnViewProgress} />}
-                            <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} compact={compact} hideAgentSelector={hideAgentSelector} />
+                            <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                         </div>
                     </>
                 )}

@@ -88,7 +88,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId, sessionListExcludeAgentIds, agentSessionRoutes } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const schedulerEnabled = configFeatureEnablement?.scheduler ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();

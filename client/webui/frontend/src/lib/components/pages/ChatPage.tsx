@@ -6,11 +6,11 @@ import { ArrowRightIcon, PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useThemeContext, useTitleAnimation, useIsChatSharingEnabled, useUIMode } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useUIMode } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, ChatWelcomeScreen, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSidePanel, ChatWelcomeScreen, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -61,9 +61,6 @@ export function ChatPage() {
         isResponding,
         latestStatusText,
         isLoadingSession,
-        sessionToDelete,
-        closeSessionDeleteModal,
-        confirmSessionDelete,
         currentTaskId,
         isCollaborativeSession,
         currentUserEmail,
@@ -428,26 +425,6 @@ export function ChatPage() {
         return false;
     }, [messages]);
 
-    const loadingMessage = useMemo(() => {
-        return messages.find(message => message.isStatusBubble);
-    }, [messages]);
-
-    const backendStatusText = useMemo(() => {
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage]);
-
-    const handleViewProgressClick = useMemo(() => {
-        // Use currentTaskId directly instead of relying on loadingMessage
-        if (!currentTaskId) return undefined;
-
-        return () => {
-            setTaskIdInSidePanel(currentTaskId);
-            openSidePanelTab("activity");
-        };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab]);
-
     // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
         if (useNewNav) return;
@@ -516,8 +493,7 @@ export function ChatPage() {
                     }
                     breadcrumbs={isOnboardMode ? undefined : breadcrumbs}
                     leadingAction={
-                        isOnboardMode ? null :
-                        useNewNav ? (
+                        isOnboardMode ? null : useNewNav ? (
                             <ChatSessionDialog />
                         ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -531,38 +507,40 @@ export function ChatPage() {
                         ) : null
                     }
                     buttons={
-                        isOnboardMode ? [
-                            <Button
-                                key="continue"
-                                variant="default"
-                                size="sm"
-                                onClick={() => {
-                                    window.location.hash = "#/chat";
-                                    window.location.reload();
-                                }}
-                            >
-                                Continue to full experience
-                                <ArrowRightIcon className="ml-1 size-4" />
-                            </Button>
-                        ] : sessionId && chatSharingEnabled
+                        isOnboardMode
                             ? [
-                                  // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
-                                  ...(isCollaborativeSession && collaborativeUsers.length > 0
-                                      ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
-                                      : sharedEditorUsers.length > 0
-                                        ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
-                                        : []),
-                                  // For editors: show "Continue in New Chat" (fork) button instead of Share
-                                  ...(isCollaborativeSession
-                                      ? [
-                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
-                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Continue in New Chat
-                                            </Button>,
-                                        ]
-                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                                  <Button
+                                      key="continue"
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => {
+                                          window.location.hash = "#/chat";
+                                          window.location.reload();
+                                      }}
+                                  >
+                                      Continue to full experience
+                                      <ArrowRightIcon className="ml-1 size-4" />
+                                  </Button>,
                               ]
-                            : undefined
+                            : sessionId && chatSharingEnabled
+                              ? [
+                                    // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
+                                    ...(isCollaborativeSession && collaborativeUsers.length > 0
+                                        ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
+                                        : sharedEditorUsers.length > 0
+                                          ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
+                                          : []),
+                                    // For editors: show "Continue in New Chat" (fork) button instead of Share
+                                    ...(isCollaborativeSession
+                                        ? [
+                                              <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
+                                                  {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                  Continue in New Chat
+                                              </Button>,
+                                          ]
+                                        : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                                ]
+                              : undefined
                     }
                 />
             </div>
@@ -653,6 +631,8 @@ export function ChatPage() {
                             </div>
                         </ResizablePanel>
                     </ResizablePanelGroup>
+                </div>
+            </div>
             {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </div>
     );
