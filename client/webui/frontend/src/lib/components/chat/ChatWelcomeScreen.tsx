@@ -64,7 +64,7 @@ interface ChatWelcomeScreenProps {
     compact?: boolean;
 }
 
-export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, selectedAgentName, welcomeOverride, compact }) => {
+export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, selectedAgentName, welcomeOverride }) => {
     const { handleSubmit } = useChatContext();
     const { configBotName } = useConfigContext();
 
@@ -121,7 +121,7 @@ export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, se
                 </div>
                 {/* Input area centered with the welcome content */}
                 <div className="mt-4 w-full" style={CHAT_STYLES}>
-                    <ChatInputArea agents={agents} compact={compact} />
+                    <ChatInputArea agents={agents} />
                 </div>
             </div>
         </div>

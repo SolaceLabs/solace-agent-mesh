@@ -33,7 +33,6 @@ import type { ExtractedContent } from "./preview/contentUtils";
 import { AuthenticationMessage } from "./authentication/AuthenticationMessage";
 import { UserInputMessage } from "./hil";
 import { CompactionNotification, type CompactionNotificationData } from "./CompactionNotification";
-import { UserInputMessage } from "./hil";
 import { SelectableMessageContent } from "./selection";
 import { MessageHoverButtons } from "./MessageHoverButtons";
 import { MessageAttribution } from "./MessageAttribution";

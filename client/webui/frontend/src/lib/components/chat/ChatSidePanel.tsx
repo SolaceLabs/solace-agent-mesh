@@ -143,7 +143,7 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
             setPreviewArtifact(null);
         }
 
-        setActiveSidePanelTab(tab);
+        setActiveSidePanelTab(tab as "files" | "activity" | "rag");
     };
 
     const handleIconClick = (tab: string) => {

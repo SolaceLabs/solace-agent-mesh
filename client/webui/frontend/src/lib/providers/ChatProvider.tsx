@@ -31,7 +31,9 @@ import type {
     StoredTaskData,
     RAGSearchResult,
     ArtifactInfo,
+    BuilderCreationState,
 } from "@/lib/types";
+import { INITIAL_BUILDER_CREATION_STATE } from "@/lib/types";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
 // This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
@@ -625,6 +627,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
 
+    // Builder Mode
+    const [builderMode, setBuilderMode] = useState<boolean>(false);
+    const [builderCreationState, setBuilderCreationState] = useState<BuilderCreationState>(INITIAL_BUILDER_CREATION_STATE);
+
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
@@ -632,7 +638,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const openSidePanelTab = useCallback((tab: string) => {
         setIsSidePanelCollapsed(false);
-        setActiveSidePanelTab(tab);
+        setActiveSidePanelTab(tab as "files" | "rag" | "activity");
 
         if (typeof window !== "undefined") {
             window.dispatchEvent(
@@ -793,7 +799,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 eventSequence: sseEventSequenceRef.current,
                 isTaskRunningInBackground,
             });
-            });
 
             // Apply state updates
             if (output.messages) {
@@ -817,7 +822,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Execute side effects
             for (const effect of output.effects) {
                 executeEffect(effect);
-            }
             }
         },
 
@@ -2078,6 +2082,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /** Builder Mode */
         builderMode,
         setBuilderMode,
+        builderCreationState,
+        setBuilderCreationState,
         inputAreaLeftSlot: undefined,
 
         /** Background Task Monitoring */
