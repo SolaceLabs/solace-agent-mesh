@@ -86,6 +86,8 @@ export interface ChatState {
     inputAreaLeftSlot?: React.ReactNode;
     /** Agent IDs whose sessions should be hidden from the session list (e.g., ["Builder"]) */
     sessionListExcludeAgentIds?: string[];
+    /** Maps agent IDs to route paths for session navigation (e.g., { Builder: "/builder" }) */
+    agentSessionRoutes?: Record<string, string>;
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];

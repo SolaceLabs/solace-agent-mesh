@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle } from "lucide-react";
+import { Hammer, MessageCircle } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
@@ -88,7 +88,7 @@ interface RecentChatsListProps {
 
 export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
@@ -109,10 +109,19 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
-        // Navigate to chat page first, then switch session
+    const handleSessionClick = async (session: Session) => {
+        const route = (session.agentId && agentSessionRoutes?.[session.agentId]) || "/chat";
+        if (route !== "/chat") {
+            // Dispatch event for the host app to handle agent-specific routing
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+            return;
+        }
         navigate("/chat");
-        await handleSwitchSession(clickedSessionId);
+        await handleSwitchSession(session.id);
     };
 
     if (isLoading && sessions.length === 0 && persistenceEnabled) {
@@ -139,7 +148,8 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                 return (
                     <Tooltip key={session.id}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                            <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                                {session.agentId === "Builder" && <Hammer className="h-3.5 w-3.5 shrink-0 text-(--darkSurface-textMuted)" />}
                                 <div className="min-w-0 flex-1">
                                     <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>
