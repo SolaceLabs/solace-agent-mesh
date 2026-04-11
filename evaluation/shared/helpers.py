@@ -1,16 +1,21 @@
 import logging
 import os
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 log = logging.getLogger(__name__)
+
+
+def load_dotenv_from_cwd() -> None:
+    """Load .env from the current working directory so project env vars apply to evals."""
+    load_dotenv(find_dotenv(usecwd=True))
 
 
 def get_local_base_url() -> str:
     """
     Constructs the local API base URL from environment variables.
     """
-    load_dotenv()
+    load_dotenv_from_cwd()
     host = os.getenv("REST_API_HOST", "0.0.0.0")
     port = os.getenv("REST_API_PORT", "8080")
     return f"http://{host}:{port}"
@@ -21,6 +26,7 @@ def resolve_env_vars(data: dict) -> dict:
     Resolves environment variables in a dictionary.
     Looks for keys ending in _VAR and replaces them with the corresponding environment variable value.
     """
+    load_dotenv_from_cwd()
     resolved = {}
     for key, value in data.items():
         if key.endswith("_VAR"):
