@@ -18,7 +18,7 @@ import type { SurfaceAction } from "./types";
 
 function StatusBanner({ icon, text }: { icon: React.ReactNode; text: string }) {
     return (
-        <div className="flex w-full items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+        <div className="bg-card text-muted-foreground flex w-full items-center gap-2 rounded-lg border px-4 py-2.5 text-sm shadow-sm">
             {icon}
             {text}
         </div>
@@ -32,13 +32,13 @@ interface AnswerEntry {
 
 function ResponseSummary({ icon, entries }: { icon: React.ReactNode; entries: AnswerEntry[] }) {
     return (
-        <div className="flex w-full gap-2 rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+        <div className="bg-card text-muted-foreground flex w-full gap-2 overflow-hidden rounded-lg border px-4 py-3 text-sm shadow-sm">
             <div className="mt-0.5 shrink-0">{icon}</div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5">
                 {entries.map((entry, i) => (
-                    <div key={i}>
-                        <span className="text-xs text-muted-foreground/70">{entry.question}</span>
-                        <div className="font-medium text-foreground">{entry.answer}</div>
+                    <div key={i} className="min-w-0">
+                        <span className="text-muted-foreground/70 text-xs">{entry.question}</span>
+                        <div className="text-foreground font-medium break-all">{entry.answer}</div>
                     </div>
                 ))}
             </div>
@@ -106,15 +106,9 @@ export function UserInputMessage({ message }: { message: MessageFE }) {
 
     const updateMessage = useCallback(
         (update: Partial<NonNullable<MessageFE["userInputRequest"]>>) => {
-            setMessages((prev: MessageFE[]) =>
-                prev.map(msg =>
-                    msg.metadata?.messageId === message.metadata?.messageId && msg.userInputRequest
-                        ? { ...msg, userInputRequest: { ...msg.userInputRequest, ...update } }
-                        : msg,
-                ),
-            );
+            setMessages((prev: MessageFE[]) => prev.map(msg => (msg.metadata?.messageId === message.metadata?.messageId && msg.userInputRequest ? { ...msg, userInputRequest: { ...msg.userInputRequest, ...update } } : msg)));
         },
-        [setMessages, message.metadata?.messageId],
+        [setMessages, message.metadata?.messageId]
     );
 
     const handleAction = useCallback(
@@ -154,7 +148,7 @@ export function UserInputMessage({ message }: { message: MessageFE }) {
                 setIsSubmitting(false);
             }
         },
-        [req, updateMessage],
+        [req, updateMessage]
     );
 
     if (!req) return null;
@@ -166,7 +160,9 @@ export function UserInputMessage({ message }: { message: MessageFE }) {
         if (req.responseText?.startsWith("[")) {
             try {
                 entries = JSON.parse(req.responseText) as AnswerEntry[];
-            } catch { /* fall through to plain text */ }
+            } catch {
+                /* fall through to plain text */
+            }
         }
         if (entries && entries.length > 0) {
             return <ResponseSummary icon={icon} entries={entries} />;
@@ -177,19 +173,12 @@ export function UserInputMessage({ message }: { message: MessageFE }) {
         return <StatusBanner icon={<Clock className="size-4" />} text="Request timed out" />;
     }
 
-    return (
-        <A2UISurfaceRenderer
-            surface={req.surface}
-            onAction={handleAction}
-            disabled={isSubmitting}
-            expiresAt={req.expiresAt}
-        />
-    );
+    return <A2UISurfaceRenderer surface={req.surface} onAction={handleAction} disabled={isSubmitting} expiresAt={req.expiresAt} />;
 }
 
 export function CancelledBanner() {
     return (
-        <div className="flex w-full items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+        <div className="bg-card text-muted-foreground flex w-full items-center gap-2 rounded-lg border px-4 py-2.5 text-sm shadow-sm">
             <XCircle className="size-4" />
             Request was cancelled
         </div>
@@ -198,7 +187,7 @@ export function CancelledBanner() {
 
 export function TimedOutBanner() {
     return (
-        <div className="flex w-full items-center gap-2 rounded-lg border bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+        <div className="bg-card text-muted-foreground flex w-full items-center gap-2 rounded-lg border px-4 py-2.5 text-sm shadow-sm">
             <Clock className="size-4" />
             Request timed out
         </div>

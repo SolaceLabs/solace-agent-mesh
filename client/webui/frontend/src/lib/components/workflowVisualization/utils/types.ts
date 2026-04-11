@@ -42,6 +42,8 @@ export interface LayoutNode {
         caseNumber?: number; // The case number (1-indexed) for condition pills
         // Original workflow config for detail panel
         originalConfig?: WorkflowNodeConfig;
+        /** Optional service icons for agent nodes (e.g. connector brand icons from builder) */
+        icons?: Array<{ name: string; url?: string }>;
     };
     // Layout properties
     x: number;
