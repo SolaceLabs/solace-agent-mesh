@@ -81,6 +81,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [contextText, setContextText] = useState<string | null>(null);
     const [contextSourceId, setContextSourceId] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
+    // Multiple context quotes — appended by repeated "follow-up-question" events
+    const [contextQuotes, setContextQuotes] = useState<Array<{ text: string; sourceId?: string }>>([]);
 
     const chatInputRef = useRef<HTMLDivElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
@@ -271,7 +273,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return;
                 }
             } else {
-                // No prompt provided - show the selected text as a badge above the input
+                // No prompt provided - show the selected text as a badge above the input.
+                // Append to multi-quote list; also set single contextText for backward compat.
+                setContextQuotes(prev => {
+                    // Avoid duplicates
+                    if (prev.some(q => q.text === text)) return prev;
+                    return [...prev, { text, sourceId: sourceMessageId ?? undefined }];
+                });
                 setContextText(text);
                 setContextSourceId(sourceMessageId ?? null);
                 setShowContextBadge(true);
@@ -442,78 +450,33 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         if (isSubmittingEnabled) {
             let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
 
-            // Capture the display HTML before resetInputState() clears the DOM
+            // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
-            // If there's context text from "Ask Followup", include it in the message sent to the agent
-            // The contextQuote will be passed separately for UI display
-            if (contextText && showContextBadge) {
+            // If there are context quotes from "Ask Followup" / "Add Comment",
+            // include all of them in the message sent to the agent.
+            if (contextQuotes.length > 0) {
+                const quotesText = contextQuotes.map(q => `- "${escapeMarkdown(q.text)}"`).join("\n");
+                fullMessage = `Context:\n${quotesText}\n\n${fullMessage}`;
+            } else if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
-            // Capture values needed for async work before clearing input
-            const capturedSelectedFiles = [...selectedFiles];
-            const capturedPendingPastedTextItems = [...pendingPastedTextItems];
-            const capturedContextText = contextText;
-            const capturedContextSourceId = contextSourceId;
-            const capturedShowContextBadge = showContextBadge;
-            const capturedInputValue = inputValue;
-            const capturedMentionMap = new Map(mentionMap);
-            const capturedInnerHTML = chatInputRef.current?.innerHTML || "";
+            // Upload all pending pasted text items as artifacts, then create references
+            interface UploadedArtifact {
+                uri: string;
+                filename: string;
+                mimeType: string;
+            }
+            const uploadedArtifacts: UploadedArtifact[] = [];
+            let effectiveSessionId = sessionId;
 
-            const resetInputState = () => {
-                setSelectedFiles([]);
-                setPendingPastedTextItems([]);
-                setInputValue("");
-                setMentionMap(new Map());
-                setContextText(null);
-                setContextSourceId(null);
-                setShowContextBadge(false);
-                if (chatInputRef.current) {
-                    chatInputRef.current.innerHTML = "";
-                }
-            };
+            // Build list of existing artifact filenames for uniqueness check
+            // Include both session artifacts and any artifacts we've already uploaded in this batch
+            const existingFilenames = new Set(artifacts.map(a => a.filename));
 
-            const restoreInputState = () => {
-                // Only restore fields the user hasn't modified since the reset.
-                // If the user typed new content or attached new files while the
-                // async operation was in-flight, overwriting would lose their work.
-                const currentInnerHTML = chatInputRef.current?.innerHTML || "";
-                const userHasTypedNew = currentInnerHTML !== "";
-                if (!userHasTypedNew) {
-                    setInputValue(capturedInputValue);
-                    setMentionMap(capturedMentionMap);
-                    if (chatInputRef.current) {
-                        chatInputRef.current.innerHTML = capturedInnerHTML;
-                    }
-                }
-                // Only restore non-text fields if the user hasn't added new ones
-                setSelectedFiles(current => (current.length > 0 ? current : capturedSelectedFiles));
-                setPendingPastedTextItems(current => (current.length > 0 ? current : capturedPendingPastedTextItems));
-                setContextText(current => (current !== null ? current : capturedContextText));
-                setContextSourceId(current => (current !== null ? current : capturedContextSourceId));
-                setShowContextBadge(current => (current ? current : capturedShowContextBadge));
-            };
-
-            // Clear input immediately for snappy UX — all needed values are captured above
-            resetInputState();
-
-            try {
-                // Upload all pending pasted text items as artifacts, then create references
-                interface UploadedArtifact {
-                    uri: string;
-                    filename: string;
-                    mimeType: string;
-                }
-                const uploadedArtifacts: UploadedArtifact[] = [];
-                let effectiveSessionId = sessionId;
-
-                // Build list of existing artifact filenames for uniqueness check
-                // Include both session artifacts and any artifacts we've already uploaded in this batch
-                const existingFilenames = new Set(artifacts.map(a => a.filename));
-
-                const uploadErrors: string[] = [];
-                for (const item of capturedPendingPastedTextItems) {
+            for (const item of pendingPastedTextItems) {
+                try {
                     // Use configured metadata if available, otherwise generate defaults
                     let filename: string;
                     let mimeType: string;
@@ -543,71 +506,69 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     // Add this filename to the set so subsequent items in this batch get unique names
                     existingFilenames.add(filename);
 
-                    try {
-                        // Create a File object from the text content
-                        const blob = new Blob([item.content], { type: mimeType });
-                        const file = new File([blob], filename, { type: mimeType });
+                    // Create a File object from the text content
+                    const blob = new Blob([item.content], { type: mimeType });
+                    const file = new File([blob], filename, { type: mimeType });
 
-                        // Upload the artifact via HTTP API (this creates proper metadata)
-                        // Pass silent=true to suppress toast notifications for pasted text artifacts
-                        const result = await uploadArtifactFile(file, effectiveSessionId, description, true);
+                    // Upload the artifact via HTTP API (this creates proper metadata)
+                    // Pass silent=true to suppress toast notifications for pasted text artifacts
+                    const result = await uploadArtifactFile(file, effectiveSessionId, description, true);
 
-                        if (result && !("error" in result)) {
-                            // Update effective session ID if a new session was created
-                            if (result.sessionId && result.sessionId !== effectiveSessionId) {
-                                effectiveSessionId = result.sessionId;
-                                setSessionId(result.sessionId);
-                            }
-
-                            // Store the uploaded artifact info
-                            uploadedArtifacts.push({
-                                uri: result.uri,
-                                filename: filename,
-                                mimeType: mimeType,
-                            });
-                        } else {
-                            const errorDetail = result && "error" in result ? result.error : "An unknown upload error occurred.";
-                            uploadErrors.push(`${filename}: ${errorDetail}`);
+                    if (result && !("error" in result)) {
+                        // Update effective session ID if a new session was created
+                        if (result.sessionId && result.sessionId !== effectiveSessionId) {
+                            effectiveSessionId = result.sessionId;
+                            setSessionId(result.sessionId);
                         }
-                    } catch (uploadErr) {
-                        uploadErrors.push(`${filename}: ${getErrorMessage(uploadErr)}`);
+
+                        // Store the uploaded artifact info
+                        uploadedArtifacts.push({
+                            uri: result.uri,
+                            filename: filename,
+                            mimeType: mimeType,
+                        });
+                    } else {
+                        const errorDetail = result && "error" in result ? result.error : "An unknown upload error occurred.";
+                        throw new Error(errorDetail);
                     }
+                } catch (error) {
+                    displayError({ title: "Failed to Save Pasted Text", error: getErrorMessage(error) });
                 }
-
-                if (uploadErrors.length > 0) {
-                    displayError({ title: "Some uploads failed", error: uploadErrors.join("; ") });
-                }
-
-                // Create artifact reference files for all uploaded artifacts
-                const artifactFiles: File[] = uploadedArtifacts.map(item => {
-                    // Create a special File object that contains the artifact URI
-                    const artifactData = JSON.stringify({
-                        isArtifactReference: true,
-                        uri: item.uri,
-                        filename: item.filename,
-                        mimeType: item.mimeType,
-                    });
-                    const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
-                    return new File([blob], item.filename, {
-                        type: "application/x-artifact-reference",
-                    });
-                });
-
-                // Combine regular files with artifact references
-                const allFiles = [...capturedSelectedFiles, ...artifactFiles];
-
-                // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
-                // as the uploaded artifacts (avoids React state timing issues)
-                // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
-                const contextQuoteToPass = capturedContextText && capturedShowContextBadge ? capturedContextText : null;
-                const contextQuoteSourceIdToPass = capturedContextSourceId && capturedShowContextBadge ? capturedContextSourceId : null;
-                await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
-                scrollToBottom?.();
-            } catch (error) {
-                // Restore input state so the user's message is not lost
-                restoreInputState();
-                displayError({ title: "Failed to Send Message", error: getErrorMessage(error) });
             }
+
+            // Create artifact reference files for all uploaded artifacts
+            const artifactFiles: File[] = uploadedArtifacts.map(item => {
+                // Create a special File object that contains the artifact URI
+                const artifactData = JSON.stringify({
+                    isArtifactReference: true,
+                    uri: item.uri,
+                    filename: item.filename,
+                    mimeType: item.mimeType,
+                });
+                const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                return new File([blob], item.filename, {
+                    type: "application/x-artifact-reference",
+                });
+            });
+
+            // Combine regular files with artifact references
+            const allFiles = [...selectedFiles, ...artifactFiles];
+
+            // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
+            // as the uploaded artifacts (avoids React state timing issues)
+            // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
+            const contextQuoteToPass = contextQuotes.length > 0 ? contextQuotes.map(q => q.text).join(" | ") : contextText && showContextBadge ? contextText : null;
+            const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
+            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
+            setSelectedFiles([]);
+            setPendingPastedTextItems([]);
+            setInputValue("");
+            setMentionMap(new Map()); // Clear mention map after submit
+            setContextText(null);
+            setContextSourceId(null);
+            setShowContextBadge(false);
+            setContextQuotes([]);
+            scrollToBottom?.();
         }
     };
 
@@ -864,8 +825,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Context Text Badge (from text selection) */}
-            {showContextBadge && contextText && (
+            {/* Context Text Badges (from text selection / Add Comment) */}
+            {contextQuotes.length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-1.5 overflow-hidden">
+                    {contextQuotes.map((q, i) => (
+                        <div key={i} className="inline-flex max-w-full items-center gap-1.5 overflow-hidden rounded-md border bg-(--secondary-w10) px-2.5 py-1.5 text-xs">
+                            <Quote className="h-3 w-3 flex-shrink-0 text-(--secondary-text-wMain)" />
+                            <span className="min-w-0 truncate text-(--secondary-text-wMain) italic">"{q.text}"</span>
+                            <Button
+                                variant="ghost"
+                                className="h-4 w-4 shrink-0"
+                                onClick={() => {
+                                    setContextQuotes(prev => prev.filter((_, idx) => idx !== i));
+                                    if (contextQuotes.length <= 1) {
+                                        setContextText(null);
+                                        setShowContextBadge(false);
+                                    }
+                                }}
+                                tooltip="Remove"
+                            >
+                                <X />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            ) : showContextBadge && contextText ? (
                 <div className="mb-2 overflow-hidden">
                     <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
                         <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
@@ -883,7 +867,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         </Button>
                     </div>
                 </div>
-            )}
+            ) : null}
 
             {/* Pending Pasted Text Items (not yet uploaded as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
