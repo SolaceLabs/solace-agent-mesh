@@ -37,6 +37,7 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
         try {
             let endpoint: string;
 
+            console.log(`[SAM-REDIRECT] useArtifacts.fetchArtifacts called, sessionId=${sessionId}`);
             if (sessionId && sessionId.trim() && sessionId !== "null" && sessionId !== "undefined") {
                 endpoint = `/api/v1/artifacts/${sessionId}`;
             } else if (activeProject?.id) {
@@ -47,12 +48,21 @@ export const useArtifacts = (sessionId?: string): UseArtifactsReturn => {
                 return;
             }
 
-            type RawArtifactInfo = Omit<ArtifactInfo, "sourceProjectId"> & { source_project_id?: string };
+            // Raw response may use camelCase (Go gateway) or snake_case (Python gateway).
+            // Normalize to snake_case which the frontend uses throughout.
+            type RawArtifactInfo = Omit<ArtifactInfo, "sourceProjectId"> & {
+                source_project_id?: string;
+                mimeType?: string; // Go gateway sends camelCase
+                lastModified?: string; // Go gateway sends camelCase
+            };
             const data: RawArtifactInfo[] = await api.webui.get(endpoint);
             // Note: web_content_ artifacts are now tagged with __working on the backend,
             // so they are hidden via the working-tag filter below rather than filename matching.
-            const artifactsWithUris = data.map(({ source_project_id, ...artifact }) => ({
+            const artifactsWithUris = data.map(({ source_project_id, mimeType, lastModified, ...artifact }) => ({
                 ...artifact,
+                // Normalize camelCase → snake_case (Go gateway compat)
+                mime_type: artifact.mime_type || mimeType || "",
+                last_modified: artifact.last_modified || lastModified || "",
                 sourceProjectId: source_project_id,
                 uri: artifact.uri || `artifact://${sessionId}/${artifact.filename}`,
             }));

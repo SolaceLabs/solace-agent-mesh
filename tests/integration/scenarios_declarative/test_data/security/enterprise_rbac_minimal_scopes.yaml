@@ -1,0 +1,40 @@
+test_case_id: "enterprise_rbac_minimal_scopes_001"
+description: "Enterprise user with minimal scopes (no tool-specific scopes) can still use built-in tools that have no required_scopes. Validates that scope filtering is permissive for tools without explicit scope requirements."
+tags: ["enterprise", "security"]
+skip_intermediate_events: true
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "minimal_user@example.com"
+  enterprise:
+    user_scopes:
+      - "agent:TestAgent:delegate"
+    user_roles: []
+  a2a_parts:
+    - type: "text"
+      text: "Hello, just a simple greeting."
+  external_context:
+    a2a_session_id: "session_enterprise_minimal_001"
+
+llm_interactions:
+  - step_id: "agent_responds"
+    static_response:
+      id: "chatcmpl-enterprise-minimal"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "Hello! How can I help you today?"
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 10
+        completion_tokens: 8
+        total_tokens: 18
+
+expected_gateway_output:
+  - type: "final_response"
+    content_parts:
+      - type: "text"
+        text_exact: "Hello! How can I help you today?"
+    task_state: "completed"

@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "2.3.6",
+    "version": "2.2.7",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -120,10 +120,10 @@
     },
     "devDependencies": {
         "@a2a-js/sdk": "^0.3.2",
+        "@eslint/js": "^9.25.0",
         "@openfeature/core": "^1.9.2",
         "@openfeature/react-sdk": "^1.2.1",
         "@openfeature/web-sdk": "^1.7.3",
-        "@eslint/js": "^9.25.0",
         "@storybook/addon-vitest": "^10.1.10",
         "@storybook/react": "^10.1.8",
         "@storybook/react-vite": "^10.1.10",
@@ -141,6 +141,7 @@
         "@vitejs/plugin-react": "^4.4.1",
         "@vitest/browser-playwright": "^4.0.8",
         "@vitest/coverage-v8": "^4.0.8",
+        "@xyflow/react": "^12.10.2",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",

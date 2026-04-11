@@ -112,7 +112,8 @@ export const useArtifactPreview = ({ sessionId, projectId, artifacts, setError }
                 const availableVersions: number[] = await api.webui.get(versionsUrl);
 
                 if (!availableVersions || availableVersions.length === 0) {
-                    throw new Error("No versions available");
+                    // No versions yet — common during session switches. Return silently.
+                    return null;
                 }
 
                 const sortedVersions = availableVersions.sort((a, b) => a - b);

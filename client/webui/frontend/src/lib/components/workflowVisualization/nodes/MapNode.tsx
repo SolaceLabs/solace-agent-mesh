@@ -1,5 +1,5 @@
 import type { FC, ReactNode, MouseEvent } from "react";
-import { clickableNodeProps } from "@/lib/components/utils";
+
 import { Repeat2, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
@@ -40,7 +40,7 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
                     width: `${node.width}px`,
                     height: `${node.height}px`,
                 }}
-                {...clickableNodeProps(() => onClick?.(node))}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
             >
                 <div className="flex items-center gap-2">
                     <Repeat2 className={`h-4 w-4 ${NODE_COLORS.map}`} />
@@ -74,7 +74,10 @@ const MapNode: FC<MapNodeProps> = ({ node, isSelected, isHighlighted, onClick, o
             </div>
 
             {/* Solid Header Box - straddles the dotted container border */}
-            <div className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`} {...clickableNodeProps(() => onClick?.(node))}>
+            <div
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
+            >
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
                         <Repeat2 className="h-4 w-4 text-(--accent-n0-wMain)" />

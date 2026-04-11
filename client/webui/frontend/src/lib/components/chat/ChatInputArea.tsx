@@ -5,10 +5,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { MessageBanner } from "@/lib/components/common";
+import { MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled, useUIMode } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -55,13 +55,14 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
-    const { handleAgentSelection } = useAgentSelection();
+    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt, builderMode, inputAreaLeftSlot } = useChatContext();
+    const { handleAgentSelection, switchConfirmOpen, setSwitchConfirmOpen, confirmAgentSwitch, cancelAgentSwitch } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { data: modelConfigStatus } = useModelConfigStatus();
     const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
+    const { isOnboardMode } = useUIMode();
 
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
@@ -80,6 +81,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [contextText, setContextText] = useState<string | null>(null);
     const [contextSourceId, setContextSourceId] = useState<string | null>(null);
     const [showContextBadge, setShowContextBadge] = useState(false);
+    // Multiple context quotes — appended by repeated "follow-up-question" events
+    const [contextQuotes, setContextQuotes] = useState<Array<{ text: string; sourceId?: string }>>([]);
 
     const chatInputRef = useRef<HTMLDivElement>(null);
     const prevIsRespondingRef = useRef<boolean>(isResponding);
@@ -200,6 +203,49 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         };
     }, []);
 
+    // Handle set-chat-input events from welcome screen suggestion chips
+    useEffect(() => {
+        const handleSetChatInput = (event: Event) => {
+            const customEvent = event as CustomEvent<{ text: string }>;
+            const text = customEvent.detail.text;
+            setInputValue(text);
+            setDesiredCursorPosition(text.length);
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+                setDesiredCursorPosition(undefined);
+            }, 100);
+        };
+
+        window.addEventListener("set-chat-input", handleSetChatInput);
+        return () => {
+            window.removeEventListener("set-chat-input", handleSetChatInput);
+        };
+    }, []);
+
+    // On mount, check for pending redirect input stored by BuilderPage / redirect flow.
+    // The key is kept in sessionStorage until this component stays mounted for a few
+    // seconds, so it survives unmount/remount cycles caused by agent-list re-fetches.
+    useEffect(() => {
+        const pending = sessionStorage.getItem("sam_redirect_pending_input");
+        if (pending) {
+            console.log("[SAM-REDIRECT] ChatInputArea applying pending input, length:", pending.length);
+            setInputValue(pending);
+            setDesiredCursorPosition(pending.length);
+            setTimeout(() => {
+                chatInputRef.current?.focus();
+                setDesiredCursorPosition(undefined);
+            }, 100);
+            // Only remove the key after we've been mounted long enough to be stable.
+            // If we unmount before this fires, the timer is cancelled and the next
+            // mount will re-apply the input.
+            const cleanup = setTimeout(() => {
+                console.log("[SAM-REDIRECT] ChatInputArea stable — clearing pending input");
+                sessionStorage.removeItem("sam_redirect_pending_input");
+            }, 3000);
+            return () => clearTimeout(cleanup);
+        }
+    }, []);
+
     // Handle follow-up question from text selection
     useEffect(() => {
         const handleFollowUp = async (event: Event) => {
@@ -227,7 +273,13 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     return;
                 }
             } else {
-                // No prompt provided - show the selected text as a badge above the input
+                // No prompt provided - show the selected text as a badge above the input.
+                // Append to multi-quote list; also set single contextText for backward compat.
+                setContextQuotes(prev => {
+                    // Avoid duplicates
+                    if (prev.some(q => q.text === text)) return prev;
+                    return [...prev, { text, sourceId: sourceMessageId ?? undefined }];
+                });
                 setContextText(text);
                 setContextSourceId(sourceMessageId ?? null);
                 setShowContextBadge(true);
@@ -401,9 +453,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Capture the display HTML for showing in user's message bubble
             const displayHtml = chatInputRef.current?.innerHTML || null;
 
-            // If there's context text from "Ask Followup", include it in the message sent to the agent
-            // The contextQuote will be passed separately for UI display
-            if (contextText && showContextBadge) {
+            // If there are context quotes from "Ask Followup" / "Add Comment",
+            // include all of them in the message sent to the agent.
+            if (contextQuotes.length > 0) {
+                const quotesText = contextQuotes.map(q => `- "${escapeMarkdown(q.text)}"`).join("\n");
+                fullMessage = `Context:\n${quotesText}\n\n${fullMessage}`;
+            } else if (contextText && showContextBadge) {
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
@@ -502,7 +557,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
             // as the uploaded artifacts (avoids React state timing issues)
             // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
-            const contextQuoteToPass = contextText && showContextBadge ? contextText : null;
+            const contextQuoteToPass = contextQuotes.length > 0 ? contextQuotes.map(q => q.text).join(" | ") : contextText && showContextBadge ? contextText : null;
             const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
             await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
             setSelectedFiles([]);
@@ -512,6 +567,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             setContextText(null);
             setContextSourceId(null);
             setShowContextBadge(false);
+            setContextQuotes([]);
             scrollToBottom?.();
         }
     };
@@ -769,8 +825,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Context Text Badge (from text selection) */}
-            {showContextBadge && contextText && (
+            {/* Context Text Badges (from text selection / Add Comment) */}
+            {contextQuotes.length > 0 ? (
+                <div className="mb-2 flex flex-wrap gap-1.5 overflow-hidden">
+                    {contextQuotes.map((q, i) => (
+                        <div key={i} className="inline-flex max-w-full items-center gap-1.5 overflow-hidden rounded-md border bg-(--secondary-w10) px-2.5 py-1.5 text-xs">
+                            <Quote className="h-3 w-3 flex-shrink-0 text-(--secondary-text-wMain)" />
+                            <span className="min-w-0 truncate text-(--secondary-text-wMain) italic">"{q.text}"</span>
+                            <Button
+                                variant="ghost"
+                                className="h-4 w-4 shrink-0"
+                                onClick={() => {
+                                    setContextQuotes(prev => prev.filter((_, idx) => idx !== i));
+                                    if (contextQuotes.length <= 1) {
+                                        setContextText(null);
+                                        setShowContextBadge(false);
+                                    }
+                                }}
+                                tooltip="Remove"
+                            >
+                                <X />
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+            ) : showContextBadge && contextText ? (
                 <div className="mb-2 overflow-hidden">
                     <div className="inline-flex max-w-full items-center gap-2 overflow-hidden rounded-md border bg-(--secondary-w10) px-3 py-2 text-sm">
                         <Quote className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
@@ -788,7 +867,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         </Button>
                     </div>
                 </div>
-            )}
+            ) : null}
 
             {/* Pending Pasted Text Items (not yet uploaded as artifacts) */}
             {pendingPastedTextItems.length > 0 && (
@@ -1017,27 +1096,34 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     <Paperclip className="size-4" />
                 </Button>
 
-                <div>Agent: </div>
-                <Select
-                    value={selectedAgentName}
-                    onValueChange={agentName => {
-                        handleAgentSelection(agentName);
-                    }}
-                    disabled={isResponding || agents.length === 0}
-                >
-                    <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents
-                            .filter(agent => !agent.isWorkflow)
-                            .map(agent => (
-                                <SelectItem key={agent.name} value={agent.name}>
-                                    {agent.displayName || agent.name}
-                                </SelectItem>
-                            ))}
-                    </SelectContent>
-                </Select>
+                {/* Extension slot for builder mode toggle or other controls */}
+                {inputAreaLeftSlot}
+
+                {!isOnboardMode && !builderMode && (
+                    <>
+                        <div>Agent: </div>
+                        <Select
+                            value={selectedAgentName}
+                            onValueChange={agentName => {
+                                handleAgentSelection(agentName);
+                            }}
+                            disabled={isResponding || agents.length === 0}
+                        >
+                            <SelectTrigger className="w-[250px]">
+                                <SelectValue placeholder="Select an agent..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents
+                                    .filter(agent => !agent.isWorkflow)
+                                    .map(agent => (
+                                        <SelectItem key={agent.name} value={agent.name}>
+                                            {agent.displayName || agent.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />
@@ -1056,6 +1142,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     </Button>
                 )}
             </div>
+
+            <ConfirmationDialog
+                open={switchConfirmOpen}
+                onOpenChange={setSwitchConfirmOpen}
+                title="Switch Agent"
+                description="Switching agents will start a new chat and clear the current chat history and files. Are you sure you want to proceed?"
+                actionLabels={{ confirm: "Switch Agent" }}
+                onConfirm={confirmAgentSwitch}
+                onCancel={cancelAgentSwitch}
+            />
         </div>
     );
 };

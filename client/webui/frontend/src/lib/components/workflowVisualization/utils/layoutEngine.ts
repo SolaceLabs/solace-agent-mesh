@@ -191,11 +191,42 @@ function copyContainerChildDependents(nodeMap: Map<string, ProcessedNode>): void
  * Build dependency relationships (bidirectional)
  */
 function buildDependencyGraph(nodeMap: Map<string, ProcessedNode>): void {
+    // First, build explicit dependencies from depends_on
     for (const node of nodeMap.values()) {
         for (const depId of node.dependsOn) {
             const depNode = nodeMap.get(depId);
             if (depNode) {
                 depNode.dependents.push(node.id);
+            }
+        }
+    }
+
+    // Add implicit dependencies for switch case targets
+    // Switch cases define targets (via cases[].node and default) but those targets
+    // may not have explicit depends_on pointing back to the switch
+    for (const node of nodeMap.values()) {
+        if (node.type !== "switch") continue;
+        const config = node.config;
+
+        const targetIds: string[] = [];
+        if (config.cases) {
+            for (const c of config.cases) {
+                if (c.node) targetIds.push(c.node);
+            }
+        }
+        if (config.default) {
+            targetIds.push(config.default);
+        }
+
+        for (const targetId of targetIds) {
+            const targetNode = nodeMap.get(targetId);
+            if (!targetNode) continue;
+            // Add dependency if not already present
+            if (!targetNode.dependsOn.includes(node.id)) {
+                targetNode.dependsOn.push(node.id);
+            }
+            if (!node.dependents.includes(targetId)) {
+                node.dependents.push(targetId);
             }
         }
     }

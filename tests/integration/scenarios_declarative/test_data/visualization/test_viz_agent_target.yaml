@@ -1,0 +1,50 @@
+test_case_id: "viz_agent_target_001"
+description: >
+  Visualization: subscribe using agent target type and verify events
+  from that agent's topic subtree are received.
+tags: ["visualization", "all"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "viz_agent_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Test agent target subscription"
+  external_context:
+    a2a_session_id: "session_viz_agent_001"
+
+llm_interactions:
+  - step_id: "agent_responds"
+    static_response:
+      id: "chatcmpl-viz-agent"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "Agent response for visualization test."
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 10
+        completion_tokens: 5
+        total_tokens: 15
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Agent response for visualization test."
+
+# Subscribe to the specific agent's topic subtree.
+# The Manager translates type=agent to "{ns}/agent/{name}/>",
+# but A2A topics are under "{ns}/a2a/v1/agent/...".
+# Use a raw topic pattern to target A2A agent traffic.
+visualization:
+  targets:
+    - type: topic
+      name: "test-ns/a2a/v1/agent/>"
+  expected_events:
+    - topic_contains: "agent/request/TestAgent"

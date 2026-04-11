@@ -1,0 +1,48 @@
+test_case_id: "viz_status_events_001"
+description: >
+  Visualization: subscribe to gateway status topics and verify
+  status update events are captured during agent processing.
+tags: ["visualization", "all"]
+skip_intermediate_events: true
+
+gateway_input:
+  target_agent_name: "TestAgent"
+  user_identity: "viz_status_user@example.com"
+  a2a_parts:
+    - type: "text"
+      text: "Process this request"
+  external_context:
+    a2a_session_id: "session_viz_status_001"
+
+llm_interactions:
+  - step_id: "agent_responds"
+    static_response:
+      id: "chatcmpl-viz-status"
+      object: "chat.completion"
+      model: "test-llm-model"
+      choices:
+        - index: 0
+          message:
+            role: "assistant"
+            content: "Request processed successfully."
+          finish_reason: "stop"
+      usage:
+        prompt_tokens: 10
+        completion_tokens: 5
+        total_tokens: 15
+
+expected_gateway_output:
+  - type: "final_response"
+    task_state: "completed"
+    content_parts:
+      - type: "text"
+        text_exact: "Request processed successfully."
+
+# Subscribe specifically to gateway status topics.
+visualization:
+  targets:
+    - type: topic
+      name: "test-ns/a2a/v1/gateway/status/>"
+  expected_events:
+    # Should receive at least one status update event.
+    - topic_regex: "gateway/status/test-gw"

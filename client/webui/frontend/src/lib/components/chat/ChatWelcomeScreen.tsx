@@ -1,0 +1,129 @@
+import React, { type FormEvent, useMemo } from "react";
+
+import { Pencil, BookOpen, Code2, Lightbulb, Sparkles } from "lucide-react";
+
+import { SolaceIcon } from "@/lib/components/common";
+import { useChatContext, useConfigContext } from "@/lib/hooks";
+import type { AgentCardInfo, AgentWelcomeConfig, WelcomeSuggestion } from "@/lib/types";
+import { ChatInputArea } from "./ChatInputArea";
+import { CHAT_STYLES } from "@/lib/components/ui/chat/chatStyles";
+
+interface SuggestionChip {
+    label: string;
+    icon: React.ReactNode;
+    prompt: string;
+    autoSend?: boolean;
+}
+
+// Use \u00A0 (non-breaking space) at the end so the browser doesn't collapse the trailing space
+// when the contenteditable input renders it as innerHTML
+const DEFAULT_SUGGESTIONS: SuggestionChip[] = [
+    {
+        label: "Write",
+        icon: <Pencil className="h-4 w-4" />,
+        prompt: "Help me write\u00A0",
+    },
+    {
+        label: "Learn",
+        icon: <BookOpen className="h-4 w-4" />,
+        prompt: "Explain to me\u00A0",
+    },
+    {
+        label: "Code",
+        icon: <Code2 className="h-4 w-4" />,
+        prompt: "Help me build\u00A0",
+    },
+    {
+        label: "Brainstorm",
+        icon: <Lightbulb className="h-4 w-4" />,
+        prompt: "Help me brainstorm ideas for\u00A0",
+    },
+    {
+        label: "Surprise me",
+        icon: <Sparkles className="h-4 w-4" />,
+        prompt: "Surprise me with something interesting and useful",
+        autoSend: true,
+    },
+];
+
+/** Convert agent-provided WelcomeSuggestions to SuggestionChips. */
+const toChips = (suggestions: WelcomeSuggestion[]): SuggestionChip[] =>
+    suggestions.map(s => ({
+        label: s.label,
+        icon: <Sparkles className="h-4 w-4" />,
+        prompt: s.prompt,
+        autoSend: s.auto_send,
+    }));
+
+interface ChatWelcomeScreenProps {
+    agents: AgentCardInfo[];
+    selectedAgentName?: string;
+    /** Fallback welcome config used when the selected agent's card hasn't been discovered yet. */
+    welcomeOverride?: AgentWelcomeConfig;
+    /** Compact layout — reduces input area spacing */
+    compact?: boolean;
+}
+
+export const ChatWelcomeScreen: React.FC<ChatWelcomeScreenProps> = ({ agents, selectedAgentName, welcomeOverride }) => {
+    const { handleSubmit } = useChatContext();
+    const { configBotName } = useConfigContext();
+
+    const botName = configBotName || "SAM";
+
+    // Use the selected agent's welcome config if available.
+    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName), [agents, selectedAgentName]);
+
+    // Prefer agent card welcome config; fall back to override (for when card hasn't arrived yet)
+    const effectiveWelcome = welcomeAgent?.welcome ?? welcomeOverride;
+    const welcomeMessage = effectiveWelcome?.welcome_message;
+    // For agents without a welcome config, use a generic greeting with their name
+    const defaultHeading = welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : selectedAgentName ? `Hi, I'm ${selectedAgentName}. How can I help you?` : `What can ${botName} help you with?`;
+    const suggestions = useMemo(() => (effectiveWelcome?.suggestions ? toChips(effectiveWelcome.suggestions) : DEFAULT_SUGGESTIONS), [effectiveWelcome]);
+
+    const handleChipClick = async (chip: SuggestionChip) => {
+        if (chip.autoSend) {
+            const fakeEvent = new Event("submit") as unknown as FormEvent;
+            await handleSubmit(fakeEvent, [], chip.prompt);
+        } else {
+            // Set the input text and let the user edit before sending
+            window.dispatchEvent(
+                new CustomEvent("set-chat-input", {
+                    detail: { text: chip.prompt },
+                })
+            );
+        }
+    };
+
+    return (
+        <div className="flex h-full w-full flex-col items-center justify-center px-4 pb-32">
+            <div className="flex w-full flex-col items-center gap-6" style={{ maxWidth: "900px" }}>
+                {effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon ? (
+                    <img
+                        src={effectiveWelcome?.welcome_icon || welcomeOverride?.welcome_icon}
+                        alt=""
+                        className={`w-auto opacity-90 ${{ small: "h-12", medium: "h-24", large: "h-40" }[effectiveWelcome?.welcome_icon_size || welcomeOverride?.welcome_icon_size || "small"]}`}
+                    />
+                ) : (
+                    <SolaceIcon variant="short" className="h-12 w-12 opacity-80" />
+                )}
+                <h1 className="text-foreground text-center text-3xl font-semibold tracking-tight">{welcomeMessage || defaultHeading}</h1>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    {suggestions.map(chip => (
+                        <button
+                            key={chip.label}
+                            onClick={() => handleChipClick(chip)}
+                            className="border-border bg-background hover:bg-accent text-foreground flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors"
+                        >
+                            {chip.icon}
+                            {chip.label}
+                        </button>
+                    ))}
+                </div>
+                {/* Input area centered with the welcome content */}
+                <div className="mt-4 w-full" style={CHAT_STYLES}>
+                    <ChatInputArea agents={agents} />
+                </div>
+            </div>
+        </div>
+    );
+};

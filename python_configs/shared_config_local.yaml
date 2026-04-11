@@ -1,0 +1,65 @@
+# Local development override for shared_config.yaml
+# Switches artifact service from S3 to filesystem (no AWS credentials needed).
+# Used by scripts/sfdc-case-event/run_docker_e2e.sh via Docker volume mount.
+# DO NOT commit this file with real credentials.
+
+shared_config:
+  - broker_connection: &broker_connection
+      dev_mode: ${SOLACE_DEV_MODE, false}
+      broker_url: ${SOLACE_BROKER_URL, ws://localhost:8080}
+      broker_username: ${SOLACE_BROKER_USERNAME, default}
+      broker_password: ${SOLACE_BROKER_PASSWORD, default}
+      broker_vpn: ${SOLACE_BROKER_VPN, default}
+      temporary_queue: ${USE_TEMPORARY_QUEUES, true}
+
+  - models:
+    planning: &planning_model
+      model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+      max_tokens: ${LLM_SERVICE_PLANNING_MODEL_MAX_TOKENS, 32000}
+
+    general: &general_model
+      model: ${LLM_SERVICE_GENERAL_MODEL_NAME}
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+      max_tokens: ${LLM_SERVICE_GENERAL_MODEL_MAX_TOKENS, 32000}
+
+    image_gen: &image_generation_model
+      model: ${IMAGE_MODEL_NAME}
+      api_base: ${IMAGE_SERVICE_ENDPOINT}
+      api_key: ${IMAGE_SERVICE_API_KEY}
+
+    report_gen: &report_generation_model
+      model: ${LLM_REPORT_MODEL_NAME}
+      api_base: ${LLM_SERVICE_ENDPOINT}
+      api_key: ${LLM_SERVICE_API_KEY}
+
+    image_describe: &image_description_model
+      model: ${IMAGE_DESCRIPTION_MODEL_NAME}
+      api_base: ${IMAGE_SERVICE_ENDPOINT}
+      api_key: ${IMAGE_SERVICE_API_KEY}
+
+    audio_transcription: &audio_transcription_model
+      model: ${AUDIO_TRANSCRIPTION_MODEL_NAME}
+      api_base: ${AUDIO_TRANSCRIPTION_API_BASE}
+      api_key: ${AUDIO_TRANSCRIPTION_API_KEY}
+
+    multimodal: &multimodal_model  "gemini-2.5-flash-preview-04-17"
+    gemini_pro: &gemini_pro_model "gemini-2.5-pro-exp-03-25"
+
+  - services:
+    session_service: &default_session_service
+      type: "memory"
+      default_behavior: "PERSISTENT"
+
+    # Override: use filesystem instead of S3 for local Docker testing
+    artifact_service: &default_artifact_service
+      type: "filesystem"
+      base_path: "/tmp/samv2"
+      artifact_scope: namespace
+
+    data_tools_config: &default_data_tools_config
+      sqlite_memory_threshold_mb: 100
+      max_result_preview_rows: 50
+      max_result_preview_bytes: 4096

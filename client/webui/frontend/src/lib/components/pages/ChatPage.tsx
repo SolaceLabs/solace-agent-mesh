@@ -2,15 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
+import { ArrowRightIcon, PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useUIMode } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSidePanel, ChatWelcomeScreen, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -40,6 +40,7 @@ const PANEL_SIZES_OPEN = {
 
 export function ChatPage() {
     const queryClient = useQueryClient();
+    const { isOnboardMode } = useUIMode();
     const { activeProject } = useProjectContext();
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
     const { configFeatureEnablement } = useConfigContext();
@@ -60,9 +61,6 @@ export function ChatPage() {
         isResponding,
         latestStatusText,
         isLoadingSession,
-        sessionToDelete,
-        closeSessionDeleteModal,
-        confirmSessionDelete,
         currentTaskId,
         isCollaborativeSession,
         currentUserEmail,
@@ -70,6 +68,7 @@ export function ChatPage() {
         sessionOwnerEmail,
         handleSwitchSession,
         handleNewSession,
+        selectedAgentName,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -419,6 +418,13 @@ export function ChatPage() {
         return map;
     }, [messages]);
 
+    // Detect if we're in the initial welcome state (only the auto-injected greeting message)
+    const isWelcomeState = useMemo(() => {
+        if (messages.length === 0) return true;
+        if (messages.length === 1 && !messages[0].isUser && messages[0].metadata?.sessionId === "") return true;
+        return false;
+    }, [messages]);
+
     // Handle navigation state (e.g., from SharedChatViewPage returning to /chat)
     useEffect(() => {
         if (useNewNav) return;
@@ -461,29 +467,33 @@ export function ChatPage() {
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden">
-            {!useNewNav && (
+            {!useNewNav && !isOnboardMode && (
                 <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
-            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+            <div className={`transition-all duration-300 ${!useNewNav && !isOnboardMode && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
-                        <div className="flex items-center gap-3">
-                            <Tooltip delayDuration={300}>
-                                <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
-                                    {pageTitle}
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                    <p>{pageTitle}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
-                        </div>
+                        isOnboardMode ? (
+                            <span className="text-inherit">Getting to know SAM</span>
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <Tooltip delayDuration={300}>
+                                    <TooltipTrigger className={`font-inherit max-w-[400px] cursor-default truncate border-0 bg-transparent p-0 text-left text-inherit transition-opacity duration-300 hover:bg-transparent ${titleAnimationClass}`}>
+                                        {pageTitle}
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">
+                                        <p>{pageTitle}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                {activeProject && <ProjectBadge text={activeProject.name} className="max-w-[360px]" />}
+                            </div>
+                        )
                     }
-                    breadcrumbs={breadcrumbs}
+                    breadcrumbs={isOnboardMode ? undefined : breadcrumbs}
                     leadingAction={
-                        useNewNav ? (
+                        isOnboardMode ? null : useNewNav ? (
                             <ChatSessionDialog />
                         ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -497,30 +507,45 @@ export function ChatPage() {
                         ) : null
                     }
                     buttons={
-                        sessionId && chatSharingEnabled
+                        isOnboardMode
                             ? [
-                                  // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
-                                  ...(isCollaborativeSession && collaborativeUsers.length > 0
-                                      ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
-                                      : sharedEditorUsers.length > 0
-                                        ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
-                                        : []),
-                                  // For editors: show "Continue in New Chat" (fork) button instead of Share
-                                  ...(isCollaborativeSession
-                                      ? [
-                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
-                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Continue in New Chat
-                                            </Button>,
-                                        ]
-                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                                  <Button
+                                      key="continue"
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => {
+                                          window.location.hash = "#/chat";
+                                          window.location.reload();
+                                      }}
+                                  >
+                                      Continue to full experience
+                                      <ArrowRightIcon className="ml-1 size-4" />
+                                  </Button>,
                               ]
-                            : undefined
+                            : sessionId && chatSharingEnabled
+                              ? [
+                                    // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
+                                    ...(isCollaborativeSession && collaborativeUsers.length > 0
+                                        ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
+                                        : sharedEditorUsers.length > 0
+                                          ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
+                                          : []),
+                                    // For editors: show "Continue in New Chat" (fork) button instead of Share
+                                    ...(isCollaborativeSession
+                                        ? [
+                                              <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
+                                                  {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                  Continue in New Chat
+                                              </Button>,
+                                          ]
+                                        : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                                ]
+                              : undefined
                     }
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isOnboardMode && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
@@ -531,6 +556,8 @@ export function ChatPage() {
                                                 <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
+                                    ) : isWelcomeState && !isResponding ? (
+                                        <ChatWelcomeScreen agents={agents} selectedAgentName={selectedAgentName} />
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
@@ -606,7 +633,6 @@ export function ChatPage() {
                     </ResizablePanelGroup>
                 </div>
             </div>
-            <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </div>
     );

@@ -26,7 +26,10 @@ export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, on
     const children = (
         <>
             {indent ? (
-                <span className={navTextStyles({ active: isActive })}>{item.label}</span>
+                <>
+                    {item.icon && <item.icon className={cn("mr-1.5 h-4 w-4 shrink-0", isActive ? "text-(--brand-wMain)" : "text-(--secondary-text-wMain)")} />}
+                    <span className={navTextStyles({ active: isActive })}>{item.label}</span>
+                </>
             ) : (
                 <>
                     <div className={iconWrapperStyles({ active: isHighlighted, withMargin: true })}>
