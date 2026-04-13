@@ -44,10 +44,26 @@ def mysql_container():
 
     Scope: session (shared across all tests for performance)
     Cleanup: Automatic when test session ends
+
+    Optimized for test speed:
+    - Disables binary logging
+    - Disables sync to disk (durability not needed for tests)
+    - Reduces InnoDB overhead
     """
     from testcontainers.mysql import MySqlContainer
 
     mysql = MySqlContainer("mysql:8.0")
+
+    # Speed optimizations for tests (2-3x faster)
+    mysql.with_command(
+        "--skip-log-bin "                      # Disable binary logs
+        "--innodb-flush-log-at-trx-commit=2 "  # Only flush log to disk once per second
+        "--innodb-doublewrite=0 "              # Disable doublewrite buffer
+        "--sync-binlog=0 "                     # Disable binlog sync
+        "--performance-schema=OFF "            # Disable performance schema overhead
+        "--innodb-buffer-pool-size=64M"        # Small buffer pool for tests
+    )
+
     mysql.start()
 
     yield mysql
@@ -133,21 +149,38 @@ def clean_sqlite_db() -> Generator[str, None, None]:
 
     Using file-based instead of :memory: because in-memory creates
     a separate database per connection, breaking alembic + inspector isolation.
+
+    Performance optimizations:
+    - WAL mode set once (persists in DB file, speeds up all writes)
     """
     import tempfile
     import os
+    from sqlalchemy import create_engine
 
     # Create temporary file
     fd, path = tempfile.mkstemp(suffix='.db')
     os.close(fd)
 
+    # Set WAL mode (persists in DB file across all connections)
     url = f"sqlite:///{path}"
+    engine = create_engine(url)
+    with engine.connect() as conn:
+        conn.exec_driver_sql("PRAGMA journal_mode = WAL")
+        conn.commit()
+    engine.dispose()
+
     yield url
 
     # Cleanup
     try:
         os.unlink(path)
-    except:
+        # Clean up WAL files
+        for suffix in ['-shm', '-wal']:
+            try:
+                os.unlink(f"{path}{suffix}")
+            except FileNotFoundError:
+                pass
+    except FileNotFoundError:
         pass
 
 
@@ -191,9 +224,9 @@ def clean_mysql_db(mysql_url) -> Generator[str, None, None]:
 
 @pytest.fixture(
     params=[
-        pytest.param("sqlite", id="SQLite"),
-        pytest.param("postgres", id="PostgreSQL"),
-        pytest.param("mysql", id="MySQL"),
+        pytest.param("sqlite", id="SQLite", marks=pytest.mark.xdist_group("sqlite")),
+        pytest.param("postgres", id="PostgreSQL", marks=pytest.mark.xdist_group("postgres")),
+        pytest.param("mysql", id="MySQL", marks=pytest.mark.xdist_group("mysql")),
     ]
 )
 def dialect_db(request, clean_sqlite_db, clean_postgres_db, clean_mysql_db) -> str:
@@ -202,6 +235,11 @@ def dialect_db(request, clean_sqlite_db, clean_postgres_db, clean_mysql_db) -> s
 
     Tests using this fixture will run 3 times (once per dialect).
     Containers start automatically on first use.
+
+    Each database type is assigned to its own xdist group for parallel execution:
+    - All SQLite tests run on one worker
+    - All PostgreSQL tests run on another worker
+    - All MySQL tests run on another worker
 
     Returns:
         Database connection URL for the current dialect

@@ -187,30 +187,72 @@ def seed_model_configurations(
     """
     from solace_agent_mesh.services.platform.models import ModelConfiguration
 
-    # Check if table already has entries (idempotent - seeding is one-time)
     existing_count = db.query(func.count(ModelConfiguration.id)).scalar()
-    if existing_count > 0:
-        log.info("[Model Seed] Table already contains %d configurations, skipping seeding", existing_count)
-        return existing_count
 
-    count = 0
+    if existing_count == 0:
+        # Try seeding from models_config if provided
+        count = 0
+        if models_config:
+            log.info("[Model Seed] Seeding from config with %d entries", len(models_config))
+            count = _seed_from_models_config(db, models_config)
 
-    # Try seeding from models_config if provided
-    if models_config:
-        log.info("[Model Seed] Seeding from config with %d entries", len(models_config))
-        count = _seed_from_models_config(db, models_config)
+        # If no models_config provided or empty, seed from environment variables
+        if count == 0:
+            log.info("[Model Seed] No models_config provided, seeding from environment variables")
+            count = _seed_from_env_vars(db)
 
-    # If no models_config provided or empty, seed from environment variables
-    if count == 0:
-        log.info("[Model Seed] No models_config provided, seeding from environment variables")
-        count = _seed_from_env_vars(db)
-
-    if count > 0:
-        log.info("[Model Seed] Successfully seeded %d model configurations", count)
+        if count > 0:
+            log.info("[Model Seed] Successfully seeded %d model configurations", count)
+        else:
+            log.warning("[Model Seed] No model configurations seeded from config or env vars")
     else:
-        log.warning("[Model Seed] No model configurations seeded")
+        log.info("[Model Seed] Table has %d existing configurations, skipping bulk seed", existing_count)
 
-    return count
+    # Always ensure general and planning placeholder records exist
+    _ensure_default_aliases(db)
+
+    return db.query(func.count(ModelConfiguration.id)).scalar()
+
+
+def _ensure_default_aliases(db: Session) -> None:
+    """
+    Ensure 'general' and 'planning' model aliases exist in the DB.
+
+    Creates placeholder records for any missing default aliases so the UI
+    always has these entries to display. Placeholders use PLACEHOLDER_VALUE
+    for provider and model_name, which the service layer strips to None
+    before returning to clients.
+    """
+    from solace_agent_mesh.services.platform.models import ModelConfiguration
+    from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+    from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE, DEFAULT_MODEL_ALIASES
+
+    for alias in DEFAULT_MODEL_ALIASES:
+        existing = db.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == alias
+        ).first()
+
+        if existing:
+            log.debug("[Model Seed] Default alias '%s' already exists, skipping", alias)
+            continue
+
+        model_config = ModelConfiguration(
+            id=generate_uuidv7(),
+            alias=alias,
+            provider=PLACEHOLDER_VALUE,
+            model_name=PLACEHOLDER_VALUE,
+            api_base=None,
+            model_auth_type="none",
+            model_auth_config={"type": "none"},
+            model_params={},
+            description="Default model configuration created by the system",
+            created_by="system",
+            updated_by="system",
+            created_time=now_epoch_ms(),
+            updated_time=now_epoch_ms(),
+        )
+        db.add(model_config)
+        log.info("[Model Seed] Created placeholder for default alias '%s'", alias)
 
 
 def _seed_from_models_config(db: Session, models_config: dict) -> int:

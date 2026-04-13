@@ -46,7 +46,8 @@ const isIntermediateWebContentArtifact = (artifactName: string | undefined): boo
  * @param task The TaskFE object.
  * @returns The parentTaskId string, or null/undefined if not found.
  */
-const getParentTaskIdFromTaskObject = (task: TaskFE): string | null | undefined => {
+const getParentTaskIdFromTaskObject = (task: TaskFE | null | undefined): string | null | undefined => {
+    if (!task) return undefined;
     // Infer from the first event if not set on the task object
     if (task.events && task.events.length > 0) {
         const firstEvent = task.events[0];
