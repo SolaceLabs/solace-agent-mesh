@@ -83,7 +83,11 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
             prevSessionIdRef.current = sessionId;
             lastDividerIndexRef.current = hasDivider ? turnDividerIndex : null;
             dispatch({ type: "SESSION_CHANGED" });
-            sessionJustSwitchedRef.current = true;
+            // Only flag for session-switch path if the divider will arrive later
+            // (e.g., from loadSessionTasks). If hasDivider is already true (first
+            // message — session ID assigned in the same batch), the divider is
+            // already handled above and won't trigger a separate change.
+            sessionJustSwitchedRef.current = !hasDivider;
             if (exitDelayRef.current) {
                 clearTimeout(exitDelayRef.current);
                 exitDelayRef.current = null;
