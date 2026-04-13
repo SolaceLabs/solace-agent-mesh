@@ -577,7 +577,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                     }}
                                                     render={() => (
                                                         <>
-                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onChange={handleCustomParamKeyCommit} />
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
