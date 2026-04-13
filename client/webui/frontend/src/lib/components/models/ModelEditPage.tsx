@@ -6,7 +6,7 @@ import { Header } from "@/lib/components/header";
 
 import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
-import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
+import { ALL_PROVIDERS, buildModelPayload, buildTestPayload } from "./modelProviderUtils";
 import { fetchModelById } from "@/lib/api/models/service";
 import { useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
@@ -85,19 +85,10 @@ export const ModelEditPage = () => {
         const payload = buildModelPayload(data, dirtyFields);
         pendingPayloadRef.current = payload;
 
-        // Step 1: Test connection silently
-        const testPayload = {
-            provider: payload.provider,
-            modelName: payload.modelName,
-            apiBase: payload.apiBase || undefined,
-            authConfig: payload.authConfig,
-            modelParams: payload.modelParams,
-            ...(!isNew && modelToEdit?.id ? { modelId: modelToEdit.id } : {}),
-        };
-
+        // Test connection silently before saving
         let testPassed = false;
         try {
-            const result = await testConnectionMutation.mutateAsync(testPayload);
+            const result = await testConnectionMutation.mutateAsync(buildTestPayload(payload, !isNew ? modelToEdit?.id : undefined));
             testPassed = result.success;
             if (!testPassed) setSaveFailMessage(result.message);
         } catch (error) {

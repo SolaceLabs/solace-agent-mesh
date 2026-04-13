@@ -530,3 +530,18 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         modelParams,
     };
 }
+
+/**
+ * Build the payload for testing a model connection.
+ * Extracts only the fields needed by the test endpoint from a save payload.
+ */
+export function buildTestPayload(savePayload: ReturnType<typeof buildModelPayload>, modelId?: string) {
+    return {
+        provider: savePayload.provider,
+        modelName: savePayload.modelName,
+        apiBase: savePayload.apiBase || undefined,
+        authConfig: savePayload.authConfig,
+        modelParams: savePayload.modelParams,
+        ...(modelId ? { modelId } : {}),
+    };
+}
