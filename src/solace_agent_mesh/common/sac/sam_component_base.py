@@ -14,7 +14,7 @@ from google.adk.models import BaseLlm
 from openfeature import api as openfeature_api
 from solace_ai_connector.components.component_base import ComponentBase
 from ...agent.adk.models.lite_llm import LiteLlm
-from ...agent.adk.models.dynamic_model_provider import start_model_listener
+from ...agent.adk.models.dynamic_model_provider import DynamicModelProvider, start_model_listener
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..features import core as feature_flags
 from ..utils.message_utils import validate_message_size
@@ -71,6 +71,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         # Trust Manager integration (enterprise feature) - initialized as part of _late_init
         self.trust_manager: Optional[Any] = None
+
+        # DynamicModelProvider ref for per-request model alias resolution
+        self._dynamic_model_provider: Optional[DynamicModelProvider] = None
 
         feature_flags.initialize()
 
@@ -782,7 +785,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
         # Try enterprise model listener
         try:
             litellm_instance = self.get_lite_llm_model()
-            await start_model_listener(litellm_instance, self, self.model_provider)
+            self._dynamic_model_provider = await start_model_listener(
+                litellm_instance, self, self.model_provider
+            )
             log.info("%s Enterprise model listener started.", self.log_identifier)
         except Exception as e:
             log.warning(
