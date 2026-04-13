@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui";
-import { ChevronRight, Plus } from "lucide-react";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { AccordionCard } from "@/lib/components/ui/accordion-card";
+import { Plus } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
@@ -538,63 +539,55 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <Accordion type="single" collapsible className="mt-4">
-                                    <AccordionItem value="advanced-settings" className="border-none">
-                                        <AccordionTrigger className="cursor-pointer items-center justify-start gap-2 py-0 hover:no-underline [&>svg:last-child]:hidden [&[data-state=open]>svg:first-child]:rotate-90">
-                                            <ChevronRight className="h-4 w-4 shrink-0 text-(--secondary-text-wMain) transition-transform duration-200" />
-                                            <span className="text-sm font-medium text-(--primary-text-wMain)">Advanced Settings</span>
-                                        </AccordionTrigger>
-                                        <AccordionContent className="pt-4 pb-0">
-                                            <div className="flex flex-col gap-6">
-                                                {/* Common Parameters - Temperature and Max Tokens */}
-                                                {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
+                                <AccordionCard value="advanced-settings" variant="borderless" trigger={<span className="text-sm font-medium text-(--primary-text-wMain)">Advanced Settings</span>} className="mt-4">
+                                    <div className="flex flex-col gap-6">
+                                        {/* Common Parameters - Temperature and Max Tokens */}
+                                        {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
-                                                {/* Custom Parameters */}
-                                                <div className="mt-2">
-                                                    <div className="flex items-start justify-between">
-                                                        <div>
-                                                            <PageLabel>Custom Parameters</PageLabel>
-                                                            <p className="mt-1 text-sm text-(--secondary-text-wMain)">Add any additional parameters supported by your model provider.</p>
-                                                        </div>
-                                                        <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
-                                                            <Plus className="mr-2 size-4" />
-                                                            New Pair
-                                                        </Button>
-                                                    </div>
-                                                    <div className="mt-4">
-                                                        <Controller
-                                                            name="customParams"
-                                                            control={control}
-                                                            rules={{
-                                                                validate: params => {
-                                                                    if (!params || params.length === 0) return true;
-                                                                    for (const param of params) {
-                                                                        if (!param.key || !param.key.trim()) {
-                                                                            return "Custom parameter keys cannot be empty";
-                                                                        }
-                                                                        if (!param.value || !param.value.trim()) {
-                                                                            return "Custom parameter values cannot be empty";
-                                                                        }
-                                                                    }
-                                                                    return true;
-                                                                },
-                                                            }}
-                                                            render={() => (
-                                                                <>
-                                                                    <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
-                                                                    {unsupportedCustomKeys.length > 0 && (
-                                                                        <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        />
-                                                        {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
-                                                    </div>
+                                        {/* Custom Parameters */}
+                                        <div className="mt-2">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <PageLabel>Custom Parameters</PageLabel>
+                                                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Add any additional parameters supported by your model provider.</p>
                                                 </div>
+                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
+                                                    <Plus className="mr-2 size-4" />
+                                                    New Pair
+                                                </Button>
                                             </div>
-                                        </AccordionContent>
-                                    </AccordionItem>
-                                </Accordion>
+                                            <div className="mt-4">
+                                                <Controller
+                                                    name="customParams"
+                                                    control={control}
+                                                    rules={{
+                                                        validate: params => {
+                                                            if (!params || params.length === 0) return true;
+                                                            for (const param of params) {
+                                                                if (!param.key || !param.key.trim()) {
+                                                                    return "Custom parameter keys cannot be empty";
+                                                                }
+                                                                if (!param.value || !param.value.trim()) {
+                                                                    return "Custom parameter values cannot be empty";
+                                                                }
+                                                            }
+                                                            return true;
+                                                        },
+                                                    }}
+                                                    render={() => (
+                                                        <>
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
+                                                            {unsupportedCustomKeys.length > 0 && (
+                                                                <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                />
+                                                {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </AccordionCard>
 
                                 {/* Test Connection */}
                                 <TestConnectionSection
