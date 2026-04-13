@@ -132,6 +132,28 @@ class ObservabilityContext:
         return False  # Don't suppress exceptions
 
 
+# Per-request model override via ContextVar.
+# Set by the model_override callback (before_model chain) and consumed by
+# generate_content_async(). Each asyncio.Task gets its own copy, so
+# concurrent requests with different overrides are isolated.
+_model_override_var: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar(
+    "model_override_config", default=None
+)
+
+
+def set_model_override(config: Optional[Dict[str, Any]]) -> None:
+    """Set or clear the per-request model override for the current async task.
+
+    Pass a LiteLLM-ready config dict to override, or None to clear::
+
+        {"model": "openai/gpt-4o", "api_key": "sk-...", "api_base": "https://..."}
+
+    Managed by apply_model_override_callback (sets before every LLM call);
+    read by LiteLlm.generate_content_async().
+    """
+    _model_override_var.set(config)
+
+
 class FunctionChunk(BaseModel):
     id: Optional[str]
     name: Optional[str]
@@ -1180,6 +1202,23 @@ class LiteLlm(BaseLlm):
         }
         completion_args.update(self._model_config)
 
+        # Apply per-request model override if set by the callback chain.
+        # The ContextVar is managed by apply_model_override_callback which
+        # runs before every LLM call, so we just read here — no clearing.
+        override_config = _model_override_var.get()
+        if override_config:
+            override_copy = override_config.copy()
+            override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
+            override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
+            logger.info(
+                "Applying per-request model override: model=%s (default was %s)",
+                override_copy.get("model", "unspecified"),
+                self._model_config.get("model", "unknown"),
+            )
+            completion_args.update(override_copy)
+
+        effective_model = completion_args.get("model", self.model)
+
         # Inject OAuth token if OAuth is configured
         if self._oauth_token_manager:
             try:
@@ -1254,8 +1293,8 @@ class LiteLlm(BaseLlm):
             fallback_index = 0
 
             # Create monitors for observability
-            gen_ai_monitor = GenAIMonitor.create(model=self.model)
-            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=self.model)).start()
+            gen_ai_monitor = GenAIMonitor.create(model=effective_model)
+            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=effective_model)).start()
             ttft_recorded = False
 
             # Try with thinking params first; if the model doesn't support them,
@@ -1320,7 +1359,7 @@ class LiteLlm(BaseLlm):
                             # Update token labels and record metrics
                             gen_ai_monitor.set_prompt_tokens(chunk.prompt_tokens)
                             self._record_token_and_cost_metrics(
-                                self.model,
+                                effective_model,
                                 chunk.prompt_tokens,
                                 chunk.completion_tokens
                             )
@@ -1422,7 +1461,7 @@ class LiteLlm(BaseLlm):
                 yield aggregated_llm_response_with_tool_call
 
         else:
-            monitor = GenAIMonitor.create(model=self.model)
+            monitor = GenAIMonitor.create(model=effective_model)
 
             with MonitorLatency(monitor):
                 response = await self._acompletion_with_thinking_fallback(completion_args)
@@ -1434,7 +1473,7 @@ class LiteLlm(BaseLlm):
                     monitor.set_prompt_tokens(prompt_tokens)
                     # Record token and cost metrics
                     self._record_token_and_cost_metrics(
-                        self.model,
+                        effective_model,
                         prompt_tokens,
                         completion_tokens
                     )
