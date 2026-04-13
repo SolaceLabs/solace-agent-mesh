@@ -141,8 +141,17 @@ describe("useTurnDividerAnimation — hook", () => {
             },
         });
 
-        // After effect runs, divider is set — history should be collapsed
+        // Initially exiting (slide-out animation running)
         expect(result.current.hasDivider).toBe(true);
+        expect(result.current.isExitingHistory).toBe(true);
+
+        // Advance past the exit animation fallback timeout
+        act(() => {
+            vi.advanceTimersByTime(600);
+        });
+        act(() => flushRaf());
+
+        // Now collapsed
         expect(result.current.isHistoryCollapsed).toBe(true);
 
         // Simulate wheel scroll up
@@ -169,6 +178,12 @@ describe("useTurnDividerAnimation — hook", () => {
             },
         });
 
+        // Advance past exit animation
+        act(() => {
+            vi.advanceTimersByTime(600);
+        });
+        act(() => flushRaf());
+
         expect(result.current.isHistoryCollapsed).toBe(true);
 
         // Simulate touch swipe down (finger moves from y=100 to y=150)
@@ -194,6 +209,12 @@ describe("useTurnDividerAnimation — hook", () => {
                 chatMessageListRef,
             },
         });
+
+        // Advance past exit animation
+        act(() => {
+            vi.advanceTimersByTime(600);
+        });
+        act(() => flushRaf());
 
         expect(result.current.isHistoryCollapsed).toBe(true);
 
