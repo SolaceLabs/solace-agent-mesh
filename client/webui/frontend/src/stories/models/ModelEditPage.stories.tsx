@@ -322,10 +322,10 @@ export const EditModelWithAdvancedParams: Story = {
         const editTexts = await canvas.findAllByText("Edit anthropic-model");
         expect(editTexts.length).toBeGreaterThanOrEqual(1);
 
-        // Open Advanced Settings
+        // Open Advanced Settings (Accordion trigger has data-state="closed" by default)
         const advancedSummary = await canvas.findByText("Advanced Settings");
-        const detailsElement = advancedSummary.closest("details");
-        expect(detailsElement).not.toHaveAttribute("open");
+        const accordionTrigger = advancedSummary.closest("button");
+        expect(accordionTrigger).toHaveAttribute("data-state", "closed");
 
         await userEvent.click(advancedSummary);
 
