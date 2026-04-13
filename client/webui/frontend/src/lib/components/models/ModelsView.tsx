@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { Ellipsis } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipTrigger, TooltipContent, type MenuAction } from "@/lib/components/ui";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { PaginationControls, EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { useChatContext } from "@/lib/hooks";
 
@@ -150,18 +150,14 @@ export const ModelsView: React.FC = () => {
                                                     {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
                                                 {DEFAULT_MODEL_ALIASES.includes(model.alias) && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Badge>Default</Badge>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="right">
-                                                            {model.alias === "general"
-                                                                ? "Used by all built-in AI features. This cannot be deleted but can be modified."
-                                                                : model.alias === "planning"
-                                                                  ? "Used for the Orchestrator Agent. This cannot be deleted but can be modified."
-                                                                  : "Default model"}
-                                                        </TooltipContent>
-                                                    </Tooltip>
+                                                    <Badge
+                                                        tooltip={
+                                                            model.alias === "general" ? "Used by all built-in AI features. This cannot be deleted but can be modified." : "Used for the Orchestrator Agent. This cannot be deleted but can be modified."
+                                                        }
+                                                        tooltipSide="right"
+                                                    >
+                                                        Default
+                                                    </Badge>
                                                 )}
                                             </TableCell>
                                             <TableCell>{getDisplayModelName(model.modelName)}</TableCell>

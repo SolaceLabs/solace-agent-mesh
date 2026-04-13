@@ -4,6 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+
 const CLASS_NAMES_BY_TYPE = {
     error: "bg-(--error-w10) text-(--error-wMain) border-(--error-wMain)",
     warning: "bg-(--warning-w10) text-(--warning-wMain) border-(--warning-wMain)",
@@ -31,10 +33,33 @@ const badgeVariants = cva(`inline-flex items-center justify-center rounded-lg bo
     },
 });
 
-function Badge({ className, variant, type, asChild = false, ...props }: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+function Badge({
+    className,
+    variant,
+    type,
+    asChild = false,
+    tooltip = "",
+    tooltipSide,
+    ...props
+}: React.ComponentProps<"span"> &
+    VariantProps<typeof badgeVariants> & {
+        asChild?: boolean;
+        tooltip?: string;
+        tooltipSide?: "top" | "right" | "bottom" | "left";
+    }) {
     const Comp = asChild ? Slot : "span";
+    const BadgeComponent = <Comp data-slot="badge" className={cn(badgeVariants({ variant, type }), className)} {...props} />;
 
-    return <Comp data-slot="badge" className={cn(badgeVariants({ variant, type }), className)} {...props} />;
+    if (tooltip) {
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>{BadgeComponent}</TooltipTrigger>
+                <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
+            </Tooltip>
+        );
+    }
+
+    return BadgeComponent;
 }
 
 export { Badge };
