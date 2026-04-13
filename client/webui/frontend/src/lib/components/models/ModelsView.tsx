@@ -195,7 +195,7 @@ export const ModelsView: React.FC = () => {
                                                                 <TooltipTrigger asChild>
                                                                     <AlertTriangle className="h-4 w-4 shrink-0 cursor-default text-(--warning-wMain)" />
                                                                 </TooltipTrigger>
-                                                                <TooltipContent>
+                                                                <TooltipContent side="right">
                                                                     <p>This model needs connection details configured before it can be used.</p>
                                                                 </TooltipContent>
                                                             </Tooltip>
