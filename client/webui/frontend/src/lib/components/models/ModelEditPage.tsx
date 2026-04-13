@@ -7,8 +7,8 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelById, createModelConfig, updateModelConfig, testModelConnection } from "@/lib/api/models/service";
-import { useSupportedModels } from "@/lib/api/models";
+import { fetchModelById } from "@/lib/api/models/service";
+import { useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
@@ -18,7 +18,6 @@ export const ModelEditPage = () => {
     const { id: modelId } = useParams<{ id?: string }>();
     const isNew = !modelId;
 
-    const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
@@ -26,6 +25,12 @@ export const ModelEditPage = () => {
     const [showSaveFailedDialog, setShowSaveFailedDialog] = useState(false);
     const [saveFailMessage, setSaveFailMessage] = useState("");
     const pendingPayloadRef = useRef<ReturnType<typeof buildModelPayload> | null>(null);
+
+    const createMutation = useCreateModel();
+    const updateMutation = useUpdateModel();
+    const testConnectionMutation = useTestModelConnection();
+
+    const isSaving = createMutation.isPending || updateMutation.isPending || testConnectionMutation.isPending;
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
@@ -54,23 +59,19 @@ export const ModelEditPage = () => {
 
     const performSave = useCallback(
         async (payload: ReturnType<typeof buildModelPayload>) => {
-            setIsLoading(true);
             try {
-                let createdId: string | undefined;
                 if (isNew) {
-                    const result = await createModelConfig(payload);
-                    createdId = result.id;
+                    const result = await createMutation.mutateAsync(payload);
+                    navigate("/agents?tab=models", { state: { highlightModelId: result.id } });
                 } else {
-                    await updateModelConfig(modelToEdit!.id, payload);
+                    await updateMutation.mutateAsync({ id: modelToEdit!.id, data: payload });
+                    navigate("/agents?tab=models");
                 }
-                navigate("/agents?tab=models", { state: { highlightModelId: createdId } });
             } catch (error) {
                 setErrorMessage(getErrorMessage(error, "An unknown error occurred while saving the model."));
-            } finally {
-                setIsLoading(false);
             }
         },
-        [isNew, modelToEdit, navigate]
+        [isNew, modelToEdit, navigate, createMutation, updateMutation]
     );
 
     const handleSaveAnyway = useCallback(async () => {
@@ -79,7 +80,6 @@ export const ModelEditPage = () => {
     }, [performSave]);
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
-        setIsLoading(true);
         setErrorMessage(null);
 
         const payload = buildModelPayload(data, dirtyFields);
@@ -97,7 +97,7 @@ export const ModelEditPage = () => {
 
         let testPassed = false;
         try {
-            const result = await testModelConnection(testPayload);
+            const result = await testConnectionMutation.mutateAsync(testPayload);
             testPassed = result.success;
             if (!testPassed) setSaveFailMessage(result.message);
         } catch (error) {
@@ -106,7 +106,6 @@ export const ModelEditPage = () => {
 
         if (!testPassed) {
             setShowSaveFailedDialog(true);
-            setIsLoading(false);
             return;
         }
 
@@ -162,15 +161,15 @@ export const ModelEditPage = () => {
                 }
                 actionLabels={{ cancel: "Go Back", confirm: "Save Anyway" }}
                 onConfirm={handleSaveAnyway}
-                isLoading={isLoading}
+                isLoading={isSaving}
             />
 
             <Footer>
-                <Button variant="ghost" title="Cancel" onClick={handleCancel} disabled={isLoading}>
+                <Button variant="ghost" title="Cancel" onClick={handleCancel} disabled={isSaving}>
                     Cancel
                 </Button>
-                <Button type="submit" form="model-form" disabled={isLoading} title={isNew ? "Add Model" : "Save Model"}>
-                    {isLoading ? "Saving..." : isNew ? "Add" : "Save"}
+                <Button type="submit" form="model-form" disabled={isSaving} title={isNew ? "Add Model" : "Save Model"}>
+                    {isSaving ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
             </Footer>
         </div>
