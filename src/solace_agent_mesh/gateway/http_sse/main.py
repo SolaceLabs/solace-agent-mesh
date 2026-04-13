@@ -51,6 +51,15 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# Import scheduled_tasks separately with error handling
+try:
+    from .routers import scheduled_tasks
+    _scheduled_tasks_available = True
+except Exception as e:
+    log.warning("Scheduled tasks router not available: %s", e)
+    scheduled_tasks = None
+    _scheduled_tasks_available = False
+
 
 # OAuth helper functions - delegate to enterprise package if available
 async def _validate_token(
@@ -301,6 +310,9 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     else:
         log.info("OAuth middleware added (development mode - community/dev user)")
 
+    from .middleware.observability import GatewayObservabilityMiddleware
+    app.add_middleware(GatewayObservabilityMiddleware)
+    log.info("Gateway observability middleware added (monitoring: tasks, sessions, sse, artifacts, messages)")
 
 def _setup_routers() -> None:
     api_prefix = "/api/v1"
@@ -333,6 +345,15 @@ def _setup_routers() -> None:
         tags=["Document Conversion"],
     )
     app.include_router(share.router, prefix=api_prefix, tags=["Share"])
+
+    # Mount scheduled tasks router if available
+    if _scheduled_tasks_available and scheduled_tasks:
+        try:
+            app.include_router(scheduled_tasks.router, prefix=api_prefix, tags=["Scheduled Tasks"])
+            log.info("Scheduled tasks router mounted successfully")
+        except Exception as e:
+            log.error("Failed to mount scheduled tasks router: %s", e, exc_info=True)
+
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers

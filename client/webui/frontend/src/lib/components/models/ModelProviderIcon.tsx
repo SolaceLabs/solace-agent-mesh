@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface ModelProviderIconProps {
-    provider: string;
+    provider: string | null | undefined;
     size?: "xs" | "sm" | "md";
 }
 
@@ -37,7 +37,8 @@ const providerIconMap: Record<string, string> = {
 export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconProps) => {
     const [imageError, setImageError] = useState(false);
     const config = sizeConfig[size];
-    const iconPath = providerIconMap[provider.toLowerCase()];
+    const providerKey = provider ?? "";
+    const iconPath = providerIconMap[providerKey.toLowerCase()];
 
     useEffect(() => {
         setImageError(false);
@@ -45,15 +46,15 @@ export const ModelProviderIcon = ({ provider, size = "md" }: ModelProviderIconPr
 
     if (!iconPath || imageError) {
         return (
-            <div className={cn("flex items-center justify-center rounded-full bg-[#CFD3D9]", config.container)}>
-                <span className={cn("font-semibold text-(--secondary-text-w50)", config.text)}>{provider.charAt(0).toUpperCase()}</span>
+            <div className={cn("flex items-center justify-center rounded-full bg-(--secondary-w10)", config.container)}>
+                <span className={cn("font-semibold text-(--primary-text-wMain)", config.text)}>{providerKey.charAt(0).toUpperCase()}</span>
             </div>
         );
     }
 
     return (
-        <div className={cn("flex items-center justify-center rounded-xs", config.container)}>
-            <img src={iconPath} alt={provider} className={cn("object-contain", config.image)} onError={() => setImageError(true)} />
+        <div className={cn("flex items-center justify-center rounded-sm bg-white/90", config.container)}>
+            <img src={iconPath} alt={providerKey} className={cn("object-contain", config.image)} onError={() => setImageError(true)} />
         </div>
     );
 };

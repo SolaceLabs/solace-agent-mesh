@@ -3,8 +3,6 @@
  */
 
 import { api } from "@/lib/api";
-import { AUTH_FIELDS } from "@/lib/components/models/modelProviderUtils";
-import type { AuthType } from "@/lib/components/models/modelProviderUtils";
 import type { ModelConfig, ModelConfigStatus } from "./types";
 
 interface ModelData {
@@ -46,38 +44,29 @@ export async function fetchSupportedModelsByProvider(
     modelId?: string,
     options?: {
         apiBase?: string;
-        authType?: AuthType;
+        authConfig?: Record<string, unknown>;
         modelParams?: Record<string, unknown>;
-    } & Record<string, unknown>
+    }
 ): Promise<Array<{ id: string; label: string }>> {
-    const body: Record<string, unknown> = {
-        provider,
-    };
+    const body: Record<string, unknown> = {};
 
+    // Pass modelId for stored credential fallback (editing mode)
     if (modelId) {
         body.modelId = modelId;
-    } else if (options?.authType) {
-        // Creating mode - pass credentials
-        body.authType = options.authType;
-
-        if (options.apiBase != null) {
-            body.apiBase = options.apiBase;
-        }
-
-        if (options.modelParams != null) {
-            body.modelParams = options.modelParams;
-        }
-
-        // Copy auth fields for the selected auth type
-        for (const field of AUTH_FIELDS[options.authType] ?? []) {
-            const value = options[field.name];
-            if (value != null) {
-                body[field.name] = value;
-            }
-        }
     }
 
-    const response = await api.platform.post("/api/v1/platform/supported-models", body);
+    // Pass request credentials — server merges with stored when both provided
+    if (options?.authConfig) {
+        body.authConfig = options.authConfig;
+    }
+    if (options?.apiBase != null) {
+        body.apiBase = options.apiBase;
+    }
+    if (options?.modelParams != null) {
+        body.modelParams = options.modelParams;
+    }
+
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/models`, body);
     return response.data || [];
 }
 
@@ -109,7 +98,6 @@ export interface TestConnectionRequest {
     provider?: string;
     modelName?: string;
     apiBase?: string;
-    authType: string;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
 }
@@ -122,13 +110,23 @@ export interface TestConnectionResponse {
 /**
  * Test a model configuration connection.
  *
- * Two modes:
- * 1. New configuration: Provide provider, model_name, and credentials
- * 2. Existing model: Provide modelId to use stored credentials as fallback
+ * Uses POST /models?validateOnly=true to test connectivity without persisting.
  */
 export async function testModelConnection(data: TestConnectionRequest): Promise<TestConnectionResponse> {
-    const response = await api.platform.post("/api/v1/platform/models/test", data);
+    const response = await api.platform.post("/api/v1/platform/models?validateOnly=true", data);
     return response.data;
+}
+
+/**
+ * Fetch supported advanced parameters for a model.
+ *
+ * Uses litellm's internal registry — no credentials needed.
+ * Returns a list of parameter names the model supports.
+ * Empty list means litellm doesn't recognize the model (no warnings shown).
+ */
+export async function fetchSupportedParams(provider: string, modelName: string): Promise<string[]> {
+    const response = await api.platform.post(`/api/v1/platform/providers/${encodeURIComponent(provider)}/params`, { modelName });
+    return response.data?.supportedParams || [];
 }
 
 /**

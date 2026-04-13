@@ -8,6 +8,7 @@ import uuid
 from typing import Optional, List
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import and_, or_, func
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from .models.share_model import SharedLinkModel, SharedArtifactModel, SharedLinkUserModel
 from .entities.share import ShareLink, SharedArtifact, SharedLinkUser
@@ -20,14 +21,15 @@ log = logging.getLogger(__name__)
 class ShareRepository:
     """Repository for share link operations."""
 
+    @MonitorLatency(DBMonitor.query("shared_links"))
     def find_by_share_id(self, db: DBSession, share_id: str) -> Optional[ShareLink]:
         """
         Find a share link by its share ID.
-        
+
         Args:
             db: Database session
             share_id: Share ID to find
-        
+
         Returns:
             ShareLink entity or None if not found
         """
@@ -37,21 +39,22 @@ class ShareRepository:
                 SharedLinkModel.deleted_at.is_(None)
             )
         ).first()
-        
+
         if not model:
             return None
-        
+
         return ShareLink.model_validate(model)
 
+    @MonitorLatency(DBMonitor.query("shared_links"))
     def find_by_session_id(self, db: DBSession, session_id: str, user_id: str) -> Optional[ShareLink]:
         """
         Find a share link for a specific session and user.
-        
+
         Args:
             db: Database session
             session_id: Session ID
             user_id: User ID (owner)
-        
+
         Returns:
             ShareLink entity or None if not found
         """
@@ -62,10 +65,10 @@ class ShareRepository:
                 SharedLinkModel.deleted_at.is_(None)
             )
         ).first()
-        
+
         if not model:
             return None
-        
+
         return ShareLink.model_validate(model)
 
     def find_by_user(
@@ -105,19 +108,21 @@ class ShareRepository:
         query = query.order_by(SharedLinkModel.created_time.desc())
         query = query.offset(pagination.offset)
         query = query.limit(pagination.page_size)
-        
-        models = query.all()
+
+        with MonitorLatency(DBMonitor.query("shared_links")):
+            models = query.all()
+
         return [ShareLink.model_validate(m) for m in models]
 
+    @MonitorLatency(DBMonitor.query("shared_links"))
     def count_by_user(self, db: DBSession, user_id: str, search: Optional[str] = None) -> int:
         """
         Count total share links for a user.
-        
+
         Args:
             db: Database session
             user_id: User ID
             search: Optional search query for title
-        
         Returns:
             Total count
         """
@@ -127,7 +132,6 @@ class ShareRepository:
                 SharedLinkModel.deleted_at.is_(None)
             )
         )
-        
         if search:
             escaped = re.sub(r'([%_])', r'\\\1', search)
             query = query.filter(
@@ -148,34 +152,38 @@ class ShareRepository:
             Saved ShareLink entity
         """
         # Check if exists
-        existing = db.query(SharedLinkModel).filter(
-            SharedLinkModel.share_id == share_link.share_id
-        ).first()
-        
+        with MonitorLatency(DBMonitor.query("shared_links")):
+            existing = db.query(SharedLinkModel).filter(
+                SharedLinkModel.share_id == share_link.share_id
+            ).first()
+
         if existing:
             # Update existing
-            for key, value in share_link.model_dump().items():
-                setattr(existing, key, value)
-            db.flush()
-            db.refresh(existing)
+            with MonitorLatency(DBMonitor.update("shared_links")):
+                for key, value in share_link.model_dump().items():
+                    setattr(existing, key, value)
+                db.flush()
+                db.refresh(existing)
             return ShareLink.model_validate(existing)
         else:
             # Create new
-            model = SharedLinkModel(**share_link.model_dump())
-            db.add(model)
-            db.flush()
-            db.refresh(model)
+            with MonitorLatency(DBMonitor.insert("shared_links")):
+                model = SharedLinkModel(**share_link.model_dump())
+                db.add(model)
+                db.flush()
+                db.refresh(model)
             return ShareLink.model_validate(model)
 
+    @MonitorLatency(DBMonitor.delete("shared_links"))
     def delete(self, db: DBSession, share_id: str, user_id: str) -> bool:
         """
         Hard delete a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID to delete
             user_id: User ID (must be owner)
-        
+
         Returns:
             True if deleted, False if not found or not authorized
         """
@@ -185,18 +193,19 @@ class ShareRepository:
                 SharedLinkModel.user_id == user_id
             )
         ).delete()
-        
+
         return result > 0
 
+    @MonitorLatency(DBMonitor.update("shared_links"))
     def soft_delete(self, db: DBSession, share_id: str, user_id: str) -> bool:
         """
         Soft delete a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID to delete
             user_id: User ID (must be owner)
-        
+
         Returns:
             True if deleted, False if not found or not authorized
         """
@@ -211,19 +220,20 @@ class ShareRepository:
             'deleted_at': now,
             'updated_time': now
         })
-        
+
         return result > 0
 
     # Shared Artifacts methods
 
+    @MonitorLatency(DBMonitor.insert("shared_artifacts"))
     def save_artifact(self, db: DBSession, artifact: SharedArtifact) -> SharedArtifact:
         """
         Save a shared artifact reference.
-        
+
         Args:
             db: Database session
             artifact: SharedArtifact entity
-        
+
         Returns:
             Saved SharedArtifact entity
         """
@@ -231,44 +241,44 @@ class ShareRepository:
         db.add(model)
         db.flush()
         db.refresh(model)
+
         return SharedArtifact.model_validate(model)
 
+    @MonitorLatency(DBMonitor.query("shared_artifacts"))
     def find_artifacts_by_share_id(self, db: DBSession, share_id: str) -> List[SharedArtifact]:
         """
         Find all artifacts for a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
-        
+
         Returns:
             List of SharedArtifact entities
         """
         models = db.query(SharedArtifactModel).filter(
             SharedArtifactModel.share_id == share_id
         ).all()
-        
+
         return [SharedArtifact.model_validate(m) for m in models]
 
+    @MonitorLatency(DBMonitor.delete("shared_artifacts"))
     def delete_artifacts_by_share_id(self, db: DBSession, share_id: str) -> int:
         """
         Delete all artifacts for a share link.
-        
         Args:
             db: Database session
             share_id: Share ID
-        
         Returns:
             Number of artifacts deleted
         """
         result = db.query(SharedArtifactModel).filter(
             SharedArtifactModel.share_id == share_id
         ).delete()
-        
         return result
 
     # Shared Link Users methods
-
+    @MonitorLatency(DBMonitor.insert("shared_link_users"))
     def add_share_user(
         self,
         db: DBSession,
@@ -326,73 +336,79 @@ class ShareRepository:
         Returns:
             Updated SharedLinkUser entity, or None if not found
         """
-        model = db.query(SharedLinkUserModel).filter(
-            and_(
-                SharedLinkUserModel.share_id == share_id,
-                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
-            )
-        ).first()
+        with MonitorLatency(DBMonitor.query("shared_link_users")):
+            model = db.query(SharedLinkUserModel).filter(
+                and_(
+                    SharedLinkUserModel.share_id == share_id,
+                    func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
+                )
+            ).first()
 
-        if not model:
-            return None
+            if not model:
+                return None
 
-        # Preserve the very first access level and timestamp (only if not already set)
-        if model.original_access_level is None:
-            model.original_access_level = model.access_level
-        if model.original_added_at is None:
-            model.original_added_at = model.added_at
+            # Preserve the very first access level and timestamp (only if not already set)
+            if model.original_access_level is None:
+                model.original_access_level = model.access_level
+            if model.original_added_at is None:
+                model.original_added_at = model.added_at
 
-        # Update to the new values
-        model.access_level = new_access_level
-        model.added_at = now_epoch_ms()
+            # Update to the new values
+            model.access_level = new_access_level
+            model.added_at = now_epoch_ms()
 
-        db.flush()
-        db.refresh(model)
+        with MonitorLatency(DBMonitor.update("shared_link_users")):
+            db.flush()
+            db.refresh(model)
+
         return SharedLinkUser.model_validate(model)
 
+    @MonitorLatency(DBMonitor.query("shared_link_users"))
     def find_share_users(self, db: DBSession, share_id: str) -> List[SharedLinkUser]:
         """
         Find all users with access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
-        
+
         Returns:
             List of SharedLinkUser entities
         """
         models = db.query(SharedLinkUserModel).filter(
             SharedLinkUserModel.share_id == share_id
         ).all()
-        
+
         return [SharedLinkUser.model_validate(m) for m in models]
 
+    @MonitorLatency(DBMonitor.query("shared_link_users"))
     def find_share_user_emails(self, db: DBSession, share_id: str) -> List[str]:
         """
         Get list of user emails with access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
-        
+
         Returns:
             List of user emails
         """
         results = db.query(SharedLinkUserModel.user_email).filter(
             SharedLinkUserModel.share_id == share_id
         ).all()
-        
+
         return [r[0] for r in results]
 
+    @MonitorLatency(DBMonitor.query("shared_link_users"))
     def check_user_has_access(self, db: DBSession, share_id: str, user_email: str) -> bool:
         """
         Check if a user has access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
             user_email: User email to check
-        
+
         Returns:
             True if user has access, False otherwise
         """
@@ -402,18 +418,19 @@ class ShareRepository:
                 func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
             )
         ).scalar()
-        
+
         return count > 0
 
+    @MonitorLatency(DBMonitor.delete("shared_link_users"))
     def delete_share_user(self, db: DBSession, share_id: str, user_email: str) -> bool:
         """
         Remove a user's access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
             user_email: User email to remove
-        
+
         Returns:
             True if deleted, False if not found
         """
@@ -426,15 +443,16 @@ class ShareRepository:
 
         return result > 0
 
+    @MonitorLatency(DBMonitor.delete("shared_link_users"))
     def delete_share_users_batch(self, db: DBSession, share_id: str, user_emails: List[str]) -> int:
         """
         Remove multiple users' access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
             user_emails: List of user emails to remove
-        
+
         Returns:
             Number of users removed
         """
@@ -445,53 +463,56 @@ class ShareRepository:
                 func.lower(SharedLinkUserModel.user_email).in_(normalized_emails)
             )
         ).delete(synchronize_session='fetch')
-        
+
         return result
 
+    @MonitorLatency(DBMonitor.delete("shared_link_users"))
     def delete_all_share_users(self, db: DBSession, share_id: str) -> int:
         """
         Remove all users' access to a share link.
-        
+
         Args:
             db: Database session
             share_id: Share ID
-        
+
         Returns:
             Number of users removed
         """
         result = db.query(SharedLinkUserModel).filter(
             SharedLinkUserModel.share_id == share_id
         ).delete()
-        
+
         return result
 
+    @MonitorLatency(DBMonitor.query("shared_link_users"))
     def has_shared_users(self, db: DBSession, share_id: str) -> bool:
         """
         Check if a share link has any user-specific shares.
-        
+
         Args:
             db: Database session
             share_id: Share ID
-        
+
         Returns:
             True if there are shared users, False otherwise
         """
         count = db.query(func.count(SharedLinkUserModel.id)).filter(
             SharedLinkUserModel.share_id == share_id
         ).scalar()
-        
+
         return count > 0
 
+    @MonitorLatency(DBMonitor.update("shared_link_users"))
     def update_user_snapshot_time(self, db: DBSession, share_id: str, user_email: str, new_time: int) -> bool:
         """
         Update the added_at (snapshot time) for a shared user.
-        
+
         Args:
             db: Database session
             share_id: Share ID
             user_email: Email of the user to update
             new_time: New snapshot time in epoch milliseconds
-        
+
         Returns:
             True if updated, False if user not found
         """
@@ -501,6 +522,7 @@ class ShareRepository:
                 func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
             )
         ).update({"added_at": new_time})
+
         return result > 0
 
     def find_share_user_by_email(self, db: DBSession, share_id: str, user_email: str) -> Optional[SharedLinkUser]:
@@ -515,27 +537,29 @@ class ShareRepository:
         Returns:
             SharedLinkUser entity or None if not found
         """
-        model = db.query(SharedLinkUserModel).filter(
-            and_(
-                SharedLinkUserModel.share_id == share_id,
-                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
-            )
-        ).first()
-        
+        with MonitorLatency(DBMonitor.query("shared_link_users")):
+            model = db.query(SharedLinkUserModel).filter(
+                and_(
+                    SharedLinkUserModel.share_id == share_id,
+                    func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip()
+                )
+            ).first()
+
         if not model:
             return None
-        
+
         return SharedLinkUser.model_validate(model)
 
+    @MonitorLatency(DBMonitor.query("shared_link_users"))
     def check_user_editor_access_to_session(self, db: DBSession, session_id: str, user_email: str) -> bool:
         """
         Check if a user has RESOURCE_EDITOR access to a session via sharing.
-        
+
         Args:
             db: Database session
             session_id: Session ID to check access for
             user_email: Email of the user to check
-        
+
         Returns:
             True if user has editor access, False otherwise
         """
@@ -563,18 +587,21 @@ class ShareRepository:
         Returns:
             Owner's user_id if editor access exists, None otherwise
         """
-        result = db.query(SharedLinkModel.user_id).join(
-            SharedLinkUserModel, SharedLinkModel.share_id == SharedLinkUserModel.share_id
-        ).filter(
-            and_(
-                SharedLinkModel.session_id == session_id,
-                SharedLinkModel.deleted_at.is_(None),
-                func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip(),
-                SharedLinkUserModel.access_level == 'RESOURCE_EDITOR'
-            )
-        ).first()
+        with MonitorLatency(DBMonitor.query("shared_links")):
+            result = db.query(SharedLinkModel.user_id).join(
+                SharedLinkUserModel, SharedLinkModel.share_id == SharedLinkUserModel.share_id
+            ).filter(
+                and_(
+                    SharedLinkModel.session_id == session_id,
+                    SharedLinkModel.deleted_at.is_(None),
+                    func.lower(SharedLinkUserModel.user_email) == user_email.lower().strip(),
+                    SharedLinkUserModel.access_level == 'RESOURCE_EDITOR'
+                )
+            ).first()
+
         return result[0] if result else None
 
+    @MonitorLatency(DBMonitor.query("shared_links"))
     def find_shares_for_user_email(self, db: DBSession, user_email: str) -> List[dict]:
         """
         Find all share links that have been shared with a specific user email.
@@ -588,7 +615,6 @@ class ShareRepository:
             List of dicts with share link details and access info
         """
         from .models.session_model import SessionModel
-        
         results = db.query(
             SharedLinkModel.share_id,
             SharedLinkModel.session_id,
@@ -615,7 +641,6 @@ class ShareRepository:
         ).order_by(
             SharedLinkUserModel.added_at.desc()
         ).all()
-        
         return [
             {
                 "share_id": r.share_id,

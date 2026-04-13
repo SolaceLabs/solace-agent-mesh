@@ -5,6 +5,7 @@ Task repository implementation using SQLAlchemy.
 import logging
 
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +21,8 @@ class TaskRepository(ITaskRepository):
 
     def save_task(self, session: DBSession, task: Task) -> Task:
         """Create or update a task."""
-        model = session.query(TaskModel).filter(TaskModel.id == task.id).first()
+        with MonitorLatency(DBMonitor.query("tasks")):
+            model = session.query(TaskModel).filter(TaskModel.id == task.id).first()
 
         if model:
             model.end_time = task.end_time
@@ -37,6 +39,9 @@ class TaskRepository(ITaskRepository):
             model.session_id = task.session_id
             model.events_buffered = task.events_buffered
             model.events_consumed = task.events_consumed
+            with MonitorLatency(DBMonitor.update("tasks")):
+                session.flush()
+                session.refresh(model)
         else:
             model = TaskModel(
                 id=task.id,
@@ -59,12 +64,14 @@ class TaskRepository(ITaskRepository):
                 events_buffered=task.events_buffered,
                 events_consumed=task.events_consumed,
             )
-            session.add(model)
+            with MonitorLatency(DBMonitor.insert("tasks")):
+                session.add(model)
+                session.flush()
+                session.refresh(model)
 
-        session.flush()
-        session.refresh(model)
         return self._task_model_to_entity(model)
 
+    @MonitorLatency(DBMonitor.insert("task_events"))
     def save_event(self, session: DBSession, event: TaskEvent) -> TaskEvent:
         """Save a task event."""
         model = TaskEventModel(
@@ -82,25 +89,29 @@ class TaskRepository(ITaskRepository):
         # and refresh can fail in certain edge cases (e.g., foreign key constraints)
         return event
 
+    @MonitorLatency(DBMonitor.query("tasks"))
     def find_by_id(self, session: DBSession, task_id: str) -> Task | None:
         """Find a task by its ID."""
         model = session.query(TaskModel).filter(TaskModel.id == task_id).first()
+
         return self._task_model_to_entity(model) if model else None
 
     def find_by_id_with_events(
         self, session: DBSession, task_id: str
     ) -> tuple[Task, list[TaskEvent]] | None:
         """Find a task with all its events."""
-        task_model = session.query(TaskModel).filter(TaskModel.id == task_id).first()
-        if not task_model:
-            return None
+        with MonitorLatency(DBMonitor.query("tasks")):
+            task_model = session.query(TaskModel).filter(TaskModel.id == task_id).first()
+            if not task_model:
+                return None
 
-        event_models = (
-            session.query(TaskEventModel)
-            .filter(TaskEventModel.task_id == task_id)
-            .order_by(TaskEventModel.created_time.asc())
-            .all()
-        )
+        with MonitorLatency(DBMonitor.query("task_events")):
+            event_models = (
+                session.query(TaskEventModel)
+                .filter(TaskEventModel.task_id == task_id)
+                .order_by(TaskEventModel.created_time.asc())
+                .all()
+            )
 
         task = self._task_model_to_entity(task_model)
         events = [self._event_model_to_entity(model) for model in event_models]
@@ -129,7 +140,9 @@ class TaskRepository(ITaskRepository):
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.page_size)
 
-        models = query.all()
+        with MonitorLatency(DBMonitor.query("tasks")):
+            models = query.all()
+
         return [self._task_model_to_entity(model) for model in models]
 
     def delete_tasks_older_than(self, session: DBSession, cutoff_time_ms: int, batch_size: int) -> int:
@@ -151,25 +164,27 @@ class TaskRepository(ITaskRepository):
         total_deleted = 0
 
         while True:
-            task_ids_to_delete = (
-                session.query(TaskModel.id)
-                .filter(TaskModel.start_time < cutoff_time_ms)
-                .limit(batch_size)
-                .all()
-            )
+            with MonitorLatency(DBMonitor.query("tasks")):
+                task_ids_to_delete = (
+                    session.query(TaskModel.id)
+                    .filter(TaskModel.start_time < cutoff_time_ms)
+                    .limit(batch_size)
+                    .all()
+                )
 
             if not task_ids_to_delete:
                 break
 
             ids = [task_id[0] for task_id in task_ids_to_delete]
 
-            deleted_count = (
-                session.query(TaskModel)
-                .filter(TaskModel.id.in_(ids))
-                .delete(synchronize_session=False)
-            )
+            with MonitorLatency(DBMonitor.delete("tasks")):
+                deleted_count = (
+                    session.query(TaskModel)
+                    .filter(TaskModel.id.in_(ids))
+                    .delete(synchronize_session=False)
+                )
+                session.commit()
 
-            session.commit()
             total_deleted += deleted_count
 
             if deleted_count < batch_size:
@@ -196,9 +211,10 @@ class TaskRepository(ITaskRepository):
 
         while current_id and current_id not in visited:
             visited.add(current_id)
-            task_model = (
-                session.query(TaskModel).filter(TaskModel.id == current_id).first()
-            )
+            with MonitorLatency(DBMonitor.query("tasks")):
+                task_model = (
+                    session.query(TaskModel).filter(TaskModel.id == current_id).first()
+                )
             if not task_model or not task_model.parent_task_id:
                 root_task_id = current_id
                 break
@@ -211,11 +227,12 @@ class TaskRepository(ITaskRepository):
         while to_process:
             current = to_process.pop(0)
             # Find children
-            children = (
-                session.query(TaskModel)
-                .filter(TaskModel.parent_task_id == current)
-                .all()
-            )
+            with MonitorLatency(DBMonitor.query("tasks")):
+                children = (
+                    session.query(TaskModel)
+                    .filter(TaskModel.parent_task_id == current)
+                    .all()
+                )
             for child in children:
                 if child.id not in all_task_ids:
                     all_task_ids.add(child.id)
@@ -258,17 +275,18 @@ class TaskRepository(ITaskRepository):
         
         # Find all direct children that are still running
         # Use OR to properly handle NULL status (SQL NULL doesn't work with IN clause)
-        child_models = (
-            session.query(TaskModel)
-            .filter(
-                TaskModel.parent_task_id == parent_task_id,
-                or_(
-                    TaskModel.status.is_(None),
-                    TaskModel.status.in_(["running", "pending"]),
-                ),
+        with MonitorLatency(DBMonitor.query("tasks")):
+            child_models = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.parent_task_id == parent_task_id,
+                    or_(
+                        TaskModel.status.is_(None),
+                        TaskModel.status.in_(["running", "pending"]),
+                    ),
+                )
+                .all()
             )
-            .all()
-        )
         
         results = []
         for child in child_models:
@@ -293,15 +311,16 @@ class TaskRepository(ITaskRepository):
             The target agent name, or None if not found
         """
         # Find the first request event for this task
-        event = (
-            session.query(TaskEventModel)
-            .filter(
-                TaskEventModel.task_id == task_id,
-                TaskEventModel.direction == "request",
+        with MonitorLatency(DBMonitor.query("task_events")):
+            event = (
+                session.query(TaskEventModel)
+                .filter(
+                    TaskEventModel.task_id == task_id,
+                    TaskEventModel.direction == "request",
+                )
+                .order_by(TaskEventModel.created_time.asc())
+                .first()
             )
-            .order_by(TaskEventModel.created_time.asc())
-            .first()
-        )
         
         if not event or not event.payload:
             return None
@@ -334,6 +353,7 @@ class TaskRepository(ITaskRepository):
             )
             return None
 
+    @MonitorLatency(DBMonitor.query("tasks"))
     def find_background_tasks_by_status(
         self, session: DBSession, status: str | None = None
     ) -> list[Task]:
@@ -341,13 +361,15 @@ class TaskRepository(ITaskRepository):
         query = session.query(TaskModel).filter(
             TaskModel.execution_mode == "background"
         )
-        
+
         if status:
             query = query.filter(TaskModel.status == status)
-        
+
         models = query.all()
+
         return [self._task_model_to_entity(model) for model in models]
     
+    @MonitorLatency(DBMonitor.query("tasks"))
     def find_timed_out_background_tasks(
         self, session: DBSession, cutoff_time_ms: int
     ) -> list[Task]:
@@ -361,6 +383,7 @@ class TaskRepository(ITaskRepository):
             )
             .all()
         )
+
         return [self._task_model_to_entity(model) for model in models]
 
     def _task_model_to_entity(self, model: TaskModel) -> Task:

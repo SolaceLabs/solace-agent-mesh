@@ -14,7 +14,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_config_resolver, get_user_config
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -42,21 +42,45 @@ SESSION_NOT_FOUND_MSG = "Session not found."
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
+    source: Optional[str] = Query(default=None, description="Filter by source: chat, scheduler, or omit for all"),
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
     session_service: SessionService = Depends(get_session_business_service),
+    user_config: dict = Depends(get_user_config),
+    config_resolver=Depends(get_config_resolver),
 ):
+    _VALID_SOURCES = {"chat", "scheduler"}
+    if source is not None and source not in _VALID_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid source filter: {source}. Must be one of: {', '.join(sorted(_VALID_SOURCES))}",
+        )
+
+    # Require scheduling permission to list scheduler sessions
+    if source == "scheduler":
+        operation_spec = {"operation_type": "scheduling"}
+        validation_result = config_resolver.validate_operation_config(
+            user_config, operation_spec, {"source": "sessions_endpoint"}
+        )
+        if not validation_result.get("valid", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view scheduler sessions",
+            )
+
     user_id = user.get("id")
     log_msg = f"User '{user_id}' is listing sessions with pagination (page={page_number}, size={page_size})"
     if project_id:
         log_msg += f" filtered by project_id={project_id}"
+    if source:
+        log_msg += f" filtered by source={source}"
     log.info(log_msg)
 
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id)
+        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id, source=source)
 
         session_responses = []
         for session_domain in paginated_response.data:
@@ -67,6 +91,7 @@ async def get_all_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                source=session_domain.source,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
@@ -120,6 +145,7 @@ async def search_sessions(
                 agent_id=session_domain.agent_id,
                 project_id=session_domain.project_id,
                 project_name=session_domain.project_name,
+                source=session_domain.source,
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
@@ -1032,6 +1058,7 @@ async def trigger_title_generation(
                 session_id=session_id,
                 user_message=user_message,
                 agent_response=agent_response,
+                user_id=user_id,
                 update_callback=update_session_callback,
             )
         )

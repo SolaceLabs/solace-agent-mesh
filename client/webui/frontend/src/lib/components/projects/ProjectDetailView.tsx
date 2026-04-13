@@ -233,7 +233,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
 
             {/* Footer */}
             <Footer className="justify-between">
-                <div className="text-muted-foreground text-sm">Created on {formatTimestamp(project.createdAt, "date")}</div>
+                <div className="text-sm text-(--secondary-text-wMain)">Created on {formatTimestamp(project.createdAt, "date")}</div>
                 <Button variant="outline" data-testid="closeButton" title="Close" onClick={onBack}>
                     Close
                 </Button>

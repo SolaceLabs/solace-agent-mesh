@@ -305,8 +305,8 @@ export const CollapsibleNavigationSidebar = ({
                         );
                     })}
                 </div>
-                {/* Shared with me section - renders nothing if no shared chats */}
-                {chatSharingEnabled && <SharedChatsList maxItems={5} />}
+                {/* Shared with me section - hidden when collapsed, renders nothing if no shared chats */}
+                {chatSharingEnabled && !isCollapsed && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}
@@ -314,9 +314,8 @@ export const CollapsibleNavigationSidebar = ({
                 <div className={cn("flex min-h-0 flex-col transition-[opacity] duration-200", isCollapsed ? "pointer-events-none h-0 min-h-0 flex-none overflow-hidden opacity-0" : "flex-1 opacity-100")}>
                     <div className="border-t border-(--secondary-w70)" />
                     <div className="mb-2 flex items-center justify-between pt-6 pr-6 pl-6">
-                        <span className="text-sm font-bold text-(--secondary-wMain)">Recent Chats</span>
-                        {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
-                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-[#679DB4] no-underline hover:text-[#E6EFF2]">
+                        <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
+                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-(--darkSurface-buttonText) no-underline hover:text-(--darkSurface-buttonTextHover)">
                             View All
                         </Link>
                     </div>

@@ -19,7 +19,15 @@ export const AUTH_CONFIG_TO_FORM_FIELD_MAP: Record<string, string> = {
     aws_access_key_id: "awsAccessKeyId",
     aws_secret_access_key: "awsSecretAccessKey",
     aws_session_token: "awsSessionToken",
-    gcp_service_account_json: "gcpServiceAccountJson",
+    vertex_credentials: "vertexCredentials",
+    // Routing / connection fields (not secret, no placeholder redaction)
+    audience: "oauthAudience",
+    ca_cert: "oauthCaCert",
+    max_retries: "oauthMaxRetries",
+    aws_region_name: "awsRegionName",
+    vertex_project: "vertexProject",
+    vertex_location: "vertexLocation",
+    api_version: "apiVersion",
 };
 
 export interface ModelProvider {
@@ -74,13 +82,17 @@ export interface ModelFormData {
     clientSecret?: string;
     tokenUrl?: string;
     oauthScope?: string;
+    oauthAudience?: string;
+    oauthCaCert?: string;
     oauthTokenRefreshBufferSeconds?: string;
+    oauthMaxRetries?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
     awsSessionToken?: string;
-    gcpServiceAccountJson?: string;
-    temperature?: string;
-    maxTokens?: string;
+    awsRegionName?: string;
+    vertexCredentials?: string;
+    vertexProject?: string;
+    vertexLocation?: string;
     customParams?: Array<{ key: string; value: string }>;
     [key: string]: unknown;
 }
@@ -90,7 +102,6 @@ export interface ProviderConfig {
     label: string;
     showApiBase: boolean;
     apiBaseRequired?: boolean;
-    apiBasePlaceholder?: string;
     description?: string; // optional description of the provider
     fields: ProviderField[]; // provider-specific required/optional fields
     modelNamePlaceholder: string; // example shown in model name input
@@ -107,35 +118,8 @@ const AZURE_OPENAI_FIELDS: ProviderField[] = [
         name: "apiVersion",
         label: "API Version",
         type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-];
-
-const VERTEX_AI_FIELDS: ProviderField[] = [
-    {
-        name: "vertexProject",
-        label: "GCP Project ID",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-    {
-        name: "vertexLocation",
-        label: "GCP Region",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
-    },
-];
-
-const BEDROCK_FIELDS: ProviderField[] = [
-    {
-        name: "awsRegionName",
-        label: "AWS Region",
-        type: "text",
-        required: true,
-        storageTarget: "model_params",
+        required: false,
+        storageTarget: "auth",
     },
 ];
 
@@ -183,8 +167,30 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             storageTarget: "auth",
         },
         {
+            name: "oauthAudience",
+            label: "OAuth Audience",
+            type: "text",
+            required: false,
+            storageTarget: "auth",
+        },
+        {
+            name: "oauthCaCert",
+            label: "CA Certificate Path",
+            type: "text",
+            required: false,
+            storageTarget: "auth",
+        },
+        {
             name: "oauthTokenRefreshBufferSeconds",
             label: "Token Refresh Buffer (seconds)",
+            type: "number",
+            required: false,
+            storageTarget: "auth",
+            min: 0,
+        },
+        {
+            name: "oauthMaxRetries",
+            label: "Max Retries",
             type: "number",
             required: false,
             storageTarget: "auth",
@@ -214,14 +220,35 @@ export const AUTH_FIELDS: Record<AuthType, ProviderField[]> = {
             required: false,
             storageTarget: "auth",
         },
+        {
+            name: "awsRegionName",
+            label: "AWS Region",
+            type: "text",
+            required: true,
+            storageTarget: "auth",
+        },
     ],
     gcp_service_account: [
         {
-            name: "gcpServiceAccountJson",
+            name: "vertexCredentials",
             label: "Service Account JSON",
             type: "textarea",
             required: true,
             helpText: "Paste the full JSON key file contents",
+            storageTarget: "auth",
+        },
+        {
+            name: "vertexProject",
+            label: "GCP Project ID",
+            type: "text",
+            required: true,
+            storageTarget: "auth",
+        },
+        {
+            name: "vertexLocation",
+            label: "GCP Region",
+            type: "text",
+            required: true,
             storageTarget: "auth",
         },
     ],
@@ -237,18 +264,18 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         label: "Temperature",
         type: "number",
         required: false,
-        helpText: "Controls randomness (0-2)",
+        helpText: "Sampling temperature between 0 and 2. Higher values like 0.8 produce more random outputs, while lower values like 0.2 make outputs more focused and deterministic.",
         storageTarget: "model_params",
         min: 0,
         max: 2,
         step: 0.1,
     },
     {
-        name: "maxTokens",
+        name: "max_tokens",
         label: "Max Tokens",
         type: "number",
         required: false,
-        helpText: "Maximum number of tokens in response",
+        helpText: "The maximum number of tokens to generate in the response. Sets an upper limit on output length.",
         storageTarget: "model_params",
         min: 1,
     },
@@ -293,7 +320,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Azure OpenAI",
         showApiBase: true,
         apiBaseRequired: true,
-        apiBasePlaceholder: "https://<your-resource>.openai.azure.com/",
         fields: AZURE_OPENAI_FIELDS,
         modelNamePlaceholder: "azure/<deployment-name>",
         allowedAuthTypes: ["apikey", "oauth2"],
@@ -310,7 +336,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         id: "vertex_ai",
         label: "Google Vertex AI",
         showApiBase: false,
-        fields: VERTEX_AI_FIELDS,
+        fields: [],
         modelNamePlaceholder: "vertex_ai/gemini-1.5-pro",
         allowedAuthTypes: ["gcp_service_account"],
     },
@@ -318,7 +344,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         id: "bedrock",
         label: "Amazon Bedrock",
         showApiBase: false,
-        fields: BEDROCK_FIELDS,
+        fields: [],
         modelNamePlaceholder: "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0",
         allowedAuthTypes: ["aws_iam"],
     },
@@ -327,7 +353,6 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Ollama",
         showApiBase: true,
         apiBaseRequired: true,
-        apiBasePlaceholder: "http://localhost:11434",
         fields: [],
         modelNamePlaceholder: "ollama/llama2",
         allowedAuthTypes: ["apikey", "none"],
@@ -337,8 +362,7 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         label: "Custom",
         description: "Configure a provider that implements the OpenAI-compatible API protocol",
         showApiBase: true,
-        apiBaseRequired: false,
-        apiBasePlaceholder: "https://api.example.com",
+        apiBaseRequired: true,
         fields: [],
         modelNamePlaceholder: "my-model-id",
         allowedAuthTypes: ["apikey", "oauth2", "none"],
@@ -349,8 +373,8 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
  * Get the configuration for a specific provider.
  * Returns the provider config with field definitions, auth types, and placeholders.
  */
-export function getProviderConfig(providerId: string): ProviderConfig {
-    return PROVIDER_CONFIGS[providerId] || PROVIDER_CONFIGS.custom;
+export function getProviderConfig(providerId: string | null | undefined): ProviderConfig {
+    return (providerId && PROVIDER_CONFIGS[providerId]) || PROVIDER_CONFIGS.custom;
 }
 
 /**
@@ -381,24 +405,28 @@ export const ALL_PROVIDERS: ModelProvider[] = Object.values(PROVIDER_CONFIGS)
 export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) {
     const providerConfig = getProviderConfig(data.provider);
 
-    // Collect model_params from provider-specific fields
+    // Collect provider-specific fields, respecting storage target
     const modelParams: Record<string, unknown> = {};
+    const providerAuthFields: Record<string, unknown> = {};
     for (const field of providerConfig.fields) {
         if (data[field.name] != null && data[field.name] !== "") {
             const value = field.type === "number" ? Number(data[field.name]) : data[field.name];
-            modelParams[field.name] = value;
+            if (field.storageTarget === "auth") {
+                // Convert camelCase to snake_case to match auth_config key convention
+                const snakeKey = field.name.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                providerAuthFields[snakeKey] = value;
+            } else {
+                modelParams[field.name] = value;
+            }
         }
     }
 
-    // Add common model params
-    if (data.temperature != null && data.temperature !== "") {
-        modelParams.temperature = Number(data.temperature);
-    }
-    if (data.maxTokens != null && data.maxTokens !== "") {
-        modelParams.max_tokens = Number(data.maxTokens);
-    }
-    if (data.cache_strategy != null && data.cache_strategy !== "") {
-        modelParams.cache_strategy = data.cache_strategy;
+    // Add common model params (iterate over COMMON_MODEL_PARAMS for consistency)
+    for (const field of COMMON_MODEL_PARAMS) {
+        const value = data[field.name];
+        if (value != null && value !== "") {
+            modelParams[field.name] = field.type === "number" ? Number(value) : value;
+        }
     }
 
     // Add custom parameters
@@ -441,8 +469,17 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         if (data.oauthScope) {
             authConfig.scope = data.oauthScope;
         }
+        if (data.oauthAudience) {
+            authConfig.audience = data.oauthAudience;
+        }
+        if (data.oauthCaCert) {
+            authConfig.ca_cert = data.oauthCaCert;
+        }
         if (data.oauthTokenRefreshBufferSeconds) {
             authConfig.token_refresh_buffer_seconds = Number(data.oauthTokenRefreshBufferSeconds);
+        }
+        if (data.oauthMaxRetries) {
+            authConfig.max_retries = Number(data.oauthMaxRetries);
         }
     } else if (data.authType === "aws_iam") {
         authConfig = { type: "aws_iam" };
@@ -455,14 +492,26 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         if (shouldIncludeCredential("awsSessionToken", data.awsSessionToken)) {
             authConfig.aws_session_token = data.awsSessionToken;
         }
+        if (data.awsRegionName) {
+            authConfig.aws_region_name = data.awsRegionName;
+        }
     } else if (data.authType === "gcp_service_account") {
         authConfig = { type: "gcp_service_account" };
-        if (shouldIncludeCredential("gcpServiceAccountJson", data.gcpServiceAccountJson)) {
-            authConfig.service_account_json = data.gcpServiceAccountJson;
+        if (shouldIncludeCredential("vertexCredentials", data.vertexCredentials)) {
+            authConfig.vertex_credentials = data.vertexCredentials;
+        }
+        if (data.vertexProject) {
+            authConfig.vertex_project = data.vertexProject;
+        }
+        if (data.vertexLocation) {
+            authConfig.vertex_location = data.vertexLocation;
         }
     } else {
         authConfig = { type: "none" };
     }
+
+    // Merge provider-specific connection params (storageTarget: "auth") into authConfig
+    Object.assign(authConfig, providerAuthFields);
 
     // Format model name with provider prefix if needed
     let modelName = data.modelName;
@@ -471,10 +520,10 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
     }
 
     return {
-        alias: data.alias,
+        alias: data.alias.trim(),
         provider: data.provider,
         modelName,
-        apiBase: data.apiBase || null,
+        apiBase: data.apiBase || "",
         description: data.description || null,
         authType: data.authType,
         authConfig,

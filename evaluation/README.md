@@ -32,7 +32,7 @@ pip install .
 Install the rest gateway:
 
 ```bash
-pip install git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway
+pip install sam-rest-gateway
 ```
 
 To run an evaluation test suite, use the `sam eval` command followed by the path to the test suite's JSON configuration file. For example, to run the full remote evaluation suite, execute the following command:

@@ -94,7 +94,7 @@ In a local evaluation, the evaluation framework brings up a local instance of So
 To run a local evaluation, you need to install the `sam-rest-gateway` plugin. This plugin allows the evaluation framework to communicate with the local SAM instance. You can install it with the following command:
 
 ```bash
-pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
+pip install sam-rest-gateway
 ```
 
 #### Local Test Suite Configuration

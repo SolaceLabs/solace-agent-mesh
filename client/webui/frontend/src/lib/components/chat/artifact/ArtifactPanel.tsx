@@ -130,7 +130,7 @@ export const ArtifactPanel = ({ readOnly = false, onDownloadOverride }: Artifact
                         </div>
                         {/* Hidden working files indicator */}
                         {!showWorkingArtifacts && workingArtifactCount > 0 && sortedArtifacts.length > 0 && (
-                            <Button variant="ghost" onClick={toggleShowWorkingArtifacts} className="text-muted-foreground hover:text-foreground h-auto w-full rounded-none border-t px-3 py-2 text-xs">
+                            <Button variant="ghost" onClick={toggleShowWorkingArtifacts} className="h-auto w-full rounded-none border-t px-3 py-2 text-xs text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)">
                                 <EyeOff className="h-3 w-3" />
                                 <span>{workingFilesLabel(workingArtifactCount)} hidden</span>
                             </Button>

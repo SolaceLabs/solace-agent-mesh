@@ -13,6 +13,10 @@ class ModelConfigurationBaseRequest(CamelCaseModel):
     specific fields required based on the operation (create vs update).
     """
 
+    model_id: Optional[str] = Field(
+        None,
+        description="Model ID (UUID) — only used with validateOnly=true for stored credential fallback. Ignored by create/update.",
+    )
     alias: Optional[str] = Field(
         None,
         min_length=1,
@@ -90,115 +94,66 @@ class ModelConfigurationUpdateRequest(ModelConfigurationBaseRequest):
 
     pass
 
-class SupportedModelsRequest(CamelCaseModel):
-    """Request model for querying supported models from a provider.
-    Supports two modes:
-    1. Editing mode: provide model_id to use stored credentials
-    2. Creating mode: provide auth_type and appropriate credentials
+class ProviderQueryBaseRequest(CamelCaseModel):
+    """Base request for endpoints that query a provider (supported-models, test-connection).
+
+    Shared fields: model_id for stored-credential mode, plus api_base, auth_config,
+    and model_params for request-provided credentials.
     """
-    provider: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        description="Provider ID (e.g., 'openai', 'anthropic', 'custom')",
-    )
+
     model_id: Optional[str] = Field(
         None,
-        description="Model ID for editing mode (uses stored credentials from database)",
+        description="Model ID (UUID) to use stored credentials from database",
     )
     api_base: Optional[str] = Field(
         None,
         max_length=2048,
-        description="API base URL for custom endpoints (required for custom provider in creating mode)",
+        description="API base URL",
     )
-    auth_type: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Authentication type ('apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account')",
-    )
-    api_key: Optional[str] = Field(
-        None,
-        description="API key for apikey authentication",
-    )
-    client_id: Optional[str] = Field(
-        None,
-        description="OAuth2 client ID",
-    )
-    client_secret: Optional[str] = Field(
-        None,
-        description="OAuth2 client secret",
-    )
-    token_url: Optional[str] = Field(
-        None,
-        description="OAuth2 token URL",
-    )
-    aws_access_key_id: Optional[str] = Field(
-        None,
-        description="AWS Access Key ID for aws_iam authentication",
-    )
-    aws_secret_access_key: Optional[str] = Field(
-        None,
-        description="AWS Secret Access Key for aws_iam authentication",
-    )
-    aws_session_token: Optional[str] = Field(
-        None,
-        description="AWS Session Token for aws_iam authentication (optional, for temporary credentials)",
-    )
-    gcp_service_account_json: Optional[str] = Field(
-        None,
-        description="GCP Service Account JSON key for gcp_service_account authentication",
-    )
-    model_params: Optional[Dict[str, Any]] = Field(
+    auth_config: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Provider-specific parameters (e.g., awsRegionName, vertexProject, vertexLocation, apiVersion)",
+        description="Authentication configuration. Must include 'type' field (e.g., 'apikey', 'oauth2', 'none', 'aws_iam', 'gcp_service_account').",
+    )
+    model_params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Model-specific parameters",
     )
 
 
-class ModelConfigurationTestRequest(CamelCaseModel):
-    """Request model for testing a model configuration connection.
-    Supports two scenarios:
-    1. New configurations: Provide provider, model_name, and auth credentials (no alias)
-    2. Existing model test: Provide alias to load all config from database
-       - If alias is provided, provider/model_name are optional (loaded from database)
-       - Can override provider/model_name with new values to test compatibility
-       - Credentials loaded from database if not provided in authConfig
-    When alias is provided:
-    - Stored credentials are used as fallback for any missing/empty auth_config fields
-    - Stored provider/model_name used if not provided in request
-    - Can override provider/model_name to test if credentials work with new configuration
+class SupportedParamsRequest(CamelCaseModel):
+    """Request model for querying supported parameters for a model.
+
+    Provider is passed as a URL path parameter. This request only
+    contains the model name in the body. No credentials needed — this
+    is a local litellm registry lookup, not a provider API call.
     """
 
-    model_id: Optional[str] = Field(
-        None,
-        description="Optional: Model ID (UUID) to load configuration from database",
+    model_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="Model name (e.g., 'gpt-4o', 'claude-3-5-sonnet-20241022')",
     )
+
+
+class ModelConfigurationTestRequest(ProviderQueryBaseRequest):
+    """Request model for testing a model configuration connection.
+    Supports two scenarios:
+    1. New configurations: Provide provider, model_name, and auth credentials
+    2. Existing model test: Provide model_id to load config from database
+       - Provider/model_name are optional (loaded from database if not provided)
+       - Stored credentials used as fallback for missing auth_config fields
+    """
+
     provider: Optional[str] = Field(
         None,
         min_length=1,
         max_length=50,
-        description="Model provider (e.g., 'openai', 'anthropic'). Required if no alias provided.",
+        description="Model provider (e.g., 'openai', 'anthropic'). Required if no model_id provided.",
     )
     model_name: Optional[str] = Field(
         None,
         min_length=1,
         max_length=255,
-        description="Full model name (litellm model string). Required if no alias provided.",
-    )
-    api_base: Optional[str] = Field(
-        None,
-        max_length=2048,
-        description="API base URL (auto-filled for known providers if not provided)",
-    )
-    auth_type: str = Field(
-        default="none",
-        max_length=50,
-        description="Type of authentication (e.g., 'apikey', 'oauth2', 'none')",
-    )
-    auth_config: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Authentication configuration (secrets like api_key should be included)",
-    )
-    model_params: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Model-specific parameters to test validation",
+        description="Full model name (litellm model string). Required if no model_id provided.",
     )

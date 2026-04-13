@@ -19,6 +19,8 @@ apps:
       agent_name: "MermaidAgent"
       display_name: "Mermaid Diagram Agent"
       model: *general_model
+      model_provider: 
+        - "general"
       instruction: |
         The MermaidAgent can generate PNG images from Mermaid diagram syntax.
         You will be provided with the Mermaid syntax as a string.

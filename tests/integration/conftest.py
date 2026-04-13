@@ -105,7 +105,13 @@ def test_db_engine():
         def set_sqlite_pragma(dbapi_conn, connection_record):
             if database_url.startswith("sqlite"):
                 cursor = dbapi_conn.cursor()
-                cursor.execute("PRAGMA foreign_keys=ON")
+                # Speed optimizations for tests (50-100x faster writes)
+                # Since tests use temp databases that get deleted, we don't need durability
+                cursor.execute("PRAGMA synchronous = OFF")        # Don't wait for disk sync (biggest speedup)
+                cursor.execute("PRAGMA journal_mode = WAL")       # Write-Ahead Logging for better concurrency
+                cursor.execute("PRAGMA temp_store = MEMORY")      # Keep temp tables in memory
+                cursor.execute("PRAGMA cache_size = -64000")      # 64MB cache (negative = KB)
+                cursor.execute("PRAGMA foreign_keys=ON")          # Keep foreign key enforcement
                 cursor.close()
 
         # Run Alembic migrations
@@ -528,7 +534,8 @@ def test_llm_server():
     Manages the lifecycle of the TestLLMServer for the test session.
     Yields the TestLLMServer instance.
     """
-    server = TestLLMServer(host="127.0.0.1", port=8088)
+    port = find_free_port()
+    server = TestLLMServer(host="127.0.0.1", port=port)
     server.start()
 
     max_retries = 20
@@ -568,7 +575,8 @@ def test_static_file_server():
     Manages the lifecycle of the TestStaticFileServer for the test session.
     Yields the TestStaticFileServer instance.
     """
-    server = TestStaticFileServer(host="127.0.0.1", port=8089)
+    port = find_free_port()
+    server = TestStaticFileServer(host="127.0.0.1", port=port)
     server.start()
 
     max_retries = 20
@@ -663,10 +671,12 @@ def test_a2a_agent_server_harness(
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
     Automatically clears any primed responses and captured requests from the
-    TestLLMServer before each test that uses it (if session-scoped and reused).
-    Also clears the global static response.
+    TestLLMServer AFTER each test completes (not before).
+    This prevents race conditions where async operations from test N are still
+    running when test N+1 starts.
     """
-    test_llm_server.clear_all_configurations()
+    yield  # Test runs here
+    test_llm_server.clear_all_configurations()  # Cleanup AFTER test
 
 
 @pytest.fixture(autouse=True)
@@ -739,6 +749,10 @@ def shared_solace_connector(
     Creates and manages a single SolaceAiConnector instance with multiple agents
     for integration testing.
     """
+    # Reset MetricRegistry singleton before creating the connector to avoid
+    # 'MetricRegistry already initialized' errors from SAC 3.3.6+.
+    from solace_ai_connector.common.observability.registry import MetricRegistry
+    MetricRegistry.reset()
 
     def create_agent_config(
         agent_name,
