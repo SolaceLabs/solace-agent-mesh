@@ -11,55 +11,56 @@ import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-l
 // animationReducer — pure function unit tests
 // ---------------------------------------------------------------------------
 
-const INITIAL: { isHistoryRevealed: boolean; isExitingHistory: boolean } = {
+const INITIAL = {
     isHistoryRevealed: false,
     isExitingHistory: false,
+    isWaitingToExit: false,
 };
 
 describe("animationReducer", () => {
     test("DIVIDER_CHANGED resets revealed and starts exit animation", () => {
-        const state = { isHistoryRevealed: true, isExitingHistory: false };
+        const state = { isHistoryRevealed: true, isExitingHistory: false, isWaitingToExit: false };
         const next = animationReducer(state, { type: "DIVIDER_CHANGED" });
-        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: true });
+        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: true, isWaitingToExit: false });
     });
 
     test("DIVIDER_REMOVED clears revealed but preserves isExitingHistory", () => {
-        const exitingState = { isHistoryRevealed: true, isExitingHistory: true };
+        const exitingState = { isHistoryRevealed: true, isExitingHistory: true, isWaitingToExit: false };
         const next = animationReducer(exitingState, { type: "DIVIDER_REMOVED" });
-        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: true });
+        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: true, isWaitingToExit: false });
 
-        const idleState = { isHistoryRevealed: true, isExitingHistory: false };
+        const idleState = { isHistoryRevealed: true, isExitingHistory: false, isWaitingToExit: false };
         const next2 = animationReducer(idleState, { type: "DIVIDER_REMOVED" });
-        expect(next2).toEqual({ isHistoryRevealed: false, isExitingHistory: false });
+        expect(next2).toEqual({ isHistoryRevealed: false, isExitingHistory: false, isWaitingToExit: false });
     });
 
     test("SESSION_CHANGED resets both flags", () => {
-        const state = { isHistoryRevealed: true, isExitingHistory: true };
+        const state = { isHistoryRevealed: true, isExitingHistory: true, isWaitingToExit: false };
         const next = animationReducer(state, { type: "SESSION_CHANGED" });
-        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: false });
+        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: false, isWaitingToExit: false });
     });
 
     test("REVEAL_HISTORY sets isHistoryRevealed without affecting exit state", () => {
         const next = animationReducer(INITIAL, { type: "REVEAL_HISTORY" });
-        expect(next).toEqual({ isHistoryRevealed: true, isExitingHistory: false });
+        expect(next).toEqual({ isHistoryRevealed: true, isExitingHistory: false, isWaitingToExit: false });
 
-        const exitingState = { isHistoryRevealed: false, isExitingHistory: true };
+        const exitingState = { isHistoryRevealed: false, isExitingHistory: true, isWaitingToExit: false };
         const next2 = animationReducer(exitingState, { type: "REVEAL_HISTORY" });
-        expect(next2).toEqual({ isHistoryRevealed: true, isExitingHistory: true });
+        expect(next2).toEqual({ isHistoryRevealed: true, isExitingHistory: true, isWaitingToExit: false });
     });
 
     test("EXIT_COMPLETE clears isExitingHistory without affecting reveal", () => {
-        const state = { isHistoryRevealed: false, isExitingHistory: true };
+        const state = { isHistoryRevealed: false, isExitingHistory: true, isWaitingToExit: false };
         const next = animationReducer(state, { type: "EXIT_COMPLETE" });
-        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: false });
+        expect(next).toEqual({ isHistoryRevealed: false, isExitingHistory: false, isWaitingToExit: false });
 
-        const revealedState = { isHistoryRevealed: true, isExitingHistory: true };
+        const revealedState = { isHistoryRevealed: true, isExitingHistory: true, isWaitingToExit: false };
         const next2 = animationReducer(revealedState, { type: "EXIT_COMPLETE" });
-        expect(next2).toEqual({ isHistoryRevealed: true, isExitingHistory: false });
+        expect(next2).toEqual({ isHistoryRevealed: true, isExitingHistory: false, isWaitingToExit: false });
     });
 
     test("unknown action returns state unchanged", () => {
-        const state = { isHistoryRevealed: true, isExitingHistory: true };
+        const state = { isHistoryRevealed: true, isExitingHistory: true, isWaitingToExit: false };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const next = animationReducer(state, { type: "UNKNOWN" } as any);
         expect(next).toBe(state);
@@ -141,14 +142,21 @@ describe("useTurnDividerAnimation — hook", () => {
             },
         });
 
-        // Initially exiting (slide-out animation running)
+        // Initially waiting — messages shown at bottom before exit starts
         expect(result.current.hasDivider).toBe(true);
-        expect(result.current.isExitingHistory).toBe(true);
+        expect(result.current.isHistoryCollapsed).toBe(false);
 
         // Advance past the exit animation fallback timeout
+        // Step 1: advance past the 600ms waiting delay → triggers DIVIDER_CHANGED
         act(() => {
-            vi.advanceTimersByTime(600);
+            vi.advanceTimersByTime(700);
         });
+        // Step 2: advance past the exit animation fallback timeout (SLIDE_OUT_DURATION_MS + 100)
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        // Flush rAFs from onExitComplete (pauseAutoScroll + scrollIntoView)
+        act(() => flushRaf());
         act(() => flushRaf());
 
         // Now collapsed
@@ -179,9 +187,16 @@ describe("useTurnDividerAnimation — hook", () => {
         });
 
         // Advance past exit animation
+        // Step 1: advance past the 600ms waiting delay → triggers DIVIDER_CHANGED
         act(() => {
-            vi.advanceTimersByTime(600);
+            vi.advanceTimersByTime(700);
         });
+        // Step 2: advance past the exit animation fallback timeout (SLIDE_OUT_DURATION_MS + 100)
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        // Flush rAFs from onExitComplete (pauseAutoScroll + scrollIntoView)
+        act(() => flushRaf());
         act(() => flushRaf());
 
         expect(result.current.isHistoryCollapsed).toBe(true);
@@ -211,9 +226,16 @@ describe("useTurnDividerAnimation — hook", () => {
         });
 
         // Advance past exit animation
+        // Step 1: advance past the 600ms waiting delay → triggers DIVIDER_CHANGED
         act(() => {
-            vi.advanceTimersByTime(600);
+            vi.advanceTimersByTime(700);
         });
+        // Step 2: advance past the exit animation fallback timeout (SLIDE_OUT_DURATION_MS + 100)
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        // Flush rAFs from onExitComplete (pauseAutoScroll + scrollIntoView)
+        act(() => flushRaf());
         act(() => flushRaf());
 
         expect(result.current.isHistoryCollapsed).toBe(true);
@@ -237,7 +259,7 @@ describe("useTurnDividerAnimation — hook", () => {
             },
         });
 
-        // Change divider to trigger DIVIDER_CHANGED → isExitingHistory
+        // Change divider to trigger waiting → then DIVIDER_CHANGED after delay
         rerender({
             turnDividerIndex: 3,
             messagesLength: 6,
@@ -245,12 +267,21 @@ describe("useTurnDividerAnimation — hook", () => {
             chatMessageListRef,
         });
 
+        // Initially waiting, not yet exiting
+        expect(result.current.isExitingHistory).toBe(false);
+
+        // Advance past waiting delay → triggers DIVIDER_CHANGED
+        act(() => {
+            vi.advanceTimersByTime(700);
+        });
         expect(result.current.isExitingHistory).toBe(true);
 
-        // Advance past SLIDE_OUT_DURATION_MS + 100 timeout fallback
+        // Advance past the exit animation fallback timeout (SLIDE_OUT_DURATION_MS + 100)
         act(() => {
-            vi.advanceTimersByTime(600);
+            vi.advanceTimersByTime(500);
         });
+        // Flush rAFs from onExitComplete (pauseAutoScroll + scrollIntoView)
+        act(() => flushRaf());
         act(() => flushRaf());
 
         expect(result.current.isExitingHistory).toBe(false);

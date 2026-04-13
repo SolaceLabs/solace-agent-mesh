@@ -2,27 +2,28 @@ import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
 
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
-const SLIDE_OUT_DURATION_MS = 500;
-
 interface AnimationState {
     isHistoryRevealed: boolean;
     isExitingHistory: boolean;
+    isWaitingToExit: boolean;
 }
 
-type AnimationAction = { type: "DIVIDER_CHANGED" } | { type: "DIVIDER_REMOVED" } | { type: "SESSION_CHANGED" } | { type: "REVEAL_HISTORY" } | { type: "EXIT_COMPLETE" };
+type AnimationAction = { type: "DIVIDER_WAITING" } | { type: "DIVIDER_CHANGED" } | { type: "DIVIDER_REMOVED" } | { type: "SESSION_CHANGED" } | { type: "REVEAL_HISTORY" } | { type: "EXIT_COMPLETE" };
 
 export function animationReducer(state: AnimationState, action: AnimationAction): AnimationState {
     switch (action.type) {
+        case "DIVIDER_WAITING":
+            return { isHistoryRevealed: false, isExitingHistory: false, isWaitingToExit: true };
         case "DIVIDER_CHANGED":
-            return !state.isHistoryRevealed && state.isExitingHistory ? state : { isHistoryRevealed: false, isExitingHistory: true };
+            return { isHistoryRevealed: false, isExitingHistory: true, isWaitingToExit: false };
         case "DIVIDER_REMOVED":
-            return !state.isHistoryRevealed ? state : { isHistoryRevealed: false, isExitingHistory: state.isExitingHistory };
+            return { ...state, isHistoryRevealed: false, isWaitingToExit: false };
         case "SESSION_CHANGED":
-            return !state.isHistoryRevealed && !state.isExitingHistory ? state : { isHistoryRevealed: false, isExitingHistory: false };
+            return { isHistoryRevealed: false, isExitingHistory: false, isWaitingToExit: false };
         case "REVEAL_HISTORY":
-            return state.isHistoryRevealed ? state : { ...state, isHistoryRevealed: true };
+            return { ...state, isHistoryRevealed: true };
         case "EXIT_COMPLETE":
-            return !state.isExitingHistory ? state : { ...state, isExitingHistory: false };
+            return { ...state, isExitingHistory: false };
         default:
             return state;
     }
@@ -37,30 +38,42 @@ interface UseTurnDividerAnimationOptions {
 
 export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sessionId, chatMessageListRef }: UseTurnDividerAnimationOptions) {
     const hasDivider = turnDividerIndex !== null && turnDividerIndex > 0 && turnDividerIndex < messagesLength;
-    const [{ isHistoryRevealed, isExitingHistory }, dispatch] = useReducer(animationReducer, {
+    const [{ isHistoryRevealed, isExitingHistory, isWaitingToExit }, dispatch] = useReducer(animationReducer, {
         isHistoryRevealed: false,
         isExitingHistory: false,
+        isWaitingToExit: false,
     });
     const newTurnAnchorRef = useRef<HTMLDivElement>(null);
     const lastDividerIndexRef = useRef<number | null>(null);
-    const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const historyWrapperRef = useRef<HTMLDivElement>(null);
+    // Tracks the previous divider index so during waiting we keep old collapse boundary
+    const prevDividerIndexRef = useRef<number | null>(null);
     const oldScrollHeightRef = useRef<number | null>(null);
     const lastTouchYRef = useRef<number | null>(null);
     const prevSessionIdRef = useRef(sessionId);
+    const needsScrollRef = useRef(false);
 
-    // Derive transition flags synchronously — no dispatch during render to avoid
-    // React error #301 ("Cannot update a component while rendering a different component").
+    const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const exitDelayRef = useRef<NodeJS.Timeout | null>(null);
+    // Tracks whether a session switch just happened — the next divider change
+    // should skip the waiting delay and collapse immediately.
+    const sessionJustSwitchedRef = useRef(false);
+
+    // Synchronous derivation for the first render where the divider appears:
+    // the reducer hasn't dispatched yet, so derive "waiting" state to keep old messages visible.
+    // Only for new messages (not session switches).
     const sessionChanged = sessionId !== prevSessionIdRef.current;
-    const dividerChanged = hasDivider && turnDividerIndex !== lastDividerIndexRef.current;
+    const dividerJustAppeared = hasDivider && turnDividerIndex !== lastDividerIndexRef.current && !sessionChanged;
+    const effectiveIsWaiting = isWaitingToExit || (dividerJustAppeared && !sessionJustSwitchedRef.current);
 
-    // On the first render where the divider appears, the reducer hasn't been
-    // dispatched yet (isExitingHistory is still false). Derive the effective
-    // value so the animation class is applied on the very first paint.
-    const effectiveIsExiting = isExitingHistory || (dividerChanged && !sessionChanged);
-    const effectiveIsRevealed = sessionChanged ? false : isHistoryRevealed;
+    // The wrapper is always collapsed when there's a divider — only expanded by scroll-up reveal
+    const isHistoryCollapsed = hasDivider && !isHistoryRevealed;
+    // Whether the waiting phase is active (previous turn still visible before scroll-up)
+    const isInWaitingPhase = effectiveIsWaiting;
 
-    const isHistoryCollapsed = hasDivider && !effectiveIsExiting && !effectiveIsRevealed;
+    // During waiting AND exiting, collapse up to the PREVIOUS divider so the
+    // previous turn stays in the DOM for the slide-up transition.
+    // After exit completes, switch to the current divider index.
+    const collapsedUpToIndex = (effectiveIsWaiting || isExitingHistory) && prevDividerIndexRef.current !== null ? prevDividerIndexRef.current : turnDividerIndex;
 
     // Sync refs and dispatch in useLayoutEffect — fires after DOM commit but
     // NOT during another component's render, so it's safe from error #301.
@@ -68,73 +81,60 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
         let dispatched = false;
         if (sessionId !== prevSessionIdRef.current) {
             prevSessionIdRef.current = sessionId;
-            // Preserve the divider ref if still active — avoids re-triggering
-            // the exit animation when sessionId first gets assigned (empty → real).
             lastDividerIndexRef.current = hasDivider ? turnDividerIndex : null;
             dispatch({ type: "SESSION_CHANGED" });
+            sessionJustSwitchedRef.current = true;
+            if (exitDelayRef.current) {
+                clearTimeout(exitDelayRef.current);
+                exitDelayRef.current = null;
+            }
             dispatched = true;
         }
         if (!dispatched && hasDivider && turnDividerIndex !== lastDividerIndexRef.current) {
+            prevDividerIndexRef.current = lastDividerIndexRef.current;
             lastDividerIndexRef.current = turnDividerIndex;
-            dispatch({ type: "DIVIDER_CHANGED" });
+            if (sessionJustSwitchedRef.current) {
+                // Session switch — no animation, default state is already collapsed.
+                // Scroll is handled by the needsScrollRef effect below (fires when anchor is in DOM).
+                sessionJustSwitchedRef.current = false;
+                needsScrollRef.current = true;
+            } else {
+                // New message — show at bottom first, then slide up after delay
+                dispatch({ type: "DIVIDER_WAITING" });
+                if (exitDelayRef.current) clearTimeout(exitDelayRef.current);
+                exitDelayRef.current = setTimeout(() => {
+                    // Trigger slide-up phase via DIVIDER_CHANGED (sets isExitingHistory)
+                    dispatch({ type: "DIVIDER_CHANGED" });
+                    // After the CSS transition completes, collapse and position
+                    exitTimerRef.current = setTimeout(() => {
+                        dispatch({ type: "EXIT_COMPLETE" });
+                        chatMessageListRef.current?.pauseAutoScroll();
+                        requestAnimationFrame(() => {
+                            const container = chatMessageListRef.current?.scrollContainer;
+                            const anchor = newTurnAnchorRef.current;
+                            if (container && anchor) {
+                                const prev = container.style.scrollBehavior;
+                                container.style.scrollBehavior = "auto";
+                                anchor.scrollIntoView({ block: "start" });
+                                container.style.scrollBehavior = prev;
+                            }
+                            chatMessageListRef.current?.pauseAutoScroll();
+                        });
+                    }, 400);
+                }, 600);
+            }
         }
         if (!dispatched && !hasDivider && lastDividerIndexRef.current !== null) {
             lastDividerIndexRef.current = null;
             dispatch({ type: "DIVIDER_REMOVED" });
         }
-    }, [sessionId, turnDividerIndex, hasDivider]);
-
-    // Schedule the animation end callback after isExitingHistory is set synchronously above
-    useEffect(() => {
-        if (!isExitingHistory || !hasDivider) return;
-
-        const onExitComplete = () => {
-            dispatch({ type: "EXIT_COMPLETE" });
-            const pausePromise = chatMessageListRef.current?.pauseAutoScroll();
-            requestAnimationFrame(() => {
-                newTurnAnchorRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
-                // Re-engage auto-scroll after the pause has settled so the
-                // streaming response is followed without racing the double-rAF
-                // in pauseAutoScroll that clears isProgrammaticScroll.
-                if (pausePromise) {
-                    pausePromise.then(() => {
-                        chatMessageListRef.current?.scrollToBottom();
-                    });
-                } else {
-                    chatMessageListRef.current?.scrollToBottom();
-                }
-            });
-        };
-
-        const wrapper = historyWrapperRef.current;
-        let activeHandler: (() => void) | null = null;
-
-        if (wrapper) {
-            const handler = () => {
-                wrapper.removeEventListener("animationend", handler);
-                activeHandler = null;
-                if (exitTimerRef.current) {
-                    clearTimeout(exitTimerRef.current);
-                    exitTimerRef.current = null;
-                }
-                onExitComplete();
-            };
-            activeHandler = handler;
-            wrapper.addEventListener("animationend", handler, { once: true });
-            exitTimerRef.current = setTimeout(() => {
-                wrapper.removeEventListener("animationend", handler);
-                activeHandler = null;
-                onExitComplete();
-            }, SLIDE_OUT_DURATION_MS + 100);
-        } else {
-            exitTimerRef.current = setTimeout(onExitComplete, SLIDE_OUT_DURATION_MS);
-        }
-
         return () => {
-            if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-            if (activeHandler && wrapper) wrapper.removeEventListener("animationend", activeHandler);
+            if (exitDelayRef.current) {
+                clearTimeout(exitDelayRef.current);
+                exitDelayRef.current = null;
+            }
         };
-    }, [isExitingHistory, hasDivider, chatMessageListRef]);
+    }, [sessionId, turnDividerIndex, hasDivider]);
 
     // Reveal old messages when user scrolls up at the top (wheel, touch swipe, or keyboard).
     useEffect(() => {
@@ -192,20 +192,47 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
             if (container) {
                 const addedHeight = container.scrollHeight - oldScrollHeightRef.current;
                 if (addedHeight > 0) {
-                    container.scrollTo({ top: addedHeight, behavior: "instant" });
+                    // Step 1: instant jump to keep current turn in place (no flash)
+                    const prev = container.style.scrollBehavior;
+                    container.style.scrollBehavior = "auto";
+                    container.scrollTop = addedHeight;
+                    container.style.scrollBehavior = prev;
+                    // Step 2: smooth scroll up to reveal old messages gliding in from above
+                    requestAnimationFrame(() => {
+                        container.scrollTo({ top: Math.max(0, addedHeight - 300), behavior: "smooth" });
+                    });
                 }
             }
             oldScrollHeightRef.current = null;
         }
     }, [isHistoryRevealed, chatMessageListRef]);
 
+    // Scroll to the new turn anchor after a session switch.
+    // Uses useEffect (not useLayoutEffect) so it fires after the loading spinner
+    // is removed and the ChatMessageList is actually in the DOM.
+    useEffect(() => {
+        if (needsScrollRef.current && isHistoryCollapsed && newTurnAnchorRef.current) {
+            needsScrollRef.current = false;
+            chatMessageListRef.current?.pauseAutoScroll();
+            const container = chatMessageListRef.current?.scrollContainer;
+            const anchor = newTurnAnchorRef.current;
+            if (container && anchor) {
+                const prev = container.style.scrollBehavior;
+                container.style.scrollBehavior = "auto";
+                anchor.scrollIntoView({ block: "start" });
+                container.style.scrollBehavior = prev;
+            }
+            chatMessageListRef.current?.pauseAutoScroll();
+        }
+    });
+
     return {
         hasDivider,
         isHistoryCollapsed,
-        isExitingHistory: effectiveIsExiting,
-        isHistoryRevealed: effectiveIsRevealed,
-        historyWrapperRef,
+        isExitingHistory,
+        isHistoryRevealed,
+        isInWaitingPhase,
         newTurnAnchorRef,
-        SLIDE_OUT_DURATION_MS,
+        collapsedUpToIndex,
     };
 }

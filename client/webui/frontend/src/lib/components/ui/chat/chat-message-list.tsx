@@ -42,12 +42,12 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     scrollBehavior: "smooth",
                 }}
             >
-                <div className="flex flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
+                <div className="relative flex flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
                     {children}
                 </div>
             </div>
 
-            {!isAtBottom && userHasScrolled && (
+            {!isAtBottom && userHasScrolled && scrollRef.current && scrollRef.current.scrollHeight > scrollRef.current.clientHeight + 100 && (
                 <Button
                     onClick={() => {
                         scrollToBottom();

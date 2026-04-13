@@ -89,6 +89,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const isCancellingRef = useRef(isCancelling);
     const currentSessionIdRef = useRef(sessionId);
     const messagesRef = useRef<MessageFE[]>([]);
+    const pendingSessionDividerRef = useRef(false);
     const allArtifactsRef = useRef<ArtifactInfo[]>([]);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
@@ -1088,6 +1089,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
                 await loadSessionTasks(newSessionId);
 
+                // Flag for the useEffect below to set turnDividerIndex once messages are in state
+                pendingSessionDividerRef.current = true;
+
                 // Check for running background tasks in this session and reconnect
                 const sessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === newSessionId);
                 if (sessionBackgroundTasks.length > 0) {
@@ -1661,6 +1665,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
     const isSessionMoveRef = useRef(false);
+
+    // After a session switch, once messages are loaded into state, set turnDividerIndex
+    // to the last user message so it appears at the top of the page.
+    useEffect(() => {
+        if (pendingSessionDividerRef.current && messages.length > 1) {
+            pendingSessionDividerRef.current = false;
+            let lastUserIdx = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].isUser) {
+                    lastUserIdx = i;
+                    break;
+                }
+            }
+            if (lastUserIdx > 0) {
+                setTurnDividerIndex(lastUserIdx);
+            }
+        }
+    }, [messages, setTurnDividerIndex]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {

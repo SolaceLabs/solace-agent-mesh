@@ -15,7 +15,6 @@ import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePan
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
@@ -24,8 +23,6 @@ import { ShareDialog } from "@/lib/components/share/ShareDialog";
 const COLLAPSED_STYLE = { height: 0, overflow: "hidden" } as const;
 const NO_OVERFLOW_ANCHOR_STYLE = { overflowAnchor: "none" } as const;
 const OVERFLOW_ANCHOR_AUTO_STYLE = { overflowAnchor: "auto" } as const;
-const SLIDE_OUT_STYLE = { animationDuration: "500ms" } as const;
-
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
 const PANEL_SIZES_CLOSED = {
@@ -148,7 +145,7 @@ export function ChatPage() {
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
 
-    const { hasDivider, isHistoryCollapsed, isExitingHistory, historyWrapperRef, newTurnAnchorRef } = useTurnDividerAnimation({
+    const { hasDivider, isHistoryCollapsed, isExitingHistory, newTurnAnchorRef, collapsedUpToIndex } = useTurnDividerAnimation({
         turnDividerIndex,
         messagesLength: messages.length,
         sessionId,
@@ -156,6 +153,19 @@ export function ChatPage() {
     });
     // Narrowed once after the hasDivider guard — avoids repeated `!` assertions in JSX
     const dividerIdx = hasDivider && turnDividerIndex !== null ? turnDividerIndex : 0;
+    // For the collapsed wrapper: during waiting, use the old boundary (keep current turn visible)
+    const collapseIdx = collapsedUpToIndex ?? 0;
+    // Ref + measured height for the previous turn slide-up animation
+    const prevTurnRef = useRef<HTMLDivElement>(null);
+    const [prevTurnHeight, setPrevTurnHeight] = useState(0);
+    // Measure height when exit starts so the negative margin-top knows how far to slide
+    useEffect(() => {
+        if (isExitingHistory && prevTurnRef.current) {
+            setPrevTurnHeight(prevTurnRef.current.offsetHeight);
+        } else if (!isExitingHistory) {
+            setPrevTurnHeight(0);
+        }
+    }, [isExitingHistory]);
 
     // Fetch share link and users for current session via React Query (owner's view only)
     const shareLinkQuery = useShareLink(!isCollaborativeSession ? sessionId : "");
@@ -586,16 +596,12 @@ export function ChatPage() {
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
                                                 {/* Old messages — slide out on new turn, collapsed after, expanded on scroll-up */}
                                                 {hasDivider && (
-                                                    <div
-                                                        ref={historyWrapperRef}
-                                                        className={isExitingHistory ? cn("animate-out slide-out-to-top fade-out fill-mode-forwards overflow-hidden") : undefined}
-                                                        style={isExitingHistory ? SLIDE_OUT_STYLE : isHistoryCollapsed ? COLLAPSED_STYLE : undefined}
-                                                    >
+                                                    <div style={isHistoryCollapsed ? COLLAPSED_STYLE : undefined}>
                                                         {/* Show share notification for editor at the start */}
                                                         {isCollaborativeSession && (
                                                             <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
                                                         )}
-                                                        {messages.slice(0, dividerIdx).map((message, index) => {
+                                                        {messages.slice(0, collapseIdx).map((message, index) => {
                                                             const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                             const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                             return (
@@ -607,7 +613,31 @@ export function ChatPage() {
                                                         })}
                                                     </div>
                                                 )}
-                                                {/* New turn messages — anchored so browser preserves scroll position when history expands */}
+                                                {/* Previous turn messages (between old and new divider) — slide up during exit */}
+                                                {hasDivider && collapseIdx < dividerIdx && (
+                                                    <div
+                                                        ref={prevTurnRef}
+                                                        style={{
+                                                            marginTop: isExitingHistory && prevTurnHeight > 0 ? `-${prevTurnHeight}px` : 0,
+                                                            opacity: isExitingHistory ? 0 : 1,
+                                                            transition: isExitingHistory ? "margin-top 400ms ease-out, opacity 350ms ease-in" : undefined,
+                                                            overflow: "hidden",
+                                                        }}
+                                                    >
+                                                        {messages.slice(collapseIdx, dividerIdx).map((message, i) => {
+                                                            const index = i + collapseIdx;
+                                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                            const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                            return (
+                                                                <div key={messageKey}>
+                                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
+                                                                    {renderShareNotifications(index)}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                                {/* New turn messages */}
                                                 {(hasDivider ? messages.slice(dividerIdx) : messages).map((message, i) => {
                                                     const index = hasDivider ? i + dividerIdx : i;
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
@@ -623,7 +653,7 @@ export function ChatPage() {
                                                             {showCollabBannerInNewSection && (
                                                                 <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
                                                             )}
-                                                            <div className={cn(isNewTurnStart && "transition-opacity duration-300", isNewTurnStart && isExitingHistory ? "opacity-0" : undefined)}>
+                                                            <div>
                                                                 <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
                                                             </div>
                                                             {renderShareNotifications(index)}
