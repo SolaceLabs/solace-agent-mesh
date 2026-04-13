@@ -9,6 +9,7 @@ import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
 import { fetchModelById, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
 import { useSupportedModels } from "@/lib/api/models";
+import { getErrorMessage } from "@/lib/utils/api";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
 
@@ -21,18 +22,20 @@ export const ModelEditPage = () => {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
         if (!isNew && modelId) {
             setModelLoading(true);
+            setFetchError(null);
             fetchModelById(modelId)
                 .then(model => {
                     setModelToEdit(model);
                 })
-                .catch((error: Error) => {
-                    console.error(`Error fetching model ${modelId}:`, error);
+                .catch((error: unknown) => {
                     setModelToEdit(null);
+                    setFetchError(getErrorMessage(error, "Failed to load model."));
                 })
                 .finally(() => {
                     setModelLoading(false);
@@ -43,8 +46,8 @@ export const ModelEditPage = () => {
     // Fetch models for the provider being edited using stored credentials.
     // React Query caches the result so ModelEdit's dropdown open with the same params
     // returns instantly without a duplicate network call.
-    const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
-    const modelsByProvider = modelToEdit ? { [modelToEdit.provider]: initialModels } : {};
+    const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit && modelToEdit.provider ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
+    const modelsByProvider = modelToEdit?.provider ? { [modelToEdit.provider]: initialModels } : {};
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
         setIsLoading(true);
@@ -87,6 +90,11 @@ export const ModelEditPage = () => {
         return <EmptyState variant="loading" title="Loading Models..." />;
     }
 
+    // Error state for edit mode
+    if (!isNew && fetchError) {
+        return <EmptyState variant="error" title={`Error loading model: ${fetchError}`} buttons={[{ text: "Go To Models", variant: "default", onClick: () => navigate("/agents?tab=models") }]} />;
+    }
+
     // Not found state for edit mode
     if (!isNew && !modelToEdit) {
         return <EmptyState variant="error" title="Model Not Found" buttons={[{ text: "Go To Models", variant: "default", onClick: () => navigate("/agents?tab=models") }]} />;
@@ -98,7 +106,6 @@ export const ModelEditPage = () => {
 
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
-
                 <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
 

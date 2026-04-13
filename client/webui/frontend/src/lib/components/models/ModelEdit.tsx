@@ -41,6 +41,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const [queryParams, setQueryParams] = useState<SupportedModelsQueryParams | null>(null);
     const { data: dynamicModels = [], isLoading: isLoadingModels, isError: hasFetchError } = useSupportedModels(queryParams);
     const [supportedParams, setSupportedParams] = useState<string[] | null>(null);
+    const [paramsError, setParamsError] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
     const {
         register,
@@ -162,15 +163,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     useEffect(() => {
         if (!selectedProvider || !debouncedModelName) {
             setSupportedParams(null);
+            setParamsError(false);
             return;
         }
         let cancelled = false;
+        setParamsError(false);
         fetchSupportedParams(selectedProvider, debouncedModelName)
             .then(params => {
                 if (!cancelled) setSupportedParams(params);
             })
             .catch(() => {
-                if (!cancelled) setSupportedParams(null);
+                if (!cancelled) {
+                    setSupportedParams(null);
+                    setParamsError(true);
+                }
             });
         return () => {
             cancelled = true;
@@ -183,6 +189,22 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             setQueryParams(null);
         }
     }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
+
+    // Clear all authentication and model fields when the user switches auth type
+    const handleAuthTypeChange = useCallback(
+        (newAuthType: string, formOnChange: (value: string) => void) => {
+            formOnChange(newAuthType);
+            for (const fields of Object.values(AUTH_FIELDS)) {
+                for (const field of fields) {
+                    setValue(field.name, "");
+                }
+            }
+            setStoredCredentialFields(new Set());
+            setValue("modelName", "");
+            setQueryParams(null);
+        },
+        [setValue]
+    );
 
     // When the model dropdown opens, commit the current form credentials as query params.
     // React Query handles caching: if params haven't changed since the last successful
@@ -232,12 +254,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             hasInitializedFromModelRef.current = true;
 
             setValue("alias", modelToEdit.alias);
-            setValue("provider", modelToEdit.provider);
+            setValue("provider", modelToEdit.provider ?? "");
 
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
-            let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
+            let modelName = modelToEdit.modelName ?? "";
+            if (modelToEdit.provider === "custom" && modelName.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -314,7 +336,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem
+                    key={field.name}
+                    helpText={!isNew ? "Your API key is securely stored. Leave blank to keep the existing key, or enter a new value to replace it." : field.helpText}
+                    label={field.label}
+                    required={field.required}
+                    error={errors[field.name] as { message?: string }}
+                >
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -452,7 +480,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                 <div className="flex gap-4">
                                                     {providerConfig.allowedAuthTypes.map(authType => (
                                                         <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => field.onChange(authType)} />
+                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => handleAuthTypeChange(authType, field.onChange)} />
                                                             <span className="text-sm">{AUTH_TYPE_LABELS[authType as AuthType]}</span>
                                                         </label>
                                                     ))}
@@ -494,6 +522,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
                                             return (
                                                 <ComboBox
+                                                    key={selectedAuthType}
                                                     value={field.value}
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
@@ -560,6 +589,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                                 </>
                                                             )}
                                                         />
+                                                        {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
                                                     </div>
                                                 </div>
                                             </div>

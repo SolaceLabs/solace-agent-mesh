@@ -5,6 +5,7 @@ Scheduled task repository implementation using SQLAlchemy.
 from typing import List, Optional
 from sqlalchemy import and_, or_, select, func
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from ..shared.pagination import PaginationParams
 from ..shared import now_epoch_ms
@@ -40,13 +41,14 @@ class ScheduledTaskRepository:
     ) -> ScheduledTaskModel:
         """Create a new scheduled task with app-level uniqueness check."""
         # Check for existing active task with same (namespace, name)
-        existing = session.execute(
-            select(ScheduledTaskModel).where(
-                ScheduledTaskModel.namespace == task_data.get("namespace"),
-                ScheduledTaskModel.name == task_data.get("name"),
-                ScheduledTaskModel.deleted_at == None,
-            )
-        ).scalar_one_or_none()
+        with MonitorLatency(DBMonitor.query("scheduled_tasks")):
+            existing = session.execute(
+                select(ScheduledTaskModel).where(
+                    ScheduledTaskModel.namespace == task_data.get("namespace"),
+                    ScheduledTaskModel.name == task_data.get("name"),
+                    ScheduledTaskModel.deleted_at == None,
+                )
+            ).scalar_one_or_none()
 
         if existing:
             raise ValueError(
@@ -54,12 +56,15 @@ class ScheduledTaskRepository:
                 f"already exists in namespace '{task_data['namespace']}'"
             )
 
-        task = ScheduledTaskModel(**task_data)
-        session.add(task)
-        session.flush()
-        session.refresh(task)
+        with MonitorLatency(DBMonitor.insert("scheduled_tasks")):
+            task = ScheduledTaskModel(**task_data)
+            session.add(task)
+            session.flush()
+            session.refresh(task)
+
         return task
 
+    @MonitorLatency(DBMonitor.update("scheduled_tasks"))
     def update_task(
         self,
         session: DBSession,
@@ -80,6 +85,7 @@ class ScheduledTaskRepository:
         session.refresh(task)
         return task
 
+    @MonitorLatency(DBMonitor.query("scheduled_tasks"))
     def find_by_id(
         self,
         session: DBSession,
@@ -102,6 +108,7 @@ class ScheduledTaskRepository:
 
         return session.execute(query).scalar_one_or_none()
 
+    @MonitorLatency(DBMonitor.query("scheduled_tasks"))
     def find_by_namespace(
         self,
         session: DBSession,
@@ -138,6 +145,7 @@ class ScheduledTaskRepository:
 
         return list(session.execute(query).scalars().all())
 
+    @MonitorLatency(DBMonitor.query("scheduled_tasks"))
     def count_by_namespace(
         self,
         session: DBSession,
@@ -176,15 +184,17 @@ class ScheduledTaskRepository:
         deleted_by: str,
     ) -> bool:
         """Soft delete a scheduled task."""
-        task = session.get(ScheduledTaskModel, task_id)
-        if not task or task.deleted_at:
-            return False
+        with MonitorLatency(DBMonitor.query("scheduled_tasks")):
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task or task.deleted_at:
+                return False
 
-        task.deleted_at = now_epoch_ms()
-        task.deleted_by = deleted_by
-        task.enabled = False
-        session.flush()
-        return True
+        with MonitorLatency(DBMonitor.update("scheduled_tasks")):
+            task.deleted_at = now_epoch_ms()
+            task.deleted_by = deleted_by
+            task.enabled = False
+            session.flush()
+            return True
 
     def enable_task(
         self,
@@ -192,15 +202,17 @@ class ScheduledTaskRepository:
         task_id: str,
     ) -> Optional[ScheduledTaskModel]:
         """Enable a scheduled task."""
-        task = session.get(ScheduledTaskModel, task_id)
-        if not task or task.deleted_at:
-            return None
+        with MonitorLatency(DBMonitor.query("scheduled_tasks")):
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task or task.deleted_at:
+                return None
 
-        task.enabled = True
-        task.updated_at = now_epoch_ms()
-        session.flush()
-        session.refresh(task)
-        return task
+        with MonitorLatency(DBMonitor.update("scheduled_tasks")):
+            task.enabled = True
+            task.updated_at = now_epoch_ms()
+            session.flush()
+            session.refresh(task)
+            return task
 
     def disable_task(
         self,
@@ -208,18 +220,19 @@ class ScheduledTaskRepository:
         task_id: str,
     ) -> Optional[ScheduledTaskModel]:
         """Disable a scheduled task."""
-        task = session.get(ScheduledTaskModel, task_id)
-        if not task or task.deleted_at:
-            return None
-
-        task.enabled = False
-        task.updated_at = now_epoch_ms()
-        session.flush()
-        session.refresh(task)
+        with MonitorLatency(DBMonitor.query("scheduled_tasks")):
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task or task.deleted_at:
+                return None
+        with MonitorLatency(DBMonitor.update("scheduled_tasks")):
+            task.enabled = False
+            task.updated_at = now_epoch_ms()
+            session.flush()
+            session.refresh(task)
         return task
 
     # Execution methods
-
+    @MonitorLatency(DBMonitor.insert("scheduled_task_executions"))
     def create_execution(
         self,
         session: DBSession,
@@ -239,18 +252,22 @@ class ScheduledTaskRepository:
         update_data: dict,
     ) -> Optional[ScheduledTaskExecutionModel]:
         """Update an execution record."""
-        execution = session.get(ScheduledTaskExecutionModel, execution_id)
-        if not execution:
-            return None
+        with MonitorLatency(DBMonitor.query("scheduled_task_executions")):
+            execution = session.get(ScheduledTaskExecutionModel, execution_id)
+            if not execution:
+                return None
 
-        for key, value in update_data.items():
-            if key in _MUTABLE_EXECUTION_FIELDS:
-                setattr(execution, key, value)
+        with MonitorLatency(DBMonitor.update("scheduled_task_executions")):
+            for key, value in update_data.items():
+                if key in _MUTABLE_EXECUTION_FIELDS:
+                    setattr(execution, key, value)
 
-        session.flush()
-        session.refresh(execution)
+            session.flush()
+            session.refresh(execution)
+
         return execution
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def find_execution_by_id(
         self,
         session: DBSession,
@@ -259,6 +276,7 @@ class ScheduledTaskRepository:
         """Find an execution by ID."""
         return session.get(ScheduledTaskExecutionModel, execution_id)
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def find_execution_by_a2a_task_id(
         self,
         session: DBSession,
@@ -287,8 +305,10 @@ class ScheduledTaskRepository:
         if not session_id.startswith("scheduled_"):
             return None
         execution_id = session_id[len("scheduled_"):]
-        return session.get(ScheduledTaskExecutionModel, execution_id)
+        with MonitorLatency(DBMonitor.query("scheduled_task_executions")):
+            return session.get(ScheduledTaskExecutionModel, execution_id)
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def find_executions_by_task(
         self,
         session: DBSession,
@@ -307,6 +327,7 @@ class ScheduledTaskRepository:
 
         return list(session.execute(query).scalars().all())
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def count_executions_by_task(
         self,
         session: DBSession,
@@ -318,6 +339,7 @@ class ScheduledTaskRepository:
         )
         return session.execute(query).scalar()
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def find_recent_executions(
         self,
         session: DBSession,
@@ -343,6 +365,7 @@ class ScheduledTaskRepository:
         query = query.order_by(ScheduledTaskExecutionModel.scheduled_for.desc()).limit(limit)
         return list(session.execute(query).scalars().all())
 
+    @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
     def find_running_executions(
         self,
         session: DBSession,
@@ -367,27 +390,30 @@ class ScheduledTaskRepository:
         keep_count: int = 100,
     ) -> int:
         """Delete oldest executions for a task, keeping only keep_count most recent."""
-        # Get IDs to keep (most recent)
-        keep_ids_query = (
-            select(ScheduledTaskExecutionModel.id)
-            .where(ScheduledTaskExecutionModel.scheduled_task_id == task_id)
-            .order_by(ScheduledTaskExecutionModel.scheduled_for.desc())
-            .limit(keep_count)
-        )
-        keep_ids = [row[0] for row in session.execute(keep_ids_query).all()]
-
-        if not keep_ids:
-            return 0
-
-        # Delete all others
-        deleted = (
-            session.query(ScheduledTaskExecutionModel)
-            .filter(
-                ScheduledTaskExecutionModel.scheduled_task_id == task_id,
-                ~ScheduledTaskExecutionModel.id.in_(keep_ids),
+        with MonitorLatency(DBMonitor.query("scheduled_task_executions")):
+            # Get IDs to keep (most recent)
+            keep_ids_query = (
+                select(ScheduledTaskExecutionModel.id)
+                .where(ScheduledTaskExecutionModel.scheduled_task_id == task_id)
+                .order_by(ScheduledTaskExecutionModel.scheduled_for.desc())
+                .limit(keep_count)
             )
-            .delete(synchronize_session=False)
-        )
+            keep_ids = [row[0] for row in session.execute(keep_ids_query).all()]
+
+            if not keep_ids:
+                return 0
+
+        with MonitorLatency(DBMonitor.delete("scheduled_task_executions")):
+            # Delete all others
+            deleted = (
+                session.query(ScheduledTaskExecutionModel)
+                .filter(
+                    ScheduledTaskExecutionModel.scheduled_task_id == task_id,
+                    ~ScheduledTaskExecutionModel.id.in_(keep_ids),
+                )
+                .delete(synchronize_session=False)
+            )
+
         return deleted
 
     def cleanup_old_executions(
@@ -400,25 +426,27 @@ class ScheduledTaskRepository:
         total_deleted = 0
 
         while True:
-            execution_ids = (
-                session.query(ScheduledTaskExecutionModel.id)
-                .filter(ScheduledTaskExecutionModel.scheduled_for < cutoff_time_ms)
-                .limit(batch_size)
-                .all()
-            )
+            with MonitorLatency(DBMonitor.query("scheduled_task_executions")):
+                execution_ids = (
+                    session.query(ScheduledTaskExecutionModel.id)
+                    .filter(ScheduledTaskExecutionModel.scheduled_for < cutoff_time_ms)
+                    .limit(batch_size)
+                    .all()
+                )
 
             if not execution_ids:
                 break
 
             ids = [exec_id[0] for exec_id in execution_ids]
 
-            deleted_count = (
-                session.query(ScheduledTaskExecutionModel)
-                .filter(ScheduledTaskExecutionModel.id.in_(ids))
-                .delete(synchronize_session=False)
-            )
+            with MonitorLatency(DBMonitor.delete("scheduled_task_executions")):
+                deleted_count = (
+                    session.query(ScheduledTaskExecutionModel)
+                    .filter(ScheduledTaskExecutionModel.id.in_(ids))
+                    .delete(synchronize_session=False)
+                )
+                session.commit()
 
-            session.commit()
             total_deleted += deleted_count
 
             if deleted_count < batch_size:

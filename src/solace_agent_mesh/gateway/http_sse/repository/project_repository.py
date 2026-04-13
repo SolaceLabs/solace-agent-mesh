@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy.orm import Session as DBSession
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from .interfaces import IProjectRepository
 from .models import ProjectModel
@@ -28,11 +29,13 @@ class ProjectRepository(IProjectRepository):
 
     def get_pinned_project_ids_for_user(self, user_id: str) -> set[str]:
         """Return the set of project IDs that *user_id* has pinned."""
-        rows = (
-            self.db.query(ProjectUserPinModel.project_id)
-            .filter(ProjectUserPinModel.user_id == user_id)
-            .all()
-        )
+        with MonitorLatency(DBMonitor.query("project_user_pins")):
+            rows = (
+                self.db.query(ProjectUserPinModel.project_id)
+                .filter(ProjectUserPinModel.user_id == user_id)
+                .all()
+            )
+
         return {row[0] for row in rows}
 
     def toggle_user_pin(self, project_id: str, user_id: str) -> bool:
@@ -41,17 +44,20 @@ class ProjectRepository(IProjectRepository):
 
         Returns the **new** pinned state (True = now pinned, False = now unpinned).
         """
-        existing = (
-            self.db.query(ProjectUserPinModel)
-            .filter(
-                ProjectUserPinModel.project_id == project_id,
-                ProjectUserPinModel.user_id == user_id,
+        with MonitorLatency(DBMonitor.query("project_user_pins")):
+            existing = (
+                self.db.query(ProjectUserPinModel)
+                .filter(
+                    ProjectUserPinModel.project_id == project_id,
+                    ProjectUserPinModel.user_id == user_id,
+                )
+                .first()
             )
-            .first()
-        )
+
         if existing:
-            self.db.delete(existing)
-            self.db.flush()
+            with MonitorLatency(DBMonitor.delete("project_user_pins")):
+                self.db.delete(existing)
+                self.db.flush()
             return False
 
         pin = ProjectUserPinModel(
@@ -62,8 +68,9 @@ class ProjectRepository(IProjectRepository):
         )
         savepoint = self.db.begin_nested()
         try:
-            self.db.add(pin)
-            self.db.flush()
+            with MonitorLatency(DBMonitor.insert("project_user_pins")):
+                self.db.add(pin)
+                self.db.flush()
         except IntegrityError:
             # Concurrent insert won the race — rollback only to savepoint
             savepoint.rollback()
@@ -73,19 +80,23 @@ class ProjectRepository(IProjectRepository):
 
     def is_pinned_by_user(self, project_id: str, user_id: str) -> bool:
         """Return True if *user_id* has pinned *project_id*."""
-        return (
-            self.db.query(ProjectUserPinModel)
-            .filter(
-                ProjectUserPinModel.project_id == project_id,
-                ProjectUserPinModel.user_id == user_id,
+        with MonitorLatency(DBMonitor.query("project_user_pins")):
+            result = (
+                self.db.query(ProjectUserPinModel)
+                .filter(
+                    ProjectUserPinModel.project_id == project_id,
+                    ProjectUserPinModel.user_id == user_id,
+                )
+                .first()
             )
-            .first()
-        ) is not None
+
+        return result is not None
 
     # ------------------------------------------------------------------
     # Core project CRUD
     # ------------------------------------------------------------------
 
+    @MonitorLatency(DBMonitor.insert("projects"))
     def create_project(self, name: str, user_id: str, description: Optional[str] = None,
                        system_prompt: Optional[str] = None, default_agent_id: Optional[str] = None) -> Project:
         """Create a new user project."""
@@ -101,6 +112,7 @@ class ProjectRepository(IProjectRepository):
         self.db.add(model)
         self.db.flush()
         self.db.refresh(model)
+
         return self._model_to_entity(model)
 
     def get_accessible_projects(
@@ -128,37 +140,39 @@ class ProjectRepository(IProjectRepository):
         # SQLite parameter limit: 999, UUID ~40 chars, keep query under 100KB
         MAX_IN_CLAUSE = 500
 
-        if not shared_project_ids:
-            models = query.filter(ProjectModel.user_id == user_email).all()
-        elif len(shared_project_ids) <= MAX_IN_CLAUSE:
-            # Single query for normal case
-            models = query.filter(
-                or_(
-                    ProjectModel.user_id == user_email,
-                    ProjectModel.id.in_(shared_project_ids)
-                )
-            ).all()
-        else:
-            # Batch for large share lists
-            all_models = []
+        with MonitorLatency(DBMonitor.query("projects")):
+            if not shared_project_ids:
+                models = query.filter(ProjectModel.user_id == user_email).all()
+            elif len(shared_project_ids) <= MAX_IN_CLAUSE:
+                # Single query for normal case
+                models = query.filter(
+                    or_(
+                        ProjectModel.user_id == user_email,
+                        ProjectModel.id.in_(shared_project_ids)
+                    )
+                ).all()
+            else:
+                # Batch for large share lists
+                all_models = []
 
-            owned_models = query.filter(ProjectModel.user_id == user_email).all()
-            all_models.extend(owned_models)
+                owned_models = query.filter(ProjectModel.user_id == user_email).all()
+                all_models.extend(owned_models)
 
-            for i in range(0, len(shared_project_ids), MAX_IN_CLAUSE):
-                batch = shared_project_ids[i:i + MAX_IN_CLAUSE]
-                shared_models = query.filter(ProjectModel.id.in_(batch)).all()
-                all_models.extend(shared_models)
+                for i in range(0, len(shared_project_ids), MAX_IN_CLAUSE):
+                    batch = shared_project_ids[i:i + MAX_IN_CLAUSE]
+                    shared_models = query.filter(ProjectModel.id.in_(batch)).all()
+                    all_models.extend(shared_models)
 
-            seen = set()
-            models = []
-            for model in all_models:
-                if model.id not in seen:
-                    seen.add(model.id)
-                    models.append(model)
+                seen = set()
+                models = []
+                for model in all_models:
+                    if model.id not in seen:
+                        seen.add(model.id)
+                        models.append(model)
 
         return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
+    @MonitorLatency(DBMonitor.query("projects"))
     def get_all_projects(self, pinned_project_ids: Optional[set[str]] = None) -> List[Project]:
         """
         Get all projects.
@@ -185,9 +199,12 @@ class ProjectRepository(IProjectRepository):
         if project_filter.user_id is not None:
             query = query.filter(ProjectModel.user_id == project_filter.user_id)
 
-        models = query.all()
+        with MonitorLatency(DBMonitor.query("projects")):
+            models = query.all()
+
         return [self._model_to_entity(model, pinned_project_ids) for model in models]
 
+    @MonitorLatency(DBMonitor.query("projects"))
     def get_by_id(self, project_id: str) -> Optional[Project]:
         """
         Get a project by its ID.
@@ -196,22 +213,26 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.id == project_id,
             ProjectModel.deleted_at.is_(None)  # Exclude soft-deleted projects
         ).first()
+
         return self._model_to_entity(model) if model else None
 
     def get_by_id_for_user(self, project_id: str, user_id: str) -> Optional[Project]:
         """
         Get a project by its ID and resolve the per-user pin state.
         """
-        model = self.db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.deleted_at.is_(None),
-        ).first()
+        with MonitorLatency(DBMonitor.query("projects")):
+            model = self.db.query(ProjectModel).filter(
+                ProjectModel.id == project_id,
+                ProjectModel.deleted_at.is_(None),
+            ).first()
+
         if not model:
             return None
         is_pinned = self.is_pinned_by_user(project_id, user_id)
         pinned_ids = {project_id} if is_pinned else set()
         return self._model_to_entity(model, pinned_ids)
 
+    @MonitorLatency(DBMonitor.update("projects"))
     def update(self, project_id: str, update_data: dict) -> Optional[Project]:
         """Update a project with the given data."""
         # First, find the project
@@ -232,6 +253,7 @@ class ProjectRepository(IProjectRepository):
         self.db.refresh(model)
         return self._model_to_entity(model)
 
+    @MonitorLatency(DBMonitor.delete("projects"))
     def delete(self, project_id: str) -> bool:
         """Delete a project by its ID (hard delete). Also removes all per-user pin records."""
         # Clean up pin records first to avoid orphaned rows
@@ -243,27 +265,33 @@ class ProjectRepository(IProjectRepository):
             ProjectModel.id == project_id
         ).delete()
         self.db.flush()
+
         return result > 0
 
     def soft_delete(self, project_id: str, deleted_by_user_id: str) -> bool:
         """Soft delete a project by its ID. Also removes all per-user pin records."""
-        model = self.db.query(ProjectModel).filter(
-            ProjectModel.id == project_id,
-            ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
-        ).first()
+        with MonitorLatency(DBMonitor.query("projects")):
+            model = self.db.query(ProjectModel).filter(
+                ProjectModel.id == project_id,
+                ProjectModel.deleted_at.is_(None)  # Only delete if not already deleted
+            ).first()
 
-        if not model:
-            return False
+            if not model:
+                return False
 
-        # Clean up pin records — deleted projects should not appear pinned for anyone
-        self.db.query(ProjectUserPinModel).filter(
-            ProjectUserPinModel.project_id == project_id
-        ).delete(synchronize_session=False)
+        with MonitorLatency(DBMonitor.delete("projects")):
+            # Clean up pin records — deleted projects should not appear pinned for anyone
+            self.db.query(ProjectUserPinModel).filter(
+                ProjectUserPinModel.project_id == project_id
+            ).delete(synchronize_session=False)
 
         model.deleted_at = now_epoch_ms()
         model.deleted_by = deleted_by_user_id
         model.updated_at = now_epoch_ms()
-        self.db.flush()
+
+        with MonitorLatency(DBMonitor.update("projects")):
+            self.db.flush()
+
         return True
 
     def _model_to_entity(

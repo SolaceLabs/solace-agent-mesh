@@ -83,7 +83,10 @@ describe("useSortableTable", () => {
         const { result, rerender } = renderHook(() => useSortableTable(data, ["name", "score"]));
         expect(result.current.sortedData[0].name).toBe("zara");
 
-        data = [{ name: "anna", score: 2 }, { name: "zara", score: 1 }];
+        data = [
+            { name: "anna", score: 2 },
+            { name: "zara", score: 1 },
+        ];
         rerender();
         expect(result.current.sortedData[0].name).toBe("anna");
     });
