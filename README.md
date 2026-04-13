@@ -222,3 +222,24 @@ pytest
 <h3 align="center">
   <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
+
+
+---
+
+## Developing Locally
+
+Follow these steps to run the project locally:
+
+1. Clone the repository:
+   git clone https://github.com/SolaceLabs/solace-agent-mesh.git
+   cd solace-agent-mesh
+
+2. Create a virtual environment:
+   python -m venv venv
+   source venv/bin/activate   # Windows: venv\Scripts\activate
+
+3. Install dependencies:
+   pip install -r requirements.txt
+
+4. Run the project:
+   python main.py
