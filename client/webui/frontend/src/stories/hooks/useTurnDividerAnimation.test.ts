@@ -142,9 +142,9 @@ describe("useTurnDividerAnimation — hook", () => {
             },
         });
 
-        // Initially waiting — messages shown at bottom before exit starts
+        // Initially waiting — old-old messages stay collapsed, previous turn in transition wrapper
         expect(result.current.hasDivider).toBe(true);
-        expect(result.current.isHistoryCollapsed).toBe(false);
+        expect(result.current.isHistoryCollapsed).toBe(true);
 
         // Advance past the exit animation fallback timeout
         // Step 1: advance past the 600ms waiting delay → triggers DIVIDER_CHANGED
