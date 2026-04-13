@@ -18,6 +18,7 @@ permissions:
   issues: write         # required by sca-scan-and-guard for PR/issue comments
   checks: write
   statuses: write       # required by sca-scan-and-guard to update commit status
+  id-token: write     # required for authentication in reusable workflow
 
 jobs:
   fossa_scan:
