@@ -348,6 +348,10 @@ export const EditModelWithAdvancedParams: Story = {
         expect(newPairButton).not.toBeDisabled();
         await userEvent.click(newPairButton);
 
+        // Fill in the key but leave value empty to exercise validation error paths
+        const keyInput = await canvas.findByLabelText("Key 1");
+        await userEvent.type(keyInput, "my_param");
+
         // Click "Save" to trigger form submission which exercises the custom params validation
         const saveButton = await canvas.findByRole("button", { name: /Save/i });
         await userEvent.click(saveButton);
