@@ -9,7 +9,7 @@ Feature-gated behind the offline_evals flag.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 
 async def _resolve_model_override_in_metadata(

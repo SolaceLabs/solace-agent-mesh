@@ -640,6 +640,10 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 "%s Error during _pre_async_cleanup(): %s", self.log_identifier, e
             )
 
+        if self._dynamic_model_provider:
+            self._dynamic_model_provider.cleanup()
+            self._dynamic_model_provider = None
+
         if self._async_loop and self._async_loop.is_running():
             log.info("%s Requesting asyncio loop to stop...", self.log_identifier)
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)

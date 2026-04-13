@@ -1,7 +1,6 @@
 """Tests for DynamicModelProvider.resolve() — one-shot model alias resolution."""
 
 import asyncio
-import threading
 import pytest
 from unittest.mock import MagicMock, patch
 

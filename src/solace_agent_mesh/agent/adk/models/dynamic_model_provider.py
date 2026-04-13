@@ -91,10 +91,15 @@ class ModelConfigReceiverComponent(ComponentBase):
 
             model_config = payload.get("model_config")
 
-            # Extract model_id from topic: .../response/{model_id}/{component_id}
-            # or .../model/{model_id} for config updates
+            # Extract model_id from topic based on shape:
+            #   Bootstrap response: .../response/{model_id}/{component_id} → parts[-2]
+            #   Config update:      .../configuration/model/{model_id}    → parts[-1]
             parts = topic.split("/")
-            topic_model_id = parts[-2] if len(parts) >= 2 else None
+            is_bootstrap_response = len(parts) >= 3 and parts[-3] == "response"
+            if is_bootstrap_response:
+                topic_model_id = parts[-2]
+            else:
+                topic_model_id = parts[-1] if parts else None
 
             if topic_model_id == self.model_provider._model_id:
                 # Response for this provider's own model — existing behavior
