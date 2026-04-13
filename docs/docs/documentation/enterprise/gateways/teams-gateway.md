@@ -1,17 +1,21 @@
 ---
-title: Teams Gateway
+title: "Microsoft Teams Gateway Setup \u2014 Web Interface (SAM Cloud & SAM Kubernetes)"
 sidebar_position: 3
 ---
 
-# Microsoft Teams Gateway Integration Guide
+# Microsoft Teams Gateway Setup — Web Interface (SAM Cloud & SAM Kubernetes)
+
+:::info[Which guide is this?]
+This guide is for users deploying the Teams Gateway through the **Agent Mesh Enterprise web interface** (SAM Cloud or SAM Kubernetes). For Docker or wheel-based deployments without the web interface, see the [Manual Configuration guide](../../developing/tutorials/teams-integration.md).
+:::
 
 This guide explains how to configure the Microsoft Teams Gateway in Agent Mesh Enterprise. The guide covers both **Solace Agent Mesh (SAM) Cloud** and **SAM Kubernetes** environments.
 
 ## Overview
 
-The Teams Gateway connects your agents to Microsoft Teams, allowing users to interact with AI agents directly from Teams chats and channels. The gateway receives messages from Teams via an HTTPS webhook endpoint (`/api/messages`) and routes them to your agents.
+The Teams Gateway connects your agents to Microsoft Teams, allowing users to interact with AI agents directly from Teams chats and channels. The gateway receives messages from Teams via an HTTPS endpoint (`/api/messages`) and routes them to your agents.
 
-Teams requires the gateway's webhook endpoint to be **publicly accessible via HTTPS**. The setup differs depending on your deployment environment.
+Teams requires the gateway's endpoint to be **publicly accessible via HTTPS**. The setup differs depending on your deployment environment.
 
 ### Supported Features
 
@@ -24,9 +28,6 @@ Teams requires the gateway's webhook endpoint to be **publicly accessible via HT
 - **Typing indicator**: Shows a typing indicator while processing
 - **Session management**: Sessions reset automatically at midnight UTC daily
 
-:::info[Manual Deployment]
-For Docker or wheel-based deployments without the Agent Mesh Enterprise web interface, see the [Teams Integration Tutorial](../../developing/tutorials/teams-integration.md).
-:::
 
 ## Prerequisites
 
@@ -75,7 +76,7 @@ The Bot Service registers your bot with Microsoft Teams.
 3. Click **Review + create** > **Create**
 4. After the resource is created, go to the bot resource
 5. Navigate to **Configuration**
-   - **Messaging endpoint**: Leave blank for now. You will set the webhook URL in Step 6.
+   - **Messaging endpoint**: Leave blank for now. You will set the gateway endpoint in Step 6.
 6. Navigate to **Channels** > click the **Microsoft Teams** icon
 7. Ensure **Messaging** is enabled, leave **Calling** disabled
 8. Accept the terms of service and click **Apply**
@@ -177,7 +178,7 @@ In the Agent Mesh Enterprise web interface, create a new Teams Gateway and provi
 
 After saving, **deploy the gateway** from the Agent Mesh Enterprise web interface. SAM creates the gateway pod and networking resources only after you deploy the gateway.
 
-## Step 5: Obtain the Gateway Webhook URL
+## Step 5: Obtain the Gateway Endpoint
 
 This step differs based on your SAM environment.
 
@@ -187,22 +188,22 @@ This step differs based on your SAM environment.
 
 In SAM Cloud, the platform automatically provisions a public endpoint for your Teams gateway when you deploy it.
 
-1. After deploying the gateway in the Agent Mesh Enterprise web interface, the platform provides you with the **gateway webhook URL**
-2. Your webhook URL is:
+1. After deploying the gateway in the Agent Mesh Enterprise web interface, the platform provides you with the **gateway endpoint**
+2. Your gateway endpoint is:
 
    ```
    https://<provided-gateway-hostname>/api/messages
    ```
 
-3. Copy this webhook URL -- you will configure the URL in Azure Bot Service in Step 6
+3. Copy this URL -- you will configure the URL in Azure Bot Service in Step 6
 
-> **Note**: The webhook URL is publicly accessible via HTTPS. No additional networking setup is required.
+> **Note**: The gateway endpoint is publicly accessible via HTTPS. No additional networking setup is required.
 
 ---
 
 ### Option B: SAM Kubernetes
 
-In SAM Kubernetes, the platform creates a **ClusterIP Service** for the gateway. This service is accessible only within the Kubernetes cluster. You must expose the webhook URL to the public internet so that Microsoft Teams can reach the gateway.
+In SAM Kubernetes, the platform creates a **ClusterIP Service** for the gateway. This service is accessible only within the Kubernetes cluster. You must expose the gateway endpoint to the public internet so that Microsoft Teams can reach the gateway.
 
 #### What SAM Creates
 
@@ -331,9 +332,9 @@ Create a new LoadBalancer Service that forwards traffic to the gateway pod. Conf
 
 Place the gateway behind an existing reverse proxy (e.g., NGINX, Envoy) that handles TLS and forwards traffic to the ClusterIP service.
 
-#### Your Webhook URL
+#### Your Gateway Endpoint
 
-Once exposed, your webhook URL will be:
+Once exposed, your gateway endpoint will be:
 
 ```
 https://<your-gateway-hostname>/api/messages
@@ -345,12 +346,12 @@ To verify your setup, open `https://<your-gateway-hostname>/health` in a browser
 
 ---
 
-## Step 6: Configure the Webhook URL in Azure Bot Service
+## Step 6: Configure the Gateway Endpoint in Azure Bot Service
 
 1. Go to the [Azure Portal](https://portal.azure.com)
 2. Navigate to your **Azure Bot** resource
 3. Go to **Configuration**
-4. Set the **Messaging endpoint** to your webhook URL:
+4. Set the **Messaging endpoint** to your gateway endpoint:
    - SAM Cloud: `https://<provided-gateway-hostname>/api/messages`
    - SAM Kubernetes: `https://<your-gateway-hostname>/api/messages`
 5. Click **Apply**
@@ -378,7 +379,7 @@ After completing all steps, verify the setup:
 - Ensure the **Microsoft App Password** (client secret) has not expired in Azure -- regenerate in **App registrations** > **Certificates & secrets** if needed
 - Verify the **Tenant ID** is set correctly in both Agent Mesh and Azure
 
-### Webhook URL requirements
+### Gateway endpoint requirements
 
 - Must use **HTTPS** (not HTTP)
 - Must be **publicly accessible** from the internet
