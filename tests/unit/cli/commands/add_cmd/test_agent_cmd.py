@@ -61,7 +61,6 @@ def mock_template(mocker):
 namespace: __NAMESPACE__
 agent_name: __AGENT_NAME__
 supports_streaming: __SUPPORTS_STREAMING__
-model: __MODEL_ALIAS__
 instruction: |
 __INSTRUCTION__
 tools: __TOOLS_CONFIG__
@@ -122,7 +121,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -168,7 +166,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "session_service_behavior": "PERSISTENT",
@@ -210,7 +207,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": "filesystem",
@@ -253,7 +249,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": "s3",
@@ -310,7 +305,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -362,7 +356,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -407,7 +400,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -449,7 +441,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -503,95 +494,6 @@ class TestWriteAgentYamlFromData:
         finally:
             os.chdir(original_cwd)
 
-    def test_no_models_section_strips_model_line(self, project_dir, mock_template):
-        """Test that model anchor is stripped when shared_config has no models section"""
-        config_options = {
-            "namespace": "test/namespace",
-            "supports_streaming": True,
-            "model_type": "general",
-            "instruction": "Test instruction",
-            "session_service_type": "sql",
-            "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
-            "artifact_handling_mode": "embed",
-            "enable_embed_resolution": True,
-            "enable_artifact_content_instruction": True,
-            "agent_card_description": "Test description",
-            "agent_card_default_input_modes": ["text"],
-            "agent_card_default_output_modes": ["text"],
-            "agent_card_publishing_interval": 60,
-            "agent_discovery_enabled": True,
-            "inter_agent_communication_allow_list": ["*"],
-            "inter_agent_communication_deny_list": [],
-            "inter_agent_communication_timeout": 30,
-            "tools": [],
-        }
-
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-
-        try:
-            # Create shared_config WITHOUT a models section
-            shared_config_dir = project_dir / "configs"
-            shared_config_dir.mkdir(parents=True, exist_ok=True)
-            (shared_config_dir / "shared_config.yaml").write_text(
-                "  - artifact_service:\n    type: filesystem\n"
-            )
-
-            success, message, file_path = _write_agent_yaml_from_data(
-                "TestAgent", config_options, project_dir
-            )
-
-            assert success is True
-            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
-            content = agent_file.read_text()
-            assert "*general_model" not in content
-        finally:
-            os.chdir(original_cwd)
-
-    def test_with_models_section_keeps_model_line(self, project_dir, mock_template):
-        """Test that model anchor is retained when shared_config has a models section"""
-        config_options = {
-            "namespace": "test/namespace",
-            "supports_streaming": True,
-            "model_type": "general",
-            "instruction": "Test instruction",
-            "session_service_type": "sql",
-            "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
-            "artifact_handling_mode": "embed",
-            "enable_embed_resolution": True,
-            "enable_artifact_content_instruction": True,
-            "agent_card_description": "Test description",
-            "agent_card_default_input_modes": ["text"],
-            "agent_card_default_output_modes": ["text"],
-            "agent_card_publishing_interval": 60,
-            "agent_discovery_enabled": True,
-            "inter_agent_communication_allow_list": ["*"],
-            "inter_agent_communication_deny_list": [],
-            "inter_agent_communication_timeout": 30,
-            "tools": [],
-        }
-
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-
-        try:
-            # Create shared_config WITH a models section
-            shared_config_dir = project_dir / "configs"
-            shared_config_dir.mkdir(parents=True, exist_ok=True)
-            (shared_config_dir / "shared_config.yaml").write_text(
-                "  - models:\n    general: &general_model\n      model: openai/gpt-4\n"
-            )
-
-            success, message, file_path = _write_agent_yaml_from_data(
-                "TestAgent", config_options, project_dir
-            )
-
-            assert success is True
-            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
-            content = agent_file.read_text()
-            assert "*general_model" in content
-        finally:
-            os.chdir(original_cwd)
 
 
 class TestCreateAgentConfig:
@@ -605,8 +507,7 @@ class TestCreateAgentConfig:
         try:
             cli_options = {
                 "namespace": "test/namespace",
-                "model_type": "general",
-            }
+                }
             
             result = create_agent_config("TestAgent", cli_options, skip_interactive=True)
             
@@ -682,27 +583,6 @@ class TestAddAgentCommand:
             agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
             content = agent_file.read_text()
             assert "custom/namespace" in content
-        finally:
-            os.chdir(original_cwd)
-    
-    def test_add_agent_with_model_type_option(self, runner, project_dir, mock_template, mocker):
-        """Test add agent with --model-type option"""
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-        
-        try:
-            result = runner.invoke(add_agent, [
-                "TestAgent",
-                "--skip",
-                "--model-type", "planning"
-            ])
-            
-            assert result.exit_code == 0
-            
-            # Verify model type in file
-            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
-            content = agent_file.read_text()
-            assert "planning" in content
         finally:
             os.chdir(original_cwd)
     
@@ -871,25 +751,6 @@ class TestAddAgentCommand:
             result = runner.invoke(add_agent, ["TestAgent", "--skip"])
             
             assert result.exit_code == 1
-        finally:
-            os.chdir(original_cwd)
-    
-    def test_add_agent_with_all_model_types(self, runner, project_dir, mock_template, mocker):
-        """Test add agent with all available model types"""
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-        
-        model_types = ["planning", "general", "image_gen", "report_gen", "multimodal", "gemini_pro"]
-        
-        try:
-            for model_type in model_types:
-                result = runner.invoke(add_agent, [
-                    f"Agent{model_type.title()}",
-                    "--skip",
-                    "--model-type", model_type
-                ])
-                
-                assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
     

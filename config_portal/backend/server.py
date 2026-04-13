@@ -70,22 +70,6 @@ def get_agent_field_definitions():
     )
     fields.append(
         {
-            "name": "model_type",
-            "label": "Model Type",
-            "type": "select",
-            "options": [
-                "planning",
-                "general",
-                "image_gen",
-                "report_gen",
-                "multimodal",
-                "gemini_pro",
-            ],
-            "default": AGENT_DEFAULTS["model_type"],
-        }
-    )
-    fields.append(
-        {
             "name": "instruction",
             "label": "Instruction",
             "type": "textarea",

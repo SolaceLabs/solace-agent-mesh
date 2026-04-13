@@ -1,5 +1,4 @@
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -212,7 +211,6 @@ def _write_agent_yaml_from_data(
                     "supports_streaming", AGENT_DEFAULTS["supports_streaming"]
                 )
             ).lower(),
-            "__MODEL_ALIAS__": f"*{config_options.get('model_type', AGENT_DEFAULTS['model_type'])}_model",
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
@@ -300,22 +298,6 @@ def _write_agent_yaml_from_data(
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
 
-        # If shared_config has no models section, strip the model anchor line
-        shared_config_path = project_root / "configs" / "shared_config.yaml"
-        has_models_section = False
-        if shared_config_path.is_file():
-            try:
-                shared_content = shared_config_path.read_text(encoding="utf-8")
-                has_models_section = bool(re.search(r"^\s*- models:", shared_content, re.MULTILINE))
-            except OSError:
-                pass
-        if not has_models_section:
-            modified_content = re.sub(
-                r"^\s*model: \*\w+_model\n",
-                "",
-                modified_content,
-                flags=re.MULTILINE,
-            )
 
         if config_options.get(DATABASE_URL_KEY):
             env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
@@ -380,21 +362,6 @@ def create_agent_config(
         AGENT_DEFAULTS["supports_streaming"],
         skip_interactive,
         is_bool=True,
-    )
-    collected_options["model_type"] = ask_if_not_provided(
-        collected_options,
-        "model_type",
-        "Enter model type",
-        AGENT_DEFAULTS["model_type"],
-        skip_interactive,
-        choices=[
-            "planning",
-            "general",
-            "image_gen",
-            "report_gen",
-            "multimodal",
-            "gemini_pro",
-        ],
     )
     default_instruction = AGENT_DEFAULTS["instruction"].replace(
         "__AGENT_NAME__", agent_name_camel_case
@@ -618,13 +585,6 @@ def create_agent_config(
 )
 @click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
-@click.option(
-    "--model-type",
-    type=click.Choice(
-        ["planning", "general", "image_gen", "report_gen", "multimodal", "gemini_pro"]
-    ),
-    help="Model type for the agent.",
-)
 @click.option("--instruction", help="Custom instruction for the agent.")
 @click.option(
     "--session-service-type",

@@ -2,17 +2,7 @@ import React from "react";
 import { StepProps } from "../../AddAgentFlow";
 import FormField from "../../ui/FormField";
 import Input from "../../ui/Input";
-import Select from "../../ui/Select";
 import Checkbox from "../../ui/Checkbox";
-
-const modelTypeOptions = [
-  { value: "planning", label: "Planning Model (*planning_model)" },
-  { value: "general", label: "General Model (*general_model)" },
-  { value: "image_gen", label: "Image Generation Model (*image_gen_model)" },
-  { value: "report_gen", label: "Report Generation Model (*report_gen_model)" },
-  { value: "multimodal", label: "Multimodal Model (*multimodal_model)" },
-  { value: "gemini_pro", label: "Gemini Pro Model (*gemini_pro_model)" },
-];
 
 const AgentBasicInfoStep: React.FC<StepProps> = ({
   data,
@@ -93,15 +83,12 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
         />
       </FormField>
 
-      <FormField label="Model Type" htmlFor="model_type" required>
-        <Select
-          id="model_type"
-          name="model_type"
-          value={data.model_type || "planning"}
-          onChange={handleChange}
-          options={modelTypeOptions}
-        />
-      </FormField>
+      <div className="rounded-md bg-blue-50 border border-blue-200 p-3">
+        <p className="text-sm text-blue-700">
+          This agent will default to using the <strong>general</strong> model.
+          You can change this in the agent configuration file after creation.
+        </p>
+      </div>
 
       <FormField
         label="Instruction"

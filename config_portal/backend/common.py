@@ -30,7 +30,6 @@ DEFAULT_COMMUNICATION_TIMEOUT = 600
 
 AGENT_DEFAULTS = {
     "supports_streaming": True,
-    "model_type": "general",
     "instruction": "You are a helpful AI assistant named __AGENT_NAME__.",
     "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,

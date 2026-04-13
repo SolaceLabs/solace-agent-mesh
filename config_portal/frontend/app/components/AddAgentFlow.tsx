@@ -17,7 +17,6 @@ export interface AgentFormData {
   agent_name?: string;
   namespace?: string;
   supports_streaming?: boolean;
-  model_type?: string;
   instruction?: string;
 
   session_service_type?: string;
