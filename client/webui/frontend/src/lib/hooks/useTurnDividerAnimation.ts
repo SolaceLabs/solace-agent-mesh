@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "react";
 
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
@@ -212,21 +212,34 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
     }, [isHistoryRevealed, chatMessageListRef]);
 
     // Scroll to the new turn anchor after a session switch.
-    // Uses useEffect (not useLayoutEffect) so it fires after the loading spinner
-    // is removed and the ChatMessageList is actually in the DOM.
-    useEffect(() => {
+    // Runs on every render (no deps) to catch the moment the anchor appears in the DOM.
+    const scrollToAnchor = useCallback(() => {
+        const container = chatMessageListRef.current?.scrollContainer;
+        const anchor = newTurnAnchorRef.current;
+        if (container && anchor) {
+            const prev = container.style.scrollBehavior;
+            container.style.scrollBehavior = "auto";
+            anchor.scrollIntoView({ block: "start" });
+            container.style.scrollBehavior = prev;
+        }
+    }, [chatMessageListRef]);
+
+    useLayoutEffect(() => {
         if (needsScrollRef.current && isHistoryCollapsed && newTurnAnchorRef.current) {
             needsScrollRef.current = false;
+            // Position before paint
             chatMessageListRef.current?.pauseAutoScroll();
-            const container = chatMessageListRef.current?.scrollContainer;
-            const anchor = newTurnAnchorRef.current;
-            if (container && anchor) {
-                const prev = container.style.scrollBehavior;
-                container.style.scrollBehavior = "auto";
-                anchor.scrollIntoView({ block: "start" });
-                container.style.scrollBehavior = prev;
-            }
-            chatMessageListRef.current?.pauseAutoScroll();
+            scrollToAnchor();
+            // Re-position after auto-scroll effects fire (they run after layout effects)
+            // Use escalating delays to catch ResizeObserver and content effects
+            requestAnimationFrame(() => {
+                chatMessageListRef.current?.pauseAutoScroll();
+                scrollToAnchor();
+                requestAnimationFrame(() => {
+                    chatMessageListRef.current?.pauseAutoScroll();
+                    scrollToAnchor();
+                });
+            });
         }
     });
 
