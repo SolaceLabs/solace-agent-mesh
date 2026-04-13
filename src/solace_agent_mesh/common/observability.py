@@ -6,8 +6,11 @@ These extend solace_ai_connector's OperationMonitor with constrained APIs
 to prevent accidental metric explosion.
 """
 
-from solace_ai_connector.common.observability.monitors.operation import OperationMonitor
 from solace_ai_connector.common.observability.monitors.base import MonitorInstance
+from solace_ai_connector.common.observability.monitors.operation import OperationMonitor
+from solace_ai_connector.common.observability.monitors.remote import (
+    RemoteRequestMonitor,
+)
 
 
 class AgentMonitor(OperationMonitor):
@@ -81,4 +84,36 @@ class ToolMonitor(OperationMonitor):
             component_type="tool",
             component_name=name,
             operation="execute"
+        )
+
+
+class McpRemoteMonitor(RemoteRequestMonitor):
+    """Monitor for outbound MCP server calls.
+
+    Maps to: outbound.request.duration histogram
+    Labels: service.peer.name="mcp_server", operation.name, error.type
+    """
+
+    @staticmethod
+    def parse_error(exc: Exception) -> str:
+        """Map MCP/httpx-specific exceptions to error categories."""
+        try:
+            import httpx
+
+            if isinstance(exc, httpx.TimeoutException):
+                return "timeout"
+        except ImportError:
+            pass
+        return RemoteRequestMonitor.parse_error(exc)
+
+    @classmethod
+    def call_tool(cls) -> MonitorInstance:
+        """Create monitor instance for MCP tool call execution."""
+        return MonitorInstance(
+            monitor_type=cls.monitor_type,
+            labels={
+                "service.peer.name": "mcp_server",
+                "operation.name": "call_tool",
+            },
+            error_parser=cls.parse_error,
         )
