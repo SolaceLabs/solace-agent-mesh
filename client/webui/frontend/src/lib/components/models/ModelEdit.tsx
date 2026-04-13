@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/lib/components/ui";
 import { ChevronRight, Plus } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
@@ -11,7 +11,6 @@ import { PasswordInput } from "@/lib/components/common";
 import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
-import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
 import { DEFAULT_MODEL_ALIASES } from "./common";
 import { useDebounce } from "@/lib/hooks";
