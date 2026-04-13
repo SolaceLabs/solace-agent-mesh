@@ -15,17 +15,18 @@ class TestCreateEnvFile:
         mock_ask.return_value = "test_value"
         
         options = {
+            "llm_provider": "openai",
             "llm_service_endpoint": "https://api.test.com",
             "llm_service_api_key": "test-key",
             "namespace": "test_namespace",
             "broker_url": "ws://localhost:8008",
         }
-        
+
         result = create_env_file(temp_project_dir, options, skip_interactive=True)
-        
+
         assert result is True
         assert (temp_project_dir / ".env").exists()
-        
+
         env_content = (temp_project_dir / ".env").read_text()
         assert "LLM_SERVICE_ENDPOINT" in env_content
         assert "https://api.test.com" in env_content
@@ -68,8 +69,9 @@ class TestCreateEnvFile:
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.env_step.ask_if_not_provided")
         mock_ask.return_value = "test"
-        
+
         options = {
+            "llm_provider": "openai",
             "llm_service_endpoint": "https://api.test.com",
             "llm_service_api_key": "api-key",
             "llm_service_planning_model_name": "gpt-4",
@@ -128,8 +130,9 @@ class TestCreateEnvFile:
         """Test that skip interactive mode uses provided values"""
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.env_step.ask_if_not_provided")
-        
+
         options = {
+            "llm_provider": "openai",
             "llm_service_endpoint": "https://provided.com",
             "llm_service_api_key": "provided-key",
             "namespace": "provided/",
@@ -159,14 +162,15 @@ class TestCreateEnvFile:
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.env_step.ask_if_not_provided")
         mock_ask.return_value = None
-        
+
         options = {
+            "llm_provider": "openai",
             "llm_service_endpoint": "https://api.test.com",
             "llm_service_api_key": None,
         }
-        
+
         create_env_file(temp_project_dir, options, skip_interactive=True)
-        
+
         env_content = (temp_project_dir / ".env").read_text()
         assert "LLM_SERVICE_ENDPOINT" in env_content
         # None values should not appear
@@ -198,11 +202,60 @@ class TestCreateEnvFile:
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.env_step.ask_if_not_provided")
         mock_ask.return_value = "test"
-        
+
         options = {"llm_service_endpoint": "https://api.test.com"}
-        
+
         create_env_file(temp_project_dir, options, skip_interactive=True)
-        
+
         echo_calls = [str(call) for call in mock_echo.call_args_list]
         assert any("Configuring .env file" in call for call in echo_calls)
         assert any("Created" in call or ".env" in call for call in echo_calls)
+
+    def test_no_provider_skips_llm_env_vars(self, temp_project_dir, mocker):
+        """Test that LLM env vars are not written when no provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.env_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = {"llm_provider": "", "namespace": "test/"}
+
+        result = create_env_file(temp_project_dir, options, skip_interactive=True)
+
+        assert result is True
+        env_content = (temp_project_dir / ".env").read_text()
+        assert "LLM_SERVICE_ENDPOINT" not in env_content
+        assert "LLM_SERVICE_API_KEY" not in env_content
+        assert "LLM_SERVICE_PLANNING_MODEL_NAME" not in env_content
+        assert "LLM_SERVICE_GENERAL_MODEL_NAME" not in env_content
+        assert "BEDROCK_MODEL_NAME" not in env_content
+        # Common env vars should still be present
+        assert "NAMESPACE" in env_content
+
+    def test_with_provider_includes_llm_env_vars(self, temp_project_dir, mocker):
+        """Test that LLM env vars are written when a provider is selected"""
+        mocker.patch("click.echo")
+
+        def ask_side_effect(opts, key, *args, **kwargs):
+            if key in opts:
+                return opts[key]
+            opts[key] = "test_value"
+            return "test_value"
+
+        mocker.patch(
+            "cli.commands.init_cmd.env_step.ask_if_not_provided",
+            side_effect=ask_side_effect,
+        )
+
+        options = {
+            "llm_provider": "openai",
+            "llm_service_endpoint": "https://api.openai.com/v1",
+            "llm_service_api_key": "sk-test",
+            "namespace": "test/",
+        }
+
+        result = create_env_file(temp_project_dir, options, skip_interactive=True)
+
+        assert result is True
+        env_content = (temp_project_dir / ".env").read_text()
+        assert "LLM_SERVICE_ENDPOINT" in env_content
+        assert "LLM_SERVICE_API_KEY" in env_content

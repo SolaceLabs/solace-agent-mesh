@@ -40,12 +40,17 @@ def project_dir(tmp_path):
     """Create a temporary project directory"""
     project_path = tmp_path / "test_project"
     project_path.mkdir()
-    
+
     # Create necessary directories
     (project_path / "configs" / "agents").mkdir(parents=True)
     (project_path / "data").mkdir()
     (project_path / ".env").write_text("")
-    
+
+    # Create a shared_config with models section so model anchors are preserved
+    (project_path / "configs" / "shared_config.yaml").write_text(
+        "  - models:\n    general: &general_model\n      model: openai/gpt-4\n"
+    )
+
     return project_path
 
 
@@ -482,19 +487,109 @@ class TestWriteAgentYamlFromData:
     def test_write_agent_yaml_error_handling(self, project_dir, mocker):
         """Test error handling in YAML writing"""
         mocker.patch("cli.commands.add_cmd.agent_cmd.load_template", side_effect=Exception("Template error"))
-        
+
         config_options = {}
-        
+
         original_cwd = Path.cwd()
         os.chdir(project_dir)
-        
+
         try:
             success, message, file_path = _write_agent_yaml_from_data(
                 "TestAgent", config_options, project_dir
             )
-            
+
             assert success is False
             assert "Error creating agent configuration" in message
+        finally:
+            os.chdir(original_cwd)
+
+    def test_no_models_section_strips_model_line(self, project_dir, mock_template):
+        """Test that model anchor is stripped when shared_config has no models section"""
+        config_options = {
+            "namespace": "test/namespace",
+            "supports_streaming": True,
+            "model_type": "general",
+            "instruction": "Test instruction",
+            "session_service_type": "sql",
+            "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
+            "artifact_handling_mode": "embed",
+            "enable_embed_resolution": True,
+            "enable_artifact_content_instruction": True,
+            "agent_card_description": "Test description",
+            "agent_card_default_input_modes": ["text"],
+            "agent_card_default_output_modes": ["text"],
+            "agent_card_publishing_interval": 60,
+            "agent_discovery_enabled": True,
+            "inter_agent_communication_allow_list": ["*"],
+            "inter_agent_communication_deny_list": [],
+            "inter_agent_communication_timeout": 30,
+            "tools": [],
+        }
+
+        original_cwd = Path.cwd()
+        os.chdir(project_dir)
+
+        try:
+            # Create shared_config WITHOUT a models section
+            shared_config_dir = project_dir / "configs"
+            shared_config_dir.mkdir(parents=True, exist_ok=True)
+            (shared_config_dir / "shared_config.yaml").write_text(
+                "  - artifact_service:\n    type: filesystem\n"
+            )
+
+            success, message, file_path = _write_agent_yaml_from_data(
+                "TestAgent", config_options, project_dir
+            )
+
+            assert success is True
+            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
+            content = agent_file.read_text()
+            assert "*general_model" not in content
+        finally:
+            os.chdir(original_cwd)
+
+    def test_with_models_section_keeps_model_line(self, project_dir, mock_template):
+        """Test that model anchor is retained when shared_config has a models section"""
+        config_options = {
+            "namespace": "test/namespace",
+            "supports_streaming": True,
+            "model_type": "general",
+            "instruction": "Test instruction",
+            "session_service_type": "sql",
+            "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
+            "artifact_handling_mode": "embed",
+            "enable_embed_resolution": True,
+            "enable_artifact_content_instruction": True,
+            "agent_card_description": "Test description",
+            "agent_card_default_input_modes": ["text"],
+            "agent_card_default_output_modes": ["text"],
+            "agent_card_publishing_interval": 60,
+            "agent_discovery_enabled": True,
+            "inter_agent_communication_allow_list": ["*"],
+            "inter_agent_communication_deny_list": [],
+            "inter_agent_communication_timeout": 30,
+            "tools": [],
+        }
+
+        original_cwd = Path.cwd()
+        os.chdir(project_dir)
+
+        try:
+            # Create shared_config WITH a models section
+            shared_config_dir = project_dir / "configs"
+            shared_config_dir.mkdir(parents=True, exist_ok=True)
+            (shared_config_dir / "shared_config.yaml").write_text(
+                "  - models:\n    general: &general_model\n      model: openai/gpt-4\n"
+            )
+
+            success, message, file_path = _write_agent_yaml_from_data(
+                "TestAgent", config_options, project_dir
+            )
+
+            assert success is True
+            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
+            content = agent_file.read_text()
+            assert "*general_model" in content
         finally:
             os.chdir(original_cwd)
 
