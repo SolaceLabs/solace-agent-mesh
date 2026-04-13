@@ -1140,30 +1140,44 @@ async def _handle_send_message_request(
             and model_override["model_id"]
         ):
             model_id = model_override["model_id"]
+            resolved = None
             if component._dynamic_model_provider:
                 resolved = await component._dynamic_model_provider.resolve(model_id)
-                if resolved:
-                    task_metadata["model_override"] = resolved
-                    log.info(
-                        "%s Resolved model override alias '%s' to model=%s",
-                        component.log_identifier,
-                        model_id,
-                        resolved.get("model"),
-                    )
-                else:
-                    log.warning(
-                        "%s Failed to resolve model override alias '%s', falling back to default",
-                        component.log_identifier,
-                        model_id,
-                    )
-                    task_metadata.pop("model_override", None)
-            else:
-                log.warning(
-                    "%s Model override alias '%s' provided but model config not available",
+            if resolved:
+                task_metadata["model_override"] = resolved
+                log.info(
+                    "%s Resolved model override alias '%s' to model=%s",
                     component.log_identifier,
                     model_id,
+                    resolved.get("model"),
                 )
-                task_metadata.pop("model_override", None)
+            else:
+                reason = (
+                    "model config not available"
+                    if not component._dynamic_model_provider
+                    else f"alias '{model_id}' not found or resolution timed out"
+                )
+                log.error(
+                    "%s Model override resolution failed: %s",
+                    component.log_identifier,
+                    reason,
+                )
+                error_response = a2a.create_invalid_request_error_response(
+                    message=f"Model override resolution failed: {reason}",
+                    request_id=jsonrpc_request_id,
+                )
+                target_topic = reply_topic_from_peer or (
+                    get_client_response_topic(namespace, client_id)
+                    if client_id
+                    else None
+                )
+                if target_topic:
+                    component.publish_a2a_message(
+                        error_response.model_dump(exclude_none=True),
+                        target_topic,
+                    )
+                message.call_negative_acknowledgements()
+                return None
         else:
             log.warning(
                 "%s Unrecognized model_override format, ignoring",

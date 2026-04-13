@@ -12,31 +12,38 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 
+_REQUEST_FAILED = object()
+
+
 async def _resolve_model_override_in_metadata(
     component, task_metadata, flag_enabled=True
 ):
-    """Mirror the model_override resolution logic from event_handlers.py."""
+    """Mirror the model_override resolution logic from event_handlers.py.
+
+    Returns _REQUEST_FAILED if resolution fails (request should be rejected).
+    Returns None on success or no-op.
+    """
     model_override = task_metadata.get("model_override")
     if model_override is not None:
         if not flag_enabled:
             task_metadata.pop("model_override", None)
-            return
+            return None
         if (
             isinstance(model_override, dict)
             and isinstance(model_override.get("model_id"), str)
             and model_override["model_id"]
         ):
             model_id = model_override["model_id"]
+            resolved = None
             if component._dynamic_model_provider:
                 resolved = await component._dynamic_model_provider.resolve(model_id)
-                if resolved:
-                    task_metadata["model_override"] = resolved
-                else:
-                    task_metadata.pop("model_override", None)
+            if resolved:
+                task_metadata["model_override"] = resolved
             else:
-                task_metadata.pop("model_override", None)
+                return _REQUEST_FAILED
         else:
             task_metadata.pop("model_override", None)
+    return None
 
 
 def _make_component(dmp=None):
@@ -62,24 +69,24 @@ class TestModelOverrideAliasResolution:
         assert metadata["model_override"] == {"model": "openai/gpt-4o", "api_key": "sk-test"}
 
     @pytest.mark.asyncio
-    async def test_failed_resolution_removes_override(self):
+    async def test_failed_resolution_rejects_request(self):
         dmp = AsyncMock()
         dmp.resolve.return_value = None
         component = _make_component(dmp)
         metadata = {"model_override": {"model_id": "unknown-alias"}}
 
-        await _resolve_model_override_in_metadata(component, metadata)
+        result = await _resolve_model_override_in_metadata(component, metadata)
 
-        assert "model_override" not in metadata
+        assert result is _REQUEST_FAILED
 
     @pytest.mark.asyncio
-    async def test_no_provider_removes_override(self):
+    async def test_no_provider_rejects_request(self):
         component = _make_component(dmp=None)
         metadata = {"model_override": {"model_id": "my-alias"}}
 
-        await _resolve_model_override_in_metadata(component, metadata)
+        result = await _resolve_model_override_in_metadata(component, metadata)
 
-        assert "model_override" not in metadata
+        assert result is _REQUEST_FAILED
 
     @pytest.mark.asyncio
     async def test_no_override_in_metadata_is_noop(self):

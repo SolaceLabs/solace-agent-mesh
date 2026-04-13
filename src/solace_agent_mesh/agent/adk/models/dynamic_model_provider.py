@@ -78,6 +78,14 @@ class ModelConfigReceiverComponent(ComponentBase):
         log.info("%s ModelConfigReceiverComponent initialized.", self.log_identifier)
 
     def invoke(self, message: SolaceMessage, data: Dict[str, Any]) -> None:
+        """Process an incoming model configuration message.
+
+        Routes by model_id extracted from the topic:
+        - If model_id matches this provider's configured model, updates
+          the LiteLlm instance (bootstrap response or config change).
+        - Otherwise, completes any pending one-shot resolve futures for
+          that model_id (per-request alias resolution).
+        """
         log_id_prefix = f"{self.log_identifier}[Invoke]"
         try:
             topic = data.get("topic", "")
@@ -102,7 +110,6 @@ class ModelConfigReceiverComponent(ComponentBase):
                 topic_model_id = parts[-1] if parts else None
 
             if topic_model_id == self.model_provider._model_id:
-                # Response for this provider's own model — existing behavior
                 if model_config:
                     log.info(
                         "%s Model config found, updating LiteLlm: %s",
