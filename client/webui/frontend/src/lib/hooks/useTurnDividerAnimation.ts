@@ -68,7 +68,9 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
         let dispatched = false;
         if (sessionId !== prevSessionIdRef.current) {
             prevSessionIdRef.current = sessionId;
-            lastDividerIndexRef.current = null;
+            // Preserve the divider ref if still active — avoids re-triggering
+            // the exit animation when sessionId first gets assigned (empty → real).
+            lastDividerIndexRef.current = hasDivider ? turnDividerIndex : null;
             dispatch({ type: "SESSION_CHANGED" });
             dispatched = true;
         }

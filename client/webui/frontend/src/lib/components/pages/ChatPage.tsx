@@ -623,7 +623,7 @@ export function ChatPage() {
                                                             {showCollabBannerInNewSection && (
                                                                 <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
                                                             )}
-                                                            <div className={cn(isNewTurnStart && !isExitingHistory && "animate-in fade-in duration-300", isNewTurnStart && isExitingHistory && "opacity-0")}>
+                                                            <div className={cn(isNewTurnStart && "transition-opacity duration-300", isNewTurnStart && isExitingHistory ? "opacity-0" : undefined)}>
                                                                 <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
                                                             </div>
                                                             {renderShareNotifications(index)}
