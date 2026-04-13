@@ -6,7 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -15,9 +15,16 @@ import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePan
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShareButton } from "@/lib/components/share/ShareButton";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
+
+// Style constants to avoid recreating objects on every render
+const COLLAPSED_STYLE = { height: 0, overflow: "hidden" } as const;
+const NO_OVERFLOW_ANCHOR_STYLE = { overflowAnchor: "none" } as const;
+const OVERFLOW_ANCHOR_AUTO_STYLE = { overflowAnchor: "auto" } as const;
+const SLIDE_OUT_STYLE = { animationDuration: "500ms" } as const;
 
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -70,6 +77,7 @@ export function ChatPage() {
         sessionOwnerEmail,
         handleSwitchSession,
         handleNewSession,
+        turnDividerIndex,
     } = useChatContext();
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
@@ -118,6 +126,18 @@ export function ChatPage() {
         }
     }, [sessionId, isForkingChat, handleSwitchSession, navigate]);
 
+    // Stable timestamp for the collaborative session banner — captured once
+    // when isCollaborativeSession transitions from false to true.
+    const collaborativeTimestampRef = useRef<number>(Date.now());
+    const prevIsCollaborativeRef = useRef(isCollaborativeSession);
+    useEffect(() => {
+        if (isCollaborativeSession && !prevIsCollaborativeRef.current) {
+            collaborativeTimestampRef.current = Date.now();
+        }
+        prevIsCollaborativeRef.current = isCollaborativeSession;
+    }, [isCollaborativeSession]);
+    const collaborativeTimestamp = collaborativeTimestampRef.current;
+
     // Refs for resizable panel state
     const chatMessageListRef = useRef<ChatMessageListRef>(null);
     const chatSidePanelRef = useRef<ImperativePanelHandle>(null);
@@ -127,6 +147,15 @@ export function ChatPage() {
     // We use a Map to track task ID -> session ID relationships, plus a version counter to trigger re-renders
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
+
+    const { hasDivider, isHistoryCollapsed, isExitingHistory, historyWrapperRef, newTurnAnchorRef } = useTurnDividerAnimation({
+        turnDividerIndex,
+        messagesLength: messages.length,
+        sessionId,
+        chatMessageListRef,
+    });
+    // Narrowed once after the hasDivider guard — avoids repeated `!` assertions in JSX
+    const dividerIdx = hasDivider && turnDividerIndex !== null ? turnDividerIndex : 0;
 
     // Fetch share link and users for current session via React Query (owner's view only)
     const shareLinkQuery = useShareLink(!isCollaborativeSession ? sessionId : "");
@@ -386,6 +415,27 @@ export function ChatPage() {
         });
     }, [shareNotifications, isCollaborativeSession, messages]);
 
+    const renderShareNotifications = useCallback(
+        (index: number) =>
+            shareNotificationInsertions
+                .filter(n => n.insertAfterIndex === index)
+                .map((notification, nIdx) =>
+                    notification.variant === "role-changed" ? (
+                        <ShareNotificationMessage
+                            key={`share-notif-${notification.timestamp}-${nIdx}`}
+                            variant="role-changed"
+                            sharedWith={notification.names}
+                            fromAccessLevel={notification.fromAccessLevel}
+                            toAccessLevel={notification.toAccessLevel}
+                            timestamp={notification.timestamp}
+                        />
+                    ) : (
+                        <ShareNotificationMessage key={`share-notif-${notification.timestamp}-${nIdx}`} variant="shared-with-users" sharedWith={notification.names} accessLevel={notification.accessLevel} timestamp={notification.timestamp} />
+                    )
+                ),
+        [shareNotificationInsertions]
+    );
+
     // --- LoadingMessageRow support (when inline-activity-timeline is disabled) ---
     const loadingMessage = useMemo(() => {
         if (inlineActivityTimelineEnabled) return undefined;
@@ -534,44 +584,49 @@ export function ChatPage() {
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                {/* Show share notification for editor at the start */}
-                                                {isCollaborativeSession && messages.length > 0 && (
-                                                    <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={Date.now()} />
+                                                {/* Old messages — slide out on new turn, collapsed after, expanded on scroll-up */}
+                                                {hasDivider && (
+                                                    <div
+                                                        ref={historyWrapperRef}
+                                                        className={isExitingHistory ? cn("animate-out slide-out-to-top fade-out fill-mode-forwards overflow-hidden") : undefined}
+                                                        style={isExitingHistory ? SLIDE_OUT_STYLE : isHistoryCollapsed ? COLLAPSED_STYLE : undefined}
+                                                    >
+                                                        {/* Show share notification for editor at the start */}
+                                                        {isCollaborativeSession && (
+                                                            <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
+                                                        )}
+                                                        {messages.slice(0, dividerIdx).map((message, index) => {
+                                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                            const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                            return (
+                                                                <div key={messageKey} style={NO_OVERFLOW_ANCHOR_STYLE}>
+                                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
+                                                                    {renderShareNotifications(index)}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 )}
-                                                {messages.map((message, index) => {
+                                                {/* New turn messages — anchored so browser preserves scroll position when history expands */}
+                                                {(hasDivider ? messages.slice(dividerIdx) : messages).map((message, i) => {
+                                                    const index = hasDivider ? i + dividerIdx : i;
                                                     const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
                                                     const messageKey = message.metadata?.messageId || `temp-${index}`;
                                                     const isLastMessage = index === messages.length - 1;
                                                     const shouldStream = isLastMessage && isResponding && !message.isUser;
+                                                    const isNewTurnStart = hasDivider && i === 0;
 
-                                                    // Check if any share notifications should appear AFTER this message
-                                                    const notificationsAfterThis = shareNotificationInsertions.filter(n => n.insertAfterIndex === index);
+                                                    const showCollabBannerInNewSection = isCollaborativeSession && i === 0 && (!hasDivider || isHistoryCollapsed || isExitingHistory);
 
                                                     return (
-                                                        <div key={messageKey}>
-                                                            {/* ChatMessage handles collaborative attribution internally */}
-                                                            <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
-                                                            {/* Render share notifications that belong after this message */}
-                                                            {notificationsAfterThis.map((notification, nIdx) =>
-                                                                notification.variant === "role-changed" ? (
-                                                                    <ShareNotificationMessage
-                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
-                                                                        variant="role-changed"
-                                                                        sharedWith={notification.names}
-                                                                        fromAccessLevel={notification.fromAccessLevel}
-                                                                        toAccessLevel={notification.toAccessLevel}
-                                                                        timestamp={notification.timestamp}
-                                                                    />
-                                                                ) : (
-                                                                    <ShareNotificationMessage
-                                                                        key={`share-notif-${notification.timestamp}-${nIdx}`}
-                                                                        variant="shared-with-users"
-                                                                        sharedWith={notification.names}
-                                                                        accessLevel={notification.accessLevel}
-                                                                        timestamp={notification.timestamp}
-                                                                    />
-                                                                )
+                                                        <div key={messageKey} ref={isNewTurnStart ? newTurnAnchorRef : undefined} style={isNewTurnStart ? OVERFLOW_ANCHOR_AUTO_STYLE : undefined}>
+                                                            {showCollabBannerInNewSection && (
+                                                                <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
                                                             )}
+                                                            <div className={cn(isNewTurnStart && !isExitingHistory && "animate-in fade-in duration-300", isNewTurnStart && isExitingHistory && "opacity-0")}>
+                                                                <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                            </div>
+                                                            {renderShareNotifications(index)}
                                                         </div>
                                                     );
                                                 })}

@@ -73,6 +73,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
     const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
     const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+    const [turnDividerIndex, setTurnDividerIndex] = useState<number | null>(null);
 
     // ============ Hooks that depend on state ============
     const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
@@ -928,6 +929,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName("");
             setMessages([]);
+            setTurnDividerIndex(null);
             setIsResponding(false);
             setCurrentTaskId(null);
             setTaskIdInSidePanel(null);
@@ -1004,6 +1006,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (!hasRunningBackgroundTask && !hasAnyBackgroundTasks) {
                 setMessages([]);
             }
+            setTurnDividerIndex(null);
 
             closeCurrentEventSource();
 
@@ -1357,6 +1360,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
             latestStatusText.current = "Thinking";
+            // Set turn divider so ChatPage can visually separate this turn from history
+            if (messagesRef.current.length > 0) {
+                setTurnDividerIndex(messagesRef.current.length);
+            }
             setMessages(prev => [...prev, userMsg]);
 
             try {
@@ -2034,6 +2041,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTaskRunningInBackground,
 
         hasModelConfigWrite: !configUseAuthorization,
+        turnDividerIndex,
     };
 
     // Handlers for the running task warning dialog

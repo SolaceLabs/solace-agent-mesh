@@ -10,11 +10,13 @@ interface ChatMessageListProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export interface ChatMessageListRef {
     scrollToBottom: () => void;
+    scrollContainer: HTMLDivElement | null;
+    pauseAutoScroll: () => Promise<void>;
 }
 
 const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProps>(({ className = "", children, ...props }, ref) => {
     const contentRef = React.useRef<HTMLDivElement>(null);
-    const { scrollRef, isAtBottom, disableAutoScroll, scrollToBottom, userHasScrolled } = useAutoScroll({
+    const { scrollRef, isAtBottom, disableAutoScroll, scrollToBottom, pauseAutoScroll, userHasScrolled } = useAutoScroll({
         smooth: true,
         content: children,
         contentRef,
@@ -22,6 +24,10 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
 
     useImperativeHandle(ref, () => ({
         scrollToBottom,
+        pauseAutoScroll,
+        get scrollContainer() {
+            return scrollRef.current;
+        },
     }));
 
     return (
@@ -36,7 +42,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListRef, ChatMessageListProp
                     scrollBehavior: "smooth",
                 }}
             >
-                <div className="flex flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
+                <div className="flex min-h-full flex-col gap-8" style={CHAT_STYLES} ref={contentRef}>
                     {children}
                 </div>
             </div>
