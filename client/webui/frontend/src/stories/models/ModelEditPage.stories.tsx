@@ -61,13 +61,15 @@ const editModelHandlers = [
             ],
         });
     }),
-    http.put("*/api/v1/platform/models/:id", async ({ request }) => {
+    http.patch("*/api/v1/platform/models/:id", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
-            ...anthropicModelConfig,
-            ...body,
-            updatedBy: "test-user",
-            updatedTime: Date.now(),
+            data: {
+                ...anthropicModelConfig,
+                ...body,
+                updatedBy: "test-user",
+                updatedTime: Date.now(),
+            },
         });
     }),
 ];
@@ -439,6 +441,108 @@ export const TestConnectionFailure: Story = {
         // Verify error banner appears
         const banner = await canvas.findByText(/Authentication failed/i);
         expect(banner).toBeInTheDocument();
+    },
+};
+
+/**
+ * Story: Save triggers connection test — test passes, save succeeds
+ * Verifies the happy path: user clicks Save, test passes silently, model is saved
+ */
+export const SaveWithTestSuccess: Story = {
+    parameters: {
+        msw: { handlers: [testConnectionSuccessHandler, ...editModelHandlers] },
+        routerValues: {
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Wait for model to load
+        await canvas.findAllByText("Edit anthropic-model");
+
+        // Click Save — should test silently and save without showing a dialog
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
+
+        // Verify no dialog appeared (test passed and save proceeded directly)
+        const dialog = screen.queryByRole("dialog");
+        expect(dialog).toBeNull();
+    },
+};
+
+/**
+ * Story: Save triggers connection test — test fails, dialog appears
+ * Verifies the failure path: user clicks Save, test fails, confirmation dialog shows
+ */
+export const SaveWithTestFailure: Story = {
+    parameters: {
+        msw: { handlers: [...editModelHandlers, testConnectionFailureHandler] },
+        routerValues: {
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Wait for model to load
+        await canvas.findAllByText("Edit anthropic-model");
+
+        // Click Save
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
+
+        // Verify dialog appeared with the error message
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+        expect(await dialogContent.findByText("Save Model Configuration Failed")).toBeInTheDocument();
+        expect(await dialogContent.findByText(/Authentication failed/i)).toBeInTheDocument();
+
+        // Verify dialog has the expected buttons
+        expect(await dialogContent.findByRole("button", { name: /Go Back/i })).toBeInTheDocument();
+        expect(await dialogContent.findByRole("button", { name: /Save Anyway/i })).toBeInTheDocument();
+    },
+};
+
+/**
+ * Story: Save test fails, user clicks "Go Back" to return to form
+ * Verifies the dialog closes and the form is still accessible
+ */
+export const SaveWithTestFailureGoBack: Story = {
+    parameters: {
+        msw: { handlers: [...editModelHandlers, testConnectionFailureHandler] },
+        routerValues: {
+            initialPath: `/models/${anthropicModelConfig.id}/edit`,
+            routePath: "/models/:id/edit",
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Wait for model to load
+        await canvas.findAllByText("Edit anthropic-model");
+
+        // Click Save to trigger test failure dialog
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
+
+        // Wait for dialog
+        const dialog = await screen.findByRole("dialog");
+        const dialogContent = within(dialog);
+
+        // Click "Go Back"
+        const goBackButton = await dialogContent.findByRole("button", { name: /Go Back/i });
+        await userEvent.click(goBackButton);
+
+        // Verify dialog is closing (Radix keeps DOM element during animation)
+        expect(screen.queryByRole("dialog")).toHaveAttribute("data-state", "closed");
+
+        // Verify form is still accessible
+        const aliasInput = canvasElement.querySelector('input[name="alias"]') as HTMLInputElement;
+        expect(aliasInput).toBeTruthy();
+        expect(aliasInput.value).toBe("anthropic-model");
     },
 };
 

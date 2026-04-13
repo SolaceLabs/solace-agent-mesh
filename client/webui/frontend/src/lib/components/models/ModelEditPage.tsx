@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 
-import { Footer, PageContentWrapper, EmptyState, MessageBanner } from "@/lib/components/common";
+import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelById, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
+import { fetchModelById, createModelConfig, updateModelConfig, testModelConnection } from "@/lib/api/models/service";
 import { useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
 import type { ModelFormData } from "./modelProviderUtils";
@@ -23,6 +23,9 @@ export const ModelEditPage = () => {
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [showSaveFailedDialog, setShowSaveFailedDialog] = useState(false);
+    const [saveFailMessage, setSaveFailMessage] = useState("");
+    const pendingPayloadRef = useRef<ReturnType<typeof buildModelPayload> | null>(null);
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
@@ -49,28 +52,66 @@ export const ModelEditPage = () => {
     const { data: initialModels = [], isLoading: isFetchingModels } = useSupportedModels(!isNew && modelToEdit && modelToEdit.provider ? { provider: modelToEdit.provider, modelId: modelToEdit.id } : null);
     const modelsByProvider = modelToEdit?.provider ? { [modelToEdit.provider]: initialModels } : {};
 
+    const performSave = useCallback(
+        async (payload: ReturnType<typeof buildModelPayload>) => {
+            setIsLoading(true);
+            try {
+                let createdId: string | undefined;
+                if (isNew) {
+                    const result = await createModelConfig(payload);
+                    createdId = result.id;
+                } else {
+                    await updateModelConfig(modelToEdit!.id, payload);
+                }
+                navigate("/agents?tab=models", { state: { highlightModelId: createdId } });
+            } catch (error) {
+                setErrorMessage(getErrorMessage(error, "An unknown error occurred while saving the model."));
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [isNew, modelToEdit, navigate]
+    );
+
+    const handleSaveAnyway = useCallback(async () => {
+        setShowSaveFailedDialog(false);
+        await performSave(pendingPayloadRef.current!);
+    }, [performSave]);
+
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
         setIsLoading(true);
         setErrorMessage(null);
 
+        const payload = buildModelPayload(data, dirtyFields);
+        pendingPayloadRef.current = payload;
+
+        // Step 1: Test connection silently
+        const testPayload = {
+            provider: payload.provider,
+            modelName: payload.modelName,
+            apiBase: payload.apiBase || undefined,
+            authConfig: payload.authConfig,
+            modelParams: payload.modelParams,
+            ...(!isNew && modelToEdit?.id ? { modelId: modelToEdit.id } : {}),
+        };
+
+        let testPassed = false;
         try {
-            const payload = buildModelPayload(data, dirtyFields);
-
-            let createdId: string | undefined;
-            if (isNew) {
-                const result = await createModelConfig(payload);
-                createdId = result.id;
-            } else {
-                await updateModelConfig(modelToEdit!.id, payload);
-            }
-
-            navigate("/agents?tab=models", { state: { highlightModelId: createdId } });
+            const result = await testModelConnection(testPayload);
+            testPassed = result.success;
+            if (!testPassed) setSaveFailMessage(result.message);
         } catch (error) {
-            const message = error instanceof Error ? error.message : "An unknown error occurred while saving the model.";
-            setErrorMessage(message);
-        } finally {
-            setIsLoading(false);
+            setSaveFailMessage(getErrorMessage(error, "Connection test failed."));
         }
+
+        if (!testPassed) {
+            setShowSaveFailedDialog(true);
+            setIsLoading(false);
+            return;
+        }
+
+        // Step 2: Test passed — save directly
+        await performSave(payload);
     };
 
     const handleCancel = () => {
@@ -108,6 +149,21 @@ export const ModelEditPage = () => {
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
                 <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
+
+            <ConfirmationDialog
+                open={showSaveFailedDialog}
+                onOpenChange={setShowSaveFailedDialog}
+                title={isNew ? "Add Model Configuration Failed" : "Save Model Configuration Failed"}
+                content={
+                    <div className="space-y-3">
+                        <MessageBanner variant="error" message={saveFailMessage} />
+                        <p className="text-sm text-(--secondary-text-wMain)">Would you like to save anyway or go back to fix the issue?</p>
+                    </div>
+                }
+                actionLabels={{ cancel: "Go Back", confirm: "Save Anyway" }}
+                onConfirm={handleSaveAnyway}
+                isLoading={isLoading}
+            />
 
             <Footer>
                 <Button variant="ghost" title="Cancel" onClick={handleCancel} disabled={isLoading}>
