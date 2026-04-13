@@ -211,6 +211,9 @@ def _write_agent_yaml_from_data(
                     "supports_streaming", AGENT_DEFAULTS["supports_streaming"]
                 )
             ).lower(),
+            "__MODEL_PROVIDER__": config_options.get(
+                "model_provider", AGENT_DEFAULTS.get("model_provider", "general")
+            ),
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
@@ -362,6 +365,13 @@ def create_agent_config(
         AGENT_DEFAULTS["supports_streaming"],
         skip_interactive,
         is_bool=True,
+    )
+    collected_options["model_provider"] = ask_if_not_provided(
+        collected_options,
+        "model_provider",
+        "Enter model provider",
+        AGENT_DEFAULTS.get("model_provider", "general"),
+        skip_interactive,
     )
     default_instruction = AGENT_DEFAULTS["instruction"].replace(
         "__AGENT_NAME__", agent_name_camel_case
@@ -585,6 +595,7 @@ def create_agent_config(
 )
 @click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
+@click.option("--model-provider", help="Model provider alias (e.g., general, planning).", default=None)
 @click.option("--instruction", help="Custom instruction for the agent.")
 @click.option(
     "--session-service-type",

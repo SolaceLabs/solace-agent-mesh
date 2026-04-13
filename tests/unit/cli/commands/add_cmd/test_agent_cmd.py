@@ -61,6 +61,8 @@ def mock_template(mocker):
 namespace: __NAMESPACE__
 agent_name: __AGENT_NAME__
 supports_streaming: __SUPPORTS_STREAMING__
+model_provider:
+  - __MODEL_PROVIDER__
 instruction: |
 __INSTRUCTION__
 tools: __TOOLS_CONFIG__

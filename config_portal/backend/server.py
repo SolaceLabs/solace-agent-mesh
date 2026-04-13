@@ -70,6 +70,15 @@ def get_agent_field_definitions():
     )
     fields.append(
         {
+            "name": "model_provider",
+            "label": "Model Provider",
+            "type": "text",
+            "default": AGENT_DEFAULTS["model_provider"],
+            "description": "Model provider alias defined in shared_config.yaml (e.g., general, planning).",
+        }
+    )
+    fields.append(
+        {
             "name": "instruction",
             "label": "Instruction",
             "type": "textarea",

@@ -83,12 +83,19 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
         />
       </FormField>
 
-      <div className="rounded-md bg-blue-50 border border-blue-200 p-3">
-        <p className="text-sm text-blue-700">
-          This agent will default to using the <strong>general</strong> model.
-          You can change this in the agent configuration file after creation.
-        </p>
-      </div>
+      <FormField
+        label="Model Provider"
+        htmlFor="model_provider"
+        helpText="Model provider alias defined in shared_config.yaml (e.g., general, planning)."
+      >
+        <Input
+          id="model_provider"
+          name="model_provider"
+          value={data.model_provider !== undefined ? data.model_provider : "general"}
+          onChange={handleChange}
+          placeholder="general"
+        />
+      </FormField>
 
       <FormField
         label="Instruction"
