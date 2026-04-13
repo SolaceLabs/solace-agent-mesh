@@ -339,6 +339,18 @@ export const EditModelWithAdvancedParams: Story = {
         // Verify values are populated from model
         expect(temperatureInput.value).toBe("0.1");
         expect(maxTokensInput.value).toBe("4096");
+
+        // Verify Custom Parameters section is visible
+        await expect(await canvas.findByText("Custom Parameters")).toBeInTheDocument();
+
+        // Click "New Pair" to add a custom parameter row
+        const newPairButton = await canvas.findByRole("button", { name: /New Pair/i });
+        expect(newPairButton).not.toBeDisabled();
+        await userEvent.click(newPairButton);
+
+        // Click "Save" to trigger form submission which exercises the custom params validation
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
     },
 };
 
