@@ -3,9 +3,13 @@ title: Gateways
 sidebar_position: 10
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Gateways
 
 Gateways connect your Agent Mesh deployment to external systems, enabling agents to receive requests from and send responses to platforms like Slack, Microsoft Teams, and Solace Event Mesh brokers. You configure each gateway with connection details and routing rules for a specific integration target.
+
+<NetworkAccessRequiredSomeFeatures />
 
 ## Gateway Types
 

@@ -3,6 +3,8 @@ title: Knowledge Base Connectors
 sidebar_position: 1
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 Knowledge Base connectors allow agents to retrieve context from enterprise documentation stored in cloud-based knowledge repositories.
 
 ## Overview
@@ -12,6 +14,8 @@ Knowledge Base connectors enable Retrieval-Augmented Generation (RAG) by connect
 The connector retrieves information from knowledge bases, which can contain both unstructured documents and structured data. It returns ranked results with relevance scores to the agent. The agent's language model then synthesizes this information to generate responses based on your organizational knowledge rather than relying solely on general training data.
 
 This reduces hallucinations and ensures agents provide answers consistent with company policies, procedures, and documentation.
+
+<NetworkAccessRequiredSingleFeature />
 
 ## Supported Knowledge Bases
 

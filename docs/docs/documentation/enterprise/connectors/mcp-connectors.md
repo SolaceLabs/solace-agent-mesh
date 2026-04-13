@@ -3,6 +3,8 @@ title: MCP Connectors
 sidebar_position: 2
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 MCP connectors allow agents to communicate with remote MCP servers and access external tools.
 
 ## Overview
@@ -12,6 +14,8 @@ Model Context Protocol (MCP) is a standardized protocol that allows agents to in
 MCP connectors establish connections to remote MCP servers using one of two transport protocols: Server-Sent Events (SSE) or Streamable HTTP. The connector automatically discovers the tools that each server provides. Agents invoke these tools through natural language interactions. The connector handles protocol communication, authentication, and request formatting.
 
 Agent Mesh Enterprise supports remote MCP servers only through the connector interface. The system does not support local MCP servers that use stdio (standard input/output) for communication. The connector requires network-accessible MCP servers using SSE or Streamable HTTP transport protocols. The connector supports multiple authentication methods and provides tool selection capabilities to control which MCP tools are available to agents.
+
+<NetworkAccessRequiredSingleFeature />
 
 ## Prerequisites
 
