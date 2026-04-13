@@ -13,7 +13,7 @@ This approach gives your organization a clear picture of which models are in use
 
 In a typical Agent Mesh deployment, multiple agents each need access to LLM models. Without centralized management, teams end up duplicating API keys across YAML files, losing track of which models are deployed where, and facing inconsistent configurations between agents. Model Configurations solve these problems by establishing a single source of truth for all model settings.
 
-Key benefits include:
+Benefits include:
 
 - **Centralized credential management** - Store API keys, OAuth credentials, and cloud provider credentials in one place rather than duplicating them across agent configurations
 - **Visibility** - See all configured models, their providers, and which agents use them from the UI
@@ -32,7 +32,7 @@ The general model should be a capable, well-rounded LLM that balances performanc
 
 ### Planning Model
 
-The **planning** model is specifically used by the [orchestrator agent](../components/orchestrator.md). The orchestrator is responsible for analyzing user requests, determining which agents to invoke, in what order, and how to combine their outputs into a coherent response. This requires more sophisticated reasoning and planning capabilities than typical agent tasks.
+The **planning** model is specifically used by the orchestrator, which is responsible for analyzing user requests, determining which agents to invoke, in what order, and how to combine their outputs into a coherent response. This requires more sophisticated reasoning and planning capabilities than typical agent tasks. For more details, see [Orchestrator](../components/orchestrator.md).
 
 The planning model is separated from the general model because orchestration demands a higher level of multi-step reasoning, tool selection logic, and task decomposition. Organizations may choose to use a more capable (and potentially more expensive) model for planning while using a cost-effective model for general agent tasks.
 
@@ -220,4 +220,4 @@ The `model_provider` field accepts a list of aliases. Typically you provide a si
 
 - For details on LLM provider configuration options and prompt caching, see [Configuring LLMs](./large_language_models.md)
 - For information about shared configuration and YAML anchors, see [Configuring Agent Mesh](./configurations.md)
-- To learn about building agents, see [Creating Agents](../developing/creating-agents.md)
+- To learn about building agents, see [Creating Agents](../developing/create-agents.md)
