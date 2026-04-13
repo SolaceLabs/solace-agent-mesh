@@ -19,7 +19,7 @@ permissions:
   checks: write
   statuses: write       # required by sca-scan-and-guard to update commit status
   id-token: write     # required for authentication in reusable workflow
- 
+  packages: read       # required for reusable workflow to access package metadata
 jobs:
   fossa_scan:
     name: FOSSA Scan
