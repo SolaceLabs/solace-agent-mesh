@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { createModelConfig, deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, testModelConnection, updateModelConfig } from "./service";
+import { createModelConfig, deleteModel, fetchModelById, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, testModelConnection, updateModelConfig } from "./service";
 import type { ModelData, TestConnectionRequest } from "./service";
 
 export interface SupportedModelsQueryParams {
@@ -10,6 +10,18 @@ export interface SupportedModelsQueryParams {
     apiBase?: string;
     authConfig?: Record<string, unknown>;
     modelParams?: Record<string, unknown>;
+}
+
+/**
+ * Hook to fetch a single model configuration by ID.
+ */
+export function useModelById(id: string | undefined) {
+    return useQuery({
+        queryKey: modelKeys.detail(id!),
+        queryFn: () => fetchModelById(id!),
+        enabled: !!id,
+        retry: 0,
+    });
 }
 
 /**

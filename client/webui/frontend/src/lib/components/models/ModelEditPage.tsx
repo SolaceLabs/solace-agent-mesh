@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
@@ -7,11 +7,9 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload, buildTestPayload } from "./modelProviderUtils";
-import { fetchModelById } from "@/lib/api/models/service";
-import { useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
+import { useModelById, useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
 import type { ModelFormData } from "./modelProviderUtils";
-import type { ModelConfig } from "@/lib/api/models/types";
 
 export const ModelEditPage = () => {
     const navigate = useNavigate();
@@ -19,37 +17,18 @@ export const ModelEditPage = () => {
     const isNew = !modelId;
 
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
-    const [modelLoading, setModelLoading] = useState(false);
-    const [fetchError, setFetchError] = useState<string | null>(null);
     const [showSaveFailedDialog, setShowSaveFailedDialog] = useState(false);
     const [saveFailMessage, setSaveFailMessage] = useState("");
     const pendingPayloadRef = useRef<ReturnType<typeof buildModelPayload> | null>(null);
+
+    const { data: modelToEdit, isLoading: modelLoading, error: fetchErrorObj } = useModelById(isNew ? undefined : modelId);
+    const fetchError = fetchErrorObj ? getErrorMessage(fetchErrorObj, "Failed to load model.") : null;
 
     const createMutation = useCreateModel();
     const updateMutation = useUpdateModel();
     const testConnectionMutation = useTestModelConnection();
 
     const isSaving = createMutation.isPending || updateMutation.isPending || testConnectionMutation.isPending;
-
-    // Fetch the specific model being edited (not all models)
-    useEffect(() => {
-        if (!isNew && modelId) {
-            setModelLoading(true);
-            setFetchError(null);
-            fetchModelById(modelId)
-                .then(model => {
-                    setModelToEdit(model);
-                })
-                .catch((error: unknown) => {
-                    setModelToEdit(null);
-                    setFetchError(getErrorMessage(error, "Failed to load model."));
-                })
-                .finally(() => {
-                    setModelLoading(false);
-                });
-        }
-    }, [isNew, modelId]);
 
     // Fetch models for the provider being edited using stored credentials.
     // React Query caches the result so ModelEdit's dropdown open with the same params
@@ -63,8 +42,8 @@ export const ModelEditPage = () => {
                 if (isNew) {
                     const result = await createMutation.mutateAsync(payload);
                     navigate("/agents?tab=models", { state: { highlightModelId: result.id } });
-                } else {
-                    await updateMutation.mutateAsync({ id: modelToEdit!.id, data: payload });
+                } else if (modelToEdit) {
+                    await updateMutation.mutateAsync({ id: modelToEdit.id, data: payload });
                     navigate("/agents?tab=models");
                 }
             } catch (error) {
@@ -75,8 +54,8 @@ export const ModelEditPage = () => {
     );
 
     const handleSaveAnyway = useCallback(async () => {
-        setShowSaveFailedDialog(false);
-        await performSave(pendingPayloadRef.current!);
+        if (!pendingPayloadRef.current) return;
+        await performSave(pendingPayloadRef.current);
     }, [performSave]);
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
@@ -137,13 +116,13 @@ export const ModelEditPage = () => {
 
             <PageContentWrapper>
                 {errorMessage && <MessageBanner variant="error" message={errorMessage} dismissible onDismiss={() => setErrorMessage(null)} />}
-                <ModelEdit isNew={isNew} modelToEdit={modelToEdit} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
+                <ModelEdit isNew={isNew} modelToEdit={modelToEdit ?? null} onSave={handleSave} modelsByProvider={modelsByProvider} availableProviders={ALL_PROVIDERS} />
             </PageContentWrapper>
 
             <ConfirmationDialog
                 open={showSaveFailedDialog}
                 onOpenChange={setShowSaveFailedDialog}
-                title={isNew ? "Add Model Configuration Failed" : "Save Model Configuration Failed"}
+                title="Connection Test Failed"
                 content={
                     <div className="space-y-3">
                         <MessageBanner variant="error" message={saveFailMessage} />
