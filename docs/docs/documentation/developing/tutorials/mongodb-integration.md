@@ -179,6 +179,8 @@ apps:
       display_name: "Coffee Shop MongoDB Agent"
       supports_streaming: false
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are an expert MongoDB assistant for the coffee shop database.

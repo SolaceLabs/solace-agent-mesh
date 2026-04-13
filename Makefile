@@ -66,7 +66,7 @@ eval-setup: check-uv
 	@echo "Installing Solace Agent Mesh from wheel..."
 	uv pip install "$$(ls dist/solace_agent_mesh-*.whl | head -1)" --reinstall
 	@echo "Installing sam-rest-gateway plugin for local evaluations..."
-	uv pip install "sam-rest-gateway @ git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins#subdirectory=sam-rest-gateway"
+	uv pip install sam-rest-gateway
 	@echo "Installing Playwright browsers..."
 	.venv/bin/playwright install
 
@@ -82,8 +82,8 @@ test:
 
 # Run all tests
 test-all:
-	@echo "Running all tests..."
-	uv run pytest
+	@echo "Running tests in parallel..."
+	uv run pytest tests -n auto --maxprocesses=2  --dist loadgroup -v
 
 # Helper target to validate required environment variables
 check-eval-env:

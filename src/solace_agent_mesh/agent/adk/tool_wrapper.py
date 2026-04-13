@@ -23,6 +23,10 @@ from ..tools.artifact_preloading import (
 )
 from ..utils.tool_context_facade import ToolContextFacade
 
+# Observability instrumentation
+from solace_ai_connector.common.observability import MonitorLatency
+from ...common.observability import ToolMonitor
+
 log = logging.getLogger(__name__)
 
 
@@ -276,16 +280,18 @@ class ADKToolWrapper:
                 return error
 
         try:
-            if self._is_async:
-                return await self._original_func(*resolved_args, **resolved_kwargs)
-            else:
-                loop = asyncio.get_running_loop()
-                return await loop.run_in_executor(
-                    None,
-                    functools.partial(
-                        self._original_func, *resolved_args, **resolved_kwargs
-                    ),
-                )
+            # Instrument tool execution latency
+            with MonitorLatency(ToolMonitor.create(name=self._tool_name)):
+                if self._is_async:
+                    return await self._original_func(*resolved_args, **resolved_kwargs)
+                else:
+                    loop = asyncio.get_running_loop()
+                    return await loop.run_in_executor(
+                        None,
+                        functools.partial(
+                            self._original_func, *resolved_args, **resolved_kwargs
+                        ),
+                    )
         except Exception as e:
             log.exception("%s Tool execution failed: %s", log_identifier, e)
             return {

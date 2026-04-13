@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi } from "@/lib/types/scheduled-tasks";
+import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi, deriveTaskStatus } from "@/lib/types/scheduled-tasks";
 import type { ScheduledTask, TaskExecution, CreateScheduledTaskRequest, UpdateScheduledTaskRequest } from "@/lib/types/scheduled-tasks";
 
 describe("transformApiTask", () => {
@@ -236,5 +236,77 @@ describe("transformUpdateToApi", () => {
         const result = transformUpdateToApi(update);
 
         expect(Object.keys(result)).toHaveLength(0);
+    });
+});
+
+describe("deriveTaskStatus", () => {
+    it("returns 'active' when enabled and no failures", () => {
+        expect(deriveTaskStatus(true, 0)).toBe("active");
+    });
+
+    it("returns 'paused' when disabled and no failures", () => {
+        expect(deriveTaskStatus(false, 0)).toBe("paused");
+    });
+
+    it("returns 'error' when there are consecutive failures", () => {
+        expect(deriveTaskStatus(true, 3)).toBe("error");
+    });
+
+    it("returns 'error' even when disabled if there are failures", () => {
+        expect(deriveTaskStatus(false, 1)).toBe("error");
+    });
+});
+
+type ApiTaskParam = Parameters<typeof transformApiTask>[0];
+type ApiTaskWithoutStatus = Omit<ApiTaskParam, "status"> & { status?: ApiTaskParam["status"] };
+
+/** Helper to build a minimal API task object without the status field (simulating backend response). */
+function createApiTaskWithoutStatus(overrides: Partial<ApiTaskWithoutStatus> = {}): ApiTaskWithoutStatus {
+    return {
+        id: "task-test",
+        name: "Test Task",
+        namespace: "default",
+        created_by: "admin",
+        schedule_type: "cron",
+        schedule_expression: "0 9 * * *",
+        timezone: "UTC",
+        target_agent_name: "agent",
+        target_type: "agent",
+        task_message: [{ type: "text", text: "Hello" }],
+        enabled: true,
+        max_retries: 0,
+        retry_delay_seconds: 60,
+        timeout_seconds: 300,
+        consecutive_failure_count: 0,
+        run_count: 0,
+        created_at: 1700000000,
+        updated_at: 1700000000,
+        ...overrides,
+    };
+}
+
+describe("transformApiTask status derivation", () => {
+    it("derives 'active' status when API response has no status field", () => {
+        const apiTask = createApiTaskWithoutStatus({ id: "task-no-status", enabled: true, consecutive_failure_count: 0 });
+        const result = transformApiTask(apiTask as ApiTaskParam);
+        expect(result.status).toBe("active");
+    });
+
+    it("derives 'paused' status when API response has no status and task is disabled", () => {
+        const apiTask = createApiTaskWithoutStatus({ id: "task-disabled", enabled: false, consecutive_failure_count: 0 });
+        const result = transformApiTask(apiTask as ApiTaskParam);
+        expect(result.status).toBe("paused");
+    });
+
+    it("derives 'error' status when API response has no status and task has failures", () => {
+        const apiTask = createApiTaskWithoutStatus({ id: "task-failing", enabled: true, consecutive_failure_count: 5, run_count: 10 });
+        const result = transformApiTask(apiTask as ApiTaskParam);
+        expect(result.status).toBe("error");
+    });
+
+    it("uses explicit status from API when provided", () => {
+        const apiTask = createApiTaskWithoutStatus({ id: "task-explicit", enabled: true, status: "paused", consecutive_failure_count: 0 });
+        const result = transformApiTask(apiTask as ApiTaskParam);
+        expect(result.status).toBe("paused");
     });
 });

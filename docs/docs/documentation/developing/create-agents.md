@@ -279,7 +279,9 @@ apps:
       display_name: "Hello World Agent"
       
       # LLM model configuration
-      model: *general_model 
+      model: *general_model
+      model_provider: 
+        - "general" 
       
       # Agent instructions (system prompt)
       instruction: |

@@ -113,7 +113,21 @@ export function ScheduledTasksPage() {
 
     // Show execution history as full page
     if (viewingTaskHistory) {
-        return <TaskExecutionHistoryPage task={viewingTaskHistory} onBack={() => setViewingTaskHistory(null)} onEdit={handleEditTask} onDelete={handleDeleteFromHistory} />;
+        return (
+            <>
+                <TaskExecutionHistoryPage task={viewingTaskHistory} onBack={() => setViewingTaskHistory(null)} onEdit={handleEditTask} onDelete={handleDeleteFromHistory} />
+                <ConfirmationDialog
+                    open={!!deleteConfirm}
+                    title="Delete Scheduled Task"
+                    description={`Are you sure you want to delete "${deleteConfirm?.taskName}"?`}
+                    onOpenChange={open => {
+                        if (!open) setDeleteConfirm(null);
+                    }}
+                    onConfirm={handleConfirmDelete}
+                    actionLabels={{ confirm: "Delete", cancel: "Cancel" }}
+                />
+            </>
+        );
     }
 
     return (
@@ -134,7 +148,7 @@ export function ScheduledTasksPage() {
 
             {/* Error Display */}
             {error && (
-                <div className="bg-destructive/10 text-destructive mx-6 mt-4 flex items-center gap-2 rounded-md p-4">
+                <div className="mx-6 mt-4 flex items-center gap-2 rounded-md bg-(--error-w10) p-4 text-(--error-wMain)">
                     <AlertCircle className="size-4" />
                     <span>{error.message}</span>
                 </div>

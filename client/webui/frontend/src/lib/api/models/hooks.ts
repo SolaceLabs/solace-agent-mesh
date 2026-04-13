@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { deleteModel, fetchModelConfigs, fetchModelConfigStatus } from "./service";
+import { deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider } from "./service";
+
+export interface SupportedModelsQueryParams {
+    provider: string;
+    modelId?: string;
+    apiBase?: string;
+    authConfig?: Record<string, unknown>;
+    modelParams?: Record<string, unknown>;
+}
 
 /**
  * Hook to fetch all model configurations.
@@ -27,6 +35,24 @@ export function useDeleteModel() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
         },
+    });
+}
+
+/**
+ * Hook to fetch supported models for a given provider + credential combination.
+ */
+export function useSupportedModels(params: SupportedModelsQueryParams | null) {
+    return useQuery({
+        queryKey: modelKeys.supportedModels(params),
+        queryFn: () =>
+            fetchSupportedModelsByProvider(params!.provider, params?.modelId, {
+                apiBase: params?.apiBase,
+                authConfig: params?.authConfig,
+                modelParams: params?.modelParams,
+            }),
+        enabled: !!params,
+        retry: 0,
+        staleTime: 30_000,
     });
 }
 

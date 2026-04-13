@@ -26,7 +26,6 @@ apps:
 
       model:
         <<: *general_model
-  
       model_provider:
         - general
 

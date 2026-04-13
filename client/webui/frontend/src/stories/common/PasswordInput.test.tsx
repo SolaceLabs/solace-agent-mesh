@@ -69,18 +69,13 @@ describe("PasswordInput", () => {
     test("shows bullet placeholder when hasStoredValue is true and field is empty", () => {
         render(<PasswordInputWrapper hasStoredValue={true} />);
         const input = screen.getByRole("textbox") as HTMLInputElement;
-        // The placeholder should be the bullet character string
-        expect(input).toHaveAttribute("placeholder", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022");
+        // The placeholder should be the bullet character string (16 bullets)
+        expect(input).toHaveAttribute("placeholder", "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022");
     });
 
-    test("eye toggle is inert when hasStoredValue and no user input", async () => {
-        const user = userEvent.setup();
+    test("eye toggle is hidden when hasStoredValue and no user input", () => {
         render(<PasswordInputWrapper hasStoredValue={true} />);
-        const input = screen.getByRole("textbox") as HTMLInputElement;
-        const button = screen.getByRole("button");
-
-        // Click should not change type since there's no actual value to reveal
-        await user.click(button);
-        expect(input).toHaveAttribute("type", "password");
+        // The eye button should not be rendered when the field has a stored value and hasn't been touched
+        expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 });

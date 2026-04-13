@@ -127,7 +127,7 @@ class TestHandleSuccess:
             mock_a2a.get_task_metadata.return_value = None
             mock_a2a.get_task_artifacts.return_value = []
 
-            await handler._handle_success(execution_id, task_result)
+            await handler._handle_success(execution_id, task_result, "a2a-task-1")
 
         # Verify DB update
         mock_repo.update_execution.assert_called_once()
@@ -166,7 +166,7 @@ class TestHandleSuccess:
             "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.now_epoch_ms",
             return_value=2000,
         ):
-            await handler._handle_success(execution_id, non_task_result)
+            await handler._handle_success(execution_id, non_task_result, "a2a-task-2")
 
         # Should still complete
         mock_repo.update_execution.assert_called_once()
@@ -207,7 +207,7 @@ class TestHandleError:
             "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.now_epoch_ms",
             return_value=3000,
         ):
-            await handler._handle_error(execution_id, error)
+            await handler._handle_error(execution_id, error, "a2a-task-3")
 
         mock_repo.update_execution.assert_called_once()
         call_args = mock_repo.update_execution.call_args
@@ -249,7 +249,7 @@ class TestHandleError:
         ), patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.log"
         ) as mock_log:
-            await handler._handle_error(execution_id, error)
+            await handler._handle_error(execution_id, error, "a2a-task-4")
 
         # DB should have sanitized (first line only) error
         update_data = mock_repo.update_execution.call_args[0][2]
@@ -362,7 +362,7 @@ class TestHandleResponse:
                     "payload": {},
                 })
 
-                mock_success.assert_awaited_once_with("exec-30", mock_result)
+                mock_success.assert_awaited_once_with("exec-30", mock_result, "a2a-30")
 
     @pytest.mark.asyncio
     async def test_routes_to_handle_error_when_error_present(self):
@@ -388,7 +388,7 @@ class TestHandleResponse:
                     "payload": {},
                 })
 
-                mock_err.assert_awaited_once_with("exec-31", mock_error)
+                mock_err.assert_awaited_once_with("exec-31", mock_error, "a2a-31")
 
     @pytest.mark.asyncio
     async def test_ignores_non_scheduler_topic(self):
@@ -500,6 +500,30 @@ class TestIsSchedulerResponse:
 
 
 # ===========================================================================
+# _is_scheduler_status
+# ===========================================================================
+
+class TestIsSchedulerStatus:
+    """Tests for ``ResultHandler._is_scheduler_status``."""
+
+    def test_matching_topic_returns_true(self):
+        handler, _ = _build_result_handler()
+        assert handler._is_scheduler_status("ns1a2a/v1/scheduler/status/task-1") is True
+
+    def test_non_matching_topic_returns_false(self):
+        handler, _ = _build_result_handler()
+        assert handler._is_scheduler_status("ns1a2a/v1/other/status/task-1") is False
+
+    def test_empty_topic_returns_false(self):
+        handler, _ = _build_result_handler()
+        assert handler._is_scheduler_status("") is False
+
+    def test_partial_prefix_returns_false(self):
+        handler, _ = _build_result_handler()
+        assert handler._is_scheduler_status("ns1a2a/v1/scheduler/stat") is False
+
+
+# ===========================================================================
 # get_pending_count
 # ===========================================================================
 
@@ -541,7 +565,7 @@ class TestCompletionEventSignaledOnError:
         ), patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.log",
         ):
-            await handler._handle_success(execution_id, MagicMock(spec=Task))
+            await handler._handle_success(execution_id, MagicMock(spec=Task), "a2a-60")
 
         assert event.is_set()
 
@@ -563,7 +587,7 @@ class TestCompletionEventSignaledOnError:
         ), patch(
             "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.log",
         ):
-            await handler._handle_error(execution_id, error)
+            await handler._handle_error(execution_id, error, "a2a-61")
 
         assert event.is_set()
 
@@ -712,3 +736,330 @@ class TestSaveChatTask:
 
         metadata = _json.loads(chat_task.task_metadata)
         assert metadata["status"] == "error"
+
+
+# ===========================================================================
+# _handle_status_update  (Issue #2)
+# ===========================================================================
+
+class TestHandleStatusUpdate:
+    """Tests for ``ResultHandler._handle_status_update``."""
+
+    @pytest.mark.asyncio
+    async def test_accumulates_rag_metadata_from_status_event(self):
+        """RAG metadata in TaskStatusUpdateEvent data parts should be accumulated."""
+        handler, _ = _build_result_handler()
+
+        mock_data_part = MagicMock()
+        mock_message = MagicMock()
+        mock_status = MagicMock()
+        mock_status.message = mock_message
+
+        result = MagicMock()
+        result.__class__ = MagicMock()
+
+        rag_entry = {"source_url": "https://example.com/doc1", "snippets": ["hello"]}
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            mock_a2a.get_data_parts_from_message.return_value = [mock_data_part]
+            mock_a2a.get_data_from_data_part.return_value = {
+                "type": "tool_result",
+                "result_data": {"rag_metadata": rag_entry},
+            }
+
+            # Patch isinstance check for TaskStatusUpdateEvent
+            from a2a.types import TaskStatusUpdateEvent
+            status_event = MagicMock(spec=TaskStatusUpdateEvent)
+            status_event.status = mock_status
+
+            await handler._handle_status_update("task-100", status_event)
+
+        assert "task-100" in handler._accumulated_rag_data
+        assert len(handler._accumulated_rag_data["task-100"]) == 1
+        assert handler._accumulated_rag_data["task-100"][0] == rag_entry
+
+    @pytest.mark.asyncio
+    async def test_deduplicates_rag_entries_by_source_url(self):
+        """Duplicate RAG entries with the same source_url should not be added twice."""
+        handler, _ = _build_result_handler()
+
+        rag_entry = {"source_url": "https://example.com/doc1", "snippets": ["hello"]}
+        handler._accumulated_rag_data["task-101"] = [rag_entry.copy()]
+
+        mock_data_part = MagicMock()
+        mock_status = MagicMock()
+        mock_status.message = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            mock_a2a.get_data_parts_from_message.return_value = [mock_data_part]
+            mock_a2a.get_data_from_data_part.return_value = {
+                "type": "tool_result",
+                "result_data": {"rag_metadata": rag_entry},
+            }
+
+            from a2a.types import TaskStatusUpdateEvent
+            status_event = MagicMock(spec=TaskStatusUpdateEvent)
+            status_event.status = mock_status
+
+            await handler._handle_status_update("task-101", status_event)
+
+        assert len(handler._accumulated_rag_data["task-101"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_ignores_non_status_update_event(self):
+        """A result that is not a TaskStatusUpdateEvent should be ignored."""
+        handler, _ = _build_result_handler()
+
+        non_status_result = MagicMock()  # Not a TaskStatusUpdateEvent
+        non_status_result.__class__.__name__ = "SomethingElse"
+
+        await handler._handle_status_update("task-102", non_status_result)
+
+        assert "task-102" not in handler._accumulated_rag_data
+
+    @pytest.mark.asyncio
+    async def test_skips_parts_without_tool_result_type(self):
+        """Data parts that are not type='tool_result' should be skipped."""
+        handler, _ = _build_result_handler()
+
+        mock_data_part = MagicMock()
+        mock_status = MagicMock()
+        mock_status.message = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            mock_a2a.get_data_parts_from_message.return_value = [mock_data_part]
+            mock_a2a.get_data_from_data_part.return_value = {
+                "type": "text",
+                "result_data": {"rag_metadata": {"source_url": "x"}},
+            }
+
+            from a2a.types import TaskStatusUpdateEvent
+            status_event = MagicMock(spec=TaskStatusUpdateEvent)
+            status_event.status = mock_status
+
+            await handler._handle_status_update("task-103", status_event)
+
+        assert "task-103" not in handler._accumulated_rag_data
+
+    @pytest.mark.asyncio
+    async def test_skips_parts_without_rag_metadata(self):
+        """Data parts with type='tool_result' but no rag_metadata should be skipped."""
+        handler, _ = _build_result_handler()
+
+        mock_data_part = MagicMock()
+        mock_status = MagicMock()
+        mock_status.message = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            mock_a2a.get_data_parts_from_message.return_value = [mock_data_part]
+            mock_a2a.get_data_from_data_part.return_value = {
+                "type": "tool_result",
+                "result_data": {"some_other_key": "value"},
+            }
+
+            from a2a.types import TaskStatusUpdateEvent
+            status_event = MagicMock(spec=TaskStatusUpdateEvent)
+            status_event.status = mock_status
+
+            await handler._handle_status_update("task-104", status_event)
+
+        assert "task-104" not in handler._accumulated_rag_data
+
+
+# ===========================================================================
+# handle_response status routing  (Issue #3)
+# ===========================================================================
+
+class TestHandleResponseStatusRouting:
+    """Tests for status-topic routing in ``handle_response``."""
+
+    @pytest.mark.asyncio
+    async def test_status_message_routes_to_handle_status_update(self):
+        """A status-topic message should route to _handle_status_update
+        and NOT remove the task from pending_executions."""
+        handler, _ = _build_result_handler()
+        await handler.register_execution("exec-40", "a2a-40")
+
+        mock_rpc_response = MagicMock()
+        mock_result = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.JSONRPCResponse"
+        ) as MockRPCResp, patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            MockRPCResp.model_validate.return_value = mock_rpc_response
+            mock_a2a.get_response_id.return_value = "a2a-40"
+            mock_a2a.get_response_result.return_value = mock_result
+            mock_a2a.get_response_error.return_value = None
+
+            with patch.object(
+                handler, "_handle_status_update", new_callable=AsyncMock
+            ) as mock_status, patch.object(
+                handler, "_handle_success", new_callable=AsyncMock
+            ) as mock_success:
+                await handler.handle_response({
+                    "topic": "ns1a2a/v1/scheduler/status/foo",
+                    "payload": {},
+                })
+
+                mock_status.assert_awaited_once_with("a2a-40", mock_result)
+                mock_success.assert_not_awaited()
+
+        # Task should still be pending
+        assert "a2a-40" in handler.pending_executions
+
+    @pytest.mark.asyncio
+    async def test_status_message_works_without_registered_execution(self):
+        """A status-topic message should be handled even if the task is not
+        yet in pending_executions (Issue #1 fix verification)."""
+        handler, _ = _build_result_handler()
+        # Do NOT register any execution
+
+        mock_rpc_response = MagicMock()
+        mock_result = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.JSONRPCResponse"
+        ) as MockRPCResp, patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a:
+            MockRPCResp.model_validate.return_value = mock_rpc_response
+            mock_a2a.get_response_id.return_value = "a2a-unregistered"
+            mock_a2a.get_response_result.return_value = mock_result
+            mock_a2a.get_response_error.return_value = None
+
+            with patch.object(
+                handler, "_handle_status_update", new_callable=AsyncMock
+            ) as mock_status:
+                await handler.handle_response({
+                    "topic": "ns1a2a/v1/scheduler/status/bar",
+                    "payload": {},
+                })
+
+                mock_status.assert_awaited_once_with("a2a-unregistered", mock_result)
+
+
+# ===========================================================================
+# RAG data merge in _handle_success  (Issue #4)
+# ===========================================================================
+
+class TestHandleSuccessRagMerge:
+    """Tests for RAG data merge from accumulated status updates in _handle_success."""
+
+    @pytest.mark.asyncio
+    async def test_accumulated_rag_data_merged_into_final_result(self):
+        """Pre-populated _accumulated_rag_data should be merged into the DB update."""
+        handler, mock_session = _build_result_handler()
+
+        execution_id = "exec-50"
+        a2a_task_id = "a2a-50"
+        event = asyncio.Event()
+        handler.completion_events[execution_id] = event
+
+        # Pre-populate accumulated RAG data
+        accumulated_entry = {"source_url": "https://example.com/accumulated", "snippets": ["from status"]}
+        handler._accumulated_rag_data[a2a_task_id] = [accumulated_entry]
+
+        # Build a Task result with a status message (no inline RAG data)
+        mock_message = MagicMock()
+        mock_status = MagicMock()
+        mock_status.message = mock_message
+        task_result = MagicMock(spec=Task)
+        task_result.status = mock_status
+
+        mock_repo = MagicMock()
+        mock_execution = MagicMock(spec=ScheduledTaskExecutionModel)
+        mock_execution.id = execution_id
+        mock_execution.a2a_task_id = a2a_task_id
+        mock_task = MagicMock()
+        mock_task.task_message = [{"type": "text", "text": "test"}]
+        mock_task.created_by = "user-1"
+        mock_task.target_agent_name = "agent-1"
+        mock_execution.scheduled_task = mock_task
+        mock_repo.find_execution_by_id.return_value = mock_execution
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.a2a"
+        ) as mock_a2a, patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.now_epoch_ms",
+            return_value=5000,
+        ), patch.object(
+            handler, "_save_chat_task"
+        ) as mock_save_chat:
+            mock_a2a.get_text_from_message.return_value = "Result text"
+            mock_a2a.get_file_parts_from_message.return_value = []
+            mock_a2a.get_data_parts_from_message.return_value = []
+            mock_a2a.get_task_history.return_value = []
+            mock_a2a.get_task_status.return_value = "completed"
+            mock_a2a.get_task_metadata.return_value = None
+            mock_a2a.get_task_artifacts.return_value = []
+
+            await handler._handle_success(execution_id, task_result, a2a_task_id)
+
+        # Verify _save_chat_task was called with rag_data containing the accumulated entry
+        mock_save_chat.assert_called_once()
+        call_kwargs = mock_save_chat.call_args
+        rag_data_arg = call_kwargs[1].get("rag_data") if call_kwargs[1] else None
+        assert rag_data_arg is not None, "rag_data should be passed to _save_chat_task"
+        assert accumulated_entry in rag_data_arg
+
+        # Accumulated data should have been cleaned up
+        assert a2a_task_id not in handler._accumulated_rag_data
+
+
+# ===========================================================================
+# _handle_error cleanup of accumulated RAG data  (Issue #7)
+# ===========================================================================
+
+class TestHandleErrorRagCleanup:
+    """Tests for cleanup of accumulated RAG data on error."""
+
+    @pytest.mark.asyncio
+    async def test_accumulated_rag_data_cleaned_up_on_error(self):
+        """_handle_error should clean up _accumulated_rag_data to prevent memory leaks."""
+        handler, mock_session = _build_result_handler()
+
+        execution_id = "exec-80"
+        a2a_task_id = "a2a-80"
+        event = asyncio.Event()
+        handler.completion_events[execution_id] = event
+
+        # Pre-populate accumulated RAG data
+        handler._accumulated_rag_data[a2a_task_id] = [
+            {"source_url": "https://example.com/leak", "snippets": ["data"]},
+        ]
+
+        error = MagicMock(spec=JSONRPCError)
+        error.message = "Something failed"
+        error.code = -32000
+
+        mock_repo = MagicMock()
+        mock_repo.find_execution_by_id.return_value = None
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.result_handler.now_epoch_ms",
+            return_value=8000,
+        ):
+            await handler._handle_error(execution_id, error, a2a_task_id)
+
+        # Accumulated data should be cleaned up
+        assert a2a_task_id not in handler._accumulated_rag_data
+        # Event should be signalled
+        assert event.is_set()
+        # Session should be cleaned up
+        assert execution_id not in handler.execution_sessions

@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "NumberSquarer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You square numeric values.
@@ -80,6 +82,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "NumberIncrementer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You increment numeric values by 1.
@@ -131,6 +135,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "NumberAdder"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You add two numeric values.

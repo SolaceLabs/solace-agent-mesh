@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
     ExecutionStatus,
@@ -94,6 +95,9 @@ class SchedulerService:
         self.active_tasks: Dict[str, Any] = {}
         self.running_executions: Dict[str, asyncio.Task] = {}
         self._execution_lock = asyncio.Lock()
+        # Per-task locks prevent overlapping executions of the same scheduled
+        # task from corrupting the shared persistent ADK session.
+        self._task_locks: Dict[str, asyncio.Lock] = {}
 
         # Initialize result handler (in-memory tracking)
         self.result_handler = ResultHandler(
@@ -321,6 +325,10 @@ class SchedulerService:
                 if task_id in self.active_tasks:
                     del self.active_tasks[task_id]
 
+        # Clean up per-task lock to prevent unbounded memory growth
+        # in long-running deployments where tasks are created/deleted.
+        self._task_locks.pop(task_id, None)
+
     def _create_trigger(self, task: ScheduledTaskModel):
         """Create an APScheduler trigger based on task configuration."""
         if task.schedule_type == ScheduleType.CRON:
@@ -348,7 +356,26 @@ class SchedulerService:
 
         Retries are handled iteratively (not recursively) to avoid deep call
         stacks and unnecessary resource retention between attempts.
+
+        A per-task lock ensures only one execution is in-flight at a time,
+        preventing concurrent writes to the shared persistent ADK session.
         """
+        # Acquire a per-task lock so overlapping cron triggers for the same
+        # task wait rather than corrupting the persistent session.
+        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
+
+        if task_lock.locked():
+            log.warning(
+                "[SchedulerService:%s] Task %s already in-flight, skipping overlapping trigger",
+                self.instance_id, task_id,
+            )
+            return
+
+        async with task_lock:
+            await self._execute_scheduled_task_inner(task_id)
+
+    async def _execute_scheduled_task_inner(self, task_id: str):
+        """Inner implementation of scheduled task execution (holds per-task lock)."""
         log.info(
             "[SchedulerService:%s] Executing scheduled task: %s",
             self.instance_id, task_id,
@@ -612,6 +639,7 @@ class SchedulerService:
             # Both operations are committed together to avoid orphaned session records
             # if the execution status update were to fail separately.
             user_id = task_user_id or task_created_by or "system-scheduler"
+            stable_session_id = f"scheduled_task_{task_id}"
             session_id = f"scheduled_{execution_id}"
             try:
                 with self.session_factory() as sess:
@@ -662,7 +690,7 @@ class SchedulerService:
                 elif part.get("type") == "file":
                     message_parts.append(a2a.create_file_part_from_uri(part["uri"]))
 
-            context_id = session_id
+            context_id = stable_session_id
             a2a_task_id = f"task-{uuid.uuid4().hex}"
 
             # Filter task_metadata to safe keys only
@@ -697,12 +725,22 @@ class SchedulerService:
             reply_to_topic = f"{self.namespace}a2a/v1/scheduler/response/{self.instance_id}"
             status_topic = f"{self.namespace}a2a/v1/scheduler/status/{self.instance_id}"
 
+            # Resolve user config for the task creator so the enterprise capability
+            # filter allows peer agent tools.  Without this, the orchestrator's
+            # _filter_tools_by_capability_callback strips peer tools because
+            # _enterprise_capabilities is empty.
+            a2a_user_config = await self._resolve_user_config_for_task(
+                user_id, task_created_by
+            )
+
             user_props = {
                 "replyTo": reply_to_topic,
                 "a2aStatusTopic": status_topic,
                 "clientId": f"scheduler_{self.instance_id}",
                 "userId": task_user_id or task_created_by or "system-scheduler",
             }
+            if a2a_user_config:
+                user_props["a2aUserConfig"] = a2a_user_config
 
             # --- Step 3: Set a2a_task_id on execution (brief session) ---
             with self.session_factory() as session:
@@ -712,7 +750,7 @@ class SchedulerService:
                     session.commit()
 
             # --- Step 4: Register, publish, and wait (no session held) ---
-            await self.result_handler.register_execution(execution_id, a2a_task_id, context_id)
+            await self.result_handler.register_execution(execution_id, a2a_task_id, session_id)
 
             self.publish_func(target_topic, payload, user_props)
 
@@ -732,6 +770,46 @@ class SchedulerService:
             )
             await self._handle_execution_failure(execution_id, "Execution failed due to an internal error")
             raise
+
+    async def _resolve_user_config_for_task(
+        self, user_id: str, created_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve user configuration for a scheduled task execution.
+
+        The enterprise capability filter requires ``_enterprise_capabilities``
+        in the ``a2aUserConfig`` user-property so that the orchestrator's
+        ``_filter_tools_by_capability_callback`` does not strip peer-agent
+        tools.  Regular chat requests get this from the gateway's
+        ``resolve_user_config`` call; scheduled tasks must do the same.
+
+        Returns the resolved user config dict, or ``None`` on failure.
+        """
+        effective_user = user_id or created_by or "system-scheduler"
+        try:
+            config_resolver = MiddlewareRegistry.get_config_resolver()
+            user_identity = {"id": effective_user, "name": effective_user}
+            gateway_context = {
+                "gateway_id": f"scheduler_{self.instance_id}",
+                "gateway_app_config": {},
+            }
+            user_config = await config_resolver.resolve_user_config(
+                user_identity, gateway_context, {}
+            )
+            user_config["user_profile"] = user_identity
+            log.info(
+                "[SchedulerService:%s] Resolved user config for '%s' with %d enterprise capabilities",
+                self.instance_id,
+                effective_user,
+                len(user_config.get("_enterprise_capabilities", [])),
+            )
+            return user_config
+        except Exception as e:
+            log.warning(
+                "[SchedulerService:%s] Failed to resolve user config for '%s': %s. "
+                "Proceeding without user config — enterprise capability filter may restrict tools.",
+                self.instance_id, effective_user, e,
+            )
+            return None
 
     async def _handle_execution_failure(self, execution_id: str, error_message: str):
         """Mark an execution as failed."""

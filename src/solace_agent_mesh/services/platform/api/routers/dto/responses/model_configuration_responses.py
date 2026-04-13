@@ -16,10 +16,10 @@ class ModelConfigurationResponse(CamelCaseModel):
 
     id: str = Field(..., description="Unique identifier for the model configuration")
     alias: str = Field(..., description="Model alias (e.g., 'gpt-4', 'claude-3')")
-    provider: str = Field(
-        ..., description="Model provider (e.g., 'openai', 'anthropic', 'bedrock')"
+    provider: Optional[str] = Field(
+        None, description="Model provider (e.g., 'openai', 'anthropic', 'bedrock')"
     )
-    model_name: str = Field(..., description="Full model name")
+    model_name: Optional[str] = Field(None, description="Full model name")
     api_base: Optional[str] = Field(
         None, description="API base URL (if using custom endpoint)"
     )
@@ -55,6 +55,18 @@ class ModelConfigurationTestResponse(CamelCaseModel):
     )
     message: str = Field(
         ..., description="Test result message (error details if failed, response content if succeeded)"
+    )
+
+
+class SupportedParamsResponse(CamelCaseModel):
+    """Response model for supported model parameters.
+
+    Returns the list of parameter names (snake_case) that a model supports,
+    based on litellm's internal registry.
+    """
+
+    supported_params: list[str] = Field(
+        ..., description="List of supported parameter names (snake_case)"
     )
 
 

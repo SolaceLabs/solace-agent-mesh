@@ -1,43 +1,32 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
 import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { Plus } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
+import { useSupportedModels, type SupportedModelsQueryParams } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
 import { PasswordInput } from "@/lib/components/common";
-import {
-    getProviderConfig,
-    buildModelPayload,
-    AUTH_FIELDS,
-    AUTH_TYPE_LABELS,
-    COMMON_MODEL_PARAMS,
-    AUTH_CONFIG_TO_FORM_FIELD_MAP,
-    type AuthType,
-    type ProviderField,
-    type SupportedModel,
-    type ModelProvider,
-    type ModelFormData,
-} from "./modelProviderUtils";
-import { fetchSupportedModelsByProvider } from "@/lib/api/models/service";
+import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
+import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
 import { DEFAULT_MODEL_ALIASES } from "./common";
+import { useDebounce } from "@/lib/hooks";
 
 interface ModelEditProps {
     isNew: boolean;
     modelToEdit: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
-    onValidityChange: (isValid: boolean) => void;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
     availableProviders?: ModelProvider[];
     onProviderChange?: (provider: string) => Promise<void>;
 }
 
-export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
+export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, modelsByProvider = {}, availableProviders = [], onProviderChange }: ModelEditProps) => {
     const methods = useForm<ModelFormData>({
         mode: "onSubmit",
         reValidateMode: "onChange",
@@ -48,20 +37,16 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
     });
 
     const [providerConfig, setProviderConfig] = useState<ReturnType<typeof getProviderConfig> | null>(null);
-    const [dynamicModels, setDynamicModels] = useState<SupportedModel[]>([]);
     const [storedCredentialFields, setStoredCredentialFields] = useState<Set<string>>(new Set());
-    const [isLoadingModels, setIsLoadingModels] = useState(false);
+    const [queryParams, setQueryParams] = useState<SupportedModelsQueryParams | null>(null);
+    const { data: dynamicModels = [], isLoading: isLoadingModels, isError: hasFetchError } = useSupportedModels(queryParams);
+    const [supportedParams, setSupportedParams] = useState<string[] | null>(null);
+    const [paramsError, setParamsError] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
-    const lastFetchSettingsRef = useRef<{
-        provider: string | null;
-        authType: string | null;
-        apiBase: string | null;
-        authConfig: Record<string, unknown> | null;
-    }>({ provider: null, authType: null, apiBase: null, authConfig: null });
     const {
         register,
         control,
-        formState: { errors, isDirty, isValid, dirtyFields },
+        formState: { errors, isDirty, dirtyFields },
         handleSubmit,
         watch,
         setValue,
@@ -71,14 +56,29 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
     const handleAddCustomParam = useCallback(() => {
         const currentParams = getValues("customParams") ?? [];
-        setValue("customParams", [...currentParams, { key: "", value: "" }]);
+        setValue("customParams", [{ key: "", value: "" }, ...currentParams]);
     }, [getValues, setValue]);
+
+    const customParams = watch("customParams") ?? [];
+    const hasEmptyCustomParam = customParams.some((p: { key: string; value: string }) => !p.key?.trim() || !p.value?.trim());
+
+    // Only check unsupported keys after the user commits a key (onBlur), not on every keystroke.
+    const [committedCustomParamsJson, setCommittedCustomParamsJson] = useState("[]");
+    const handleCustomParamKeyCommit = useCallback(() => {
+        setCommittedCustomParamsJson(JSON.stringify(getValues("customParams") ?? []));
+    }, [getValues]);
+    const unsupportedCustomKeys = useMemo(() => {
+        if (!supportedParams || supportedParams.length === 0) return [];
+        const committed: { key: string }[] = JSON.parse(committedCustomParamsJson);
+        return committed.filter(p => p.key && !supportedParams.includes(p.key)).map(p => p.key);
+    }, [committedCustomParamsJson, supportedParams]);
 
     const selectedProvider = watch("provider");
     const selectedAuthType = watch("authType");
     const apiBase = watch("apiBase");
     const apiKey = watch("apiKey");
     const selectedModelName = watch("modelName");
+    const debouncedModelName = useDebounce(selectedModelName, 500);
     // Watch all credential fields so isAuthCredentialsConfigured re-evaluates on change.
     // Values aren't used directly — isConfigured() reads via getValues() — but the
     // watch() subscription is needed to trigger a re-render when any field changes.
@@ -121,18 +121,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         onDirtyStateChange?.(isDirty);
     }, [isDirty, onDirtyStateChange]);
 
-    useEffect(() => {
-        onValidityChange(isValid);
-    }, [isValid, onValidityChange]);
-
     // Update provider config and reset dynamic fields when provider changes
     useEffect(() => {
         if (selectedProvider) {
             const config = getProviderConfig(selectedProvider);
             setProviderConfig(config);
-            setDynamicModels([]); // Reset dynamic models when provider changes
-            setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
-            lastFetchSettingsRef.current = { provider: null, authType: null, apiBase: null, authConfig: null }; // Clear fetch tracking
+            setQueryParams(null); // Reset query so next dropdown open fetches fresh
+            setSupportedParams(null); // Reset supported params when provider changes
 
             // Skip resetting fields on initial model load; only reset when user manually changes provider
             if (hasInitializedFromModelRef.current && !isNew && modelToEdit && modelToEdit.provider === selectedProvider) {
@@ -141,6 +136,8 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                 onProviderChange?.(selectedProvider);
                 return;
             }
+
+            setStoredCredentialFields(new Set()); // Clear stored credential indicators from previous provider
 
             // Fetch models for this provider if callback provided
             onProviderChange?.(selectedProvider);
@@ -161,62 +158,69 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider, isNew, modelToEdit]);
 
-    // Clear dynamic models when auth type or API key changes
-    // This prevents showing stale models from previous credentials (avoids flicker)
+    // Fetch supported params when provider or model name changes (debounced to avoid
+    // excessive requests while the user types a custom model name in the ComboBox)
+    useEffect(() => {
+        if (!selectedProvider || !debouncedModelName) {
+            setSupportedParams(null);
+            setParamsError(false);
+            return;
+        }
+        let cancelled = false;
+        setParamsError(false);
+        fetchSupportedParams(selectedProvider, debouncedModelName)
+            .then(params => {
+                if (!cancelled) setSupportedParams(params);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setSupportedParams(null);
+                    setParamsError(true);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedProvider, debouncedModelName]);
+
+    // Clear query params when credentials change so next dropdown open fetches fresh models
     useEffect(() => {
         if (selectedProvider) {
-            setDynamicModels([]);
-            lastFetchSettingsRef.current = { provider: null, authType: null, apiBase: null, authConfig: null }; // Clear fetch tracking
+            setQueryParams(null);
         }
     }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
 
-    // Fetch models when dropdown opens.
-    // Tracks provider settings to avoid redundant API calls — only refetches
-    // when provider, authType, apiBase, or auth credentials change.
-    // In editing mode, passes modelId so the server can merge stored credentials
+    // Clear all authentication and model fields when the user switches auth type
+    const handleAuthTypeChange = useCallback(
+        (newAuthType: string, formOnChange: (value: string) => void) => {
+            formOnChange(newAuthType);
+            for (const fields of Object.values(AUTH_FIELDS)) {
+                for (const field of fields) {
+                    setValue(field.name, "");
+                }
+            }
+            setStoredCredentialFields(new Set());
+            setValue("modelName", "");
+            setQueryParams(null);
+        },
+        [setValue]
+    );
+
+    // When the model dropdown opens, commit the current form credentials as query params.
+    // React Query handles caching: if params haven't changed since the last successful
+    // fetch the cached result is returned; if they changed a fresh request is made.
+    // In editing mode, modelId is passed so the server can merge stored credentials
     // with any overrides from the form (e.g., user changed API key but not secret).
-    const handleModelDropdownOpen = useCallback(async () => {
+    //
+    // If the parent already supplied models for this provider (initial edit-mode fetch)
+    // and credentials haven't been touched (queryParams is still null), skip the fetch
+    // and let the ComboBox render from modelsByProvider directly.
+    const handleModelDropdownOpen = useCallback(() => {
         if (!selectedProvider) return;
 
-        // Build a fingerprint of current settings that affect model availability
-        const currentAuthConfig: Record<string, unknown> = {};
-        if (selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType]) {
-            (AUTH_FIELDS[selectedAuthType as AuthType] as ProviderField[]).forEach((field: ProviderField) => {
-                const val = getValues(field.name);
-                if (val != null && val !== "") {
-                    currentAuthConfig[field.name] = val;
-                } else if (storedCredentialFields.has(field.name)) {
-                    currentAuthConfig[field.name] = "***stored***";
-                }
-            });
-        }
-
-        const currentSettings = {
-            provider: selectedProvider,
-            authType: selectedAuthType,
-            apiBase: apiBase || null,
-            authConfig: currentAuthConfig,
-        };
-
-        // Check if settings have changed since last successful fetch
-        const lastSettings = lastFetchSettingsRef.current;
-        const settingsChanged =
-            lastSettings.provider !== currentSettings.provider ||
-            lastSettings.authType !== currentSettings.authType ||
-            lastSettings.apiBase !== currentSettings.apiBase ||
-            JSON.stringify(lastSettings.authConfig) !== JSON.stringify(currentSettings.authConfig);
-
-        // Use cached results if nothing changed
-        if (!settingsChanged) {
-            // For editing: populate from parent cache if dynamic list is empty
-            if (!isNew && dynamicModels.length === 0 && modelsByProvider[selectedProvider]) {
-                setDynamicModels(modelsByProvider[selectedProvider]);
-            }
+        if (queryParams === null && (modelsByProvider[selectedProvider]?.length ?? 0) > 0) {
             return;
         }
-
-        // Settings changed — fetch fresh model list from provider
-        setIsLoadingModels(true);
 
         const currentProviderConfig = providerConfig || getProviderConfig(selectedProvider);
         const modelParams: Record<string, unknown> = {};
@@ -227,38 +231,21 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             }
         }
 
-        try {
-            const formData = getValues() as ModelFormData;
-            const payload = buildModelPayload({
-                ...formData,
-                alias: formData.alias || "",
-                modelName: formData.modelName || "",
-            });
+        const formData = getValues() as ModelFormData;
+        const payload = buildModelPayload({
+            ...formData,
+            alias: formData.alias || "",
+            modelName: formData.modelName || "",
+        });
 
-            // In editing mode, pass modelId so server can merge stored credentials
-            // with any overrides from the form (handles redacted secret fields)
-            const modelId = !isNew ? modelToEdit?.id : undefined;
-
-            const models = await fetchSupportedModelsByProvider(selectedProvider, modelId, {
-                apiBase: apiBase || undefined,
-                authConfig: payload.authConfig,
-                modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
-            });
-            setDynamicModels(models);
-            lastFetchSettingsRef.current = currentSettings;
-        } catch (error) {
-            console.error("Error fetching models:", error);
-            // On error, fall back to cached models if available (editing mode)
-            if (!isNew && modelsByProvider[selectedProvider]) {
-                setDynamicModels(modelsByProvider[selectedProvider]);
-            } else {
-                setDynamicModels([]);
-            }
-            lastFetchSettingsRef.current = currentSettings;
-        } finally {
-            setIsLoadingModels(false);
-        }
-    }, [selectedProvider, isNew, apiBase, selectedAuthType, modelsByProvider, getValues, providerConfig, storedCredentialFields, dynamicModels.length, modelToEdit]);
+        setQueryParams({
+            provider: selectedProvider,
+            modelId: !isNew ? modelToEdit?.id : undefined,
+            apiBase: apiBase || undefined,
+            authConfig: payload.authConfig,
+            modelParams: Object.keys(modelParams).length > 0 ? modelParams : undefined,
+        });
+    }, [selectedProvider, isNew, apiBase, modelToEdit, providerConfig, getValues, queryParams, modelsByProvider]);
 
     useEffect(() => {
         if (!isNew && modelToEdit) {
@@ -267,12 +254,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             hasInitializedFromModelRef.current = true;
 
             setValue("alias", modelToEdit.alias);
-            setValue("provider", modelToEdit.provider);
+            setValue("provider", modelToEdit.provider ?? "");
 
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
-            let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
+            let modelName = modelToEdit.modelName ?? "";
+            if (modelToEdit.provider === "custom" && modelName.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -315,19 +302,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                 });
 
                 // Populate common model params
-                knownParamNames.add("temperature");
-                knownParamNames.add("max_tokens");
-                knownParamNames.add("cache_strategy");
-
-                if ("temperature" in modelToEdit.modelParams) {
-                    setValue("temperature", String(modelToEdit.modelParams.temperature));
-                }
-                if ("max_tokens" in modelToEdit.modelParams) {
-                    setValue("maxTokens", String(modelToEdit.modelParams.max_tokens));
-                }
-                if ("cache_strategy" in modelToEdit.modelParams) {
-                    setValue("cache_strategy", String(modelToEdit.modelParams.cache_strategy));
-                }
+                COMMON_MODEL_PARAMS.forEach((field: ProviderField) => {
+                    knownParamNames.add(field.name);
+                    if (field.name in modelToEdit.modelParams) {
+                        setValue(field.name, String(modelToEdit.modelParams[field.name]));
+                    }
+                });
 
                 // Extract custom parameters (anything not in known params)
                 const customParamsArray = Object.entries(modelToEdit.modelParams)
@@ -356,7 +336,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem
+                    key={field.name}
+                    helpText={!isNew ? "Your API key is securely stored. Leave blank to keep the existing key, or enter a new value to replace it." : field.helpText}
+                    label={field.label}
+                    required={field.required}
+                    error={errors[field.name] as { message?: string }}
+                >
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -365,7 +351,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Textarea fields use FormField wrapper
         if (field.type === "textarea") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Textarea
                         rows={6}
                         placeholder={field.placeholder}
@@ -381,7 +367,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
         // Select fields use native Select component
         if (field.type === "select") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                     <Controller
                         name={field.name}
                         control={control}
@@ -414,7 +400,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
             if (field.max !== undefined) rules.max = { value: field.max, message: `Maximum value is ${field.max}` };
         }
         return (
-            <FormFieldLayoutItem key={field.name} label={field.label} required={isRequiredField} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+            <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
                 <Input
                     {...register(field.name, rules)}
                     type={field.type === "number" ? "number" : "text"}
@@ -494,7 +480,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                 <div className="flex gap-4">
                                                     {providerConfig.allowedAuthTypes.map(authType => (
                                                         <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => field.onChange(authType)} />
+                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => handleAuthTypeChange(authType, field.onChange)} />
                                                             <span className="text-sm">{AUTH_TYPE_LABELS[authType as AuthType]}</span>
                                                         </label>
                                                     ))}
@@ -508,7 +494,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 {selectedAuthType && AUTH_FIELDS[selectedAuthType as AuthType] && <>{AUTH_FIELDS[selectedAuthType as AuthType].map((field: ProviderField) => renderField(field))}</>}
 
                                 {/* Model Name - Shown after authentication is configured */}
-                                <FormFieldLayoutItem label="Model Name" required error={errors.modelName as { message?: string }} helpText={!isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}>
+                                <FormFieldLayoutItem
+                                    label="Model Name"
+                                    required
+                                    error={hasFetchError ? { message: "Unable to find models. Verify that your model connection details above are correct." } : (errors.modelName as { message?: string })}
+                                    helpText={isLoadingModels ? "Finding your available models..." : !isModelDropdownEnabled ? "Configure provider and authentication to select a model" : undefined}
+                                >
                                     <Controller
                                         name="modelName"
                                         control={control}
@@ -531,6 +522,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
 
                                             return (
                                                 <ComboBox
+                                                    key={selectedAuthType}
                                                     value={field.value}
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
@@ -547,20 +539,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group border-t pt-4">
-                                    <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
+                                <details className="group mt-4">
+                                    <summary className="cursor-pointer text-sm font-medium text-(--primary-text-wMain) select-none hover:text-(--secondary-text-wMain)">Advanced Settings</summary>
                                     <div className="mt-4 flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
                                         {/* Custom Parameters */}
-                                        <div className="border-t pt-4">
+                                        <div className="mt-10">
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
-                                                    <p className="text-secondary-foreground mt-1 text-sm">Add any additional parameters supported by your model provider.</p>
+                                                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Add any additional parameters supported by your model provider.</p>
                                                 </div>
-                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam}>
+                                                <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
                                                     <Plus className="mr-2 size-4" />
                                                     New Pair
                                                 </Button>
@@ -583,7 +575,15 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onValidityChange, onDirt
                                                             return true;
                                                         },
                                                     }}
-                                                    render={() => <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} />}
+                                                    render={() => (
+                                                        <>
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
+                                                            {unsupportedCustomKeys.length > 0 && (
+                                                                <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
+                                                            )}
+                                                            {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
+                                                        </>
+                                                    )}
                                                 />
                                             </div>
                                         </div>

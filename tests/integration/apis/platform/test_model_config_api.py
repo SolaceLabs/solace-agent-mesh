@@ -12,7 +12,7 @@ import logging
 import os
 import uuid
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, Mock, MagicMock
 from sqlalchemy.orm import Session
 
 from sam_test_infrastructure.feature_flags import mock_flags
@@ -465,11 +465,212 @@ class TestModelConfigurationAPI:
         assert "could not find" in data["detail"].lower()
 
 
+class TestDefaultModelPlaceholders:
+    """Tests for placeholder default model seeding and lifecycle."""
+
+    def test_seed_creates_placeholder_defaults(self, platform_db_session_factory, enable_model_config_feature_flag):
+        """Seeding into an empty table creates placeholder records for general and planning."""
+        from solace_agent_mesh.services.platform.services import seed_model_configurations
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            # Seed with no config (empty table)
+            count = seed_model_configurations(db, models_config=None)
+            db.commit()
+
+            # Both defaults should exist
+            assert count >= 2
+            general = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "general").first()
+            planning = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "planning").first()
+
+            assert general is not None
+            assert planning is not None
+
+            # Should have placeholder values
+            assert general.provider == PLACEHOLDER_VALUE
+            assert general.model_name == PLACEHOLDER_VALUE
+            assert general.model_auth_type == "none"
+            assert general.created_by == "system"
+
+            assert planning.provider == PLACEHOLDER_VALUE
+            assert planning.model_name == PLACEHOLDER_VALUE
+        finally:
+            db.close()
+
+    def test_seed_does_not_overwrite_existing_defaults(self, platform_db_session_factory, enable_model_config_feature_flag):
+        """Seeding when defaults already exist with real values does not overwrite them."""
+        from solace_agent_mesh.services.platform.services import seed_model_configurations
+
+        db = platform_db_session_factory()
+        try:
+            # Pre-create a real general model
+            general = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="general",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="apikey",
+                model_auth_config={"type": "apikey", "api_key": "sk-real"},
+                model_params={},
+                description="Pre-existing general model",
+                created_by="admin",
+                updated_by="admin",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(general)
+            db.commit()
+
+            # Seed — should not overwrite general, should create planning placeholder
+            seed_model_configurations(db, models_config=None)
+            db.commit()
+
+            db.expire_all()
+            existing_general = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "general").first()
+            assert existing_general.provider == "openai"  # Not overwritten
+            assert existing_general.model_name == "gpt-4"
+
+            existing_planning = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "planning").first()
+            assert existing_planning is not None  # Created as placeholder
+        finally:
+            db.close()
+
+    def test_placeholder_stripped_to_null_in_api_response(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Placeholder provider and model_name are returned as null in API responses."""
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            model_id = str(uuid.uuid4())
+            model_config = ModelConfiguration(
+                id=model_id,
+                alias="test-placeholder",
+                provider=PLACEHOLDER_VALUE,
+                model_name=PLACEHOLDER_VALUE,
+                api_base=None,
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                description="Placeholder model",
+                created_by="system",
+                updated_by="system",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get(f"/api/v1/platform/models/{model_id}")
+            assert response.status_code == 200
+
+            data = response.json()["data"]
+            assert data["provider"] is None
+            assert data["modelName"] is None
+            # Sentinel value should not leak through
+            assert PLACEHOLDER_VALUE not in response.text
+        finally:
+            db.close()
+
+    def test_status_endpoint_returns_false_for_placeholders(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Status endpoint returns configured=false when defaults have placeholder values."""
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            for alias in ["general", "planning"]:
+                model_config = ModelConfiguration(
+                    id=str(uuid.uuid4()),
+                    alias=alias,
+                    provider=PLACEHOLDER_VALUE,
+                    model_name=PLACEHOLDER_VALUE,
+                    api_base=None,
+                    model_auth_type="none",
+                    model_auth_config={"type": "none"},
+                    model_params={},
+                    created_by="system",
+                    updated_by="system",
+                    created_time=now_epoch_ms(),
+                    updated_time=now_epoch_ms(),
+                )
+                db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get("/api/v1/platform/models/status")
+            assert response.status_code == 200
+            assert response.json()["data"]["configured"] is False
+        finally:
+            db.close()
+
+    def test_status_endpoint_returns_true_when_configured(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Status endpoint returns configured=true when both defaults have real providers."""
+        db = platform_db_session_factory()
+        try:
+            for alias in ["general", "planning"]:
+                model_config = ModelConfiguration(
+                    id=str(uuid.uuid4()),
+                    alias=alias,
+                    provider="openai",
+                    model_name="gpt-4",
+                    api_base=None,
+                    model_auth_type="apikey",
+                    model_auth_config={"type": "apikey", "api_key": "sk-key"},
+                    model_params={},
+                    created_by="admin",
+                    updated_by="admin",
+                    created_time=now_epoch_ms(),
+                    updated_time=now_epoch_ms(),
+                )
+                db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get("/api/v1/platform/models/status")
+            assert response.status_code == 200
+            assert response.json()["data"]["configured"] is True
+        finally:
+            db.close()
+
+    def test_delete_default_model_returns_error(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Deleting a default model (general/planning) returns an error."""
+        db = platform_db_session_factory()
+        try:
+            model_id = str(uuid.uuid4())
+            model_config = ModelConfiguration(
+                id=model_id,
+                alias="general",
+                provider="openai",
+                model_name="gpt-4",
+                api_base=None,
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                created_by="system",
+                updated_by="system",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.delete(f"/api/v1/platform/models/{model_id}")
+
+            assert response.status_code == 422
+            assert "cannot delete" in response.json()["detail"].lower()
+
+            # Verify model still exists
+            db.expire_all()
+            still_exists = db.query(ModelConfiguration).filter(ModelConfiguration.id == model_id).first()
+            assert still_exists is not None
+        finally:
+            db.close()
+
+
 class TestSupportedModelsAPI:
-    """Tests for /api/v1/platform/supported-models endpoints."""
+    """Tests for /api/v1/platform/providers/{provider}/models endpoints."""
 
     def test_list_supported_models_by_provider_returns_correct_structure(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /supported-models returns correct structure."""
+        """Test that POST /providers/{provider}/models returns correct structure."""
         # Mock the HTTP call to OpenAI API
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -481,11 +682,10 @@ class TestSupportedModelsAPI:
         mock_response.status_code = 200
 
         with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client.get", return_value=mock_response):
-            # Act: Fetch models for openai provider with apikey auth
+            # Act: Fetch models for openai provider with apikey auth (provider in URL)
             response = platform_api_client.post(
-                "/api/v1/platform/supported-models",
+                "/api/v1/platform/providers/openai/models",
                 json={
-                    "provider": "openai",
                     "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
@@ -507,7 +707,7 @@ class TestSupportedModelsAPI:
                     assert model["provider"] == "openai"
 
     def test_list_supported_models_by_provider_accepts_various_providers(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /supported-models works for different provider IDs."""
+        """Test that POST /providers/{provider}/models works for different provider IDs."""
         # Mock the HTTP call to provider APIs
         mock_response = MagicMock()
         mock_response.json.return_value = {"data": []}
@@ -518,11 +718,10 @@ class TestSupportedModelsAPI:
             providers = ["openai", "anthropic"]
 
             for provider in providers:
-                # Act: Fetch models for the provider
+                # Act: Fetch models for the provider (provider in URL path)
                 response = platform_api_client.post(
-                    "/api/v1/platform/supported-models",
+                    f"/api/v1/platform/providers/{provider}/models",
                     json={
-                        "provider": provider,
                         "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                     }
                 )
@@ -536,7 +735,7 @@ class TestSupportedModelsAPI:
                 assert isinstance(data["data"], list)
 
     def test_supported_models_by_provider_feature_flag_disabled_returns_501(self, platform_api_client_factory):
-        """Test that POST /supported-models returns 501 when feature flag is disabled."""
+        """Test that POST /providers/{provider}/models returns 501 when feature flag is disabled."""
         from fastapi.testclient import TestClient
 
         app = platform_api_client_factory.app
@@ -547,11 +746,9 @@ class TestSupportedModelsAPI:
 
             # Act: Try to fetch models with feature flag disabled
             response = client.post(
-                "/api/v1/platform/supported-models",
+                "/api/v1/platform/providers/openai/models",
                 json={
-                    "provider": "openai",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -565,24 +762,29 @@ class TestSupportedModelsAPI:
 
 
 class TestModelConnectionAPI:
-    """Tests for /api/v1/platform/models/test endpoint."""
+    """Tests for POST /api/v1/platform/models?validateOnly=true endpoint."""
 
     def test_test_connection_with_valid_apikey_returns_success(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that POST /models/test with valid credentials returns success."""
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-            # Mock successful LLM response
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_litellm.completion.return_value = mock_response
+        """Test that POST /models?validateOnly=true with valid credentials returns success."""
+        # Build a mock async generator that yields a successful LLM response
+        mock_llm_response = Mock()
+        mock_llm_response.content = Mock()
+        mock_llm_response.content.parts = [Mock(text="OK")]
+
+        async def _success_gen(*args, **kwargs):
+            yield mock_llm_response
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _success_gen
 
             # Act: Test connection with valid apikey
             response = platform_api_client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key-valid",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key-valid"},
                 }
             )
 
@@ -619,15 +821,21 @@ class TestModelConnectionAPI:
             db.add(model_config)
             db.commit()
 
-            with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm") as mock_litellm:
-                # Mock successful LLM response
-                mock_response = MagicMock()
-                mock_response.choices = [MagicMock()]
-                mock_litellm.completion.return_value = mock_response
+            # Build a mock async generator that yields a successful LLM response
+            mock_llm_response = Mock()
+            mock_llm_response.content = Mock()
+            mock_llm_response.content.parts = [Mock(text="OK")]
+
+            async def _success_gen(*args, **kwargs):
+                yield mock_llm_response
+
+            with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+                mock_instance = MockLiteLlm.return_value
+                mock_instance.generate_content_async = _success_gen
 
                 # Act: Test connection using stored credentials by model ID
                 response = platform_api_client.post(
-                    "/api/v1/platform/models/test",
+                    "/api/v1/platform/models?validateOnly=true",
                     json={
                         "modelId": model_id,
                     }
@@ -640,21 +848,21 @@ class TestModelConnectionAPI:
                 data = response.json()
                 assert data["data"]["success"] is True
 
-                # Assert: Service used the stored credentials
-                call_kwargs = mock_litellm.completion.call_args[1]
-                assert call_kwargs["api_key"] == "sk-stored-key-12345"
+                # Assert: Service used the stored credentials via configure_model
+                configure_kwargs = mock_instance.configure_model.call_args[0][0]
+                assert configure_kwargs["api_key"] == "sk-stored-key-12345"
 
         finally:
             db.close()
 
     def test_test_connection_missing_alias_and_auth_returns_error(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that test_connection fails gracefully when neither alias nor auth credentials are provided."""
-        # Act: Test connection without alias or credentials
+        """Test that test_connection fails gracefully when neither model_id nor auth credentials are provided."""
+        # Act: Test connection without model_id or authConfig credentials
         response = platform_api_client.post(
-            "/api/v1/platform/models/test",
+            "/api/v1/platform/models?validateOnly=true",
             json={
                 "provider": "openai",
-                "model_name": "gpt-4",
+                "modelName": "gpt-4",
             }
         )
 
@@ -671,7 +879,7 @@ class TestModelConnectionAPI:
         """Test that test_connection returns error for non-existent model ID."""
         # Act: Test connection with non-existent model ID
         response = platform_api_client.post(
-            "/api/v1/platform/models/test",
+            "/api/v1/platform/models?validateOnly=true",
             json={
                 "modelId": str(uuid.uuid4()),
             }
@@ -686,16 +894,18 @@ class TestModelConnectionAPI:
         assert "not found" in data["data"]["message"].lower()
 
     def test_test_connection_with_litellm_unavailable(self, platform_api_client, enable_model_config_feature_flag):
-        """Test that test_connection fails gracefully when litellm is not available."""
-        with patch("solace_agent_mesh.services.platform.services.model_config_service.litellm", None):
+        """Test that test_connection fails gracefully when LiteLlm raises an import error."""
+        with patch(
+            "solace_agent_mesh.services.platform.services.model_config_service.LiteLlm",
+            side_effect=ImportError("No module named 'litellm'"),
+        ):
             # Act: Test connection when litellm is not available
             response = platform_api_client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 
@@ -705,10 +915,10 @@ class TestModelConnectionAPI:
             # Assert: Response shows failure
             data = response.json()
             assert data["data"]["success"] is False
-            assert "litellm" in data["data"]["message"].lower()
+            assert "failed" in data["data"]["message"].lower()
 
     def test_test_connection_feature_flag_disabled_returns_501(self, platform_api_client_factory):
-        """Test that POST /models/test returns 501 when feature flag is disabled."""
+        """Test that POST /models?validateOnly=true returns 501 when feature flag is disabled."""
         from fastapi.testclient import TestClient
 
         app = platform_api_client_factory.app
@@ -719,12 +929,11 @@ class TestModelConnectionAPI:
 
             # Act: Try to test connection with feature flag disabled
             response = client.post(
-                "/api/v1/platform/models/test",
+                "/api/v1/platform/models?validateOnly=true",
                 json={
                     "provider": "openai",
-                    "model_name": "gpt-4",
-                    "auth_type": "apikey",
-                    "api_key": "sk-test-key",
+                    "modelName": "gpt-4",
+                    "authConfig": {"type": "apikey", "api_key": "sk-test-key"},
                 }
             )
 

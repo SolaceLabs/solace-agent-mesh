@@ -425,6 +425,53 @@ class TaskLoggerService:
         walk_and_sanitize(new_payload)
         return new_payload
 
+    def _inherit_rag_from_session(
+        self,
+        db: DBSession,
+        chat_task_repo,
+        session_id: str,
+        user_id: str,
+        task_id: str,
+        message_bubbles: list,
+    ) -> list | None:
+        """Check agent bubbles for ``[[cite:...]]`` markers and, if found,
+        collect RAG data from earlier tasks in the same session.
+
+        Returns the inherited RAG list or ``None`` when no inheritance applies.
+        """
+        agent_text = ""
+        for bubble in message_bubbles:
+            if isinstance(bubble, dict) and bubble.get("type") == "agent":
+                agent_text += bubble.get("text", "")
+        if "[[cite:" not in agent_text:
+            return None
+
+        inherited = chat_task_repo.find_by_session(db, session_id, user_id)
+        inherited_rag: list = []
+        seen_urls: set = set()
+        max_inherit_tasks = 20
+        recent_tasks = (inherited or [])[-max_inherit_tasks:]
+        for prev_task in recent_tasks:
+            if prev_task.task_metadata:
+                prev_meta = (
+                    json.loads(prev_task.task_metadata)
+                    if isinstance(prev_task.task_metadata, str)
+                    else prev_task.task_metadata
+                )
+                for entry in prev_meta.get("rag_data", []):
+                    url = entry.get("url", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        inherited_rag.append(entry)
+                    elif not url and entry not in inherited_rag:
+                        inherited_rag.append(entry)
+        if inherited_rag:
+            log.info(
+                "%s Inherited %d RAG data entries from session %s for task %s",
+                self.log_identifier, len(inherited_rag), session_id, task_id,
+            )
+        return inherited_rag or None
+
     def _save_chat_messages_for_background_task(
         self, db: DBSession, task_id: str, task: Task, repo: TaskRepository
     ) -> None:
@@ -739,8 +786,26 @@ class TaskLoggerService:
             if rag_data:
                 task_metadata_dict["rag_data"] = rag_data
                 log.info(
-                    f"{self.log_identifier} Including {len(rag_data)} RAG data entries in task metadata for {task_id}"
+                    "%s Including %d RAG data entries in task metadata for %s",
+                    self.log_identifier, len(rag_data), task_id,
                 )
+            elif session_id:
+                # No RAG data from current task — check if the response contains
+                # citation markers (e.g. [[cite:search0]]).  If so, inherit RAG
+                # data from earlier ChatTask records in the same session so the
+                # frontend can resolve the citations into clickable links.
+                try:
+                    inherited_rag = self._inherit_rag_from_session(
+                        db, chat_task_repo, session_id, user_id, task_id, message_bubbles,
+                    )
+                    if inherited_rag:
+                        task_metadata_dict["rag_data"] = inherited_rag
+                except Exception as e:
+                    log.warning(
+                        "%s Failed to inherit RAG data for task %s: %s",
+                        self.log_identifier, task_id, e,
+                        exc_info=True,
+                    )
             
             # Create and save the chat task
             chat_task = ChatTask(

@@ -22,6 +22,8 @@ apps:
       agent_name: "WebSearchAgent"
       display_name: "Web Search Agent"
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are a web search assistant specialized in finding and summarizing information from the internet.

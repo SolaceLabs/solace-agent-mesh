@@ -193,7 +193,7 @@ interface ApiScheduledTask {
     task_message: MessagePart[];
     task_metadata?: Record<string, unknown>;
     enabled: boolean;
-    status: TaskStatus;
+    status?: TaskStatus;
     max_retries: number;
     retry_delay_seconds: number;
     timeout_seconds: number;
@@ -238,6 +238,12 @@ interface ApiTaskExecution {
 
 // Transformation functions
 
+export function deriveTaskStatus(enabled: boolean, consecutiveFailureCount: number): TaskStatus {
+    if (consecutiveFailureCount > 0) return "error";
+    if (!enabled) return "paused";
+    return "active";
+}
+
 export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
     return {
         id: apiTask.id,
@@ -254,7 +260,7 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
         taskMessage: apiTask.task_message,
         taskMetadata: apiTask.task_metadata,
         enabled: apiTask.enabled,
-        status: apiTask.status,
+        status: apiTask.status ?? deriveTaskStatus(apiTask.enabled, apiTask.consecutive_failure_count ?? 0),
         maxRetries: apiTask.max_retries,
         retryDelaySeconds: apiTask.retry_delay_seconds,
         timeoutSeconds: apiTask.timeout_seconds,

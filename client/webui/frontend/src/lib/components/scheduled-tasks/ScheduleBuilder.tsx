@@ -361,23 +361,23 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
                     <p className="text-xs font-semibold text-(--secondary-text-wMain)">Common Examples:</p>
                     <div className="space-y-1 font-mono text-xs">
                         <div className="flex justify-between">
-                            <span className="text-primary">0 9 * * *</span>
+                            <span className="text-(--primary-wMain)">0 9 * * *</span>
                             <span className="text-(--secondary-text-wMain)">Every day at 9:00 AM</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-primary">0 */6 * * *</span>
+                            <span className="text-(--primary-wMain)">0 */6 * * *</span>
                             <span className="text-(--secondary-text-wMain)">Every 6 hours</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-primary">0 9 * * 1</span>
+                            <span className="text-(--primary-wMain)">0 9 * * 1</span>
                             <span className="text-(--secondary-text-wMain)">Every Monday at 9:00 AM</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-primary">0 0 1 * *</span>
+                            <span className="text-(--primary-wMain)">0 0 1 * *</span>
                             <span className="text-(--secondary-text-wMain)">First day of month at midnight</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-primary">*/15 * * * *</span>
+                            <span className="text-(--primary-wMain)">*/15 * * * *</span>
                             <span className="text-(--secondary-text-wMain)">Every 15 minutes</span>
                         </div>
                     </div>
@@ -474,7 +474,7 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
                                     const newDays = config.weekDays.includes(idx) ? config.weekDays.filter(d => d !== idx) : [...config.weekDays, idx];
                                     updateConfig({ weekDays: newDays });
                                 }}
-                                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${config.weekDays.includes(idx) ? "bg-primary text-primary-foreground" : "bg-accent hover:bg-accent/80"}`}
+                                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${config.weekDays.includes(idx) ? "bg-(--primary-wMain) text-(--primary-text-w10)" : "bg-(--secondary-w20) hover:bg-(--secondary-w40)"}`}
                             >
                                 {day}
                             </button>
@@ -499,7 +499,7 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
 
             {/* Preview */}
             {
-                <div className="bg-accent/30 rounded-lg p-3 text-sm">
+                <div className="rounded-lg bg-(--secondary-w10) p-3 text-sm">
                     <p className="mb-1 text-xs text-(--secondary-text-wMain)">Preview:</p>
                     <p className="font-medium">{getScheduleDescription(config)}</p>
                 </div>
