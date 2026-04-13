@@ -23,7 +23,7 @@ permissions:
 jobs:
   fossa_scan:
     name: FOSSA Scan
-    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@feat/dynamic-github-org-image-pull
     with:
       git_ref: ${{ inputs.git_ref }}
       use_vault: false
