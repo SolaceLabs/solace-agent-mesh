@@ -8,8 +8,7 @@ interface KeyValuePairListProps {
     minPairs?: number;
     error?: unknown;
     emptyMessage?: string;
-    onValidateKey?: () => void;
-    onValidateValue?: () => void;
+    onChange?: () => void;
 }
 
 /**
@@ -20,7 +19,7 @@ interface KeyValuePairListProps {
  * @param minPairs - Minimum number of pairs to show (default: 1)
  * @param error - Form validation error for this field
  */
-export const KeyValuePairList = ({ name, minPairs = 1, error, emptyMessage = "No items added yet", onValidateKey, onValidateValue }: KeyValuePairListProps) => {
+export const KeyValuePairList = ({ name, minPairs = 1, error, emptyMessage = "No items added yet", onChange }: KeyValuePairListProps) => {
     const { control, register } = useFormContext();
     const { fields, remove } = useFieldArray({
         control,
@@ -48,15 +47,25 @@ export const KeyValuePairList = ({ name, minPairs = 1, error, emptyMessage = "No
                 <div key={field.id} className="grid grid-cols-[1fr_1fr_auto] items-start gap-2">
                     <div>
                         {index === 0 && <div className="mb-1 text-sm">Key</div>}
-                        <Input {...register(`${name}.${index}.key`)} type="text" aria-label={`Key ${index + 1}`} onBlur={onValidateKey} />
+                        <Input {...register(`${name}.${index}.key`)} type="text" aria-label={`Key ${index + 1}`} onBlur={onChange} />
                     </div>
                     <div>
                         {index === 0 && <div className="mb-1 text-sm">Value</div>}
-                        <Input {...register(`${name}.${index}.value`)} type="text" aria-label={`Value ${index + 1}`} onBlur={onValidateValue} />
+                        <Input {...register(`${name}.${index}.value`)} type="text" aria-label={`Value ${index + 1}`} onBlur={onChange} />
                     </div>
                     <div className="flex items-center" style={{ paddingTop: index === 0 ? "24px" : "0" }}>
                         {fields.length > minPairs && (
-                            <Button type="button" variant="ghost" size="sm" tooltip="Remove pair" tooltipSide="right" onClick={() => remove(index)}>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                tooltip="Remove pair"
+                                tooltipSide="right"
+                                onClick={() => {
+                                    remove(index);
+                                    onChange?.();
+                                }}
+                            >
                                 <X className="size-4" />
                             </Button>
                         )}

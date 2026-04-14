@@ -191,6 +191,39 @@ _EXTENSION_TO_MIME.update({
 })
 
 
+# Raster image extensions that vision-capable LLMs can process as inline binary.
+# SVG is excluded: it is XML-based and cannot be processed as inline binary by LLMs.
+_INLINE_VISION_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+
+def is_image_artifact(filename: Optional[str], mime_type: Optional[str]) -> bool:
+    """Determine whether an artifact should be treated as an inline vision image.
+
+    Uses *mime_type* as the source of truth.  Falls back to file extension only
+    when mime_type is missing or ``application/octet-stream``.
+
+    SVG (``image/svg+xml``) is explicitly excluded because it is XML-based and
+    most LLMs cannot process it as inline binary vision data.
+    """
+    if mime_type:
+        normalized = mime_type.lower().split(";")[0].strip()
+        if normalized == "image/svg+xml":
+            return False
+        if normalized.startswith("image/"):
+            return True
+        # Known non-image mime type — do not fall through to extension check
+        if normalized != _OCTET_STREAM:
+            return False
+
+    # Fallback: check file extension when mime_type is absent / octet-stream
+    if filename:
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in _INLINE_VISION_EXTENSIONS:
+            return True
+
+    return False
+
+
 def get_extension_for_mime_type(
     mime_type: Optional[str], default_extension: str = ".dat"
 ) -> str:

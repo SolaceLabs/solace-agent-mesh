@@ -80,6 +80,20 @@ export const Default: Story = {
 
         // Verify pagination controls don't show (only 8 models fit on one page)
         expect(canvas.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+
+        // Verify default badges are rendered for General and Planning models
+        const defaultBadges = await canvas.findAllByText("Default");
+        expect(defaultBadges.length).toBe(2);
+
+        // Verify the badges are in the correct rows (General and Planning)
+        const generalRow = canvas.getByRole("row", { name: /General/i });
+        const planningRow = canvas.getByRole("row", { name: /Planning/i });
+
+        const generalBadge = within(generalRow).getByText("Default");
+        const planningBadge = within(planningRow).getByText("Default");
+
+        expect(generalBadge).toBeInTheDocument();
+        expect(planningBadge).toBeInTheDocument();
     },
 };
 
