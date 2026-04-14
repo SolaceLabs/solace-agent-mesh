@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
@@ -7,8 +7,8 @@ import { Header } from "@/lib/components/header";
 import { Footer, PageContentWrapper, EmptyState, MessageBanner } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload } from "./modelProviderUtils";
-import { fetchModelById, createModelConfig, updateModelConfig } from "@/lib/api/models/service";
-import { useSupportedModels } from "@/lib/api/models";
+import { fetchModelById } from "@/lib/api/models/service";
+import { useCreateModel, useUpdateModel, useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
 import type { ModelFormData } from "./modelProviderUtils";
 import type { ModelConfig } from "@/lib/api/models/types";
@@ -18,11 +18,14 @@ export const ModelEditPage = () => {
     const { id: modelId } = useParams<{ id?: string }>();
     const isNew = !modelId;
 
-    const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [modelToEdit, setModelToEdit] = useState<ModelConfig | null>(null);
     const [modelLoading, setModelLoading] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
+
+    const createModel = useCreateModel();
+    const updateModel = useUpdateModel();
+    const isLoading = createModel.isPending || updateModel.isPending;
 
     // Fetch the specific model being edited (not all models)
     useEffect(() => {
@@ -50,7 +53,6 @@ export const ModelEditPage = () => {
     const modelsByProvider = modelToEdit?.provider ? { [modelToEdit.provider]: initialModels } : {};
 
     const handleSave = async (data: ModelFormData, dirtyFields?: Partial<Record<string, boolean>>) => {
-        setIsLoading(true);
         setErrorMessage(null);
 
         try {
@@ -58,18 +60,16 @@ export const ModelEditPage = () => {
 
             let createdId: string | undefined;
             if (isNew) {
-                const result = await createModelConfig(payload);
+                const result = await createModel.mutateAsync(payload);
                 createdId = result.id;
             } else {
-                await updateModelConfig(modelToEdit!.id, payload);
+                await updateModel.mutateAsync({ id: modelToEdit!.id, data: payload });
             }
 
             navigate("/agents?tab=models", { state: { highlightModelId: createdId } });
         } catch (error) {
             const message = error instanceof Error ? error.message : "An unknown error occurred while saving the model.";
             setErrorMessage(message);
-        } finally {
-            setIsLoading(false);
         }
     };
 

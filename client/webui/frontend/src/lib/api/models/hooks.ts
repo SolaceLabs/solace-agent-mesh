@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider } from "./service";
+import { createModelConfig, deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, updateModelConfig } from "./service";
 
 export interface SupportedModelsQueryParams {
     provider: string;
@@ -25,7 +25,41 @@ export function useModelConfigs() {
 }
 
 /**
+ * Hook to create a new model configuration.
+ * Invalidates model list and status caches so the UI reflects the new state
+ * (e.g. banner dismisses, chat input enables) without a page refresh.
+ */
+export function useCreateModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: Parameters<typeof createModelConfig>[0]) => createModelConfig(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
+        },
+    });
+}
+
+/**
+ * Hook to update an existing model configuration.
+ * Invalidates model list and status caches on success.
+ */
+export function useUpdateModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: Parameters<typeof updateModelConfig>[1] }) => updateModelConfig(id, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
+        },
+    });
+}
+
+/**
  * Hook to delete a model configuration by ID.
+ * Invalidates both list and status caches — deleting a model may change configured state.
  */
 export function useDeleteModel() {
     const queryClient = useQueryClient();
@@ -34,6 +68,7 @@ export function useDeleteModel() {
         mutationFn: (id: string) => deleteModel(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
         },
     });
 }

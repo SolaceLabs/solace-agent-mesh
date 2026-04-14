@@ -22,7 +22,7 @@ describe("ModelWarningBanner", () => {
     });
     test("renders warning text when showWarning is true", () => {
         renderBanner({ showWarning: true, hasModelConfigWrite: false });
-        expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
+        expect(screen.getByText(/Default models have not been configured/)).toBeInTheDocument();
     });
     test("shows Go to Models button when hasModelConfigWrite is true", () => {
         renderBanner({ showWarning: true, hasModelConfigWrite: true });
