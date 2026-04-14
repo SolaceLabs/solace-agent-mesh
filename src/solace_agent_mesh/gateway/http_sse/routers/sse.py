@@ -356,6 +356,7 @@ async def subscribe_to_user_notifications(
                 try:
                     payload = await asyncio.wait_for(notification_queue.get(), timeout=30)
                     if payload is None:
+                        notification_queue.task_done()
                         break
                     yield payload
                     notification_queue.task_done()

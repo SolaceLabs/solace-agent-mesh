@@ -753,6 +753,11 @@ class SSEManager:
                 broken.append(q)
 
         if broken:
+            log.warning(
+                "%s Pruned %d broken/full notification queue(s) for user %s; "
+                "%s event dropped for those clients",
+                self.log_identifier, len(broken), user_id, event_type,
+            )
             with self._user_notification_lock:
                 user_queues = self._user_notification_queues.get(user_id, [])
                 for q in broken:

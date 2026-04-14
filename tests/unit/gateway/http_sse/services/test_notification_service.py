@@ -470,11 +470,15 @@ class TestSendSSENotification:
 
         await svc._send_sse_notification({}, payload, task)
 
-        # Should notify both user_id and created_by
+        # Should notify both user_id and created_by (order is non-deterministic)
         assert mock_sse.send_user_notification.call_count == 2
         calls = mock_sse.send_user_notification.call_args_list
-        assert calls[0].kwargs == {"user_id": "u1", "event_type": "session_created", "event_data": payload}
-        assert calls[1].kwargs == {"user_id": "u2", "event_type": "session_created", "event_data": payload}
+        notified_kwargs = {frozenset(c.kwargs.items()) for c in calls}
+        expected_kwargs = {
+            frozenset({"user_id": "u1", "event_type": "session_created", "event_data": payload}.items()),
+            frozenset({"user_id": "u2", "event_type": "session_created", "event_data": payload}.items()),
+        }
+        assert notified_kwargs == expected_kwargs
 
 
 # ---------------------------------------------------------------------------

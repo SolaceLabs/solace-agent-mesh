@@ -591,7 +591,7 @@ class ResultHandler:
             # refreshes the "Recent Chats" sidebar immediately.
             if self.sse_manager and user_id:
                 try:
-                    asyncio.get_event_loop().create_task(
+                    notify_task = asyncio.create_task(
                         self.sse_manager.send_user_notification(
                             user_id=user_id,
                             event_type="session_created",
@@ -602,6 +602,18 @@ class ResultHandler:
                             },
                         )
                     )
+
+                    def _on_notify_done(t: asyncio.Task) -> None:
+                        if t.cancelled():
+                            return
+                        exc = t.exception()
+                        if exc:
+                            log.warning(
+                                "%s Notification task failed for execution %s: %s",
+                                self.log_prefix, execution.id, exc,
+                            )
+
+                    notify_task.add_done_callback(_on_notify_done)
                 except Exception as notify_err:
                     log.warning(
                         "%s Failed to send session_created notification for execution %s: %s",

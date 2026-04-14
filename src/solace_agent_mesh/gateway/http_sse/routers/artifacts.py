@@ -98,21 +98,22 @@ class ArtifactUploadResponse(BaseModel):
 router = APIRouter()
 
 
-def _resolve_scheduled_storage_session(session_id: str) -> str | None:
-    """Map a per-execution scheduled session to the stable task-level session.
+def _is_execution_session(session_id: str | None) -> bool:
+    """Return True if session_id is a per-execution scheduled session (not task-level)."""
+    return bool(
+        session_id
+        and session_id.startswith("scheduled_")
+        and not session_id.startswith("scheduled_task_")
+    )
 
-    Scheduled task artifacts are stored under ``scheduled_task_{task_id}``
-    (the ADK context_id), but the chat session uses ``scheduled_{execution_id}``.
-    This helper resolves the mapping via a DB lookup so artifact endpoints
-    can find the correct storage location.
 
-    Returns the stable session ID, or ``None`` if the session is not a
-    scheduled execution session or the lookup fails.
+def _get_execution_from_db(session_id: str, caller: str):
+    """Look up the scheduled execution record for an execution session.
+
+    Returns the execution ORM object, or ``None`` if the session is not an
+    execution session or the lookup fails.
     """
-    if not session_id or not session_id.startswith("scheduled_"):
-        return None
-    # Exclude sessions that are already task-level (scheduled_task_*)
-    if session_id.startswith("scheduled_task_"):
+    if not _is_execution_session(session_id):
         return None
 
     try:
@@ -124,19 +125,31 @@ def _resolve_scheduled_storage_session(session_id: str) -> str | None:
 
         repo = ScheduledTaskRepository()
         with SessionLocal() as db:
-            execution = repo.find_execution_by_session_id(db, session_id)
-            if execution:
-                stable_id = f"scheduled_task_{execution.scheduled_task_id}"
-                log.debug(
-                    "[_resolve_scheduled_storage_session] Mapped %s -> %s",
-                    session_id, stable_id,
-                )
-                return stable_id
+            return repo.find_execution_by_session_id(db, session_id)
     except Exception as e:
-        log.warning(
-            "[_resolve_scheduled_storage_session] Failed to resolve %s: %s",
-            session_id, e,
+        log.warning("[%s] Failed to look up execution for %s: %s", caller, session_id, e)
+        return None
+
+
+def _resolve_scheduled_storage_session(session_id: str) -> str | None:
+    """Map a per-execution scheduled session to the stable task-level session.
+
+    Scheduled task artifacts are stored under ``scheduled_task_{task_id}``
+    (the ADK context_id), but the chat session uses ``scheduled_{execution_id}``.
+    This helper resolves the mapping via a DB lookup so artifact endpoints
+    can find the correct storage location.
+
+    Returns the stable session ID, or ``None`` if the session is not a
+    scheduled execution session or the lookup fails.
+    """
+    execution = _get_execution_from_db(session_id, "_resolve_scheduled_storage_session")
+    if execution:
+        stable_id = f"scheduled_task_{execution.scheduled_task_id}"
+        log.debug(
+            "[_resolve_scheduled_storage_session] Mapped %s -> %s",
+            session_id, stable_id,
         )
+        return stable_id
     return None
 
 
@@ -150,37 +163,17 @@ def _get_execution_artifact_info(session_id: str) -> dict[str, int | None] | Non
     Returns a dict mapping filename → version (or ``None`` if version unknown),
     or ``None`` if the lookup fails or the execution has no artifact manifest.
     """
-    if not session_id or not session_id.startswith("scheduled_"):
+    execution = _get_execution_from_db(session_id, "_get_execution_artifact_info")
+    if not execution or not execution.artifacts:
         return None
-    if session_id.startswith("scheduled_task_"):
-        return None
 
-    try:
-        from ..repository.scheduled_task_repository import ScheduledTaskRepository
-        from ..dependencies import SessionLocal
-
-        if SessionLocal is None:
-            return None
-
-        repo = ScheduledTaskRepository()
-        with SessionLocal() as db:
-            execution = repo.find_execution_by_session_id(db, session_id)
-            if not execution or not execution.artifacts:
-                return None
-
-            info: dict[str, int | None] = {}
-            for art in execution.artifacts:
-                if isinstance(art, dict):
-                    name = art.get("name") or art.get("filename")
-                    if name:
-                        info[name] = art.get("version")
-            return info if info else None
-    except Exception as e:
-        log.warning(
-            "[_get_execution_artifact_info] Failed for %s: %s",
-            session_id, e,
-        )
-        return None
+    info: dict[str, int | None] = {}
+    for art in execution.artifacts:
+        if isinstance(art, dict):
+            name = art.get("name") or art.get("filename")
+            if name:
+                info[name] = art.get("version")
+    return info if info else None
 
 
 def _resolve_storage_context(
@@ -1223,7 +1216,7 @@ async def list_artifacts(
         # For scheduled execution sessions, further filter to only show
         # artifacts produced by this specific execution (not all artifacts
         # accumulated across all executions of the same scheduled task).
-        if session_id and session_id.startswith("scheduled_") and not session_id.startswith("scheduled_task_"):
+        if _is_execution_session(session_id):
             execution_artifact_info = _get_execution_artifact_info(session_id)
             if execution_artifact_info is not None:
                 before_count = len(original_artifacts_only)
@@ -1318,7 +1311,7 @@ async def get_latest_artifact(
         # For scheduled execution sessions, pin to the version produced by
         # this specific execution so the user sees the correct artifact state.
         pinned_version = None
-        if session_id and session_id.startswith("scheduled_") and not session_id.startswith("scheduled_task_"):
+        if _is_execution_session(session_id):
             exec_info = _get_execution_artifact_info(session_id)
             if exec_info and filename in exec_info:
                 pinned_version = exec_info[filename]

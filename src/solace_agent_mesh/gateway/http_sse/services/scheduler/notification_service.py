@@ -234,31 +234,31 @@ class NotificationService:
     async def _send_sse_notification(self, config, payload, task):
         if not self.sse_manager:
             return
+
+        # Collect unique non-None user IDs to notify
+        notify_user_ids: set[str] = set()
         if task.user_id:
+            notify_user_ids.add(task.user_id)
+        if task.created_by:
+            notify_user_ids.add(task.created_by)
+
+        errors: list[Exception] = []
+        for uid in notify_user_ids:
             try:
-                # Send via user-level notification channel so the frontend
-                # can refresh the "Recent Chats" sidebar in real time.
                 await self.sse_manager.send_user_notification(
-                    user_id=task.user_id,
+                    user_id=uid,
                     event_type="session_created",
                     event_data=payload,
                 )
             except Exception as e:
-                log.error("%s Failed to send SSE notification: %s", self.log_prefix, e, exc_info=True)
-                raise
-        if task.created_by and task.created_by != task.user_id:
-            # Also notify the task creator if different from the user_id
-            try:
-                await self.sse_manager.send_user_notification(
-                    user_id=task.created_by,
-                    event_type="session_created",
-                    event_data=payload,
+                log.error(
+                    "%s Failed to send SSE notification to user %s: %s",
+                    self.log_prefix, uid, e, exc_info=True,
                 )
-            except Exception as e:
-                log.warning(
-                    "%s Failed to send SSE notification to creator %s: %s",
-                    self.log_prefix, task.created_by, e,
-                )
+                errors.append(e)
+
+        if errors:
+            raise errors[0]
 
     async def _send_webhook_notification(self, config, payload, task):
         url = config.get("url")
