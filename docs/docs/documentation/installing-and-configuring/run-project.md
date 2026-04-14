@@ -65,7 +65,7 @@ solace-agent-mesh init --help
 ### Step 3: Configure AI Models (Optional)
 
 :::tip[Recommended: Configure Models After Starting]
-You can skip AI model configuration during project initialization and configure your models later through the Agent Mesh UI. After starting your project, navigate to the **Models** page in the web interface to set up your LLM models. This approach lets you add, update, or switch models without modifying configuration files or restarting the application. For details, see [Model Configurations](./model_configurations.md).
+You can skip AI model configuration during project initialization and configure your models later through the Agent Mesh UI. After starting your project, navigate to the **Models** page in the web interface to set up your models. This approach lets you add, update, or switch models without modifying configuration files or restarting the application. For details, see [Model Configurations](./model_configurations.md).
 :::
 
 If you prefer to configure models during initialization, understanding the model name format is important for proper configuration:

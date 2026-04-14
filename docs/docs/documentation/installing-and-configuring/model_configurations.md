@@ -11,7 +11,7 @@ This approach gives your organization a clear picture of which models are in use
 
 ## Why Model Configurations
 
-In a typical Agent Mesh deployment, multiple agents each need access to LLM models. Without centralized management, teams end up duplicating API keys across YAML files, losing track of which models are deployed where, and facing inconsistent configurations between agents. Model Configurations solve these problems by establishing a single source of truth for all model settings.
+In a typical Agent Mesh deployment, multiple agents each need access to LLMs. Without centralized management, teams end up duplicating API keys across YAML files, losing track of which models are deployed where, and facing inconsistent configurations between agents. Model Configurations solve these problems by establishing a single source of truth for all model settings.
 
 Benefits include:
 
@@ -22,7 +22,7 @@ Benefits include:
 
 ## Default Models
 
-Agent Mesh ships with two default model configurations that serve distinct purposes in the system:
+Agent Mesh includes the following default model configurations:
 
 ### General Model
 
@@ -42,7 +42,7 @@ You cannot rename or delete the default models (**general** and **planning**). T
 
 ## Initial Setup
 
-When no model configurations have been created, the platform prompts you to set up your default LLM models. A setup dialog appears on first use, guiding you to configure the **general** and **planning** models so that core AI features—such as chatting with AI, agent creation, and orchestration—can function properly.
+When no model configurations have been created, the platform prompts you to set up your default models. A setup dialog appears on first use, guiding you to configure the **general** and **planning** models so that core AI features—such as chatting with AI, agent creation, and orchestration—can function properly.
 
 If you choose to skip the setup initially, a warning banner appears across the platform indicating that no models have been configured and some features may not work as intended. You can complete the setup at any time by navigating to **Agent Mesh > Models** and creating the general and planning model configurations.
 

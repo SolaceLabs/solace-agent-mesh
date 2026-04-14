@@ -98,7 +98,7 @@ Replace the placeholder values with your actual configuration:
 The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the embedded broker instead of connecting to an external one.
 
 :::tip[Configure Models Through the UI]
-After starting the container, open the web interface at `http://localhost:8001` and configure your AI models from the **Models** page. The platform guides you through the initial model setup on first use. For details, see [Model Configurations](../installing-and-configuring/model_configurations.md).
+After starting Solace Agent Mesh, open the web interface at `http://localhost:8001` and configure your AI models from the **Models** page. The platform guides you through the initial model setup on first use. For details, see [Model Configurations](../installing-and-configuring/model_configurations.md).
 
 Alternatively, you can provide LLM configuration as environment variables at container startup by adding `-e LLM_SERVICE_API_KEY`, `-e LLM_SERVICE_ENDPOINT`, `-e LLM_SERVICE_PLANNING_MODEL_NAME`, and `-e LLM_SERVICE_GENERAL_MODEL_NAME` to the `docker run` command. This is useful for automated or headless deployments.
 :::
@@ -114,7 +114,7 @@ Alternatively, you can provide LLM configuration as environment variables at con
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
     
-    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the following permissive development configuration. After starting, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
+    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the following permissive development configuration. After starting Solace Agent Mesh, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
 </details>
 
 <details>
@@ -131,7 +131,7 @@ Alternatively, you can provide LLM configuration as environment variables at con
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
     
-    After starting, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
+    After starting Solace Agent Mesh, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
 
     **⚠️ Warning:** This configuration disables authorization and grants full access. Use only for local development.
 </details>
@@ -154,7 +154,7 @@ docker run -itd -p 8001:8000 \
   solace-agent-mesh-enterprise:<tag>
 ```
 
-After starting the container, configure your AI models from the **Models** page in the web interface. You can also provide LLM configuration as environment variables at startup (see the preceding development mode section for details).
+After starting Solace Agent Mesh, configure your AI models from the **Models** page in the web interface. You can also provide LLM configuration as environment variables at startup (see the preceding development mode section for details).
 
 Replace the placeholder values with your actual configuration. You need to provide:
 

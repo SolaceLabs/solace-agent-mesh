@@ -16,7 +16,7 @@ This setup uses in-memory queues instead of a real Solace event broker, making i
 Before you begin, ensure you have:
 
 * Docker (or Podman) installed on your system
-* An AI provider and API key (optional—you can configure models through the Agent Mesh UI after starting). For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
+* An AI provider and API key (optional—you can configure models through the Agent Mesh UI after starting Solace Agent Mesh). For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
 
 :::tip Ready for Development?
 If you're ready to set up a full development environment with complete project control, skip this quick trial and go directly to the [installation guide](../installing-and-configuring/installation.md) followed by the [project setup guide](../installing-and-configuring/run-project.md).
@@ -31,7 +31,7 @@ docker run --rm -it -p 8000:8000 --platform linux/amd64 solace/solace-agent-mesh
 ```
 
 :::tip[Configure Models Through the UI]
-You don't need to provide LLM environment variables upfront. After starting the container, open the web interface at `http://localhost:8000` and configure your AI models from the **Models** page. The platform guides you through the initial model setup. For details, see [Model Configurations](../installing-and-configuring/model_configurations.md).
+You don't need to provide LLM environment variables up front. After starting Solace Agent Mesh, open the web interface at `http://localhost:8000` and configure your AI models from the **Models** page. The platform guides you through the initial model setup. For details, see [Model Configurations](../installing-and-configuring/model_configurations.md).
 :::
 
 Alternatively, you can provide environment variables using an `--env-file` flag or pass them directly as command-line arguments using the `-e` flag, as shown in the section that follows. The preset configuration includes several ready-to-use agents that demonstrate the capabilities of Agent Mesh. You can find a complete list of all available preset agents in the [Agent Mesh GitHub repository](https://github.com/SolaceLabs/solace-agent-mesh/tree/main/preset/agents).
@@ -49,7 +49,7 @@ docker run --rm -it --platform linux/amd64 -p 8000:8000 -v $(pwd):/app \
   solace/solace-agent-mesh:latest run /preset/agents/basic /app/my-agent
 ```
 
-Replace `/app/my-agent` with the path to your agent YAML configuration file. Note that you still need either a `shared_config.yaml` file or hard-coded settings in your agent configuration. The `/preset/agents/basic` path runs only the required agents, while `/preset/agents` loads all available agents. After starting, configure your AI models from the **Models** page in the web interface. Alternatively, you can provide LLM configuration as environment variables at startup by adding `-e LLM_SERVICE_API_KEY`, `-e LLM_SERVICE_ENDPOINT`, `-e LLM_SERVICE_PLANNING_MODEL_NAME`, and `-e LLM_SERVICE_GENERAL_MODEL_NAME` to the `docker run` command.
+Replace `/app/my-agent` with the path to your agent YAML configuration file. Note that you still need either a `shared_config.yaml` file or hard-coded settings in your agent configuration. The `/preset/agents/basic` path runs only the required agents, while `/preset/agents` loads all available agents. After starting Solace Agent Mesh, configure your AI models from the **Models** page in the web interface. Alternatively, you can provide LLM configuration as environment variables at startup by adding `-e LLM_SERVICE_API_KEY`, `-e LLM_SERVICE_ENDPOINT`, `-e LLM_SERVICE_PLANNING_MODEL_NAME`, and `-e LLM_SERVICE_GENERAL_MODEL_NAME` to the `docker run` command.
 
 ## Explore the Web Interface
 
