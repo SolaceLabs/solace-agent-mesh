@@ -103,8 +103,6 @@ export function useModelConfigStatus() {
     return useQuery({
         queryKey: modelKeys.status(),
         queryFn: fetchModelConfigStatus,
-        staleTime: Infinity,
-        refetchOnWindowFocus: false,
         retry: 1,
     });
 }
