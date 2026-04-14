@@ -127,6 +127,7 @@ class SamAgentComponent(SamComponentBase):
     CORRELATION_DATA_PREFIX = CORRELATION_DATA_PREFIX
     HOST_COMPONENT_VERSION = "1.0.0-alpha"
     HEALTH_CHECK_TIMER_ID = "agent_health_check"
+    enable_inline_vision = False
 
     def __init__(self, **kwargs):
         """
@@ -225,6 +226,23 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 self.artifact_handling_mode,
             )
+            self.enable_inline_vision = self.get_config(
+                "enable_inline_vision", False
+            )
+            self.max_inline_vision_images = self.get_config(
+                "max_inline_vision_images", 5
+            )
+            self.max_inline_vision_bytes = self.get_config(
+                "max_inline_vision_bytes", 20971520  # 20MB
+            )
+            if self.enable_inline_vision:
+                log.info(
+                    "%s Inline vision enabled: image files will be passed directly to the LLM "
+                    "(max %d images, max %d bytes).",
+                    self.log_identifier,
+                    self.max_inline_vision_images,
+                    self.max_inline_vision_bytes,
+                )
             if self.artifact_handling_mode == "reference":
                 log.warning(
                     "%s Artifact handling mode 'reference' selected, but this component does not currently host an endpoint to serve artifacts. Clients may not be able to retrieve referenced artifacts.",

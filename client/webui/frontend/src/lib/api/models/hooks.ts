@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { agentCardKeys } from "@/lib/api/agent-cards/keys";
 import { modelKeys } from "./keys";
-import { createModelConfig, deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, updateModelConfig } from "./service";
+import { createModelConfig, deleteModel, fetchModelById, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, testModelConnection, updateModelConfig } from "./service";
+import type { TestConnectionRequest } from "./service";
 
 export interface SupportedModelsQueryParams {
     provider: string;
@@ -13,15 +14,12 @@ export interface SupportedModelsQueryParams {
 }
 
 /**
- * Hook to fetch all model configurations.
- * Uses React Query to manage loading, error, and cache states.
+ * Hook to fetch the list of model configurations.
  */
 export function useModelConfigs() {
     return useQuery({
         queryKey: modelKeys.lists(),
         queryFn: fetchModelConfigs,
-        refetchOnMount: "always",
-        retry: 0,
     });
 }
 
@@ -97,12 +95,31 @@ export function useSupportedModels(params: SupportedModelsQueryParams | null) {
 
 /**
  * Hook to check if default LLM models are configured.
- * Fetches once and caches indefinitely for the session.
  */
 export function useModelConfigStatus() {
     return useQuery({
         queryKey: modelKeys.status(),
         queryFn: fetchModelConfigStatus,
         retry: 1,
+    });
+}
+
+/**
+ * Hook to fetch a single model configuration by ID.
+ */
+export function useModelById(id: string | undefined) {
+    return useQuery({
+        queryKey: modelKeys.detail(id!),
+        queryFn: () => fetchModelById(id!),
+        enabled: !!id,
+    });
+}
+
+/**
+ * Hook to test a model connection before saving.
+ */
+export function useTestModelConnection() {
+    return useMutation({
+        mutationFn: (data: TestConnectionRequest) => testModelConnection(data),
     });
 }

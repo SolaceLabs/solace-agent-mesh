@@ -18,7 +18,7 @@ import { useDebounce } from "@/lib/hooks";
 
 interface ModelEditProps {
     isNew: boolean;
-    modelToEdit: ModelConfig | null;
+    modelToEdit?: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
@@ -67,6 +67,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const handleCustomParamKeyCommit = useCallback(() => {
         setCommittedCustomParamsJson(JSON.stringify(getValues("customParams") ?? []));
     }, [getValues]);
+    // When supportedParams arrives (async fetch after model load), snapshot the current
+    // form values so existing invalid params are flagged without waiting for user interaction.
+    useEffect(() => {
+        if (supportedParams && supportedParams.length > 0) {
+            handleCustomParamKeyCommit();
+        }
+    }, [supportedParams, handleCustomParamKeyCommit]);
+
     const unsupportedCustomKeys = useMemo(() => {
         if (!supportedParams || supportedParams.length === 0) return [];
         const committed: { key: string }[] = JSON.parse(committedCustomParamsJson);
@@ -577,7 +585,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                     }}
                                                     render={() => (
                                                         <>
-                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onChange={handleCustomParamKeyCommit} />
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}

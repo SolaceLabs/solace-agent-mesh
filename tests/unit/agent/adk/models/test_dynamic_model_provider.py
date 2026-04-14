@@ -1,5 +1,7 @@
 """Unit tests for DynamicModelProvider and ModelConfigReceiverComponent."""
 
+import threading
+
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
@@ -41,6 +43,9 @@ def _make_provider_no_init(component=None, litellm_instance=None, model_id="gene
     provider._internal_app = None
     provider._broker_input = None
     provider._initialized = False
+    provider._resolve_lock = threading.Lock()
+    provider._pending_resolves = {}
+    provider._loop = None
     return provider
 
 
@@ -327,7 +332,7 @@ class TestModelConfigReceiverComponentInvoke:
 
         message = MagicMock()
         data = {
-            "topic": "test/topic",
+            "topic": "test/ns/configuration/model/response/general/test_agent",
             "payload": {"model_config": {"model": "gpt-4"}},
         }
 
@@ -345,7 +350,7 @@ class TestModelConfigReceiverComponentInvoke:
 
         message = MagicMock()
         data = {
-            "topic": "test/topic",
+            "topic": "test/ns/configuration/model/response/general/test_agent",
             "payload": {},
         }
 
@@ -362,7 +367,7 @@ class TestModelConfigReceiverComponentInvoke:
 
         message = MagicMock()
         data = {
-            "topic": "test/topic",
+            "topic": "test/ns/configuration/model/response/general/test_agent",
             "payload": {"model_config": {}},
         }
 
@@ -378,7 +383,7 @@ class TestModelConfigReceiverComponentInvoke:
 
         message = MagicMock()
         data = {
-            "topic": "test/topic",
+            "topic": "test/ns/configuration/model/response/general/test_agent",
             "payload": {"model_config": {"model": "gpt-4"}},
         }
 
@@ -395,7 +400,7 @@ class TestModelConfigReceiverComponentInvoke:
 
         message = MagicMock()
         data = {
-            "topic": "test/topic",
+            "topic": "test/ns/configuration/model/response/general/test_agent",
             "payload": {"model_config": {"model": "gpt-4"}},
         }
 

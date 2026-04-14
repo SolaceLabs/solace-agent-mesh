@@ -49,3 +49,22 @@ def get_model_config_update_topic(namespace: str, model_id: str) -> str:
         namespace=namespace,
         model_id=model_id,
     )
+
+
+def extract_model_id_from_topic(topic: str) -> tuple[str | None, bool]:
+    """Extract the model_id from a model config topic.
+
+    Supports both topic shapes:
+      - Bootstrap response: .../response/{model_id}/{component_id}
+      - Config update:      .../configuration/model/{model_id}
+
+    Returns:
+        (model_id, is_bootstrap_response) — model_id is None if the
+        topic doesn't match any known shape.
+    """
+    parts = topic.split("/")
+    if len(parts) >= 3 and parts[-3] == "response":
+        return parts[-2], True
+    if parts:
+        return parts[-1], False
+    return None, False
