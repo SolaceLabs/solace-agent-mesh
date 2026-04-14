@@ -178,16 +178,29 @@ export const ModelsView: React.FC = () => {
                                                 <Button title={model.alias} variant="link" className="p-0" onClick={() => handleSelectModel(model)}>
                                                     {getDisplayAliasName(model.alias, model.createdBy)}
                                                 </Button>
-                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && <Badge>Default</Badge>}
-                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && !isModelConfigured(model) && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <AlertTriangle className="h-4 w-4 shrink-0 cursor-default text-(--warning-wMain)" />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>This model needs connection details configured before it can be used.</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
+                                                {DEFAULT_MODEL_ALIASES.includes(model.alias) && (
+                                                    <>
+                                                        <Badge
+                                                            tooltip={
+                                                                model.alias === "general"
+                                                                    ? "Used by all built-in AI features. This cannot be deleted but can be modified."
+                                                                    : "Used for the Orchestrator Agent. This cannot be deleted but can be modified."
+                                                            }
+                                                            tooltipSide="right"
+                                                        >
+                                                            Default
+                                                        </Badge>
+                                                        {!isModelConfigured(model) && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <AlertTriangle className="h-4 w-4 shrink-0 cursor-default text-(--warning-wMain)" />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent side="right">
+                                                                    <p>This model needs connection details configured before it can be used.</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </>
                                                 )}
                                             </TableCell>
                                             <TableCell>{getDisplayModelName(model.modelName) || <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</TableCell>

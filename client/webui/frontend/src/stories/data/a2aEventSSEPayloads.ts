@@ -1,14 +1,5 @@
 import type { A2AEventSSEPayload, TaskFE } from "@/lib/types";
-import {
-    offsetTime,
-    makeEvent,
-    makeTask,
-    makeRequestEvent,
-    makeSignalEvent,
-    makeCompletedResponseEvent,
-    makeFailedResponseEvent,
-    makeStatusUpdateEvent,
-} from "./a2aEventSSEPayloadFactories";
+import { offsetTime, makeEvent, makeTask, makeRequestEvent, makeSignalEvent, makeCompletedResponseEvent, makeFailedResponseEvent, makeStatusUpdateEvent } from "./a2aEventSSEPayloadFactories";
 
 // --- Scenario: Simple Tool Call ---
 
@@ -732,20 +723,8 @@ const parallelPeerValidatorEvents: A2AEventSSEPayload[] = [
             },
         },
     }),
-    makeSignalEvent(
-        "llm_invocation",
-        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Validate order #9999" }] }] } },
-        "ValidatorAgent",
-        offsetTime(1500),
-        "task-pp-2"
-    ),
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ text: "Order #9999 is valid." }] } } },
-        "ValidatorAgent",
-        offsetTime(2200),
-        "task-pp-2"
-    ),
+    makeSignalEvent("llm_invocation", { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Validate order #9999" }] }] } }, "ValidatorAgent", offsetTime(1500), "task-pp-2"),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ text: "Order #9999 is valid." }] } } }, "ValidatorAgent", offsetTime(2200), "task-pp-2"),
     makeCompletedResponseEvent("Order #9999 is valid.", "ValidatorAgent", offsetTime(2500), "task-pp-2"),
 ];
 
@@ -768,20 +747,8 @@ const parallelPeerShippingEvents: A2AEventSSEPayload[] = [
             },
         },
     }),
-    makeSignalEvent(
-        "llm_invocation",
-        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Get shipping estimate for order #9999" }] }] } },
-        "ShippingAgent",
-        offsetTime(1500),
-        "task-pp-3"
-    ),
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ text: "Estimated 3 days via FedEx." }] } } },
-        "ShippingAgent",
-        offsetTime(2500),
-        "task-pp-3"
-    ),
+    makeSignalEvent("llm_invocation", { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Get shipping estimate for order #9999" }] }] } }, "ShippingAgent", offsetTime(1500), "task-pp-3"),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ text: "Estimated 3 days via FedEx." }] } } }, "ShippingAgent", offsetTime(2500), "task-pp-3"),
     makeCompletedResponseEvent("Estimated 3 days via FedEx.", "ShippingAgent", offsetTime(2800), "task-pp-3"),
 ];
 
@@ -1020,20 +987,8 @@ const mixedParallelAnalysisEvents: A2AEventSSEPayload[] = [
         },
     }),
     // LLM call → decides to fetch data first
-    makeSignalEvent(
-        "llm_invocation",
-        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Analyze Q1 sales data" }] }] } },
-        "AnalysisAgent",
-        offsetTime(1400),
-        "task-mix-analysis"
-    ),
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ function_call: { id: "fc-fetch-1", name: "fetch_data", args: { source: "sales_db", quarter: "Q1" } } }] } } },
-        "AnalysisAgent",
-        offsetTime(1800),
-        "task-mix-analysis"
-    ),
+    makeSignalEvent("llm_invocation", { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Analyze Q1 sales data" }] }] } }, "AnalysisAgent", offsetTime(1400), "task-mix-analysis"),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ function_call: { id: "fc-fetch-1", name: "fetch_data", args: { source: "sales_db", quarter: "Q1" } } }] } } }, "AnalysisAgent", offsetTime(1800), "task-mix-analysis"),
     // Sequential tool 1: fetch_data
     makeSignalEvent("tool_invocation_start", { function_call_id: "fc-fetch-1", tool_name: "fetch_data", tool_args: { source: "sales_db", quarter: "Q1" } }, "AnalysisAgent", offsetTime(1900), "task-mix-analysis"),
     makeSignalEvent("tool_result", { function_call_id: "fc-fetch-1", tool_name: "fetch_data", result_data: { rows: 5000, columns: ["date", "amount", "region"] } }, "AnalysisAgent", offsetTime(2500), "task-mix-analysis"),
@@ -1054,24 +1009,12 @@ const mixedParallelAnalysisEvents: A2AEventSSEPayload[] = [
         offsetTime(2600),
         "task-mix-analysis"
     ),
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ function_call: { id: "fc-analyze-1", name: "analyze_data", args: { method: "trend_analysis" } } }] } } },
-        "AnalysisAgent",
-        offsetTime(3000),
-        "task-mix-analysis"
-    ),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ function_call: { id: "fc-analyze-1", name: "analyze_data", args: { method: "trend_analysis" } } }] } } }, "AnalysisAgent", offsetTime(3000), "task-mix-analysis"),
     // Sequential tool 2: analyze_data
     makeSignalEvent("tool_invocation_start", { function_call_id: "fc-analyze-1", tool_name: "analyze_data", tool_args: { method: "trend_analysis" } }, "AnalysisAgent", offsetTime(3100), "task-mix-analysis"),
     makeSignalEvent("tool_result", { function_call_id: "fc-analyze-1", tool_name: "analyze_data", result_data: { trend: "upward", growth_rate: "12%", top_region: "North America" } }, "AnalysisAgent", offsetTime(4000), "task-mix-analysis"),
     // Final LLM response
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ text: "Q1 sales show 12% upward trend. Top region: North America." }] } } },
-        "AnalysisAgent",
-        offsetTime(4200),
-        "task-mix-analysis"
-    ),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ text: "Q1 sales show 12% upward trend. Top region: North America." }] } } }, "AnalysisAgent", offsetTime(4200), "task-mix-analysis"),
     makeCompletedResponseEvent("Q1 sales show 12% upward trend. Top region: North America.", "AnalysisAgent", offsetTime(4500), "task-mix-analysis"),
 ];
 
@@ -1096,13 +1039,7 @@ const mixedParallelReportEvents: A2AEventSSEPayload[] = [
         },
     }),
     // LLM call → decides to generate chart and summary in parallel
-    makeSignalEvent(
-        "llm_invocation",
-        { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Generate report with charts for Q1 sales" }] }] } },
-        "ReportAgent",
-        offsetTime(1400),
-        "task-mix-report"
-    ),
+    makeSignalEvent("llm_invocation", { request: { model: "claude-sonnet-4-6", contents: [{ role: "user", parts: [{ text: "Generate report with charts for Q1 sales" }] }] } }, "ReportAgent", offsetTime(1400), "task-mix-report"),
     makeSignalEvent(
         "llm_response",
         {
@@ -1120,18 +1057,24 @@ const mixedParallelReportEvents: A2AEventSSEPayload[] = [
         "task-mix-report"
     ),
     // Parallel tool calls with parallel_group_id
-    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-chart-1", tool_name: "generate_chart", tool_args: { type: "bar", data: "Q1 sales by region" }, parallel_group_id: "pg-report-1" }, "ReportAgent", offsetTime(1900), "task-mix-report"),
-    makeSignalEvent("tool_invocation_start", { function_call_id: "fc-summary-1", tool_name: "generate_summary", tool_args: { format: "executive", quarter: "Q1" }, parallel_group_id: "pg-report-1" }, "ReportAgent", offsetTime(1900), "task-mix-report"),
+    makeSignalEvent(
+        "tool_invocation_start",
+        { function_call_id: "fc-chart-1", tool_name: "generate_chart", tool_args: { type: "bar", data: "Q1 sales by region" }, parallel_group_id: "pg-report-1" },
+        "ReportAgent",
+        offsetTime(1900),
+        "task-mix-report"
+    ),
+    makeSignalEvent(
+        "tool_invocation_start",
+        { function_call_id: "fc-summary-1", tool_name: "generate_summary", tool_args: { format: "executive", quarter: "Q1" }, parallel_group_id: "pg-report-1" },
+        "ReportAgent",
+        offsetTime(1900),
+        "task-mix-report"
+    ),
     makeSignalEvent("tool_result", { function_call_id: "fc-chart-1", tool_name: "generate_chart", result_data: { chart_url: "/charts/q1_bar.png", type: "bar" } }, "ReportAgent", offsetTime(3000), "task-mix-report"),
     makeSignalEvent("tool_result", { function_call_id: "fc-summary-1", tool_name: "generate_summary", result_data: { summary: "Q1 revenue up 12%, led by North America." } }, "ReportAgent", offsetTime(3200), "task-mix-report"),
     // Final LLM response
-    makeSignalEvent(
-        "llm_response",
-        { data: { content: { parts: [{ text: "Report generated with bar chart and executive summary." }] } } },
-        "ReportAgent",
-        offsetTime(3800),
-        "task-mix-report"
-    ),
+    makeSignalEvent("llm_response", { data: { content: { parts: [{ text: "Report generated with bar chart and executive summary." }] } } }, "ReportAgent", offsetTime(3800), "task-mix-report"),
     makeCompletedResponseEvent("Report generated with bar chart and executive summary.", "ReportAgent", offsetTime(4000), "task-mix-report"),
 ];
 
