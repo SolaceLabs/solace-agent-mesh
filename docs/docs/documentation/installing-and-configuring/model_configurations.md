@@ -47,7 +47,7 @@ When no model configurations have been created, the platform prompts you to set 
 If you choose to skip the setup initially, a warning banner appears across the platform indicating that no models have been configured and some features may not work as intended. You can complete the setup at any time by navigating to **Agent Mesh > Models** and creating the general and planning model configurations.
 
 :::note
-Users without write permissions see a message advising them to contact an administrator to configure models.
+Users without administrator write permissions see a message advising them to contact an administrator to configure models.
 :::
 
 ## Supported Providers
@@ -84,7 +84,7 @@ For example, to connect to Groq:
 
 To create a new model configuration from the UI:
 
-1. Navigate to **Models** in the left sidebar
+1. From Agent Mesh, navigate to **Models**
 2. Click **Add Model**
 3. Fill in the configuration form:
 
@@ -93,7 +93,7 @@ To create a new model configuration from the UI:
 | **Display Name** | Yes | A unique alias used to reference this model (such as `coding-model` or `claude-fast`) |
 | **Description** | Yes | A human-readable description of what this model is used for |
 | **Model Provider** | Yes | Select from the supported providers list |
-| **API Base** | Varies | Required for Azure OpenAI, Ollama, and Custom providers |
+| **API Base URL** | Varies | Required for Azure OpenAI, Ollama, and Custom providers |
 | **Authentication Type** | Yes | The authentication method for the provider |
 | **Auth Credentials** | Varies | Provider-specific credentials (API key, OAuth2 settings, AWS IAM, and so on) |
 | **Model Name** | Yes | The specific model to use. The drop-down list fetches available models from the provider using your credentials. If the fetch fails, you can type the model name manually |
@@ -203,7 +203,7 @@ app_config:
 ```
 
 :::info
-The `model_provider` field accepts a list of aliases. Typically you provide a single alias. When `model_provider` is present, it takes precedence over the `model` field.
+The `model_provider` field accepts an alias or model ID in a form of a list. When `model_provider` is present, it takes precedence over the `model` field.
 :::
 
 #### Key Differences: `model` vs `model_provider`
