@@ -46,12 +46,13 @@ async def _prepare_a2a_filepart_for_adk(
     session_id: str,
 ) -> Optional[adk_types.Part]:
     """
-    Prepares an incoming A2A FilePart for the ADK by converting it into a
-    textual summary of its metadata.
+    Prepares an incoming A2A FilePart for the ADK.
 
     - If the part has bytes, it saves it to the artifact store first.
     - If the part has a URI, it loads metadata from the store.
-    - It then formats this information into a text string for the LLM.
+    - For image files when enable_inline_vision is True: returns an inline_data
+      Part so the LLM can process the image natively via its vision capability.
+    - Otherwise: formats metadata into a text string for the LLM.
     """
     from ...agent.utils.artifact_helpers import (
         save_artifact_with_metadata,
@@ -62,6 +63,7 @@ async def _prepare_a2a_filepart_for_adk(
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
+    enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
     if not artifact_service:
         log.error(
@@ -74,6 +76,7 @@ async def _prepare_a2a_filepart_for_adk(
     filename = None
     version = None
     mime_type = None
+    content_bytes = None
 
     try:
         if isinstance(part.file, FileWithBytes):
@@ -116,7 +119,7 @@ async def _prepare_a2a_filepart_for_adk(
             filename = path_parts[-1]
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
             version = int(version_str) if version_str else None
-            mime_type = part.file.mime_type
+            mime_type = part.file.mime_type or resolve_mime_type(filename, None)
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
@@ -125,7 +128,57 @@ async def _prepare_a2a_filepart_for_adk(
         if filename is None or version is None:
             raise ValueError("Could not determine filename and version for artifact.")
 
-        # Fetch metadata only.
+        # Inline vision: for image files, pass the image bytes directly to the LLM
+        # so vision-capable models can reason about the image natively.
+        if enable_inline_vision and mime_type and mime_type.startswith("image/"):
+            if content_bytes is None:
+                # Load actual content from artifact store (for FileWithUri case)
+                load_result = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=get_original_session_id(session_id),
+                    filename=filename,
+                    version=version,
+                    load_metadata_only=False,
+                    return_raw_bytes=True,
+                )
+                if load_result["status"] == "success":
+                    raw_bytes = load_result.get("raw_bytes")
+                    if raw_bytes:
+                        content_bytes = raw_bytes
+                    else:
+                        log.warning(
+                            "%s Could not extract image bytes from artifact '%s'. "
+                            "Falling back to text metadata.",
+                            log_id,
+                            filename,
+                        )
+                else:
+                    log.warning(
+                        "%s Failed to load image artifact '%s': %s. "
+                        "Falling back to text metadata.",
+                        log_id,
+                        filename,
+                        load_result.get("message", "unknown error"),
+                    )
+
+            if content_bytes:
+                log.info(
+                    "%s Inline vision: passing image '%s' (%d bytes, %s) directly to LLM.",
+                    log_id,
+                    filename,
+                    len(content_bytes),
+                    mime_type,
+                )
+                return adk_types.Part(
+                    inline_data=adk_types.Blob(
+                        mime_type=mime_type,
+                        data=content_bytes,
+                    )
+                )
+
+        # Default: fetch metadata only and return text summary
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,

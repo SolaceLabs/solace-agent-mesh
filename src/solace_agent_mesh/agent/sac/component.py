@@ -225,6 +225,14 @@ class SamAgentComponent(SamComponentBase):
                 self.log_identifier,
                 self.artifact_handling_mode,
             )
+            self.enable_inline_vision = self.get_config(
+                "enable_inline_vision", False
+            )
+            if self.enable_inline_vision:
+                log.info(
+                    "%s Inline vision enabled: image files will be passed directly to the LLM.",
+                    self.log_identifier,
+                )
             if self.artifact_handling_mode == "reference":
                 log.warning(
                     "%s Artifact handling mode 'reference' selected, but this component does not currently host an endpoint to serve artifacts. Clients may not be able to retrieve referenced artifacts.",

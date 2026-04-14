@@ -407,6 +407,13 @@ class SamAgentAppConfig(SamConfigBase):
         default="ignore",
         description="How to represent created artifacts in A2A messages.",
     )
+    enable_inline_vision: bool = Field(
+        default=False,
+        description="When True, image files attached to incoming messages are passed "
+        "directly as inline_data to the LLM for native vision processing, "
+        "instead of being converted to text metadata summaries. Requires a "
+        "vision-capable model (e.g., Claude Sonnet 4, GPT-4o).",
+    )
     schema_max_keys: int = Field(
         default=DEFAULT_SCHEMA_MAX_KEYS,
         ge=0,

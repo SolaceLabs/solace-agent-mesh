@@ -952,32 +952,64 @@ async def _prepare_adk_content_with_artifacts(
     )
 
     if invoked_artifacts:
-        log.info(
-            "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
-            component.log_identifier,
-            logical_task_id,
-            len(invoked_artifacts),
-        )
-        header_text = (
-            "The user has provided the following artifacts as context for your task. "
-            "Use the information contained within their metadata to complete your objective."
-        )
-        artifact_summary = await generate_artifact_metadata_summary(
-            component=component,
-            artifact_identifiers=invoked_artifacts,
-            user_id=user_id,
-            session_id=effective_session_id,
-            app_name=agent_name,
-            header_text=header_text,
-        )
+        enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
-        task_description = get_text_from_message(a2a_message_for_adk)
-        final_prompt = f"{task_description}\n\n{artifact_summary}"
+        # When inline vision is enabled, image artifacts will be passed directly
+        # as inline_data to the LLM (handled in _prepare_a2a_filepart_for_adk).
+        # Filter them out from the metadata summary to avoid redundancy.
+        artifacts_for_summary = invoked_artifacts
+        if enable_inline_vision:
+            _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
+            artifacts_for_summary = [
+                a for a in invoked_artifacts
+                if not any(
+                    a.get("filename", "").lower().endswith(ext)
+                    for ext in _IMAGE_EXTENSIONS
+                )
+            ]
+            skipped_count = len(invoked_artifacts) - len(artifacts_for_summary)
+            if skipped_count > 0:
+                log.info(
+                    "%s Task %s: inline vision enabled, skipping metadata summary for %d image artifact(s).",
+                    component.log_identifier,
+                    logical_task_id,
+                    skipped_count,
+                )
 
-        a2a_message_for_adk = a2a.update_message_parts(
-            message=a2a_message_for_adk,
-            new_parts=[a2a.create_text_part(text=final_prompt)],
-        )
+        if artifacts_for_summary:
+            log.info(
+                "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
+                component.log_identifier,
+                logical_task_id,
+                len(artifacts_for_summary),
+            )
+            header_text = (
+                "The user has provided the following artifacts as context for your task. "
+                "Use the information contained within their metadata to complete your objective."
+            )
+            artifact_summary = await generate_artifact_metadata_summary(
+                component=component,
+                artifact_identifiers=artifacts_for_summary,
+                user_id=user_id,
+                session_id=effective_session_id,
+                app_name=agent_name,
+                header_text=header_text,
+            )
+
+            task_description = get_text_from_message(a2a_message_for_adk)
+            final_prompt = f"{task_description}\n\n{artifact_summary}"
+
+            a2a_message_for_adk = a2a.update_message_parts(
+                message=a2a_message_for_adk,
+                new_parts=[a2a.create_text_part(text=final_prompt)],
+            )
+        elif invoked_artifacts:
+            log.info(
+                "%s Task %s: all %d artifact(s) are images handled by inline vision.",
+                component.log_identifier,
+                logical_task_id,
+                len(invoked_artifacts),
+            )
         log.debug(
             "%s Generated new prompt for task %s with artifact context.",
             component.log_identifier,
