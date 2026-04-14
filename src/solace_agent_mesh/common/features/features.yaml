@@ -122,3 +122,14 @@ features:
       Display LLM thinking/reasoning tokens as expandable entries in the
       inline activity timeline. When disabled, thinking entries are filtered
       out and thinking content is not accumulated on messages.
+
+  - key: offline_evals
+    name: Offline Enterprise Evaluations
+    release_phase: experimental
+    default: false
+    jira: DATAGO-104642
+    description: >
+      Enable the offline enterprise evaluation framework. Allows running
+      evaluations against deployed SAM agents with per-request model
+      overrides. When disabled, model override metadata is ignored and
+      the resolver is not initialized.
