@@ -746,8 +746,8 @@ class SSEManager:
         broken: List[asyncio.Queue] = []
         for q in queues:
             try:
-                await asyncio.wait_for(q.put(payload), timeout=0.1)
-            except (asyncio.QueueFull, asyncio.TimeoutError):
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
                 broken.append(q)
             except Exception:
                 broken.append(q)

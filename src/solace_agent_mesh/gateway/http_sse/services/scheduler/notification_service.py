@@ -242,7 +242,6 @@ class NotificationService:
         if task.created_by:
             notify_user_ids.add(task.created_by)
 
-        errors: list[Exception] = []
         for uid in notify_user_ids:
             try:
                 await self.sse_manager.send_user_notification(
@@ -255,10 +254,6 @@ class NotificationService:
                     "%s Failed to send SSE notification to user %s: %s",
                     self.log_prefix, uid, e, exc_info=True,
                 )
-                errors.append(e)
-
-        if errors:
-            raise errors[0]
 
     async def _send_webhook_notification(self, config, payload, task):
         url = config.get("url")

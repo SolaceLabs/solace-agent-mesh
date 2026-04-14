@@ -724,6 +724,26 @@ class SchedulerService:
                         raise RuntimeError(
                             "Session %s was not found after commit" % session_id
                         )
+
+                # Notify the frontend that an execution has started so the
+                # execution history list shows the "running" status immediately.
+                if self.notification_service.sse_manager and user_id:
+                    try:
+                        await self.notification_service.sse_manager.send_user_notification(
+                            user_id=user_id,
+                            event_type="execution_started",
+                            event_data={
+                                "execution_id": execution_id,
+                                "task_id": task_id,
+                                "task_name": task_name,
+                            },
+                        )
+                    except Exception as notify_err:
+                        log.warning(
+                            "[SchedulerService:%s] Failed to send execution_started notification: %s",
+                            self.instance_id, notify_err,
+                        )
+
             except Exception as e:
                 log.error(
                     "[SchedulerService:%s] Failed to create session for execution %s: %s",
@@ -876,6 +896,7 @@ class SchedulerService:
                     execution.error_message = error_message
                     execution.completed_at = now_epoch_ms()
                     session.commit()
+                    await self._notify_execution_status_change(execution)
         except Exception as e:
             log.error(
                 "[SchedulerService:%s] Failed to mark execution %s as failed: %s",
@@ -893,11 +914,44 @@ class SchedulerService:
                     execution.error_message = "Execution timed out"
                     execution.completed_at = now_epoch_ms()
                     session.commit()
+                    await self._notify_execution_status_change(execution)
         except Exception as e:
             log.error(
                 "[SchedulerService:%s] Failed to mark execution %s as timeout: %s",
                 self.instance_id, execution_id, e,
                 exc_info=True,
+            )
+
+    async def _notify_execution_status_change(self, execution: ScheduledTaskExecutionModel):
+        """Send an SSE notification when an execution's status changes.
+
+        Used by failure/timeout handlers to notify the frontend so the
+        execution history list updates in real time.
+        """
+        sse_manager = self.notification_service.sse_manager
+        if not sse_manager:
+            return
+        try:
+            with self.session_factory() as session:
+                task = session.get(ScheduledTaskModel, execution.scheduled_task_id)
+                if not task:
+                    return
+                user_id = task.user_id or task.created_by
+                if user_id:
+                    await sse_manager.send_user_notification(
+                        user_id=user_id,
+                        event_type="session_created",
+                        event_data={
+                            "execution_id": execution.id,
+                            "task_id": task.id,
+                            "task_name": task.name,
+                            "status": execution.status,
+                        },
+                    )
+        except Exception as e:
+            log.warning(
+                "[SchedulerService:%s] Failed to send status change notification for execution %s: %s",
+                self.instance_id, execution.id, e,
             )
 
     async def is_leader(self) -> bool:

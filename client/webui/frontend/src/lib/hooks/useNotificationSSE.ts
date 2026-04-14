@@ -18,21 +18,35 @@ import { useSSESubscription } from "@/lib/providers/SSEProvider";
 /**
  * Establishes a persistent SSE connection to `/api/v1/sse/notifications`.
  *
- * When a `session_created` event arrives the hook dispatches a
- * `"new-chat-session"` CustomEvent on `window`, which the session list
- * hooks already listen for.
+ * Listens for two event types:
+ * - `session_created` — dispatched when a scheduled task completes and creates a chat session
+ * - `execution_started` — dispatched when a scheduled task execution begins running
  *
- * The connection automatically reconnects on error with exponential backoff
- * and refreshes the auth token on each reconnect attempt.
+ * Both trigger `"scheduled-task-completed"` to refresh execution history.
+ * `session_created` also triggers `"new-chat-session"` for the Recent Chats sidebar.
  */
 export function useNotificationSSE(): void {
-    const onMessage = useCallback(() => {
+    const onSessionCreated = useCallback(() => {
+        // Refresh the Recent Chats sidebar
         window.dispatchEvent(new CustomEvent("new-chat-session"));
+        // Refresh the execution history list on the scheduled tasks page
+        window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
+    }, []);
+
+    const onExecutionStarted = useCallback(() => {
+        // Refresh the execution history to show "running" status
+        window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
     }, []);
 
     useSSESubscription({
         endpoint: "/api/v1/sse/notifications",
         eventType: "session_created",
-        onMessage,
+        onMessage: onSessionCreated,
+    });
+
+    useSSESubscription({
+        endpoint: "/api/v1/sse/notifications",
+        eventType: "execution_started",
+        onMessage: onExecutionStarted,
     });
 }

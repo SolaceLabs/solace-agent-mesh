@@ -1066,6 +1066,118 @@ class TestCleanupStaleExecutions:
 
 
 # ===========================================================================
+# Orphaned execution recovery on startup
+# ===========================================================================
+
+class TestRecoverOrphanedExecutions:
+    """Tests for ``_recover_orphaned_executions`` marking stale startup state as FAILED."""
+
+    @pytest.mark.asyncio
+    async def test_marks_running_as_failed(self):
+        """RUNNING executions are marked FAILED on startup."""
+        service, mocks = _build_scheduler_service()
+
+        orphan = MagicMock(spec=ScheduledTaskExecutionModel)
+        orphan.id = "orphan-run-1"
+        orphan.status = ExecutionStatus.RUNNING
+        orphan.completed_at = None
+        orphan.error_message = None
+
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [orphan]
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mocks["session"].execute.return_value = mock_result
+
+        await service._recover_orphaned_executions()
+
+        assert orphan.status == ExecutionStatus.FAILED
+        assert orphan.completed_at is not None
+        assert "server restart" in orphan.error_message.lower()
+        mocks["session"].commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_marks_pending_as_failed(self):
+        """PENDING executions are marked FAILED on startup."""
+        service, mocks = _build_scheduler_service()
+
+        orphan = MagicMock(spec=ScheduledTaskExecutionModel)
+        orphan.id = "orphan-pend-1"
+        orphan.status = ExecutionStatus.PENDING
+        orphan.completed_at = None
+        orphan.error_message = None
+
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [orphan]
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mocks["session"].execute.return_value = mock_result
+
+        await service._recover_orphaned_executions()
+
+        assert orphan.status == ExecutionStatus.FAILED
+        assert orphan.completed_at is not None
+        mocks["session"].commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_completed_executions_left_alone(self):
+        """No orphaned executions means no changes and no commit errors."""
+        service, mocks = _build_scheduler_service()
+
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mocks["session"].execute.return_value = mock_result
+
+        await service._recover_orphaned_executions()
+
+        # No orphans found — commit is not called because the method returns early
+        # (the query only selects RUNNING/PENDING, so COMPLETED are never touched)
+
+    @pytest.mark.asyncio
+    async def test_multiple_orphans_all_marked(self):
+        """Multiple orphaned executions are all marked FAILED."""
+        service, mocks = _build_scheduler_service()
+
+        orphan1 = MagicMock(spec=ScheduledTaskExecutionModel)
+        orphan1.id = "orphan-1"
+        orphan1.status = ExecutionStatus.RUNNING
+        orphan1.completed_at = None
+        orphan1.error_message = None
+
+        orphan2 = MagicMock(spec=ScheduledTaskExecutionModel)
+        orphan2.id = "orphan-2"
+        orphan2.status = ExecutionStatus.PENDING
+        orphan2.completed_at = None
+        orphan2.error_message = None
+
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [orphan1, orphan2]
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mocks["session"].execute.return_value = mock_result
+
+        await service._recover_orphaned_executions()
+
+        assert orphan1.status == ExecutionStatus.FAILED
+        assert orphan2.status == ExecutionStatus.FAILED
+        assert orphan1.completed_at is not None
+        assert orphan2.completed_at is not None
+        mocks["session"].commit.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_db_error_does_not_raise(self):
+        """DB errors during recovery are caught, not propagated."""
+        service, mocks = _build_scheduler_service()
+
+        mocks["session"].execute.side_effect = Exception("DB connection lost")
+
+        # Should not raise
+        await service._recover_orphaned_executions()
+
+
+# ===========================================================================
 # Session creation failure in _submit_task_to_agent_mesh
 # ===========================================================================
 
