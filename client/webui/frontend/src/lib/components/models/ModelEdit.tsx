@@ -67,6 +67,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const handleCustomParamKeyCommit = useCallback(() => {
         setCommittedCustomParamsJson(JSON.stringify(getValues("customParams") ?? []));
     }, [getValues]);
+    // When supportedParams arrives (async fetch after model load), snapshot the current
+    // form values so existing invalid params are flagged without waiting for user interaction.
+    useEffect(() => {
+        if (supportedParams && supportedParams.length > 0) {
+            handleCustomParamKeyCommit();
+        }
+    }, [supportedParams, handleCustomParamKeyCommit]);
+
     const unsupportedCustomKeys = useMemo(() => {
         if (!supportedParams || supportedParams.length === 0) return [];
         const committed: { key: string }[] = JSON.parse(committedCustomParamsJson);
