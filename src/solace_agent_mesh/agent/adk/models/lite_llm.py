@@ -154,6 +154,11 @@ def set_model_override(config: Optional[Dict[str, Any]]) -> None:
     _model_override_var.set(config)
 
 
+def get_model_override() -> Optional[Dict[str, Any]]:
+    """Return the per-request model override for the current async task, or None."""
+    return _model_override_var.get()
+
+
 class FunctionChunk(BaseModel):
     id: Optional[str]
     name: Optional[str]
@@ -1205,7 +1210,7 @@ class LiteLlm(BaseLlm):
         # Apply per-request model override if set by the callback chain.
         # The ContextVar is managed by apply_model_override_callback which
         # runs before every LLM call, so we just read here — no clearing.
-        override_config = _model_override_var.get()
+        override_config = get_model_override()
         if override_config:
             override_copy = override_config.copy()
             override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))

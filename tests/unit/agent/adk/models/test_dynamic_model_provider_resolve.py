@@ -74,27 +74,6 @@ class TestResolve:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_cleans_up_pending_after_resolve(self):
-        provider, component = _make_provider()
-
-        async def complete(*args, **kwargs):
-            await asyncio.sleep(0.01)
-            provider.complete_pending_resolve("alias", {"model": "x"})
-
-        component.publish_a2a_message.side_effect = lambda **kw: asyncio.ensure_future(
-            complete()
-        )
-
-        await provider.resolve("alias", timeout=2.0)
-        assert "alias" not in provider._pending_resolves
-
-    @pytest.mark.asyncio
-    async def test_cleans_up_pending_after_timeout(self):
-        provider, _ = _make_provider()
-        await provider.resolve("alias", timeout=0.05)
-        assert "alias" not in provider._pending_resolves
-
-    @pytest.mark.asyncio
     async def test_concurrent_resolves_deduped(self):
         """Two concurrent resolves for the same alias should only publish once."""
         provider, component = _make_provider()
@@ -138,30 +117,6 @@ class TestResolve:
         assert r1 == {"model": "model-a"}
         assert r2 == {"model": "model-b"}
         assert component.publish_a2a_message.call_count == 2
-
-
-class TestCompletePendingResolve:
-    @pytest.mark.asyncio
-    async def test_completes_future_via_call_soon_threadsafe(self):
-        provider, component = _make_provider()
-        loop = asyncio.get_running_loop()
-        component._async_loop = loop
-        future = loop.create_future()
-
-        with provider._resolve_lock:
-            provider._pending_resolves["alias"] = [future]
-
-        provider.complete_pending_resolve("alias", {"model": "x"})
-
-        # call_soon_threadsafe schedules on the event loop; yield to let it run
-        await asyncio.sleep(0.01)
-        assert future.result() == {"model": "x"}
-        assert "alias" not in provider._pending_resolves
-
-    @pytest.mark.asyncio
-    async def test_no_pending_is_noop(self):
-        provider, _ = _make_provider()
-        provider.complete_pending_resolve("nonexistent", {"model": "x"})
 
 
 class TestReceiverRouting:

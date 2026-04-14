@@ -8,7 +8,7 @@ from google.adk.models.llm_request import LlmRequest
 
 from solace_agent_mesh.agent.adk.models.lite_llm import (
     LiteLlm,
-    _model_override_var,
+    get_model_override,
     set_model_override,
 )
 
@@ -47,12 +47,12 @@ class TestSetModelOverride:
     def test_set_and_get(self):
         config = {"model": "openai/gpt-4o", "api_key": "sk-test"}
         set_model_override(config)
-        assert _model_override_var.get() == config
-        _model_override_var.set(None)
+        assert get_model_override() == config
+        set_model_override(None)
 
     def test_default_is_none(self):
-        _model_override_var.set(None)
-        assert _model_override_var.get() is None
+        set_model_override(None)
+        assert get_model_override() is None
 
     @pytest.mark.asyncio
     async def test_isolation_across_async_tasks(self):
@@ -62,8 +62,8 @@ class TestSetModelOverride:
         async def worker(name, model_name):
             set_model_override({"model": model_name})
             await asyncio.sleep(0.01)
-            results[name] = _model_override_var.get()
-            _model_override_var.set(None)
+            results[name] = get_model_override()
+            set_model_override(None)
 
         await asyncio.gather(
             worker("a", "openai/gpt-4o"),
@@ -110,7 +110,7 @@ class TestModelOverrideInGenerateContent:
             captured_args.update(kwargs)
             return mock_litellm_completion
 
-        _model_override_var.set(None)
+        set_model_override(None)
 
         with patch("solace_agent_mesh.agent.adk.models.lite_llm.MetricRegistry"):
             llm = LiteLlm(model="openai/gpt-4o-mini", api_key="default-key")
@@ -150,7 +150,7 @@ class TestModelOverrideInGenerateContent:
                 "anthropic/claude-3-5-sonnet",
                 "anthropic/claude-3-5-sonnet",
             ]
-            _model_override_var.set(None)
+            set_model_override(None)
 
     @pytest.mark.asyncio
     async def test_override_inherits_default_resilience(

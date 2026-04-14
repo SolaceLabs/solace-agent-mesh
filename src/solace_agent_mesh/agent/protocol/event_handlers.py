@@ -6,7 +6,7 @@ import asyncio
 import fnmatch
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from openfeature import api as openfeature_api
 
@@ -1048,6 +1048,75 @@ def _send_error_response_and_nack(
     component.handle_error(exception, Event(EventType.MESSAGE, message))
 
 
+async def _resolve_model_override_metadata(
+    task_metadata: Dict[str, Any],
+    dynamic_model_provider: Any,
+    log_identifier: str,
+) -> Optional[str]:
+    """Resolve model_override alias in task metadata to a raw LiteLLM config dict.
+
+    Gated behind the ``offline_evals`` feature flag.  Mutates *task_metadata*
+    in place:
+
+    * Valid alias resolved   -> replaces value with raw config dict
+    * Flag disabled / invalid format -> removes the key
+    * Resolution failure     -> returns an error reason string
+
+    Returns ``None`` on success/no-op, or an error reason string when the
+    caller should reject the request.
+    """
+    model_override = task_metadata.get("model_override")
+    if model_override is None:
+        return None
+
+    if not openfeature_api.get_client().get_boolean_value("offline_evals", False):
+        log.debug(
+            "%s model_override in metadata ignored (offline_evals flag disabled)",
+            log_identifier,
+        )
+        task_metadata.pop("model_override", None)
+        return None
+
+    if not (
+        isinstance(model_override, dict)
+        and isinstance(model_override.get("model_id"), str)
+        and model_override["model_id"]
+    ):
+        log.warning(
+            "%s Unrecognized model_override format, ignoring",
+            log_identifier,
+        )
+        task_metadata.pop("model_override", None)
+        return None
+
+    model_id = model_override["model_id"]
+    resolved = None
+    if dynamic_model_provider:
+        resolved = await dynamic_model_provider.resolve(model_id)
+
+    if resolved:
+        task_metadata["model_override"] = resolved
+        log.info(
+            "%s Resolved model override alias '%s' to model=%s",
+            log_identifier,
+            model_id,
+            resolved.get("model"),
+        )
+        return None
+
+    reason = (
+        "model config not available"
+        if not dynamic_model_provider
+        else f"alias '{model_id}' not found or resolution timed out"
+    )
+    log.error(
+        "%s Model override resolution failed: %s",
+        log_identifier,
+        reason,
+    )
+    return reason
+
+
 async def _handle_send_message_request(
     component: "SamAgentComponent",
     message: SolaceMessage,
@@ -1124,66 +1193,28 @@ async def _handle_send_message_request(
     message_id = a2a_message.message_id
     task_metadata = a2a_message.metadata or {}
 
-    # Resolve model_override alias to raw config dict via platform service.
-    # Gated behind offline_evals feature flag. Expected format: {"model_id": "<alias-or-uuid>"}
-    model_override = task_metadata.get("model_override")
-    if model_override is not None:
-        if not openfeature_api.get_client().get_boolean_value("offline_evals", False):
-            log.debug(
-                "%s model_override in metadata ignored (offline_evals flag disabled)",
-                component.log_identifier,
+    override_error = await _resolve_model_override_metadata(
+        task_metadata,
+        component._dynamic_model_provider,
+        component.log_identifier,
+    )
+    if override_error:
+        error_response = a2a.create_invalid_request_error_response(
+            message=f"Model override resolution failed: {override_error}",
+            request_id=jsonrpc_request_id,
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id)
+            if client_id
+            else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
             )
-            task_metadata.pop("model_override", None)
-        elif (
-            isinstance(model_override, dict)
-            and isinstance(model_override.get("model_id"), str)
-            and model_override["model_id"]
-        ):
-            model_id = model_override["model_id"]
-            resolved = None
-            if component._dynamic_model_provider:
-                resolved = await component._dynamic_model_provider.resolve(model_id)
-            if resolved:
-                task_metadata["model_override"] = resolved
-                log.info(
-                    "%s Resolved model override alias '%s' to model=%s",
-                    component.log_identifier,
-                    model_id,
-                    resolved.get("model"),
-                )
-            else:
-                reason = (
-                    "model config not available"
-                    if not component._dynamic_model_provider
-                    else f"alias '{model_id}' not found or resolution timed out"
-                )
-                log.error(
-                    "%s Model override resolution failed: %s",
-                    component.log_identifier,
-                    reason,
-                )
-                error_response = a2a.create_invalid_request_error_response(
-                    message=f"Model override resolution failed: {reason}",
-                    request_id=jsonrpc_request_id,
-                )
-                target_topic = reply_topic_from_peer or (
-                    get_client_response_topic(namespace, client_id)
-                    if client_id
-                    else None
-                )
-                if target_topic:
-                    component.publish_a2a_message(
-                        error_response.model_dump(exclude_none=True),
-                        target_topic,
-                    )
-                message.call_negative_acknowledgements()
-                return None
-        else:
-            log.warning(
-                "%s Unrecognized model_override format, ignoring",
-                component.log_identifier,
-            )
-            task_metadata.pop("model_override", None)
+        message.call_negative_acknowledgements()
+        return None
 
     system_purpose = task_metadata.get("system_purpose")
     response_format = task_metadata.get("response_format")

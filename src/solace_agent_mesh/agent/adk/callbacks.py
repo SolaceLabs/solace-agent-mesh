@@ -3332,6 +3332,7 @@ def apply_model_override_callback(
     ``ModelConfigService.get_by_alias(raw=True)``).  Applied via a
     ``ContextVar`` that ``LiteLlm.generate_content_async`` consumes.
     """
+    # Inline import to avoid circular dependency (callbacks ← setup → lite_llm)
     from .models.lite_llm import set_model_override
 
     a2a_context = callback_context.state.get("a2a_context")
