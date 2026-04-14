@@ -15,7 +15,7 @@ Before you begin, ensure you have the following:
 
 - Docker installed on your system
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
-- An LLM service API key and endpoint
+- An LLM service API key and endpoint (optional—you can configure models through the Agent Mesh UI after starting the application)
 - For production deployments, Solace broker credentials
 
 ## Understanding the Installation Process
@@ -83,10 +83,6 @@ The following command starts a container in development mode. The `-itd` flags r
 
 ```bash
 docker run -itd -p 8001:8000 \
-  -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
-  -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
-  -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
-  -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="true" \
   -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
@@ -96,30 +92,29 @@ docker run -itd -p 8001:8000 \
 
 Replace the placeholder values with your actual configuration:
 
-- `<YOUR_LLM_TOKEN>`: Your API key for the LLM service
-- `<YOUR_LLM_SERVICE_ENDPOINT>`: The URL endpoint for your LLM service
-- `<YOUR_MODEL_NAME>`: The name of the LLM model you want to use (you can specify the same model for both planning and general tasks, or use different models)
 - `<YOUR_NAMESPACE>`: A unique identifier for your deployment (such as "sam-dev")
 - `<tag>`: The image tag you identified in Step 2
 
 The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the embedded broker instead of connecting to an external one.
+
+:::tip[Configure Models Through the UI]
+After starting the container, open the web interface at `http://localhost:8001` and configure your AI models from the **Models** page. The platform guides you through the initial model setup on first use. For details, see [Model Configurations](../installing-and-configuring/model_configurations.md).
+
+Alternatively, you can provide LLM configuration as environment variables at container startup by adding `-e LLM_SERVICE_API_KEY`, `-e LLM_SERVICE_ENDPOINT`, `-e LLM_SERVICE_PLANNING_MODEL_NAME`, and `-e LLM_SERVICE_GENERAL_MODEL_NAME` to the `docker run` command. This is useful for automated or headless deployments.
+:::
 
 <details>
     <summary>Example: Basic Development Mode (Secure Default - Access Denied)</summary>
 
     ```bash
     docker run -itd -p 8001:8000 \
-      -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
-      -e LLM_SERVICE_ENDPOINT="https://lite-llm.mymaas.net/" \
-      -e LLM_SERVICE_PLANNING_MODEL_NAME="openai/vertex-claude-4-sonnet" \
-      -e LLM_SERVICE_GENERAL_MODEL_NAME="openai/vertex-claude-4-sonnet" \
       -e NAMESPACE="sam-dev" \
       -e SOLACE_DEV_MODE="true" \
       --name sam-ent-dev \
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
     
-    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the permissive development configuration below.
+    **Note:** This configuration uses secure defaults and will deny all access. You must configure RBAC or use the following permissive development configuration. After starting, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
 </details>
 
 <details>
@@ -129,10 +124,6 @@ The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the
     
     ```bash
     docker run -itd -p 8001:8000 \
-      -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
-      -e LLM_SERVICE_ENDPOINT="https://lite-llm.mymaas.net/" \
-      -e LLM_SERVICE_PLANNING_MODEL_NAME="openai/vertex-claude-4-sonnet" \
-      -e LLM_SERVICE_GENERAL_MODEL_NAME="openai/vertex-claude-4-sonnet" \
       -e NAMESPACE="sam-dev" \
       -e SOLACE_DEV_MODE="true" \
       -e SAM_AUTHORIZATION_CONFIG="/preset/auth/insecure_permissive_auth_config.yaml" \
@@ -140,6 +131,8 @@ The `SOLACE_DEV_MODE="true"` environment variable tells the container to use the
       868978040651.dkr.ecr.us-east-1.amazonaws.com/solace-agent-mesh-enterprise:1.0.37-c8890c7f31
     ```
     
+    After starting, configure your AI models from the **Models** page in the web interface at `http://localhost:8001`.
+
     **⚠️ Warning:** This configuration disables authorization and grants full access. Use only for local development.
 </details>
 
@@ -151,10 +144,6 @@ The production configuration requires additional environment variables to specif
 
 ```bash
 docker run -itd -p 8001:8000 \
-  -e LLM_SERVICE_API_KEY="<YOUR_LLM_TOKEN>" \
-  -e LLM_SERVICE_ENDPOINT="<YOUR_LLM_SERVICE_ENDPOINT>" \
-  -e LLM_SERVICE_PLANNING_MODEL_NAME="<YOUR_MODEL_NAME>" \
-  -e LLM_SERVICE_GENERAL_MODEL_NAME="<YOUR_MODEL_NAME>" \
   -e NAMESPACE="<YOUR_NAMESPACE>" \
   -e SOLACE_DEV_MODE="false" \
   -e SOLACE_BROKER_URL="<YOUR_BROKER_URL>" \
@@ -165,7 +154,9 @@ docker run -itd -p 8001:8000 \
   solace-agent-mesh-enterprise:<tag>
 ```
 
-Replace the placeholder values with your actual configuration. In addition to the LLM service parameters described in the development mode section, you need to provide:
+After starting the container, configure your AI models from the **Models** page in the web interface. You can also provide LLM configuration as environment variables at startup (see the preceding development mode section for details).
+
+Replace the placeholder values with your actual configuration. You need to provide:
 
 - `<YOUR_BROKER_URL>`: The secured SMF URI for your Solace broker
 - `<YOUR_BROKER_VPN>`: The Message VPN name for your Solace service

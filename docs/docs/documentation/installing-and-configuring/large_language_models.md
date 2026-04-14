@@ -5,6 +5,12 @@ sidebar_position: 340
 
 Large Language Models (LLMs) serve as the intelligence foundation for Agent Mesh, powering everything from natural language understanding to complex reasoning and decision-making. The system provides flexible configuration options that allow you to connect with various LLM providers through a unified interface, making it easy to switch between providers or use multiple models for different purposes.
 
+:::tip[Recommended: Manage Models Through the UI]
+The recommended way to configure LLM models is through the Agent Mesh UI. You can start Agent Mesh without any pre-configured models and set them up directly from the **Models** page in the UI. This approach provides centralized credential management, dynamic updates without restarts, and visibility into which agents use which models. For details, see [Model Configurations](./model_configurations.md).
+
+The YAML-based configuration described on this page is intended for advanced use cases such as CI/CD pipelines, fully automated deployments, or scenarios where UI access is not available.
+:::
+
 You can configure LLM settings in two locations within your Agent Mesh deployment. The `apps.app_config.model` field allows you to specify model settings for individual agents or gateways, providing fine-grained control over which models specific components use. Alternatively, you can define models globally in the `shared_config.yaml` file under the `models` section, creating reusable configurations that multiple components can reference. For detailed information about the overall configuration structure and shared configuration management, see the [Configuring Agent Mesh](./configurations.md).
 
 ## Understanding LiteLLM Integration

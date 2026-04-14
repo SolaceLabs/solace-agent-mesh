@@ -1,11 +1,11 @@
 ---
 title: Model Configurations
-sidebar_position: 341
+sidebar_position: 325
 ---
 
 # Model Configurations
 
-Model Configurations provide a centralized management layer for all LLM models used across your Agent Mesh deployment. Instead of scattering model credentials and settings across individual agent YAML files, Model Configurations let you define, manage, and share model setups from a single location in the Agent Mesh UI.
+Model Configurations provide a centralized management layer for all large language model (LLM) configurations used across your Agent Mesh deployment. Instead of scattering model credentials and settings across individual agent YAML files, Model Configurations let you define, manage, and share model setups from a single location in the Agent Mesh UI.
 
 This approach gives your organization a clear picture of which models are in use, how they are configured, and which agents depend on them, making it easier to audit, rotate credentials, and standardize model usage across teams.
 
@@ -28,26 +28,26 @@ Agent Mesh ships with two default model configurations that serve distinct purpo
 
 The **general** model is the default LLM used by backend services and agents that require language model capabilities. When an agent needs to reason about input, generate responses, or perform any standard LLM task, it uses the general model unless explicitly configured otherwise.
 
-The general model should be a capable, well-rounded LLM that balances performance with cost. It handles the bulk of day-to-day LLM interactions across your deployment.
+We recommend choosing a capable, well-rounded LLM that balances performance with cost for the general model. It handles the bulk of day-to-day LLM interactions across your deployment.
 
 ### Planning Model
 
-The **planning** model is specifically used by the orchestrator, which is responsible for analyzing user requests, determining which agents to invoke, in what order, and how to combine their outputs into a coherent response. This requires more sophisticated reasoning and planning capabilities than typical agent tasks. For more details, see [Orchestrator](../components/orchestrator.md).
+The **planning** model is specifically used by the orchestrator, which is responsible for analyzing user requests, determining which agents to invoke, in what order, and how to combine their outputs into a coherent response. This requires more sophisticated reasoning and planning capabilities than typical agent tasks. For more information, see [Orchestrator](../components/orchestrator.md).
 
 The planning model is separated from the general model because orchestration demands a higher level of multi-step reasoning, tool selection logic, and task decomposition. Organizations may choose to use a more capable (and potentially more expensive) model for planning while using a cost-effective model for general agent tasks.
 
 :::info
-Both default models (**general** and **planning**) cannot be renamed or deleted. They are system-level configurations that the platform depends on. You can, however, change the underlying provider, model, credentials, and parameters for each.
+You cannot rename or delete the default models (**general** and **planning**). They are system-level configurations that the platform depends on. You can, however, change the underlying provider, model, credentials, and parameters for each.
 :::
 
 ## Initial Setup
 
-When no model configurations have been created, the platform will prompt you to set up your default LLM models. A setup dialog appears on first use, guiding you to configure the **general** and **planning** models so that core AI features — such as chatting with AI, agent creation, and orchestration — can function properly.
+When no model configurations have been created, the platform prompts you to set up your default LLM models. A setup dialog appears on first use, guiding you to configure the **general** and **planning** models so that core AI features—such as chatting with AI, agent creation, and orchestration—can function properly.
 
-If you choose to skip the setup initially, a warning banner will appear across the platform indicating that no models have been configured and some features may not work as intended. You can complete the setup at any time by navigating to **Agent Mesh > Models** and creating the general and planning model configurations.
+If you choose to skip the setup initially, a warning banner appears across the platform indicating that no models have been configured and some features may not work as intended. You can complete the setup at any time by navigating to **Agent Mesh > Models** and creating the general and planning model configurations.
 
 :::note
-Users without write permissions will see a message advising them to contact an administrator to configure models.
+Users without write permissions see a message advising them to contact an administrator to configure models.
 :::
 
 ## Supported Providers
@@ -56,14 +56,14 @@ Model Configurations support the following LLM providers through the UI:
 
 | Provider | Description | Authentication |
 |----------|-------------|----------------|
-| **OpenAI** | GPT models via OpenAI's API | API Key |
-| **Anthropic** | Claude models via Anthropic's API | API Key |
-| **Azure OpenAI** | OpenAI models hosted on Azure infrastructure | API Key, OAuth2 |
-| **Google AI Studio** | Gemini models via Google's API | API Key |
-| **Google Vertex AI** | Models via Google Cloud's Vertex AI platform | GCP Service Account |
-| **Amazon Bedrock** | Foundation models via AWS Bedrock | AWS IAM |
-| **Ollama** | Locally hosted open-source models | API Key, None |
-| **Custom** | Any provider implementing the OpenAI-compatible API protocol | API Key, OAuth2, None |
+| OpenAI | GPT models via OpenAI API | API Key |
+| Anthropic | Claude models via Anthropic API | API Key |
+| Azure OpenAI | OpenAI models hosted on Azure infrastructure | API Key, OAuth2 |
+| Google AI Studio | Gemini models via Google API | API Key |
+| Google Vertex AI | Models via Google Cloud Vertex AI platform | GCP Service Account |
+| Amazon Bedrock | Foundation models via AWS Bedrock | AWS IAM |
+| Ollama | Locally hosted open-source models | API Key, None |
+| Custom | Any provider implementing the OpenAI-compatible API protocol | API Key, OAuth2, None |
 
 ### The Custom Provider
 
@@ -90,13 +90,13 @@ To create a new model configuration from the UI:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| **Display Name** | Yes | A unique alias used to reference this model (e.g., `my-gpt4`, `claude-fast`) |
+| **Display Name** | Yes | A unique alias used to reference this model (such as `coding-model` or `claude-fast`) |
 | **Description** | Yes | A human-readable description of what this model is used for |
 | **Model Provider** | Yes | Select from the supported providers list |
 | **API Base** | Varies | Required for Azure OpenAI, Ollama, and Custom providers |
 | **Authentication Type** | Yes | The authentication method for the provider |
-| **Auth Credentials** | Varies | Provider-specific credentials (API key, OAuth2 settings, AWS IAM, etc.) |
-| **Model Name** | Yes | The specific model to use. The dropdown fetches available models from the provider using your credentials. If the fetch fails, you can type the model name manually |
+| **Auth Credentials** | Varies | Provider-specific credentials (API key, OAuth2 settings, AWS IAM, and so on) |
+| **Model Name** | Yes | The specific model to use. The drop-down list fetches available models from the provider using your credentials. If the fetch fails, you can type the model name manually |
 
 4. Optionally expand **Advanced Settings** to configure:
 
@@ -104,9 +104,9 @@ To create a new model configuration from the UI:
 |-----------|-------------|---------|
 | **Temperature** | Controls randomness in responses (0-2). Lower values produce more deterministic output | Provider default |
 | **Max Tokens** | Maximum number of tokens in the response | Provider default |
-| **Prompt Caching Strategy** | Controls how system prompts and tool definitions are cached across LLM requests to reduce costs and latency. Cached content is reused by the provider instead of being reprocessed on each request. Options: **5 minutes** (short-lived cache), **1 hour** (extended cache), or **Disabled** (no caching). Not all providers support prompt caching — when unsupported, this setting is ignored | 5 minutes |
+| **Prompt Caching Strategy** | Controls how system prompts and tool definitions are cached across LLM requests to reduce costs and latency. Cached content is reused by the provider instead of being reprocessed on each request. Options: **5 minutes** (short-lived cache), **1 hour** (extended cache), or **Disabled** (no caching). Not all providers support prompt caching—when unsupported, this setting is ignored | 5 minutes |
 
-   You can also add **vendor-specific LLM parameters** as custom key-value pairs. These are passed directly to the provider's API, allowing you to configure provider-specific options not covered by the common settings above (e.g., `top_p`, `frequency_penalty`, `seed`). Refer to your provider's API documentation for available parameters.
+   You can also add **vendor-specific LLM parameters** as custom key-value pairs. These are passed directly to the provider's API, allowing you to configure provider-specific options not covered by the preceding common settings (such as `top_p`, `frequency_penalty`, and `seed`). For available parameters, see your provider's API documentation.
 
 5. Use **Test Connection** to verify your credentials and model access before saving
 6. Click **Save** to create the configuration
@@ -115,20 +115,20 @@ To create a new model configuration from the UI:
 
 ### Viewing Details
 
-Click on any model in the Models list to view its details. This shows the model's current configuration including provider, authentication type, and advanced settings.
+Click any model in the Models list to view its details. This shows the model's current configuration including provider, authentication type, and advanced settings.
 
 ### Editing
 
 To edit a model, either use the context menu on the model card or click the **Edit** button at the top when viewing model details. All fields can be modified except the display name of the two default models (general and planning).
 
-After saving changes, any agents using this model configuration will automatically receive the updated settings through the platform's dynamic configuration system.
+After saving changes, any agents using this model configuration automatically receive the updated settings through the platform's dynamic configuration system.
 
 ### Deleting
 
 To delete a model configuration, select **Delete** from the context menu on the model card. Deleting a model has the following impact on dependent agents:
 
 - **Code-based agents** that reference the deleted model will no longer function correctly
-- **Agents managed by the platform** (e.g., agents created through Agent Builder) will be undeployed and moved to an inactive state
+- **Agents managed by the platform** (such as agents created through Agent Builder) will be undeployed and moved to an inactive state
 
 :::warning
 The **general** and **planning** default models cannot be deleted. They are required for core platform functionality.
@@ -186,7 +186,7 @@ Using the **model ID** is preferred over the alias. If the model's display name 
 
 To switch a YAML agent from inline model configuration to using Model Configurations:
 
-1. Create the model configuration in the UI with an alias (e.g., `my-model`)
+1. Create the model configuration in the UI with an alias (such as `fast-model`)
 2. Replace the `model` field in your agent YAML with `model_provider`:
 
 ```yaml
@@ -199,7 +199,7 @@ app_config:
 # After: referencing a Model Configuration
 app_config:
   model_provider:
-    - my-model
+    - fast-model
 ```
 
 :::info
