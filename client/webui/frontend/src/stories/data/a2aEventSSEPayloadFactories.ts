@@ -53,13 +53,7 @@ export function makeRequestEvent(text: string, timestamp = BASE_TIME, taskId = "
     });
 }
 
-export function makeSignalEvent(
-    signalType: string,
-    signalData: Record<string, unknown>,
-    agent: string,
-    timestamp: string,
-    taskId = "task-1"
-): A2AEventSSEPayload {
+export function makeSignalEvent(signalType: string, signalData: Record<string, unknown>, agent: string, timestamp: string, taskId = "task-1"): A2AEventSSEPayload {
     return makeEvent({
         direction: "status-update",
         timestamp,
@@ -80,12 +74,7 @@ export function makeSignalEvent(
     });
 }
 
-export function makeCompletedResponseEvent(
-    text: string,
-    agent = "OrchestratorAgent",
-    timestamp = BASE_TIME,
-    taskId = "task-1"
-): A2AEventSSEPayload {
+export function makeCompletedResponseEvent(text: string, agent = "OrchestratorAgent", timestamp = BASE_TIME, taskId = "task-1"): A2AEventSSEPayload {
     return makeEvent({
         direction: "response",
         timestamp,
@@ -104,12 +93,7 @@ export function makeCompletedResponseEvent(
     });
 }
 
-export function makeFailedResponseEvent(
-    errorMessage: string,
-    agent = "OrchestratorAgent",
-    timestamp = BASE_TIME,
-    taskId = "task-1"
-): A2AEventSSEPayload {
+export function makeFailedResponseEvent(errorMessage: string, agent = "OrchestratorAgent", timestamp = BASE_TIME, taskId = "task-1"): A2AEventSSEPayload {
     return makeEvent({
         direction: "response",
         timestamp,
@@ -128,12 +112,7 @@ export function makeFailedResponseEvent(
     });
 }
 
-export function makeStatusUpdateEvent(
-    text: string,
-    agent = "OrchestratorAgent",
-    timestamp = BASE_TIME,
-    taskId = "task-1"
-): A2AEventSSEPayload {
+export function makeStatusUpdateEvent(text: string, agent = "OrchestratorAgent", timestamp = BASE_TIME, taskId = "task-1"): A2AEventSSEPayload {
     return makeEvent({
         direction: "status-update",
         timestamp,

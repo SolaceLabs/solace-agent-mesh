@@ -17,18 +17,13 @@ function SortableTableHead({ column, currentSortKey, sortDir, onSort, children, 
     const isActive = currentSortKey === column;
     return (
         <TableHead className={cn("font-semibold", className)} {...props}>
-            <Button variant="ghost" size="icon" className="h-auto w-auto px-1.5 py-0.5 gap-1" onClick={() => onSort(column)}>
+            <Button variant="ghost" size="icon" className="h-auto w-auto gap-1 px-1.5 py-0.5" onClick={() => onSort(column)}>
                 {children}
-                {isActive ? (
-                    sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                    <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
-                )}
+                {isActive ? sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" /> : <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />}
             </Button>
         </TableHead>
     );
 }
-
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
     return (

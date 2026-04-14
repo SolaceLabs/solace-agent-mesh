@@ -33,4 +33,5 @@ npm run ci:storybook:coverage  # both + coverage
 Read these when working in the relevant area:
 
 - [API Endpoints](docs/api-endpoints.md) — how to add a new API module (service, keys, hooks)
+- [Feature Flags](docs/feature-flags.md) — OpenFeature integration, hook convention, adding/removing flags
 - [Testing](docs/testing.md) — test framework setup, patterns, and mock utilities

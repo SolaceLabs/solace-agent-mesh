@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DataDoubler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You double numeric values.
@@ -80,6 +82,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ValueFormatter"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You format values with a descriptive message.

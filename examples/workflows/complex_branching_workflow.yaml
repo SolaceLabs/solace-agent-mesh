@@ -20,6 +20,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentAlpha"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Alpha"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -43,6 +45,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentBeta"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Beta"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -66,6 +70,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentGamma"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Gamma"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -89,6 +95,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentDelta"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Delta"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -112,6 +120,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentEpsilon"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Epsilon"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -135,6 +145,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentZeta"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Zeta"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -158,6 +170,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentEta"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Eta"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -181,6 +195,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentTheta"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Theta"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -204,6 +220,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentIota"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Iota"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -227,6 +245,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentKappa"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Kappa"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -250,6 +270,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentLambda"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Lambda"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}
@@ -273,6 +295,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AgentMu"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: "Test agent Mu"
       input_schema: {type: object, properties: {data: {type: string}}}
       output_schema: {type: object, properties: {result: {type: string}}}

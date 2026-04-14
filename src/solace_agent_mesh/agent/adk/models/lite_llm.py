@@ -269,13 +269,50 @@ def _content_to_message_param(
     tool_messages = []
     for part in content.parts:
         if part.function_response:
-            tool_messages.append(
-                ChatCompletionToolMessage(
-                    role="tool",
-                    tool_call_id=_truncate_tool_call_id(part.function_response.id),
-                    content=_safe_json_serialize(part.function_response.response),
+            response_data = part.function_response.response
+            # Check for inline vision image data URL in tool response.
+            # When load_artifact returns an image with enable_inline_vision,
+            # it includes a _vision_image_data_url key with a base64 data URL.
+            vision_data_url = None
+            if isinstance(response_data, dict):
+                vision_data_url = response_data.pop("_vision_image_data_url", None)
+
+            if vision_data_url:
+                # Tool response with vision image: send the text result as a
+                # normal tool message, then inject a user message with the image.
+                # This is the universally compatible approach — all LLM providers
+                # support image_url in user messages, but not all support it in
+                # tool messages (e.g., OpenAI gpt-4o-mini rejects it).
+                tool_messages.append(
+                    ChatCompletionToolMessage(
+                        role="tool",
+                        tool_call_id=_truncate_tool_call_id(part.function_response.id),
+                        content=_safe_json_serialize(response_data),
+                    )
                 )
-            )
+                tool_messages.append(
+                    ChatCompletionUserMessage(
+                        role="user",
+                        content=[
+                            ChatCompletionTextObject(
+                                type="text",
+                                text="[System: The tool returned the following image for your analysis]",
+                            ),
+                            ChatCompletionImageUrlObject(
+                                type="image_url",
+                                image_url={"url": vision_data_url},
+                            ),
+                        ],
+                    )
+                )
+            else:
+                tool_messages.append(
+                    ChatCompletionToolMessage(
+                        role="tool",
+                        tool_call_id=_truncate_tool_call_id(part.function_response.id),
+                        content=_safe_json_serialize(response_data),
+                    )
+                )
     if tool_messages:
         return tool_messages if len(tool_messages) > 1 else tool_messages[0]
 

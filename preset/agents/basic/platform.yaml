@@ -20,7 +20,8 @@ apps:
     app_config:
       namespace: ${NAMESPACE}
       database_url: "${PLATFORM_DATABASE_URL, sqlite:///platform.db}"
-
+      model_provider:
+        - general
       fastapi_host: ${PLATFORM_API_HOST, localhost}
       fastapi_port: ${PLATFORM_API_PORT, 8001}
       cors_allowed_origins:

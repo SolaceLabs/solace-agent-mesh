@@ -123,6 +123,8 @@ apps:
       agent_name: "CustomEchoAgent"
       display_name: "Custom Echo Agent"
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are a custom echo agent. When a user sends you a message,
