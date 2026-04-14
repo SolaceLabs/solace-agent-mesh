@@ -68,7 +68,7 @@ export const WarningBannerAdmin: StoryObj = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
+        expect(canvas.getByText(/Default models have not been configured/)).toBeInTheDocument();
         expect(canvas.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
         expect(canvas.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
     },
@@ -86,7 +86,7 @@ export const WarningBannerNonAdmin: StoryObj = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
+        expect(canvas.getByText(/Default models have not been configured/)).toBeInTheDocument();
         expect(canvas.getByText(/Ask your administrator/)).toBeInTheDocument();
         expect(canvas.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
     },
