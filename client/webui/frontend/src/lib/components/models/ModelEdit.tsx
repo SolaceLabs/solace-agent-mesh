@@ -18,7 +18,7 @@ import { useDebounce } from "@/lib/hooks";
 
 interface ModelEditProps {
     isNew: boolean;
-    modelToEdit: ModelConfig | null;
+    modelToEdit?: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
