@@ -18,6 +18,8 @@ permissions:
   issues: write         # required by sca-scan-and-guard for PR/issue comments
   checks: write
   statuses: write       # required by sca-scan-and-guard to update commit status
+  packages: read        # required to pull GHCR image in sca-scan-and-guard
+  id-token: write       # required by sca-scan-and-guard reusable workflow declaration
 
 jobs:
   fossa_scan:
