@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { agentCardKeys } from "@/lib/api/agent-cards/keys";
 import { modelKeys } from "./keys";
 import { createModelConfig, deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, updateModelConfig } from "./service";
 
@@ -37,6 +38,7 @@ export function useCreateModel() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
             queryClient.invalidateQueries({ queryKey: modelKeys.status() });
+            queryClient.invalidateQueries({ queryKey: agentCardKeys.lists() });
         },
     });
 }
@@ -53,6 +55,7 @@ export function useUpdateModel() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
             queryClient.invalidateQueries({ queryKey: modelKeys.status() });
+            queryClient.invalidateQueries({ queryKey: agentCardKeys.lists() });
         },
     });
 }
@@ -69,6 +72,7 @@ export function useDeleteModel() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
             queryClient.invalidateQueries({ queryKey: modelKeys.status() });
+            queryClient.invalidateQueries({ queryKey: agentCardKeys.lists() });
         },
     });
 }
