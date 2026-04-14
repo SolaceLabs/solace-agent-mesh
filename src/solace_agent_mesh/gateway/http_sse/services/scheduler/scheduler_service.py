@@ -104,6 +104,7 @@ class SchedulerService:
             session_factory=session_factory,
             namespace=namespace,
             instance_id=instance_id,
+            sse_manager=sse_manager,
         )
 
         # Initialize notification service

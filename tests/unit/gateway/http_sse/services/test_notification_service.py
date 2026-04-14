@@ -444,16 +444,37 @@ class TestSendSSENotification:
             namespace="test",
             instance_id="test-0",
         )
-        task = _make_task(id="task-42", user_id="u1")
+        task = _make_task(id="task-42", user_id="u1", created_by="u1")
         payload = {**_SAMPLE_PAYLOAD}
 
         await svc._send_sse_notification({}, payload, task)
 
-        mock_sse.send_event.assert_called_once_with(
-            task_id="scheduled_task-42",
+        mock_sse.send_user_notification.assert_called_once_with(
+            user_id="u1",
+            event_type="session_created",
             event_data=payload,
-            event_type="scheduled_task_complete",
         )
+
+    @pytest.mark.asyncio
+    async def test_notifies_creator_when_different_from_user(self):
+        mock_sse = AsyncMock()
+        svc = NotificationService(
+            session_factory=None,
+            sse_manager=mock_sse,
+            publish_func=None,
+            namespace="test",
+            instance_id="test-0",
+        )
+        task = _make_task(id="task-42", user_id="u1", created_by="u2")
+        payload = {**_SAMPLE_PAYLOAD}
+
+        await svc._send_sse_notification({}, payload, task)
+
+        # Should notify both user_id and created_by
+        assert mock_sse.send_user_notification.call_count == 2
+        calls = mock_sse.send_user_notification.call_args_list
+        assert calls[0].kwargs == {"user_id": "u1", "event_type": "session_created", "event_data": payload}
+        assert calls[1].kwargs == {"user_id": "u2", "event_type": "session_created", "event_data": payload}
 
 
 # ---------------------------------------------------------------------------

@@ -44,6 +44,11 @@ class SSEManager:
         self._session_factory = session_factory
         self._background_task_cache: Dict[str, bool] = {}  # Cache to avoid repeated DB queries
         self._tasks_with_prior_connection: set = set()  # Track tasks that have had at least one SSE connection
+
+        # User-level notification queues for push events (e.g. scheduled task session created).
+        # Keyed by user_id → list of asyncio.Queue.
+        self._user_notification_queues: Dict[str, List[asyncio.Queue]] = {}
+        self._user_notification_lock = threading.Lock()
         
         # Initialize persistent buffer for background tasks
         # Hybrid mode enables RAM-first buffering
@@ -672,4 +677,93 @@ class SSEManager:
             self.log_identifier,
             closed_count,
             all_task_ids,
+        )
+
+        # Close user notification queues
+        with self._user_notification_lock:
+            for user_id, queues in self._user_notification_queues.items():
+                for q in queues:
+                    try:
+                        q.put_nowait(None)
+                    except Exception:
+                        pass
+            self._user_notification_queues.clear()
+
+    # ------------------------------------------------------------------
+    # User-level notification methods
+    # ------------------------------------------------------------------
+
+    def add_user_notification_queue(self, user_id: str, queue: asyncio.Queue) -> None:
+        """Register a notification queue for a user (called when SSE connects)."""
+        with self._user_notification_lock:
+            if user_id not in self._user_notification_queues:
+                self._user_notification_queues[user_id] = []
+            self._user_notification_queues[user_id].append(queue)
+        log.debug("%s Added notification queue for user %s", self.log_identifier, user_id)
+
+    def remove_user_notification_queue(self, user_id: str, queue: asyncio.Queue) -> None:
+        """Unregister a notification queue for a user (called when SSE disconnects)."""
+        with self._user_notification_lock:
+            queues = self._user_notification_queues.get(user_id, [])
+            try:
+                queues.remove(queue)
+            except ValueError:
+                pass
+            if not queues:
+                self._user_notification_queues.pop(user_id, None)
+        log.debug("%s Removed notification queue for user %s", self.log_identifier, user_id)
+
+    async def send_user_notification(
+        self, user_id: str, event_type: str, event_data: Dict[str, Any]
+    ) -> None:
+        """Push a notification event to all active SSE connections for a user.
+
+        This is used for server-initiated events such as scheduled task session
+        creation that need to reach the frontend without the frontend subscribing
+        to a specific task_id.
+        """
+        try:
+            serialized = json.dumps(self._sanitize_json(event_data), allow_nan=False)
+        except Exception as e:
+            log.error(
+                "%s Failed to serialize user notification for %s: %s",
+                self.log_identifier, user_id, e,
+            )
+            return
+
+        payload = {"event": event_type, "data": serialized}
+
+        with self._user_notification_lock:
+            queues = list(self._user_notification_queues.get(user_id, []))
+
+        if not queues:
+            log.debug(
+                "%s No notification queues for user %s, event dropped",
+                self.log_identifier, user_id,
+            )
+            return
+
+        broken: List[asyncio.Queue] = []
+        for q in queues:
+            try:
+                await asyncio.wait_for(q.put(payload), timeout=0.1)
+            except (asyncio.QueueFull, asyncio.TimeoutError):
+                broken.append(q)
+            except Exception:
+                broken.append(q)
+
+        if broken:
+            with self._user_notification_lock:
+                user_queues = self._user_notification_queues.get(user_id, [])
+                for q in broken:
+                    try:
+                        user_queues.remove(q)
+                    except ValueError:
+                        pass
+                if not user_queues:
+                    self._user_notification_queues.pop(user_id, None)
+
+        log.debug(
+            "%s Sent %s notification to %d/%d queues for user %s",
+            self.log_identifier, event_type, len(queues) - len(broken), len(queues), user_id,
         )

@@ -65,11 +65,13 @@ class ResultHandler:
         session_factory: Callable[[], DBSession],
         namespace: str,
         instance_id: str,
+        sse_manager: Optional[Any] = None,
     ):
         self.session_factory = session_factory
         self.namespace = namespace
         self.instance_id = instance_id
         self.log_prefix = f"[ResultHandler:{instance_id}]"
+        self.sse_manager = sse_manager
 
         self.pending_executions: Dict[str, str] = {}
         self.execution_sessions: Dict[str, str] = {}
@@ -314,6 +316,12 @@ class ResultHandler:
                                             "uri": art_uri,
                                         },
                                     }
+                                    # Preserve the version from the produced_artifacts
+                                    # manifest so the artifact can be pinned to the
+                                    # exact version produced by this execution.
+                                    art_version = artifact_info.get("version")
+                                    if art_version is not None:
+                                        artifact_obj["version"] = art_version
                                     if not _artifact_name_exists(artifacts, art_name):
                                         artifacts.append(artifact_obj)
 
@@ -438,9 +446,12 @@ class ResultHandler:
 
         The chat view loads messages from the chat_tasks table. Without this,
         scheduled sessions appear in the list but show no content.
+
+        Also updates the session's ``updated_time`` so the session appears at
+        the top of the "Recent Chats" list (ordered by ``updated_time DESC``).
         """
         try:
-            from ...repository.models import ChatTaskModel
+            from ...repository.models import ChatTaskModel, SessionModel
 
             session_id = f"scheduled_{execution.id}"
 
@@ -558,10 +569,44 @@ class ResultHandler:
                 updated_time=now,
             )
             db_session.add(chat_task)
+
+            # Update the session's updated_time so it appears at the top of
+            # the "Recent Chats" list (ordered by updated_time DESC).
+            # Without this, the session keeps its creation-time timestamp and
+            # may not surface in the sidebar after the task completes.
+            session_record = db_session.get(SessionModel, session_id)
+            if session_record:
+                session_record.updated_time = now
+                log.debug(
+                    "%s Updated session %s updated_time to %s",
+                    self.log_prefix, session_id, now,
+                )
+
             log.info(
                 "%s Created ChatTask for execution %s in session %s",
                 self.log_prefix, execution.id, session_id,
             )
+
+            # Push a real-time notification to the user so the frontend
+            # refreshes the "Recent Chats" sidebar immediately.
+            if self.sse_manager and user_id:
+                try:
+                    asyncio.get_event_loop().create_task(
+                        self.sse_manager.send_user_notification(
+                            user_id=user_id,
+                            event_type="session_created",
+                            event_data={
+                                "session_id": session_id,
+                                "task_name": task.name if task else None,
+                                "execution_id": execution.id,
+                            },
+                        )
+                    )
+                except Exception as notify_err:
+                    log.warning(
+                        "%s Failed to send session_created notification for execution %s: %s",
+                        self.log_prefix, execution.id, notify_err,
+                    )
 
         except Exception as e:
             log.warning(
