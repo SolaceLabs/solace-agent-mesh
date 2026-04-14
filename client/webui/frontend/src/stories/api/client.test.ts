@@ -3,7 +3,7 @@
  * in client.ts.
  */
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import { refreshToken, scheduleProactiveRefresh, cancelProactiveRefresh } from "@/lib/api/client";
+import { refreshToken, scheduleProactiveRefresh, cancelProactiveRefresh, api } from "@/lib/api/client";
 
 // Helper: create a minimal JWT with a given exp (seconds since epoch)
 function makeJwt(exp: number): string {
@@ -261,5 +261,117 @@ describe("Proactive Token Refresh", () => {
             // Restore location
             locationSpy?.mockRestore();
         });
+    });
+});
+
+describe("authenticatedFetch — no-token path (401 storm prevention)", () => {
+    beforeEach(() => {
+        localStorage.clear();
+        sessionStorage.clear();
+        cancelProactiveRefresh();
+        // Configure api with a base URL so requests resolve to a known path
+        api.configure("", "");
+        Object.defineProperty(globalThis, "location", {
+            value: { href: "" },
+            writable: true,
+            configurable: true,
+        });
+    });
+
+    afterEach(() => {
+        cancelProactiveRefresh();
+        vi.restoreAllMocks();
+        localStorage.clear();
+        sessionStorage.clear();
+    });
+
+    test("attempts token refresh when no bearer token is in localStorage", async () => {
+        // No access_token in localStorage
+        localStorage.setItem("refresh_token", "valid-refresh-token");
+
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    access_token: "new-access-token",
+                    sam_access_token: "",
+                    refresh_token: "new-refresh-token",
+                }),
+                { status: 200 }
+            )
+        );
+
+        // Trigger a request via the api client — it will call authenticatedFetch internally
+        await api.webui.get("/api/v1/users/me").catch(() => {
+            /* ignore response errors */
+        });
+
+        // fetch should have been called twice: once for /auth/refresh, once for the actual request
+        const calls = fetchSpy.mock.calls.map(([url]) => url as string);
+        expect(calls.some(url => url.includes("/auth/refresh"))).toBe(true);
+        expect(calls.some(url => url.includes("/users/me"))).toBe(true);
+    });
+
+    test("falls through to unauthenticated fetch when no bearer token and no refresh token", async () => {
+        // No tokens at all in localStorage — no refresh_token means we skip the
+        // refresh attempt entirely and fall through to the original unauthenticated
+        // fetch. This preserves MSW interception in Storybook/test environments and
+        // community/dev mode where auth is not configured.
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: "user-1" }), { status: 200 }));
+
+        let caughtError: Error | null = null;
+        let result: unknown = null;
+        try {
+            result = await api.webui.get("/api/v1/users/me");
+        } catch (e) {
+            caughtError = e as Error;
+        }
+
+        // Should NOT have thrown — the unauthenticated request went through
+        expect(caughtError).toBeNull();
+        expect(result).toEqual({ id: "user-1" });
+
+        // Should have called fetch for the actual endpoint (no short-circuit)
+        const fetchSpy = vi.mocked(globalThis.fetch);
+        const apiCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/users/me"));
+        expect(apiCalls).toHaveLength(1);
+
+        // Should NOT have called /auth/refresh (no refresh token to use)
+        const refreshCalls = fetchSpy.mock.calls.filter(([url]) => (url as string).includes("/auth/refresh"));
+        expect(refreshCalls).toHaveLength(0);
+    });
+
+    test("deduplicates concurrent no-token requests into a single refresh call", async () => {
+        // No access_token, but refresh_token present
+        localStorage.setItem("refresh_token", "valid-refresh-token");
+
+        let refreshCallCount = 0;
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async url => {
+            if ((url as string).includes("/auth/refresh")) {
+                refreshCallCount++;
+                return new Response(
+                    JSON.stringify({
+                        access_token: "new-access-token",
+                        sam_access_token: "",
+                        refresh_token: "new-refresh-token",
+                    }),
+                    { status: 200 }
+                );
+            }
+            return new Response(JSON.stringify({ id: "user-1" }), { status: 200 });
+        });
+
+        // Fire 5 concurrent requests simultaneously — all with no token
+        await Promise.all([
+            api.webui.get("/api/v1/users/me").catch(() => {}),
+            api.webui.get("/api/v1/users/me").catch(() => {}),
+            api.webui.get("/api/v1/users/me").catch(() => {}),
+            api.webui.get("/api/v1/users/me").catch(() => {}),
+            api.webui.get("/api/v1/users/me").catch(() => {}),
+        ]);
+
+        // The refresh endpoint should only be called ONCE despite 5 concurrent requests
+        expect(refreshCallCount).toBe(1);
+
+        fetchSpy.mockRestore();
     });
 });

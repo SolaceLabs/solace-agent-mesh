@@ -1,24 +1,33 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, User, LogOut, Files } from "lucide-react";
-import { LifecycleBadge } from "@/lib/components/ui";
+import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, Calendar } from "lucide-react";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
     projectsEnabled: boolean;
     promptLibraryEnabled: boolean;
     artifactsPageEnabled: boolean;
+    schedulerEnabled: boolean;
     logoutEnabled: boolean;
     isAuthenticated: boolean;
     onUserAccountClick: () => void;
     onLogoutClick: () => void;
 }
 
-export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
+export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, schedulerEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick }: UseNavigationItemsProps) {
     const location = useLocation();
 
     const items = useMemo((): NavItemConfig[] => {
         const navItems: NavItemConfig[] = [];
+
+        navItems.push({
+            id: "agents",
+            label: "Agent Mesh",
+            icon: Bot,
+            route: "/agents",
+            routeMatch: "/agents",
+            position: "top",
+        });
 
         if (projectsEnabled) {
             navItems.push({
@@ -41,7 +50,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: BookOpenText,
                 route: "/prompts",
                 routeMatch: "/prompts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
             });
         }
 
@@ -52,7 +61,18 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                badge: <LifecycleBadge className="scale-90 text-(--darkSurface-textMuted)">EXPERIMENTAL</LifecycleBadge>,
+                tooltip: "Experimental Feature",
+            });
+        }
+
+        if (schedulerEnabled) {
+            assetsChildren.push({
+                id: "schedules",
+                label: "Schedules",
+                icon: Calendar,
+                route: "/schedules",
+                routeMatch: "/schedules",
+                tooltip: "Experimental Feature",
             });
         }
 
@@ -66,15 +86,6 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 position: "top",
             });
         }
-
-        navItems.push({
-            id: "agents",
-            label: "Agents",
-            icon: Bot,
-            route: "/agents",
-            routeMatch: "/agents",
-            position: "top",
-        });
 
         navItems.push({
             id: "userAccount",
@@ -95,14 +106,15 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         }
 
         return navItems;
-    }, [projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
+    }, [projectsEnabled, promptLibraryEnabled, artifactsPageEnabled, schedulerEnabled, logoutEnabled, isAuthenticated, onUserAccountClick, onLogoutClick]);
 
     const activeItemId = useMemo((): string => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chats";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/shared-chat")) return "chats";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
+        if (path.startsWith("/schedules")) return "schedules";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

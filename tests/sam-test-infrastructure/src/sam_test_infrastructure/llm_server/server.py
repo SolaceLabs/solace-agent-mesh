@@ -101,6 +101,8 @@ app = FastAPI()
 
 
 class TestLLMServer:
+    DEFAULT_RESPONSE_DELAY_SECONDS: float = 0.01
+
     def __init__(self, host: str = "127.0.0.1", port: int = 8088):
         self.host = host
         self.port = port
@@ -112,7 +114,7 @@ class TestLLMServer:
         self.captured_requests: List[ChatCompletionRequest] = []
         self._app = app # Keep a reference to the FastAPI app
         self._uvicorn_server: Optional[uvicorn.Server] = None # To store the server instance
-        self.response_delay_seconds: float = 0.01
+        self.response_delay_seconds: float = self.DEFAULT_RESPONSE_DELAY_SECONDS
         self._setup_logger()
         self._setup_routes()
         self._stateful_responses_cache: Dict[str, List[Any]] = {}
@@ -703,7 +705,7 @@ class TestLLMServer:
         self.logger.info(f"LLM server response delay set to {seconds} seconds.")
 
     def clear_all_configurations(self):
-        """Clears primed responses, the global static response, and captured requests."""
+        """Clears primed responses, the global static response, captured requests, and resets response delay."""
         with self._primed_response_lock:
             self._primed_responses = []
             self._primed_image_responses = []
@@ -711,8 +713,9 @@ class TestLLMServer:
         self.captured_requests = []
         with self._stateful_cache_lock:
             self._stateful_responses_cache.clear()
+        self.response_delay_seconds = self.DEFAULT_RESPONSE_DELAY_SECONDS
         self.logger.info(
-            "All configurations (primed, static, captured requests) cleared."
+            "All configurations (primed, static, captured requests, response delay) cleared."
         )
 
     def clear_stateful_cache_for_id(self, case_id: str):

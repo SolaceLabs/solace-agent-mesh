@@ -3,7 +3,7 @@ log:
   log_file_level: DEBUG
   log_file: level1_simple_sequential.log
 
-!include ../../shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # ============================================================================
@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DataDoubler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You double numeric values.
@@ -80,6 +82,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ValueFormatter"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You format values with a descriptive message.

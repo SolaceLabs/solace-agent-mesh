@@ -20,6 +20,7 @@ class SessionModel(Base):
     user_id = Column(String, nullable=False)
     agent_id = Column(String, nullable=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=True)
+    source = Column(String, nullable=True, default="chat")  # "chat" or "scheduler"
     created_time = Column(BigInteger, nullable=False, default=now_epoch_ms)
     updated_time = Column(
         BigInteger, nullable=False, default=now_epoch_ms, onupdate=now_epoch_ms
@@ -41,6 +42,7 @@ class CreateSessionModel(BaseModel):
     user_id: str
     agent_id: str | None
     project_id: str | None = None
+    source: str | None = "chat"
     created_time: int
     updated_time: int
 

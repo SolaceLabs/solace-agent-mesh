@@ -13,7 +13,7 @@ import type { Project } from "@/lib/types/projects";
 import { Button, Header } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
 import { useChatContext, useIsProjectSharingEnabled, useStartIndexing } from "@/lib/hooks";
-import { useExportProject, useImportProject, useFetchProjectsOnMount } from "@/lib/api/projects/hooks";
+import { useExportProject, useImportProject, useFetchProjectsOnMount, useTogglePinProject } from "@/lib/api/projects/hooks";
 
 export const ProjectsPage: React.FC = () => {
     useFetchProjectsOnMount();
@@ -27,6 +27,7 @@ export const ProjectsPage: React.FC = () => {
     const startIndexing = useStartIndexing();
     const exportProjectMutation = useExportProject();
     const importProjectMutation = useImportProject();
+    const togglePinMutation = useTogglePinProject();
 
     // state
     const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -164,6 +165,16 @@ export const ProjectsPage: React.FC = () => {
         setIsShareDialogOpen(true);
     };
 
+    const handleTogglePin = async (project: Project) => {
+        if (togglePinMutation.isPending) return;
+        try {
+            await togglePinMutation.mutateAsync(project.id);
+        } catch (error) {
+            console.error("Failed to toggle pin status:", error);
+            displayError({ title: "Failed to Update Favorite", error: "An error occurred while updating the favorite status." });
+        }
+    };
+
     const handleShareDialogClose = () => {
         setIsShareDialogOpen(false);
         setProjectToShare(null);
@@ -203,6 +214,8 @@ export const ProjectsPage: React.FC = () => {
                         onExport={handleExport}
                         isLoading={isLoading}
                         onShare={isSharingEnabled ? handleShareClick : undefined}
+                        onTogglePin={handleTogglePin}
+                        isPinToggling={togglePinMutation.isPending}
                     />
                 )}
             </div>

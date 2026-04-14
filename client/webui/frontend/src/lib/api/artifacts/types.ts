@@ -1,7 +1,7 @@
 import type { ArtifactInfo } from "@/lib/types";
 
 /**
- * Response from the bulk artifacts endpoint.
+ * Response from the bulk artifacts endpoint (paginated).
  */
 export interface BulkArtifactsResponse {
     artifacts: Array<{
@@ -15,8 +15,11 @@ export interface BulkArtifactsResponse {
         projectId: string | null;
         projectName: string | null;
         source: string | null;
+        tags: string[] | null;
     }>;
     totalCount: number;
+    hasMore: boolean;
+    nextPage: number | null;
 }
 
 /**

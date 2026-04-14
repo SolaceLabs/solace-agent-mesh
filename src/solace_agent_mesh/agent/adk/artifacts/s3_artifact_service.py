@@ -134,6 +134,16 @@ class S3ArtifactService(BaseArtifactService):
         """Normalizes Unicode characters in a filename to their standard form."""
         return unicodedata.normalize("NFKC", filename)
 
+    @staticmethod
+    def _sanitize_metadata_value(value: str) -> str:
+        """Ensures a metadata value contains only ASCII characters.
+
+        S3 metadata values must be ASCII-only. This method encodes non-ASCII
+        characters as their Unicode escape sequences (e.g., '年' -> '\\u5e74')
+        to preserve the information while remaining ASCII-safe.
+        """
+        return value.encode("ascii", errors="backslashreplace").decode("ascii")
+
     @override
     async def save_artifact(
         self,
@@ -174,9 +184,9 @@ class S3ArtifactService(BaseArtifactService):
                     Body=artifact.inline_data.data,
                     ContentType=artifact.inline_data.mime_type,
                     Metadata={
-                        "original_filename": filename,
-                        "user_id": user_id,
-                        "session_id": session_id,
+                        "original_filename": self._sanitize_metadata_value(filename),
+                        "user_id": self._sanitize_metadata_value(user_id),
+                        "session_id": self._sanitize_metadata_value(session_id),
                         "version": str(version),
                     },
                 )
@@ -283,7 +293,9 @@ class S3ArtifactService(BaseArtifactService):
                     load_version,
                     e,
                 )
-                return None
+                raise OSError(
+                    f"Failed to load artifact version {load_version} from S3: {e}"
+                ) from e
         except BotoCoreError as e:
             logger.error(
                 "%sBotoCore error loading artifact '%s' version %d: %s",
@@ -292,7 +304,9 @@ class S3ArtifactService(BaseArtifactService):
                 load_version,
                 e,
             )
-            return None
+            raise OSError(
+                f"BotoCore error loading artifact version {load_version}: {e}"
+            ) from e
 
     @override
     async def list_artifact_keys(
@@ -440,7 +454,9 @@ class S3ArtifactService(BaseArtifactService):
                 prefix,
                 e,
             )
-            return []
+            raise OSError(
+                f"Failed to list artifact versions from S3: {e}"
+            ) from e
 
         sorted_versions = sorted(versions)
         logger.debug("%sFound versions: %s", log_prefix, sorted_versions)
@@ -519,7 +535,9 @@ class S3ArtifactService(BaseArtifactService):
                 prefix,
                 e,
             )
-            return []
+            raise OSError(
+                f"Failed to list artifact versions from S3: {e}"
+            ) from e
 
         # Sort by version number
         artifact_versions.sort(key=lambda av: av.version)
@@ -593,7 +611,7 @@ class S3ArtifactService(BaseArtifactService):
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
-            if error_code == "NoSuchKey" or error_code == "404":
+            if error_code in ("NoSuchKey", "404"):
                 logger.debug(
                     "%sArtifact version not found: %s", log_prefix, object_key
                 )
@@ -606,4 +624,6 @@ class S3ArtifactService(BaseArtifactService):
                     load_version,
                     e,
                 )
-                return None
+                raise OSError(
+                    f"Failed to get artifact version metadata from S3: {e}"
+                ) from e

@@ -343,7 +343,7 @@ PLUGIN_SOURCE can be:
   - A local path to a directory (e.g., '/path/to/plugin')
   - A local path to a wheel file (e.g., '/path/to/plugin.whl')
   - A Git URL (e.g., 'https://github.com/user/repo.git')
-  - The name of the plugin from https://github.com/SolaceLabs/solace-agent-mesh-core-plugins
+  - The name of an official plugin (e.g., 'sam-rest-gateway') — installed from PyPI if published, otherwise from the official GitHub registry
 
 ##### Options:
 

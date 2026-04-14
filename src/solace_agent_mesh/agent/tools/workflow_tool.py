@@ -13,7 +13,7 @@ from google.adk.tools import BaseTool, ToolContext
 from google.genai import types as adk_types
 
 from ...common import a2a
-from ...common.constants import DEFAULT_COMMUNICATION_TIMEOUT
+from ...common.constants import ARTIFACT_TAG_WORKING, DEFAULT_COMMUNICATION_TIMEOUT
 from ...common.exceptions import MessageSizeExceededError
 from ...common.data_parts import StructuredInvocationRequest
 from ...agent.utils.artifact_helpers import (
@@ -284,6 +284,7 @@ class WorkflowAgentTool(BaseTool):
                 "source": "workflow_tool_implicit_creation",
             },
             timestamp=datetime.now(timezone.utc),
+            tags=[ARTIFACT_TAG_WORKING],
         )
 
         if save_result["status"] != "success":

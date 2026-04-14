@@ -1,11 +1,18 @@
 import { createHashRouter, Navigate } from "react-router-dom";
 
-import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage } from "./lib";
+import { AgentMeshPage, ArtifactsPage, ChatPage, ProjectsPage, PromptsPage, RecentChatsPage, ScheduledTasksPage, SharedChatViewPage } from "./lib";
 import { WorkflowVisualizationPage } from "./lib/components/workflowVisualization";
+import { ModelDetailsPage, ModelEditPage } from "./lib/components/models";
+import { SharedSessionPage } from "./lib/components/pages/SharedSessionPage";
 import AppLayout from "./AppLayout";
 
 export const createRouter = () => {
     return createHashRouter([
+        // Public share route (outside AppLayout)
+        {
+            path: "/share/:shareId",
+            element: <SharedSessionPage />,
+        },
         {
             path: "/",
             element: <AppLayout />,
@@ -17,6 +24,14 @@ export const createRouter = () => {
                 {
                     path: "chat",
                     element: <ChatPage />,
+                },
+                {
+                    path: "recent-chats",
+                    element: <RecentChatsPage />,
+                },
+                {
+                    path: "shared-chat/:shareId",
+                    element: <SharedChatViewPage />,
                 },
                 {
                     path: "projects",
@@ -82,6 +97,27 @@ export const createRouter = () => {
                             element: <WorkflowVisualizationPage />,
                         },
                     ],
+                },
+                {
+                    path: "models",
+                    children: [
+                        {
+                            path: "new/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":id/edit",
+                            element: <ModelEditPage />,
+                        },
+                        {
+                            path: ":id",
+                            element: <ModelDetailsPage />,
+                        },
+                    ],
+                },
+                {
+                    path: "schedules",
+                    element: <ScheduledTasksPage />,
                 },
                 {
                     path: "*",

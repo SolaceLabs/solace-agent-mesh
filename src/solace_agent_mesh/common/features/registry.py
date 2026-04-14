@@ -9,17 +9,18 @@ allowing enterprise to override community defaults.
 YAML schema (see features.yaml for annotated examples):
 
     features:
-      - key:             <str>   # Required. Unique snake_case identifier used in code.
-        name:            <str>   # Required. Human-readable label for admin UI.
-        release_phase:   <str>   # Required. One of:
-                                 #   early_access | beta | experimental | ga
-        default_enabled: <bool>  # Required. Baseline on/off; env-var overrides this.
-        jira_epic:       <str>   # Required. Jira epic key (e.g. DATAGO-118673).
-        description:     <str>   # Optional. Brief explanation shown in admin UI.
+      - key:           <str>   # Required. Unique snake_case identifier used in code.
+        name:          <str>   # Required. Human-readable label for admin UI.
+        release_phase: <str>   # Required. One of:
+                               #   experimental | early_access | beta |
+                               #   controlled_availability | general_availability | deprecated
+        default:       <bool>  # Required. Baseline on/off; env-var overrides this.
+        jira:          <str>   # Required. Jira epic key (e.g. DATAGO-118673).
+        description:   <str>   # Optional. Brief explanation shown in admin UI.
 
 Evaluation priority (highest wins):
   1. SAM_FEATURE_<UPPER_KEY> environment variable
-  2. default_enabled
+  2. default
 """
 
 from __future__ import annotations
@@ -36,12 +37,18 @@ logger = logging.getLogger(__name__)
 
 
 class ReleasePhase(str, Enum):
-    """Lifecycle release phase for a feature flag."""
+    """Lifecycle release phase for a feature flag.
 
+    Aligned with Solace Cloud release stages:
+    https://docs.solace.com/Cloud/stages_concept.htm
+    """
+
+    EXPERIMENTAL = "experimental"
     EARLY_ACCESS = "early_access"
     BETA = "beta"
-    EXPERIMENTAL = "experimental"
-    GA = "ga"
+    CONTROLLED_AVAILABILITY = "controlled_availability"
+    GENERAL_AVAILABILITY = "general_availability"
+    DEPRECATED = "deprecated"
 
 
 @dataclass
@@ -51,8 +58,8 @@ class FeatureDefinition:
     key: str
     name: str
     release_phase: ReleasePhase
-    default_enabled: bool
-    jira_epic: str
+    default: bool
+    jira: str
     description: str = ""
 
 
@@ -118,7 +125,7 @@ class FeatureRegistry:
                 f"Each feature entry must be a mapping in {source}; got: {raw!r}"
             )
 
-        required = ("key", "name", "release_phase", "default_enabled", "jira_epic")
+        required = ("key", "name", "release_phase", "default", "jira")
         missing = [f for f in required if f not in raw]
         if missing:
             missing_str = ", ".join(missing)
@@ -145,16 +152,16 @@ class FeatureRegistry:
                     f"'release_phase' must be one of [{valid}]; got: {got!r}"
                 ) from exc
 
-            default_enabled = raw["default_enabled"]
-            if not isinstance(default_enabled, bool):
+            default = raw["default"]
+            if not isinstance(default, bool):
                 raise ValueError(
-                    f"'default_enabled' must be a boolean; got: {default_enabled!r}"
+                    f"'default' must be a boolean; got: {default!r}"
                 )
 
-            jira_epic = raw["jira_epic"]
-            if not isinstance(jira_epic, str) or not jira_epic:
+            jira = raw["jira"]
+            if not isinstance(jira, str) or not jira:
                 raise ValueError(
-                    f"'jira_epic' must be a non-empty string; got: {jira_epic!r}"
+                    f"'jira' must be a non-empty string; got: {jira!r}"
                 )
 
             description = raw["description"] if "description" in raw else ""
@@ -167,8 +174,8 @@ class FeatureRegistry:
                 key=key,
                 name=name,
                 release_phase=release_phase,
-                default_enabled=default_enabled,
-                jira_epic=jira_epic,
+                default=default,
+                jira=jira,
                 description=description,
             )
         except ValueError:

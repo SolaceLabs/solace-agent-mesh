@@ -18,6 +18,12 @@
     animation: pulse-generating 1.5s ease-in-out infinite;
 }
 
+/* Animation for inline progress timeline items */
+@keyframes progressSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -26,7 +32,7 @@
 }
 
 :root {
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     /* Semantic theme variables are set by ThemeProvider via inline styles */
     --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
@@ -73,6 +79,19 @@
     scrollbar-color: var(--secondary-w70) transparent;
 }
 
+@layer components {
+    .card-surface {
+        border-width: 1px;
+        border-style: solid;
+        border-color: var(--secondary-w20);
+        box-shadow: 0px 1px 4px 0px var(--stateLayer-w10);
+    }
+
+    .card-surface-hover:hover {
+        box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
+    }
+}
+
 .overlay-backdrop {
     background-color: rgb(0 0 0 / 0.5);
 }
@@ -100,7 +119,7 @@
     /* Firefox */
     * {
         scrollbar-width: thin;
-        scrollbar-color: var(--primary-w20) var(--background-w20);
+        scrollbar-color: var(--primary-w20) var(--background-w10);
     }
 
     .fade-both-mask {
@@ -114,7 +133,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to top, transparent, var(--background-w20));
+        background: linear-gradient(to top, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
     }
@@ -126,7 +145,7 @@
         left: 0;
         right: 0;
         height: 40px;
-        background: linear-gradient(to bottom, transparent, var(--background-w20));
+        background: linear-gradient(to bottom, transparent, var(--background-w10));
         pointer-events: none;
         z-index: 10;
     }
@@ -137,7 +156,7 @@
     }
 
     *::-webkit-scrollbar-track {
-        background-color: var(--background-w20);
+        background-color: var(--background-w10);
     }
 
     *::-webkit-scrollbar-thumb {

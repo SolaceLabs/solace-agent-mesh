@@ -191,7 +191,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
     return (
         <>
             {/* Backdrop */}
-            <div ref={backdropRef} className="fixed inset-0 z-40 bg-transparent" onClick={onClose} />
+            <div ref={backdropRef} className="fixed inset-0 z-40 bg-transparent" role="presentation" onClick={onClose} />
 
             <div
                 className="fixed z-50 w-[400px]"
@@ -235,6 +235,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                         ) : showingRecent ? (
                             <div className="flex flex-col p-2">
                                 {recentMentions.map((person, index) => {
+                                    const itemClass = index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : "";
                                     return (
                                         <button
                                             key={person.id}
@@ -244,7 +245,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 setIsKeyboardMode(false);
                                                 setActiveIndex(index);
                                             }}
-                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : ""}`}
+                                            className={`w-full rounded-md p-3 text-left transition-colors ${itemClass}`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 <Clock className="mt-0.5 size-4 flex-shrink-0 text-(--secondary-text-wMain)" />
@@ -267,6 +268,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                         ) : (
                             <div className="flex flex-col p-2">
                                 {people.map((person, index) => {
+                                    const itemClass = index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : "";
                                     return (
                                         <button
                                             key={person.id}
@@ -276,7 +278,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
                                                 setIsKeyboardMode(false);
                                                 setActiveIndex(index);
                                             }}
-                                            className={`w-full rounded-md p-3 text-left transition-colors ${index === activeIndex ? "bg-(--secondary-w40)" : !isKeyboardMode ? "hover:bg-(--secondary-w40)" : ""}`}
+                                            className={`w-full rounded-md p-3 text-left transition-colors ${itemClass}`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 <User className="mt-0.5 size-4 flex-shrink-0 text-(--secondary-text-wMain)" />

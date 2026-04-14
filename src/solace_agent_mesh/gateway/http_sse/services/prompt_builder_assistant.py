@@ -9,8 +9,10 @@ import os
 import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from litellm import acompletion
+from google.adk.models import BaseLlm
 from sqlalchemy.orm import Session
+
+from ....common.error_handlers import get_error_message, is_llm_exception
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class PromptBuilderResponse(BaseModel):
     template_updates: Dict[str, Any] = Field(default_factory=dict)
     confidence: float = Field(ge=0.0, le=1.0)
     ready_to_save: bool = False
+    is_error: bool = False
 
 
 class PromptBuilderAssistant:
@@ -123,21 +126,11 @@ REMEMBER:
 - Set ready_to_save to true when template is complete
 """
     
-    def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, llm: BaseLlm, db: Optional[Session] = None):
         """Initialize the assistant with model configuration from component config."""
         self.system_prompt = self.SYSTEM_PROMPT
         self.db = db
-        
-        # Get LLM configuration from provided config
-        if not model_config or not isinstance(model_config, dict):
-            raise ValueError("model_config is required and must be a dictionary")
-        
-        if not model_config.get("model"):
-            raise ValueError("model_config must contain 'model' key")
-        
-        self.model = model_config.get("model")
-        self.api_base = model_config.get("api_base")
-        self.api_key = model_config.get("api_key", "dummy")
+        self.llm = llm
     
     def _get_existing_commands(self, user_id: str) -> List[str]:
         """Get list of existing command shortcuts to avoid conflicts."""
@@ -184,10 +177,15 @@ REMEMBER:
             )
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
+            if is_llm_exception(e):
+                error_message, _ = get_error_message(e)
+            else:
+                error_message = "I encountered an error. Could you please rephrase that?"
             return PromptBuilderResponse(
-                message="I encountered an error. Could you please rephrase that?",
+                message=error_message,
                 confidence=0.0,
-                ready_to_save=False
+                ready_to_save=False,
+                is_error=True,
             )
     
     async def _llm_response(
@@ -224,26 +222,65 @@ REMEMBER:
             "content": user_message + template_context + commands_context
         })
         
-        # Call LLM with JSON mode
+        # Call LLM — only request JSON mode when the model supports it.
+        # Models accessed via an OpenAI-compatible proxy (e.g. openai/claude-*)
+        # often don't support response_schema and return {} or empty content.
         try:
-            completion_args = {
-                "model": self.model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-                "temperature": 0.1,  # Low temperature for consistency
+            from google.genai import types
+            from google.adk.models.llm_request import LlmRequest
+
+            # Build system instruction from messages
+            system_text = ""
+            user_parts = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_text += msg["content"] + "\n"
+                else:
+                    user_parts.append(
+                        types.Content(
+                            role="user" if msg["role"] == "user" else "model",
+                            parts=[types.Part.from_text(text=msg["content"])],
+                        )
+                    )
+
+            # Determine if the model supports response_schema
+            config_kwargs: dict = {
+                "system_instruction": system_text.strip() if system_text else None,
+                "temperature": 0.1,
             }
-            
-            if self.api_base:
-                completion_args["api_base"] = self.api_base
-            if self.api_key:
-                completion_args["api_key"] = self.api_key
-            
-            response = await acompletion(**completion_args)
-            
-            # Parse response
-            content = response.choices[0].message.content
+            try:
+                from litellm import supports_response_schema as _supports_rs
+                model_name = getattr(self.llm, "model", None) or ""
+                if _supports_rs(model=model_name, custom_llm_provider=None):
+                    config_kwargs["response_schema"] = {"type": "json_object"}
+                else:
+                    logger.info("Model %s does not support response_schema; relying on system prompt for JSON output", model_name)
+            except Exception:
+                logger.debug("Could not determine response_schema support; skipping JSON mode")
+
+            llm_request = LlmRequest(
+                contents=user_parts,
+                config=types.GenerateContentConfig(**config_kwargs),
+            )
+
+            content = None
+            async for llm_response in self.llm.generate_content_async(llm_request):
+                if llm_response.content and llm_response.content.parts:
+                    for part in llm_response.content.parts:
+                        if part.text:
+                            content = part.text
+                            break
             logger.info(f"LLM Response: {content}")
-            
+
+            # Strip markdown code fences that LLMs commonly wrap JSON in
+            # when response_schema/json_object mode is not active.
+            if content:
+                stripped = content.strip()
+                if stripped.startswith("```"):
+                    stripped = re.sub(r'^```(?:json)?\s*\n?', '', stripped)
+                    stripped = re.sub(r'\n?```\s*$', '', stripped)
+                    content = stripped.strip()
+
             try:
                 parsed = json.loads(content)
             except json.JSONDecodeError as e:
@@ -284,11 +321,19 @@ REMEMBER:
             
         except Exception as e:
             logger.error(f"LLM call failed: {e}", exc_info=True)
-            # Fallback response with helpful guidance
+            if is_llm_exception(e):
+                error_message, _ = get_error_message(e)
+            else:
+                error_message = (
+                    "I'm having trouble processing that. Could you describe what "
+                    "you'd like this template to do? For example, what task are you "
+                    "trying to automate or what information changes each time?"
+                )
             return PromptBuilderResponse(
-                message="I'm having trouble processing that. Could you describe what you'd like this template to do? For example, what task are you trying to automate or what information changes each time?",
-                confidence=0.3,
-                ready_to_save=False
+                message=error_message,
+                confidence=0.0,
+                ready_to_save=False,
+                is_error=True,
             )
     
     def get_initial_greeting(self) -> PromptBuilderResponse:

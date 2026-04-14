@@ -1,43 +1,42 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { v4 as uuidv4 } from "uuid";
-
-// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
-// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
-// Note: may be able to remove this workaround with next version of uuid
-const v4 = () => uuidv4({});
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useTitleGeneration, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useAuthContext } from "@/lib/hooks";
-import { useSseErrorRecovery } from "@/lib/hooks/useSseErrorRecovery";
+import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText } from "@/lib/utils";
+import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
+import type { ChatEffect } from "@/lib/providers/chat";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
     CancelTaskRequest,
-    DataPart,
-    FileAttachment,
     FilePart,
-    JSONRPCErrorResponse,
     Message,
     MessageFE,
     Notification,
     Part,
-    PartFE,
     SendStreamingMessageRequest,
     SendStreamingMessageSuccessResponse,
     Session,
     Task,
-    TaskStatusUpdateEvent,
     TextPart,
     ArtifactPart,
     AgentCardInfo,
     Project,
     StoredTaskData,
     RAGSearchResult,
+    ArtifactInfo,
 } from "@/lib/types";
+
+// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
+// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
+// Note: may be able to remove this workaround with next version of uuid
+const v4 = () => uuidv4({});
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -46,71 +45,62 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, autoTitleGenerationEnabled } = useConfigContext();
+    // ============ Hooks ============
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { userInfo } = useAuthContext();
+    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    const { autoTitleGenerationEnabled, autoGenerateTitle, autoGenerateTitleForTask } = useAutoGenerateTitle();
 
-    // State Variables from useChat
+    // ============ State ============
     const [sessionId, setSessionId] = useState<string>("");
-    const [messages, setMessages] = useState<MessageFE[]>([]);
+    const [messages, _setMessages] = useState<MessageFE[]>([]);
     const [isResponding, setIsResponding] = useState<boolean>(false);
-
-    // RAG State
     const [ragData, _setRagData] = useState<RAGSearchResult[]>([]);
-    const ragDataRef = useRef<RAGSearchResult[]>([]);
     const [ragEnabled] = useState<boolean>(true);
     const [expandedDocumentFilename, setExpandedDocumentFilename] = useState<string | null>(null);
-
-    // Wrapper to keep ref in sync with state
-    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
-        _setRagData(prev => {
-            const newData = typeof data === "function" ? data(prev) : data;
-            ragDataRef.current = newData;
-            return newData;
-        });
-    }, []);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
-    const currentEventSource = useRef<EventSource | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
-    const [isCancelling, setIsCancelling] = useState<boolean>(false); // New state for cancellation
-
-    const savingTasksRef = useRef<Set<string>>(new Set());
-
-    // Track isCancelling in ref to access in async callbacks
-    const isCancellingRef = useRef(isCancelling);
-    useEffect(() => {
-        isCancellingRef.current = isCancelling;
-    }, [isCancelling]);
-
-    // Track current session id to prevent race conditions
-    const currentSessionIdRef = useRef(sessionId);
-    useEffect(() => {
-        currentSessionIdRef.current = sessionId;
-    }, [sessionId]);
-
+    const [isCancelling, setIsCancelling] = useState<boolean>(false);
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
+    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
+    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity" | "rag">("files");
+    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
+    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
+    const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
+    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+
+    // ============ Hooks that depend on state ============
+    const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
+    const { artifacts, allArtifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts, showWorkingArtifacts, toggleShowWorkingArtifacts, workingArtifactCount } = useArtifacts(sessionId);
+
+    // ============ Refs ============
+    // Refs serve two purposes here which may be replaceable by a react-state-management library.
+    // 1. Mirroring state for SSE event handlers that would otherwise capture stale closure values
+    //    (e.g., messagesRef, ragDataRef, isCancellingRef, currentSessionIdRef)
+    // 2. Holding mutable values that don't trigger re-renders
+    //    (e.g., cancelTimeoutRef, isFinalizing, savingTasksRef)
+    const ragDataRef = useRef<RAGSearchResult[]>([]);
+    const isCancellingRef = useRef(isCancelling);
+    const currentSessionIdRef = useRef(sessionId);
+    const messagesRef = useRef<MessageFE[]>([]);
+    const allArtifactsRef = useRef<ArtifactInfo[]>([]);
+    const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
+    const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
+    const showThinkingContentEnabledRef = useRef(showThinkingContentEnabled);
+    const currentEventSource = useRef<EventSource | null>(null);
+    const savingTasksRef = useRef<Set<string>>(new Set());
     const cancelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFinalizing = useRef(false);
     const latestStatusText = useRef<string | null>(null);
     const sseEventSequenceRef = useRef<number>(0);
-    const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
-    const messagesRef = useRef<MessageFE[]>([]);
-
-    // Ref to hold the replay function - allows calling from loadSessionTasks which is defined earlier
     const replayBufferedEventsRef = useRef<((taskId: string) => Promise<boolean>) | null>(null);
-
-    // Ref to hold handleSseMessage - allows calling from loadSessionTasks for buffer replay
     const handleSseMessageRef = useRef<((event: MessageEvent) => void) | null>(null);
-
-    // Track if we're currently replaying buffered events
-    // When true, handleSseMessage will skip save operations since the data is already persisted
     const isReplayingEventsRef = useRef(false);
-
-    // Track query history for deep research progress timeline
-    // This accumulates queries and their URLs as they come in via deep_research_progress events
     const deepResearchQueryHistoryRef = useRef<
         Map<
             string,
@@ -122,31 +112,44 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         >
     >(new Map());
 
-    const sessionsWithAutoGeneratedTitles = useRef<Set<string>>(new Set());
+    // ============ Ref sync ============
+    // Keep refs in sync with their corresponding state/hook values.
+    useEffect(() => {
+        inlineActivityTimelineEnabledRef.current = inlineActivityTimelineEnabled;
+    }, [inlineActivityTimelineEnabled]);
+    useEffect(() => {
+        showThinkingContentEnabledRef.current = showThinkingContentEnabled;
+    }, [showThinkingContentEnabled]);
+    useEffect(() => {
+        isCancellingRef.current = isCancelling;
+    }, [isCancelling]);
+    useEffect(() => {
+        currentSessionIdRef.current = sessionId;
+    }, [sessionId]);
+    // allArtifactsRef has two write paths:
+    // 1. This useEffect syncs when artifacts load from the API (session switch, initial fetch).
+    // 2. handleSseMessage writes synchronously for SSE freshness during streaming.
+    // Both are needed: the useEffect seeds the ref; the sync write prevents stale reads between events.
+    useEffect(() => {
+        allArtifactsRef.current = allArtifacts;
+    }, [allArtifacts]);
 
-    // Agents State
-    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
-
-    // Chat Side Panel State
-    const { artifacts, isLoading: artifactsLoading, refetch: artifactsRefetch, setArtifacts } = useArtifacts(sessionId);
-
-    // Title Generation
-    const { generateTitle } = useTitleGeneration();
-
-    // Side Panel Control State
-    const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
-    const [activeSidePanelTab, setActiveSidePanelTab] = useState<"files" | "activity" | "rag">("files");
-
-    // Feedback State
-    const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, { type: "up" | "down"; text: string }>>({});
-
-    // Pending prompt state for starting new chat with a prompt template
-    const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
-
-    // Running task navigation warning state
-    // Used when background tasks are disabled and user tries to switch sessions while a task is running
-    const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
-    const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+    // Refs that handle events that may be coming in faster than state updates — a callback
+    // ensures the ref is updated synchronously inside the state setter, minimizing staleness.
+    const setMessages = useCallback((data: MessageFE[] | ((prev: MessageFE[]) => MessageFE[])) => {
+        _setMessages(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            messagesRef.current = newData;
+            return newData;
+        });
+    }, []);
+    const setRagData = useCallback((data: RAGSearchResult[] | ((prev: RAGSearchResult[]) => RAGSearchResult[])) => {
+        _setRagData(prev => {
+            const newData = typeof data === "function" ? data(prev) : data;
+            ragDataRef.current = newData;
+            return newData;
+        });
+    }, []);
 
     // Notification Helper
     const addNotification = useCallback((message: string, type?: "success" | "info" | "warning") => {
@@ -179,7 +182,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     } = useArtifactPreview({
         sessionId,
         projectId: activeProject?.id,
-        artifacts,
+        artifacts: allArtifacts,
         setError,
     });
 
@@ -215,7 +218,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     // Get the authenticated user's ID for background task monitoring
-    const authenticatedUserId = typeof userInfo?.username === "string" ? userInfo.username : null;
+    const authenticatedUserId = getCurrentUserId();
 
     const {
         backgroundTasks,
@@ -248,50 +251,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
 
                 // Trigger title generation for the completed background task
-                // This handles the case where the task completes while user is on a different session
-                if (autoTitleGenerationEnabled) {
-                    const bgTask = backgroundTasksRef.current.find(t => t.taskId === taskId);
-                    let taskSessionId = bgTask?.sessionId;
-
-                    if (!taskSessionId || taskSessionId.trim() === "") {
-                        try {
-                            const statusData = await api.webui.get(`/api/v1/tasks/${taskId}/status`);
-                            taskSessionId = statusData?.task?.context_id || statusData?.task?.contextId;
-                        } catch {
-                            // Silently ignore - title generation will be skipped if session ID cannot be determined
-                        }
-                    }
-
-                    // Now proceed with title generation if we have a valid session ID
-                    if (taskSessionId && taskSessionId.trim() !== "" && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
-                        sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
-
-                        try {
-                            // Use the title-data endpoint which extracts messages from chat_tasks OR SSE buffer
-                            // This works even when FE wasn't watching and chat_tasks weren't saved yet
-                            console.debug("[ChatProvider] Fetching title-data for background task:", taskId);
-                            const titleData = await api.webui.get(`/api/v1/tasks/${taskId}/title-data`);
-                            console.debug("[ChatProvider] Title-data response:", titleData);
-
-                            const userMessageText = titleData?.user_message || "";
-                            const agentResponseText = titleData?.agent_response || "";
-
-                            if (userMessageText && agentResponseText) {
-                                console.debug("[ChatProvider] Calling generateTitle for background task");
-                                await generateTitle(taskSessionId, userMessageText, agentResponseText);
-                            } else {
-                                console.warn("[ChatProvider] Missing messages for title generation:", {
-                                    hasUser: !!userMessageText,
-                                    hasAgent: !!agentResponseText,
-                                });
-                            }
-                        } catch (error) {
-                            console.error("[ChatProvider] Error generating title for completed background task:", error);
-                        }
-                    }
-                }
+                await autoGenerateTitleForTask(taskId, backgroundTasksRef.current);
             },
-            [addNotification, autoTitleGenerationEnabled, generateTitle]
+            [addNotification, autoGenerateTitleForTask]
         ),
         onTaskFailed: useCallback(
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -315,46 +277,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         ),
     });
 
-    // Keep refs in sync with state
     useEffect(() => {
         backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
-
-    useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
-
-    // Helper function to serialize a MessageFE to MessageBubble format for backend
-    const serializeMessageBubble = useCallback((message: MessageFE) => {
-        // Build text with artifact markers embedded
-        let combinedText = "";
-        const parts = message.parts || [];
-
-        for (const part of parts) {
-            if (part.kind === "text") {
-                combinedText += (part as TextPart).text;
-            } else if (part.kind === "artifact") {
-                // Add artifact marker for artifact parts
-                const artifactPart = part as ArtifactPart;
-                combinedText += `«artifact_return:${artifactPart.name}»`;
-            }
-        }
-
-        return {
-            id: message.metadata?.messageId || `msg-${v4()}`,
-            type: message.isUser ? "user" : "agent",
-            text: combinedText,
-            parts: message.parts,
-            uploadedFiles: message.uploadedFiles?.map(f => ({
-                name: f.name,
-                type: f.type,
-            })),
-            isError: message.isError,
-            displayHtml: message.displayHtml,
-            contextQuote: message.contextQuote,
-            contextQuoteSourceId: message.contextQuoteSourceId,
-        };
-    }, []);
 
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
@@ -392,132 +317,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [sessionId, persistenceEnabled]
-    );
-
-    // Helper function to extract artifact markers and create artifact parts
-    const extractArtifactMarkers = useCallback((text: string, sessionId: string, addedArtifacts: Set<string>, processedParts: any[]) => {
-        const ARTIFACT_RETURN_REGEX = /«artifact_return:([^»]+)»/g;
-        const ARTIFACT_REGEX = /«artifact:([^»]+)»/g;
-
-        const createArtifactPart = (filename: string) => {
-            // Strip version suffix if present (e.g., "file.md:0" -> "file.md")
-            // This handles artifact markers from agents that include version numbers
-            let cleanFilename = filename;
-            if (filename.includes(":")) {
-                const parts = filename.split(":");
-                // Check if the last part is a number (version)
-                const lastPart = parts[parts.length - 1];
-                if (/^\d+$/.test(lastPart)) {
-                    // It's a version number, remove it
-                    cleanFilename = parts.slice(0, -1).join(":");
-                }
-            }
-
-            return {
-                kind: "artifact",
-                status: "completed",
-                name: cleanFilename,
-                file: {
-                    name: cleanFilename,
-                    uri: `artifact://${sessionId}/${cleanFilename}`,
-                },
-            };
-        };
-
-        // Extract artifact_return markers
-        let match;
-        while ((match = ARTIFACT_RETURN_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            // Normalize filename to avoid duplicates (strip version suffix)
-            const normalizedFilename = artifactFilename.includes(":") && /:\d+$/.test(artifactFilename) ? artifactFilename.substring(0, artifactFilename.lastIndexOf(":")) : artifactFilename;
-
-            if (!addedArtifacts.has(normalizedFilename)) {
-                addedArtifacts.add(normalizedFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-
-        // Extract artifact: markers
-        while ((match = ARTIFACT_REGEX.exec(text)) !== null) {
-            const artifactFilename = match[1];
-            if (!addedArtifacts.has(artifactFilename)) {
-                addedArtifacts.add(artifactFilename);
-                processedParts.push(createArtifactPart(artifactFilename));
-            }
-        }
-    }, []);
-
-    // Helper function to deserialize task data to MessageFE objects
-    const deserializeTaskToMessages = useCallback(
-        (task: { taskId: string; messageBubbles: any[]; taskMetadata?: any; createdTime: number }, sessionId: string): MessageFE[] => {
-            return task.messageBubbles.map(bubble => {
-                // Process parts to handle markers and reconstruct artifact parts if needed
-                const processedParts: any[] = [];
-                const originalParts = bubble.parts || [{ kind: "text", text: bubble.text || "" }];
-
-                // Track artifact names we've already added to avoid duplicates
-                const addedArtifacts = new Set<string>();
-
-                // First, check the bubble.text field for artifact markers (TaskLoggerService saves markers there)
-                // This handles the case where backend saves text with markers but parts without artifacts
-                if (bubble.text) {
-                    extractArtifactMarkers(bubble.text, sessionId, addedArtifacts, processedParts);
-                }
-
-                for (const part of originalParts) {
-                    if (part.kind === "text" && part.text) {
-                        let textContent = part.text;
-
-                        // Extract artifact markers and convert them to artifact parts
-                        extractArtifactMarkers(textContent, sessionId, addedArtifacts, processedParts);
-
-                        // Remove artifact markers from text content
-                        textContent = textContent.replace(/«artifact_return:[^»]+»/g, "");
-                        textContent = textContent.replace(/«artifact:[^»]+»/g, "");
-
-                        // Remove status update markers
-                        textContent = textContent.replace(/«status_update:[^»]+»\n?/g, "");
-
-                        // Add text part if there's content
-                        if (textContent.trim()) {
-                            processedParts.push({ kind: "text", text: textContent });
-                        }
-                    } else if (part.kind === "artifact") {
-                        // Only add artifact part if not already added (from markers)
-                        const artifactName = part.name;
-                        if (artifactName && !addedArtifacts.has(artifactName)) {
-                            addedArtifacts.add(artifactName);
-                            processedParts.push(part);
-                        }
-                        // Skip duplicate artifacts
-                    } else {
-                        // Keep other non-text parts as-is
-                        processedParts.push(part);
-                    }
-                }
-
-                return {
-                    taskId: task.taskId,
-                    role: bubble.type === "user" ? "user" : "agent",
-                    parts: processedParts,
-                    isUser: bubble.type === "user",
-                    isComplete: true,
-                    files: bubble.files,
-                    uploadedFiles: bubble.uploadedFiles,
-                    artifactNotification: bubble.artifactNotification,
-                    isError: bubble.isError,
-                    displayHtml: bubble.displayHtml, // Restore mention chip HTML for user messages
-                    contextQuote: bubble.contextQuote, // Restore context quote for user messages
-                    contextQuoteSourceId: bubble.contextQuoteSourceId, // Restore source ID for scroll-to-source
-                    metadata: {
-                        messageId: bubble.id,
-                        sessionId: sessionId,
-                        lastProcessedEventSequence: 0,
-                    },
-                };
-            });
-        },
-        [extractArtifactMarkers]
     );
 
     // Helper function to load session tasks and reconstruct messages
@@ -581,7 +380,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
 
             for (const task of migratedTasks) {
-                const taskMessages = deserializeTaskToMessages(task, sessionId);
+                const taskMessages = deserializeChatMessages(task, sessionId);
 
                 if (tasksWithBufferedEvents.has(task.taskId)) {
                     const userMessages = taskMessages.filter(m => m.isUser);
@@ -594,29 +393,37 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             // Extract feedback state from task metadata
             const feedbackMap: Record<string, { type: "up" | "down"; text: string }> = {};
-            // Extract RAG data from task metadata
-            const allRagData: RAGSearchResult[] = [];
-
             for (const task of migratedTasks) {
-                if (task.taskMetadata?.feedback) {
+                let meta = null;
+                try {
+                    meta = typeof task.taskMetadata === "string" ? JSON.parse(task.taskMetadata) : task.taskMetadata;
+                } catch {
+                    // Malformed JSON in persisted metadata — skip gracefully
+                }
+
+                if (meta?.feedback) {
                     feedbackMap[task.taskId] = {
-                        type: task.taskMetadata.feedback.type,
-                        text: task.taskMetadata.feedback.text || "",
+                        type: meta.feedback.type,
+                        text: meta.feedback.text || "",
                     };
                 }
-
-                // Restore RAG data if present
-                if (task.taskMetadata?.rag_data && Array.isArray(task.taskMetadata.rag_data)) {
-                    allRagData.push(...task.taskMetadata.rag_data);
-                }
             }
+
+            // Extract RAG data from task metadata
+            const allRagData = extractRagDataFromTasks(migratedTasks);
 
             // Extract agent name from the most recent task
             // (Use the last task's agent since that's the most recent interaction)
             let agentName: string | null = null;
             for (let i = migratedTasks.length - 1; i >= 0; i--) {
-                if (migratedTasks[i].taskMetadata?.agent_name) {
-                    agentName = migratedTasks[i].taskMetadata.agent_name;
+                let agentMeta = null;
+                try {
+                    agentMeta = typeof migratedTasks[i].taskMetadata === "string" ? JSON.parse(migratedTasks[i].taskMetadata) : migratedTasks[i].taskMetadata;
+                } catch {
+                    // Malformed JSON in persisted metadata — skip gracefully
+                }
+                if (agentMeta?.agent_name) {
+                    agentName = agentMeta.agent_name;
                     break;
                 }
             }
@@ -658,7 +465,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const tasksNeedingReplay: Array<{ taskId: string; events: any[] }> = [];
 
                 for (const task of migratedTasks) {
-                    const taskMessages = deserializeTaskToMessages(task, sessionId);
+                    const taskMessages = deserializeChatMessages(task, sessionId);
                     const bufferedData = tasksWithBufferedEvents.get(task.taskId);
                     const agentMessagesFromChatTasks = taskMessages.filter(m => !m.isUser);
                     const userMessages = taskMessages.filter(m => m.isUser);
@@ -751,7 +558,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                                     const taskMessages = currentMessages.filter(m => m.taskId === taskId && !m.isStatusBubble);
                                     if (taskMessages.length > 0) {
                                         console.debug(`[loadSessionTasks] Saving task ${taskId} after replay (${taskMessages.length} messages)`);
-                                        const messageBubbles = taskMessages.map(serializeMessageBubble);
+                                        const messageBubbles = taskMessages.map(serializeChatMessage);
                                         const userMessage = taskMessages.find(m => m.isUser);
                                         const userMessageText =
                                             userMessage?.parts
@@ -803,8 +610,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // No tasks with buffered events - just set all messages at once
                 setMessages(allMessages);
             }
+
+            // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
+            // Sender info in messages is kept for UI display purposes only.
         },
-        [deserializeTaskToMessages, setRagData, backgroundTasksEnabled, serializeMessageBubble, saveTaskToBackend]
+        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
 
     // Session State
@@ -839,872 +649,170 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isFinalizing.current = false;
     }, []);
 
+    // Execute a side-effect descriptor returned by processChatEvent
+    const executeEffect = useCallback(
+        (effect: ChatEffect) => {
+            switch (effect.type) {
+                case "close-connection":
+                    closeCurrentEventSource();
+                    break;
+                case "stop-responding":
+                    setIsResponding(false);
+                    break;
+                case "clear-task-id":
+                    setCurrentTaskId(null);
+                    break;
+                case "cancel-complete":
+                    if (isCancellingRef.current) {
+                        addNotification("Task cancelled.", "success");
+                        if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+                        setIsCancelling(false);
+                    }
+                    break;
+                case "refetch-artifacts":
+                    void artifactsRefetch();
+                    break;
+                case "save-task": {
+                    const { taskId, messages: taskMessages, sessionId: taskSessionId, selectedAgentName: agentName, ragData: taskRagData } = effect.payload;
+                    // taskMessages is already filtered by processChatEvent (taskId match, no status bubbles)
+                    if (taskMessages.length === 0) break;
+
+                    const isBackgroundTask = isTaskRunningInBackground(taskId);
+                    const messageBubbles = taskMessages.map(serializeChatMessage);
+
+                    const userMessage = taskMessages.find(m => m.isUser);
+                    const userMessageText =
+                        userMessage?.parts
+                            ?.filter(p => p.kind === "text")
+                            .map(p => (p as TextPart).text)
+                            .join("") || "";
+
+                    const hasError = taskMessages.some(m => m.isError);
+                    const taskStatus = hasError ? "error" : "completed";
+
+                    saveTaskToBackend(
+                        {
+                            task_id: taskId,
+                            user_message: userMessageText,
+                            message_bubbles: messageBubbles,
+                            task_metadata: {
+                                schema_version: CURRENT_SCHEMA_VERSION,
+                                status: taskStatus,
+                                agent_name: agentName,
+                                rag_data: taskRagData.length > 0 ? taskRagData : undefined,
+                            },
+                        },
+                        taskSessionId
+                    )
+                        .then(async saved => {
+                            if (saved) {
+                                if (typeof window !== "undefined") {
+                                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                                }
+                            }
+
+                            if (isBackgroundTask) {
+                                unregisterBackgroundTask(taskId);
+                            }
+
+                            if (taskSessionId) {
+                                const agentMessage = taskMessages.find(m => !m.isUser);
+                                const agentResponseText =
+                                    agentMessage?.parts
+                                        ?.filter(p => p.kind === "text")
+                                        .map(p => (p as TextPart).text)
+                                        .join("") || "";
+
+                                autoGenerateTitle(taskSessionId, userMessageText, agentResponseText);
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`[ChatProvider] Error saving task ${taskId}:`, error);
+                            if (isBackgroundTask) {
+                                unregisterBackgroundTask(taskId);
+                            }
+                        });
+                    break;
+                }
+                case "unregister-background-task":
+                    unregisterBackgroundTask(effect.payload.taskId);
+                    break;
+                case "update-task-timestamp":
+                    updateTaskTimestamp(effect.payload.taskId, effect.payload.timestamp);
+                    break;
+                case "auto-download-artifact":
+                    setTimeout(() => {
+                        downloadAndResolveArtifact(effect.payload.filename).catch(err => {
+                            console.error(`Auto-download failed for ${effect.payload.filename}:`, err);
+                        });
+                    }, 100);
+                    break;
+                case "dispatch-new-chat-session":
+                    if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("new-chat-session"));
+                    }
+                    break;
+                case "finalize":
+                    isFinalizing.current = true;
+                    setTimeout(() => {
+                        isFinalizing.current = false;
+                    }, 100);
+                    break;
+            }
+        },
+
+        [addNotification, closeCurrentEventSource, artifactsRefetch, saveTaskToBackend, downloadAndResolveArtifact, isTaskRunningInBackground, updateTaskTimestamp, unregisterBackgroundTask, autoGenerateTitle]
+    );
+
     const handleSseMessage = useCallback(
         (event: MessageEvent) => {
             sseEventSequenceRef.current += 1;
-            const currentEventSequence = sseEventSequenceRef.current;
-            let rpcResponse: SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
 
-            try {
-                rpcResponse = JSON.parse(event.data) as SendStreamingMessageSuccessResponse | JSONRPCErrorResponse;
-            } catch (error: unknown) {
-                console.error("Failed to parse SSE message:", error);
-                return;
-            }
-
-            // Update background task timestamp if this is a background task
-            if ("result" in rpcResponse && rpcResponse.result) {
-                const result = rpcResponse.result;
-                const taskIdFromResult = result.kind === "task" ? result.id : result.kind === "status-update" ? result.taskId : undefined;
-
-                if (taskIdFromResult && isTaskRunningInBackground(taskIdFromResult)) {
-                    updateTaskTimestamp(taskIdFromResult, Date.now());
-                }
-            }
-
-            // Handle RPC Error
-            if ("error" in rpcResponse && rpcResponse.error) {
-                const errorContent = rpcResponse.error;
-                const messageContent = `Error: ${errorContent.message}`;
-
-                setMessages(prev => {
-                    const newMessages = prev.filter(msg => !msg.isStatusBubble);
-                    newMessages.push({
-                        role: "agent",
-                        parts: [{ kind: "text", text: messageContent }],
-                        isUser: false,
-                        isError: true,
-                        isComplete: true,
-                        metadata: {
-                            messageId: `msg-${v4()}`,
-                            lastProcessedEventSequence: currentEventSequence,
-                        },
-                    });
-                    return newMessages;
-                });
-
-                setIsResponding(false);
-                closeCurrentEventSource();
-                setCurrentTaskId(null);
-                return;
-            }
-
-            if (!("result" in rpcResponse) || !rpcResponse.result) {
-                console.warn("Received SSE message without a result or error field.", rpcResponse);
-                return;
-            }
-
-            const result = rpcResponse.result;
-            let isFinalEvent = false;
-            let messageToProcess: Message | undefined;
-            let currentTaskIdFromResult: string | undefined;
-
-            // Determine event type and extract relevant data
-            switch (result.kind) {
-                case "task":
-                    isFinalEvent = true;
-                    // For the final task object, extract the error message if the task failed
-                    // This handles cases where the task fails before streaming any status updates
-                    if (result.status?.state === "failed" && result.status?.message) {
-                        messageToProcess = result.status.message;
-                    } else {
-                        // For successful tasks, content has already been streamed via status_updates
-                        messageToProcess = undefined;
-                    }
-                    currentTaskIdFromResult = result.id;
-                    break;
-                case "status-update":
-                    isFinalEvent = result.final;
-                    messageToProcess = result.status?.message;
-                    currentTaskIdFromResult = result.taskId;
-                    break;
-                case "artifact-update":
-                    // An artifact was created or updated, refetch the list for the side panel.
-                    void artifactsRefetch();
-                    return; // No further processing needed for this event.
-                default:
-                    console.warn("Received unknown result kind in SSE message:", result);
-                    return;
-            }
-
-            // Process data parts first to extract status text
-            if (messageToProcess?.parts) {
-                const dataParts = messageToProcess.parts.filter(p => p.kind === "data") as DataPart[];
-                if (dataParts.length > 0) {
-                    for (const part of dataParts) {
-                        const data = part.data as any;
-                        if (data && typeof data === "object" && "type" in data) {
-                            switch (data.type) {
-                                case "agent_progress_update": {
-                                    latestStatusText.current = String(data?.status_text ?? "Processing...");
-                                    const otherParts = messageToProcess.parts.filter(p => p.kind !== "data");
-                                    if (otherParts.length === 0) {
-                                        return; // This is a status-only event, do not process further.
-                                    }
-                                    break;
-                                }
-                                case "artifact_creation_progress": {
-                                    const { filename, status, bytes_transferred, mime_type, description, artifact_chunk, version, rolled_back_text } = data as {
-                                        filename: string;
-                                        status: "in-progress" | "completed" | "failed" | "cancelled";
-                                        bytes_transferred: number;
-                                        mime_type?: string;
-                                        description?: string;
-                                        artifact_chunk?: string;
-                                        version?: number;
-                                        rolled_back_text?: string;
-                                    };
-
-                                    // Handle "cancelled" status - this happens when an artifact block was started
-                                    // but never completed (e.g., LLM mentioned artifact syntax in text).
-                                    // We remove the in-progress artifact part and add the rolled-back text as a text part.
-                                    if (status === "cancelled") {
-                                        setMessages(prev => {
-                                            const newMessages = [...prev];
-                                            const agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
-                                            if (agentMessageIndex !== -1) {
-                                                const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
-                                                // Remove the artifact part for this filename
-                                                agentMessage.parts = agentMessage.parts.filter(p => !(p.kind === "artifact" && p.name === filename));
-                                                // Add the rolled-back text as a text part so the user can see it
-                                                // This is the original text that was incorrectly parsed as an artifact block
-                                                if (rolled_back_text) {
-                                                    agentMessage.parts.push({ kind: "text", text: rolled_back_text });
-                                                }
-                                                newMessages[agentMessageIndex] = agentMessage;
-                                            }
-                                            return newMessages;
-                                        });
-                                        // Also remove from artifacts list if it was added
-                                        setArtifacts(prevArtifacts => prevArtifacts.filter(a => a.filename !== filename));
-                                        return;
-                                    }
-
-                                    // Track if we need to trigger auto-download after state update
-                                    let shouldAutoDownload = false;
-
-                                    // Update global artifacts list with description and accumulated content
-                                    setArtifacts(prevArtifacts => {
-                                        const existingIndex = prevArtifacts.findIndex(a => a.filename === filename);
-                                        if (existingIndex >= 0) {
-                                            // Update existing artifact, preserving description if new one not provided
-                                            const updated = [...prevArtifacts];
-                                            const existingArtifact = updated[existingIndex];
-                                            const isDisplayed = existingArtifact.isDisplayed || false;
-
-                                            // Check if we should trigger auto-download (before state update)
-                                            if (status === "completed" && isDisplayed) {
-                                                shouldAutoDownload = true;
-                                            }
-
-                                            updated[existingIndex] = {
-                                                ...existingArtifact,
-                                                description: description !== undefined ? description : existingArtifact.description,
-                                                size: bytes_transferred || existingArtifact.size,
-                                                last_modified: new Date().toISOString(),
-                                                // Ensure URI is set
-                                                uri: existingArtifact.uri || `artifact://${sessionId}/${filename}`,
-                                                // Accumulate content chunks for in-progress and completed artifacts
-                                                accumulatedContent:
-                                                    status === "in-progress" && artifact_chunk
-                                                        ? (existingArtifact.accumulatedContent || "") + artifact_chunk
-                                                        : status === "completed" && !isDisplayed
-                                                          ? undefined // Clear accumulated content when completed if NOT displayed
-                                                          : existingArtifact.accumulatedContent, // Keep for displayed artifacts
-                                                // Mark that streaming content is plain text (not base64)
-                                                isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : existingArtifact.isAccumulatedContentPlainText,
-                                                // Update mime_type when completed
-                                                mime_type: status === "completed" && mime_type ? mime_type : existingArtifact.mime_type,
-                                                // Mark that embed resolution is needed when completed
-                                                needsEmbedResolution: status === "completed" ? true : existingArtifact.needsEmbedResolution,
-                                            };
-
-                                            return updated;
-                                        } else {
-                                            // Create new artifact entry only if we have description or it's the first chunk
-                                            if (description !== undefined || status === "in-progress") {
-                                                return [
-                                                    ...prevArtifacts,
-                                                    {
-                                                        filename,
-                                                        description: description || null,
-                                                        mime_type: mime_type || "application/octet-stream",
-                                                        size: bytes_transferred || 0,
-                                                        last_modified: new Date().toISOString(),
-                                                        uri: `artifact://${sessionId}/${filename}`,
-                                                        accumulatedContent: status === "in-progress" && artifact_chunk ? artifact_chunk : undefined,
-                                                        isAccumulatedContentPlainText: status === "in-progress" && artifact_chunk ? true : false,
-                                                        needsEmbedResolution: status === "completed" ? true : false,
-                                                    },
-                                                ];
-                                            }
-                                        }
-                                        return prevArtifacts;
-                                    });
-
-                                    // Trigger auto-download AFTER state update (outside the setter)
-                                    if (shouldAutoDownload) {
-                                        setTimeout(() => {
-                                            downloadAndResolveArtifact(filename).catch(err => {
-                                                console.error(`Auto-download failed for ${filename}:`, err);
-                                            });
-                                        }, 100);
-                                    }
-
-                                    setMessages(prev => {
-                                        const newMessages = [...prev];
-                                        let agentMessageIndex = newMessages.findLastIndex(m => !m.isUser && m.taskId === currentTaskIdFromResult);
-
-                                        if (agentMessageIndex === -1) {
-                                            const newAgentMessage: MessageFE = {
-                                                role: "agent",
-                                                parts: [],
-                                                taskId: currentTaskIdFromResult,
-                                                isUser: false,
-                                                isComplete: false,
-                                                isStatusBubble: false,
-                                                metadata: { lastProcessedEventSequence: currentEventSequence },
-                                            };
-                                            newMessages.push(newAgentMessage);
-                                            agentMessageIndex = newMessages.length - 1;
-                                        }
-
-                                        const agentMessage = { ...newMessages[agentMessageIndex], parts: [...newMessages[agentMessageIndex].parts] };
-                                        agentMessage.isStatusBubble = false;
-                                        const artifactPartIndex = agentMessage.parts.findIndex(p => p.kind === "artifact" && p.name === filename);
-
-                                        if (status === "in-progress") {
-                                            if (artifactPartIndex > -1) {
-                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                // Create a new part object with immutable update
-                                                const updatedPart: ArtifactPart = {
-                                                    ...existingPart,
-                                                    bytesTransferred: bytes_transferred,
-                                                    status: "in-progress",
-                                                };
-                                                agentMessage.parts[artifactPartIndex] = updatedPart;
-                                            } else {
-                                                const newPart: ArtifactPart = {
-                                                    kind: "artifact",
-                                                    status: "in-progress",
-                                                    name: filename,
-                                                    bytesTransferred: bytes_transferred,
-                                                };
-                                                agentMessage.parts.push(newPart);
-                                            }
-                                        } else if (status === "completed") {
-                                            const fileAttachment: FileAttachment = {
-                                                name: filename,
-                                                mime_type,
-                                                uri: version !== undefined ? `artifact://${sessionId}/${filename}?version=${version}` : `artifact://${sessionId}/${filename}`,
-                                            };
-                                            if (artifactPartIndex > -1) {
-                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                // Create a new part object with immutable update
-                                                const updatedPart: ArtifactPart = {
-                                                    ...existingPart,
-                                                    status: "completed",
-                                                    file: fileAttachment,
-                                                };
-                                                // Remove bytesTransferred for completed artifacts
-                                                delete updatedPart.bytesTransferred;
-                                                agentMessage.parts[artifactPartIndex] = updatedPart;
-                                            } else {
-                                                agentMessage.parts.push({
-                                                    kind: "artifact",
-                                                    status: "completed",
-                                                    name: filename,
-                                                    file: fileAttachment,
-                                                });
-                                            }
-                                            void artifactsRefetch();
-                                        } else {
-                                            // status === "failed"
-                                            const errorMsg = `Failed to create artifact: ${filename}`;
-                                            if (artifactPartIndex > -1) {
-                                                const existingPart = agentMessage.parts[artifactPartIndex] as ArtifactPart;
-                                                // Create a new part object with immutable update
-                                                const updatedPart: ArtifactPart = {
-                                                    ...existingPart,
-                                                    status: "failed",
-                                                    error: errorMsg,
-                                                };
-                                                // Remove bytesTransferred for failed artifacts
-                                                delete updatedPart.bytesTransferred;
-                                                agentMessage.parts[artifactPartIndex] = updatedPart;
-                                            } else {
-                                                agentMessage.parts.push({
-                                                    kind: "artifact",
-                                                    status: "failed",
-                                                    name: filename,
-                                                    error: errorMsg,
-                                                });
-                                            }
-                                            agentMessage.isError = true;
-                                        }
-
-                                        newMessages[agentMessageIndex] = agentMessage;
-
-                                        // Filter out OTHER generic status bubbles, but keep our message.
-                                        const finalMessages = newMessages.filter(m => !m.isStatusBubble || m.parts.some(p => p.kind === "artifact" || p.kind === "file"));
-                                        return finalMessages;
-                                    });
-                                    // Return immediately to prevent the generic status handler from running
-                                    return;
-                                }
-                                case "tool_invocation_start":
-                                    break;
-                                case "authentication_required": {
-                                    const auth_uri = data?.auth_uri;
-                                    const target_agent = typeof data?.target_agent === "string" ? data.target_agent : "Agent";
-                                    const gateway_task_id = typeof data?.gateway_task_id === "string" ? data.gateway_task_id : undefined;
-                                    if (typeof auth_uri === "string" && auth_uri.startsWith("http")) {
-                                        const authMessage: MessageFE = {
-                                            role: "agent",
-                                            parts: [{ kind: "text", text: "" }],
-                                            authenticationLink: {
-                                                url: auth_uri,
-                                                text: "Click to Authenticate",
-                                                targetAgent: target_agent,
-                                                gatewayTaskId: gateway_task_id,
-                                            },
-                                            isUser: false,
-                                            isComplete: true,
-                                            metadata: { messageId: `auth-${v4()}` },
-                                        };
-                                        setMessages(prev => [...prev, authMessage]);
-                                    }
-                                    break;
-                                }
-                                case "rag_info_update": {
-                                    // Handle RAG info updates from deep research (title and sources)
-                                    // This is sent early during research so UI can display title and sources
-                                    // Each rag_info_update represents a NEW query with its sources - we create separate entries
-                                    // to maintain the query→sources relationship for the timeline display
-                                    const ragInfoData = data as {
-                                        type: "rag_info_update";
-                                        title: string;
-                                        query: string;
-                                        search_type: string;
-                                        search_turn?: number;
-                                        sources: Array<{
-                                            url: string;
-                                            title: string;
-                                            favicon?: string;
-                                            source_type?: string;
-                                            citationId?: string;
-                                        }>;
-                                        is_complete: boolean;
-                                        timestamp: string;
-                                    };
-
-                                    if (ragEnabled) {
-                                        setRagData(prev => {
-                                            // Determine the search turn for citation IDs
-                                            // If backend provides search_turn, use it; otherwise count existing entries for this task
-                                            const searchTurn = ragInfoData.search_turn ?? prev.filter(r => r.taskId === currentTaskIdFromResult).length;
-
-                                            // Convert sources to RAGSearchResult format
-                                            // Use new citation format: s{turn}r{index} (e.g., s0r0, s0r1, s1r0, s1r1)
-                                            const formattedSources = (ragInfoData.sources || []).map((source, idx) => ({
-                                                // Use backend-provided citationId if available, otherwise generate new format
-                                                citationId: source.citationId || `s${searchTurn}r${idx}`,
-                                                title: source.title || source.url,
-                                                sourceUrl: source.url,
-                                                url: source.url,
-                                                contentPreview: `Source: ${source.title || source.url}`,
-                                                relevanceScore: 1.0,
-                                                retrievedAt: ragInfoData.timestamp,
-                                                metadata: {
-                                                    favicon: source.favicon || `https://www.google.com/s2/favicons?domain=${source.url}&sz=32`,
-                                                    type: "web_search",
-                                                    sourceType: source.source_type || "web",
-                                                },
-                                            }));
-
-                                            // Find existing entry for this SPECIFIC query within this task
-                                            // This allows multiple queries per task, each with their own sources
-                                            const existingIndex = prev.findIndex(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult && r.query === ragInfoData.query);
-
-                                            if (existingIndex !== -1) {
-                                                // Update existing entry for this query - merge sources (avoid duplicates)
-                                                const updated = [...prev];
-                                                const existing = updated[existingIndex];
-
-                                                const existingUrls = new Set(existing.sources.map(s => s.sourceUrl || s.url));
-                                                const newSources = formattedSources.filter(s => !existingUrls.has(s.sourceUrl || s.url));
-
-                                                updated[existingIndex] = {
-                                                    ...existing,
-                                                    title: ragInfoData.title || existing.title, // Update title if provided
-                                                    sources: [...existing.sources, ...newSources],
-                                                };
-
-                                                return updated;
-                                            } else {
-                                                // Create a NEW entry for this query
-                                                // This maintains separate query→sources relationships for the timeline
-                                                const newEntry: RAGSearchResult = {
-                                                    query: ragInfoData.query,
-                                                    title: ragInfoData.title, // Use LLM-generated title
-                                                    searchType: "deep_research" as const,
-                                                    timestamp: ragInfoData.timestamp,
-                                                    sources: formattedSources,
-                                                    taskId: currentTaskIdFromResult,
-                                                };
-                                                return [...prev, newEntry];
-                                            }
-                                        });
-                                    }
-                                    break;
-                                }
-                                case "deep_research_progress": {
-                                    // Deep research progress tracking - keep the data part for ChatMessage to render
-                                    // Clear latestStatusText so LoadingMessageRow doesn't show duplicate status
-                                    latestStatusText.current = null;
-
-                                    // Extract progress data to build query history
-                                    const progressData = data as {
-                                        type: "deep_research_progress";
-                                        phase: string;
-                                        current_query: string;
-                                        fetching_urls: Array<{ url: string; title: string; favicon: string; source_type?: string }>;
-                                    };
-
-                                    if (currentTaskIdFromResult) {
-                                        const taskHistory = deepResearchQueryHistoryRef.current.get(currentTaskIdFromResult) || [];
-
-                                        if (progressData.current_query) {
-                                            // We have a query - either add it or update its URLs
-                                            const existingQueryIndex = taskHistory.findIndex(q => q.query === progressData.current_query);
-
-                                            if (existingQueryIndex === -1) {
-                                                // New query - add it (URLs may come later in analyzing phase)
-                                                taskHistory.push({
-                                                    query: progressData.current_query,
-                                                    timestamp: new Date().toISOString(),
-                                                    urls: progressData.fetching_urls || [],
-                                                });
-                                            } else if (progressData.fetching_urls && progressData.fetching_urls.length > 0) {
-                                                // Existing query AND we have URLs - update/merge URLs
-                                                const existingEntry = taskHistory[existingQueryIndex];
-                                                const existingUrls = new Set(existingEntry.urls.map(u => u.url));
-                                                const newUrls = progressData.fetching_urls.filter(u => !existingUrls.has(u.url));
-                                                if (newUrls.length > 0) {
-                                                    taskHistory[existingQueryIndex] = {
-                                                        ...existingEntry,
-                                                        urls: [...existingEntry.urls, ...newUrls],
-                                                    };
-                                                }
-                                            }
-                                        } else if (progressData.fetching_urls && progressData.fetching_urls.length > 0 && taskHistory.length > 0) {
-                                            // No current_query but we have URLs - update the LAST query's URLs
-                                            // This happens during "analyzing" phase when backend doesn't send current_query
-                                            const lastQueryIndex = taskHistory.length - 1;
-                                            const lastEntry = taskHistory[lastQueryIndex];
-                                            const existingUrls = new Set(lastEntry.urls.map(u => u.url));
-                                            const newUrls = progressData.fetching_urls.filter(u => !existingUrls.has(u.url));
-                                            if (newUrls.length > 0) {
-                                                taskHistory[lastQueryIndex] = {
-                                                    ...lastEntry,
-                                                    urls: [...lastEntry.urls, ...newUrls],
-                                                };
-                                            }
-                                        }
-
-                                        deepResearchQueryHistoryRef.current.set(currentTaskIdFromResult, taskHistory);
-
-                                        // ALWAYS inject query_history so the component can display accumulated progress
-                                        // Even if we didn't modify the history, we need to pass it to the component
-                                        (data as any).query_history = taskHistory;
-                                    }
-
-                                    // Don't return early - let the data part flow through to the message
-                                    break;
-                                }
-                                case "tool_result": {
-                                    // Handle tool results that may contain RAG metadata
-                                    const resultData = (data as any).result_data;
-
-                                    // Check if result_data contains rag_metadata
-                                    if (resultData && typeof resultData === "object" && resultData.rag_metadata) {
-                                        const ragMetadata = resultData.rag_metadata;
-                                        if (ragMetadata && ragEnabled) {
-                                            console.log("[ChatProvider] Received tool_result with RAG metadata:", {
-                                                searchType: ragMetadata.searchType,
-                                                sourcesCount: ragMetadata.sources?.length,
-                                                taskId: currentTaskIdFromResult,
-                                                sampleSources: ragMetadata.sources?.slice(0, 3).map((s: any) => ({
-                                                    title: s.title,
-                                                    fetched: s.metadata?.fetched,
-                                                    fetch_status: s.metadata?.fetch_status,
-                                                    contentPreview: s.contentPreview?.substring(0, 100),
-                                                })),
-                                            });
-
-                                            const ragSearchResult: RAGSearchResult = {
-                                                query: ragMetadata.query,
-                                                title: ragMetadata.title,
-                                                searchType: ragMetadata.searchType,
-                                                timestamp: ragMetadata.timestamp,
-                                                sources: ragMetadata.sources,
-                                                taskId: currentTaskIdFromResult,
-                                                metadata: ragMetadata.metadata, // Preserve metadata with query breakdown
-                                            };
-
-                                            // For deep research: REPLACE all previous entries for this task with the final metadata
-                                            // This ensures we have the complete, properly structured data with metadata.queries
-                                            if (ragMetadata.searchType === "deep_research") {
-                                                console.log("[ChatProvider] Replacing deep research RAG data for task", currentTaskIdFromResult);
-                                                setRagData(prev => {
-                                                    const beforeCount = prev.filter(r => r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult).length;
-                                                    // Remove all previous deep research entries for this task
-                                                    const filtered = prev.filter(r => !(r.searchType === "deep_research" && r.taskId === currentTaskIdFromResult));
-                                                    // Add the final complete entry
-                                                    const result = [...filtered, ragSearchResult];
-                                                    console.log("[ChatProvider] Deep research RAG data replaced:", {
-                                                        removedEntries: beforeCount,
-                                                        newSourcesCount: ragSearchResult.sources.length,
-                                                    });
-                                                    return result;
-                                                });
-                                            } else {
-                                                // For regular web search: append as before
-                                                setRagData(prev => [...prev, ragSearchResult]);
-                                            }
-                                        }
-                                    }
-                                    // Don't add tool_result to content parts - it's metadata only
-                                    break;
-                                }
-                                default:
-                                    console.log("Received unknown data part type:", data.type);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Filter out data parts EXCEPT deep_research_progress which needs to be rendered
-            // Also filter out text parts when we have deep_research_progress to show progress-only
-            const hasDeepResearchProgress = messageToProcess?.parts?.some(p => {
-                if (p.kind === "data") {
-                    const dataPart = p as DataPart;
-                    return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
-                }
-                return false;
+            const output = processChatEvent({
+                eventData: event.data,
+                messages: messagesRef.current,
+                ragData: ragDataRef.current,
+                artifacts: allArtifactsRef.current,
+                flags: {
+                    inlineActivityTimeline: inlineActivityTimelineEnabledRef.current,
+                    showThinkingContent: showThinkingContentEnabledRef.current,
+                    ragEnabled,
+                    isReplaying: isReplayingEventsRef.current,
+                },
+                sessionId: currentSessionIdRef.current,
+                selectedAgentName,
+                deepResearchQueryHistory: deepResearchQueryHistoryRef.current,
+                eventSequence: sseEventSequenceRef.current,
+                isTaskRunningInBackground,
             });
 
-            const newContentParts =
-                messageToProcess?.parts?.filter(p => {
-                    // Keep deep_research_progress data parts
-                    if (p.kind === "data") {
-                        const dataPart = p as DataPart;
-                        return dataPart.data && (dataPart.data as any).type === "deep_research_progress";
-                    }
-                    // Filter out text parts if we have deep research progress (to show progress-only)
-                    if (p.kind === "text" && hasDeepResearchProgress) {
-                        return false;
-                    }
-                    // Keep files and artifacts
-                    return true;
-                }) || [];
-            const hasNewFiles = newContentParts.some(p => p.kind === "file");
+            // Apply state updates
+            if (output.messages) {
+                messagesRef.current = output.messages;
+                setMessages(output.messages);
+            }
+            if (output.ragData) {
+                setRagData(output.ragData);
+            }
+            if (output.artifacts) {
+                allArtifactsRef.current = output.artifacts;
+                setArtifacts(output.artifacts);
+            }
+            if (output.latestStatusText !== undefined) {
+                latestStatusText.current = output.latestStatusText;
+            }
+            if (output.deepResearchQueryHistory) {
+                deepResearchQueryHistoryRef.current = output.deepResearchQueryHistory;
+            }
 
-            // Check if this is a failed task
-            const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
-
-            // Update UI state based on processed parts
-            setMessages(prevMessages => {
-                const newMessages = [...prevMessages];
-
-                let lastMessage = newMessages[newMessages.length - 1];
-
-                // Remove old generic status bubble
-                if (lastMessage?.isStatusBubble) {
-                    newMessages.pop();
-                    lastMessage = newMessages[newMessages.length - 1];
-                }
-
-                // Check if this is a deep research progress update
-                const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && ((newContentParts[0] as DataPart).data as any).type === "deep_research_progress";
-
-                // For progress updates, always update the same message (don't replace, just update the data)
-                // The InlineResearchProgress component will handle showing all stages
-                if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId) {
-                    const updatedMessage: MessageFE = {
-                        ...lastMessage,
-                        parts: newContentParts,
-                        isComplete: isFinalEvent || hasNewFiles,
-                        metadata: {
-                            ...lastMessage.metadata,
-                            lastProcessedEventSequence: currentEventSequence,
-                        },
-                    };
-                    newMessages[newMessages.length - 1] = updatedMessage;
-                } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === (result as TaskStatusUpdateEvent).taskId && newContentParts.length > 0) {
-                    // Regular append for non-progress updates
-                    const updatedMessage: MessageFE = {
-                        ...lastMessage,
-                        parts: [...lastMessage.parts, ...newContentParts],
-                        isComplete: isFinalEvent || hasNewFiles,
-                        isError: isTaskFailed || lastMessage.isError,
-                        metadata: {
-                            ...lastMessage.metadata,
-                            lastProcessedEventSequence: currentEventSequence,
-                        },
-                    };
-                    newMessages[newMessages.length - 1] = updatedMessage;
-                } else {
-                    // For failed tasks, always create a message bubble even if there are no content parts
-                    // For other cases, only create a new bubble if there is visible content to render.
-                    // Include deep_research_progress data parts as visible content
-                    const hasVisibleContent =
-                        isTaskFailed || newContentParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && (p as DataPart).data.type === "deep_research_progress"));
-                    if (hasVisibleContent) {
-                        const newBubble: MessageFE = {
-                            role: "agent",
-                            parts: newContentParts,
-                            taskId: currentTaskIdFromResult,
-                            isUser: false,
-                            isComplete: isFinalEvent || hasNewFiles,
-                            isError: isTaskFailed,
-                            metadata: {
-                                messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
-                                sessionId: (result as TaskStatusUpdateEvent).contextId,
-                                lastProcessedEventSequence: currentEventSequence,
-                            },
-                        };
-                        newMessages.push(newBubble);
-                    }
-                }
-
-                // Add a new status bubble if the task is not over
-                if (isFinalEvent) {
-                    latestStatusText.current = null;
-                    // Finalize any lingering in-progress artifact parts for this task
-                    // With the new artifact_completed signal, in-progress artifacts should only remain if they truly failed
-                    for (let i = newMessages.length - 1; i >= 0; i--) {
-                        const msg = newMessages[i];
-                        if (msg.taskId === currentTaskIdFromResult && msg.parts.some(p => p.kind === "artifact" && p.status === "in-progress")) {
-                            const finalParts: PartFE[] = msg.parts.map(p => {
-                                if (p.kind === "artifact" && p.status === "in-progress") {
-                                    // Mark in-progress artifact as failed since artifact_completed signal should have arrived
-                                    return { ...p, status: "failed", error: `Artifact creation for "${p.name}" did not complete.` };
-                                }
-                                return p;
-                            });
-
-                            newMessages[i] = {
-                                ...msg,
-                                parts: finalParts,
-                                isError: true, // Mark as error because artifacts failed
-                                isComplete: true,
-                            };
-                        }
-                    }
-                    // Explicitly mark the last message as complete on the final event
-                    const taskMessageIndex = newMessages.findLastIndex(msg => !msg.isUser && msg.taskId === currentTaskIdFromResult);
-
-                    if (taskMessageIndex !== -1) {
-                        newMessages[taskMessageIndex] = {
-                            ...newMessages[taskMessageIndex],
-                            isComplete: true,
-                            metadata: { ...newMessages[taskMessageIndex].metadata, lastProcessedEventSequence: currentEventSequence },
-                        };
-                    } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
-                        // Fallback: the final response arrived before any status updates
-                        // (race condition between response and status broker topics).
-                        // Create a bubble from the final response's content.
-                        const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
-                        if (fallbackParts.length > 0) {
-                            newMessages.push({
-                                role: "agent",
-                                parts: fallbackParts,
-                                taskId: currentTaskIdFromResult,
-                                isUser: false,
-                                isComplete: true,
-                                metadata: {
-                                    messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
-                                    sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
-                                    lastProcessedEventSequence: currentEventSequence,
-                                },
-                            });
-                        }
-                    }
-                }
-
-                // Synchronously update messagesRef so other code reads correct state
-                messagesRef.current = newMessages;
-
-                // Save task on final event directly from inside this callback.
-                if (isFinalEvent && currentTaskIdFromResult && !isReplayingEventsRef.current) {
-                    const taskMessagesToSave = newMessages.filter(msg => msg.taskId === currentTaskIdFromResult && !msg.isStatusBubble);
-                    if (taskMessagesToSave.length > 0) {
-                        const isBackgroundTask = isTaskRunningInBackground(currentTaskIdFromResult);
-                        const taskSessionId = (result as TaskStatusUpdateEvent).contextId || sessionId;
-
-                        // Serialize all message bubbles
-                        const messageBubbles = taskMessagesToSave.map(serializeMessageBubble);
-
-                        // Extract user message text
-                        const userMessage = taskMessagesToSave.find(m => m.isUser);
-                        const userMessageText =
-                            userMessage?.parts
-                                ?.filter(p => p.kind === "text")
-                                .map(p => (p as TextPart).text)
-                                .join("") || "";
-
-                        // Determine task status
-                        const hasError = taskMessagesToSave.some(m => m.isError);
-                        const taskStatus = hasError ? "error" : "completed";
-
-                        const taskRagData = ragDataRef.current.filter(r => r.taskId === currentTaskIdFromResult);
-
-                        // Save complete task (async - fires fetch, returns Promise immediately)
-                        saveTaskToBackend(
-                            {
-                                task_id: currentTaskIdFromResult,
-                                user_message: userMessageText,
-                                message_bubbles: messageBubbles,
-                                task_metadata: {
-                                    schema_version: CURRENT_SCHEMA_VERSION,
-                                    status: taskStatus,
-                                    agent_name: selectedAgentName,
-                                    rag_data: taskRagData.length > 0 ? taskRagData : undefined,
-                                },
-                            },
-                            taskSessionId
-                        )
-                            .then(async saved => {
-                                if (saved) {
-                                    if (typeof window !== "undefined") {
-                                        window.dispatchEvent(new CustomEvent("new-chat-session"));
-                                    }
-                                }
-
-                                // Unregister background task after save completes
-                                if (isBackgroundTask) {
-                                    unregisterBackgroundTask(currentTaskIdFromResult);
-                                }
-
-                                // Handle session title based on feature flag
-                                if (taskSessionId && !sessionsWithAutoGeneratedTitles.current.has(taskSessionId)) {
-                                    if (autoTitleGenerationEnabled) {
-                                        const agentMessage = taskMessagesToSave.find(m => !m.isUser);
-                                        const agentResponseText =
-                                            agentMessage?.parts
-                                                ?.filter(p => p.kind === "text")
-                                                .map(p => (p as TextPart).text)
-                                                .join("") || "";
-
-                                        if (userMessageText && agentResponseText) {
-                                            sessionsWithAutoGeneratedTitles.current.add(taskSessionId);
-                                            generateTitle(taskSessionId, userMessageText, agentResponseText).catch(error => {
-                                                console.error("[ChatProvider] Title generation failed:", error);
-                                            });
-                                        }
-                                    }
-                                }
-                            })
-                            .catch(error => {
-                                console.error(`[ChatProvider] Error saving task ${currentTaskIdFromResult}:`, error);
-                                if (isBackgroundTask) {
-                                    unregisterBackgroundTask(currentTaskIdFromResult);
-                                }
-                            });
-                    } else if (isTaskRunningInBackground(currentTaskIdFromResult)) {
-                        // No messages but task was background - still unregister
-                        unregisterBackgroundTask(currentTaskIdFromResult);
-                        if (typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("new-chat-session"));
-                        }
-                    }
-                }
-
-                return newMessages;
-            });
-
-            // Finalization logic (non-save operations only — save is inside setMessages above)
-            if (isFinalEvent) {
-                if (isCancellingRef.current) {
-                    addNotification("Task cancelled.", "success");
-                    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
-                    setIsCancelling(false);
-                }
-
-                // Mark all in-progress artifacts as completed when task finishes
-                setMessages(currentMessages => {
-                    return currentMessages.map(msg => {
-                        if (msg.isUser) return msg;
-
-                        const hasInProgressArtifacts = msg.parts.some(p => p.kind === "artifact" && (p as ArtifactPart).status === "in-progress");
-
-                        if (!hasInProgressArtifacts) return msg;
-
-                        return {
-                            ...msg,
-                            parts: msg.parts.map(part => {
-                                if (part.kind === "artifact" && (part as ArtifactPart).status === "in-progress") {
-                                    const artifactPart = part as ArtifactPart;
-                                    const fileAttachment: FileAttachment = {
-                                        name: artifactPart.name,
-                                        mime_type: artifactPart.file?.mime_type,
-                                        uri: `artifact://${sessionId}/${artifactPart.name}`,
-                                    };
-                                    const completedPart: ArtifactPart = {
-                                        kind: "artifact",
-                                        status: "completed",
-                                        name: artifactPart.name,
-                                        file: fileAttachment,
-                                    };
-                                    return completedPart;
-                                }
-                                return part;
-                            }),
-                        };
-                    });
-                });
-
-                // Background task unregistration is now handled in the saveTaskToBackend promise above
-                // This ensures the database save completes before we unregister and refresh
-
-                setIsResponding(false);
-                closeCurrentEventSource();
-                setCurrentTaskId(null);
-                isFinalizing.current = true;
-                void artifactsRefetch();
-
-                // Clean up query history for this completed task
-                if (currentTaskIdFromResult) {
-                    deepResearchQueryHistoryRef.current.delete(currentTaskIdFromResult);
-                }
-
-                setTimeout(() => {
-                    isFinalizing.current = false;
-                }, 100);
+            // Execute side effects
+            for (const effect of output.effects) {
+                executeEffect(effect);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [
-            addNotification,
-            closeCurrentEventSource,
-            artifactsRefetch,
-            sessionId,
-            selectedAgentName,
-            saveTaskToBackend,
-            serializeMessageBubble,
-            downloadAndResolveArtifact,
-            setArtifacts,
-            setRagData,
-            ragEnabled,
-            isTaskRunningInBackground,
-            updateTaskTimestamp,
-            unregisterBackgroundTask,
-            generateTitle,
-        ]
-    );
 
+        [ragEnabled, selectedAgentName, isTaskRunningInBackground, setMessages, setRagData, setArtifacts, executeEffect]
+    );
     // Helper function to replay buffered SSE events for a background task
     // This is used when a background task completed while the user was away
     const replayBufferedEvents = useCallback(
@@ -1767,7 +875,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 return false;
             }
         },
-        [handleSseMessage]
+        [handleSseMessage, setMessages]
     );
 
     // Keep the ref in sync with the latest replayBufferedEvents function
@@ -1808,6 +916,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Clear session name - will be set when first message is sent
             setSessionName(null);
 
+            // Reset collaborative session flag - new sessions are always owned by the current user
+            resetCollaborativeState();
+
             // Clear project context when starting a new chat outside of a project
             if (activeProject && !preserveProjectContext) {
                 setActiveProject(null);
@@ -1823,6 +934,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             closePreview();
             isFinalizing.current = false;
             latestStatusText.current = null;
+
             sseEventSequenceRef.current = 0;
             // Clear RAG data on new session
             setRagData([]);
@@ -1838,7 +950,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Note: No session events dispatched here since no session exists yet.
             // Session creation event will be dispatched when first message creates the actual session.
         },
-        [isResponding, currentTaskId, selectedAgentName, isCancelling, closeCurrentEventSource, activeProject, setActiveProject, closePreview, isTaskRunningInBackground, setRagData]
+        [closeCurrentEventSource, isResponding, currentTaskId, selectedAgentName, isCancelling, resetCollaborativeState, activeProject, setMessages, closePreview, setRagData, isTaskRunningInBackground, setActiveProject]
     );
 
     // Wrapper that shows confirmation when task is running and background tasks are disabled
@@ -1924,6 +1036,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const session: Session | null = sessionData?.data;
                 setSessionName(session?.name ?? "N/A");
 
+                // Detect collaborative session (owner differs from current user)
+                await detectCollaborativeSession(session, newSessionId);
+
                 // Activate or deactivate project context based on session's project
                 // Set flag to prevent handleNewSession from being triggered by this project change
                 isSessionSwitchRef.current = true;
@@ -1961,12 +1076,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setCurrentTaskId(null);
                 setTaskIdInSidePanel(null);
                 closePreview();
+                // Reset refs
                 isFinalizing.current = false;
                 latestStatusText.current = null;
                 sseEventSequenceRef.current = 0;
-                // Clear RAG data when switching sessions - will be repopulated by loadSessionTasks
                 setRagData([]);
-                // Clear deep research query history when switching sessions
                 deepResearchQueryHistoryRef.current.clear();
 
                 await loadSessionTasks(newSessionId);
@@ -1993,50 +1107,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                             // Unregister the background task
                             unregisterBackgroundTask(bgTask.taskId);
 
-                            // Trigger title generation for completed background task (if feature is enabled)
-                            // This handles the case where the task completed during browser refresh
-                            if (autoTitleGenerationEnabled && newSessionId && !sessionsWithAutoGeneratedTitles.current.has(newSessionId)) {
-                                console.log(`[ChatProvider] Triggering title generation for completed background task ${bgTask.taskId} in session ${newSessionId}`);
-                                sessionsWithAutoGeneratedTitles.current.add(newSessionId);
-
-                                // Fetch messages from database since they won't be in memory after refresh
-                                (async () => {
-                                    try {
-                                        const taskData = await api.webui.get(`/api/v1/sessions/${newSessionId}/chat-tasks`);
-                                        const tasks = taskData.tasks || [];
-                                        console.log(`[ChatProvider] Fetched ${tasks.length} tasks from database for title generation`);
-
-                                        // Find the task that matches
-                                        const matchingTask = tasks.find((t: StoredTaskData) => t.taskId === bgTask.taskId);
-                                        if (matchingTask) {
-                                            const messageBubbles = JSON.parse(matchingTask.messageBubbles);
-                                            let userMessageText = "";
-                                            let agentResponseText = "";
-
-                                            for (const bubble of messageBubbles) {
-                                                const text = bubble.text || "";
-                                                if (bubble.type === "user" && !userMessageText) {
-                                                    userMessageText = text;
-                                                } else if (bubble.type === "agent" && !agentResponseText) {
-                                                    agentResponseText = text;
-                                                }
-                                            }
-
-                                            if (userMessageText && agentResponseText) {
-                                                console.log(`[ChatProvider] Calling generateTitle for session ${newSessionId} (post-refresh)`);
-                                                await generateTitle(newSessionId, userMessageText, agentResponseText);
-                                                console.log(`[ChatProvider] Title generation completed for session ${newSessionId}`);
-                                            } else {
-                                                console.warn(`[ChatProvider] Cannot generate title - missing messages. User: ${!!userMessageText}, Agent: ${!!agentResponseText}`);
-                                            }
-                                        } else {
-                                            console.warn(`[ChatProvider] Task ${bgTask.taskId} not found in database`);
-                                        }
-                                    } catch (error) {
-                                        console.error("[ChatProvider] Error generating title for completed background task:", error);
-                                    }
-                                })();
-                            }
+                            // Trigger title generation for completed background task
+                            autoGenerateTitleForTask(bgTask.taskId, backgroundTasks);
                         }
                     }
                 }
@@ -2047,26 +1119,26 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
+            backgroundTasks,
             closeCurrentEventSource,
             isResponding,
             currentTaskId,
             selectedAgentName,
             isCancelling,
+            sessionId,
+            setMessages,
+            isTaskRunningInBackground,
+            detectCollaborativeSession,
+            closePreview,
+            setRagData,
             loadSessionTasks,
             activeProject,
             projects,
             setActiveProject,
-            closePreview,
-            setError,
-            setRagData,
-            backgroundTasks,
             checkTaskStatus,
-            sessionId,
             unregisterBackgroundTask,
-            autoTitleGenerationEnabled,
-            generateTitle,
-            isTaskRunningInBackground,
-            replayBufferedEvents,
+            autoGenerateTitleForTask,
+            setError,
         ]
     );
 
@@ -2192,7 +1264,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setError({ title: "Task Cancellation Failed", error: getErrorMessage(error, "An unknown error occurred.") });
             setIsCancelling(false);
         }
-    }, [isResponding, isCancelling, currentTaskId, addNotification, setError, closeCurrentEventSource]);
+    }, [isResponding, isCancelling, currentTaskId, addNotification, closeCurrentEventSource, setMessages, setError]);
 
     const handleFeedbackSubmit = useCallback(
         async (taskId: string, feedbackType: "up" | "down", feedbackText: string) => {
@@ -2223,28 +1295,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         /* console.log for SSE open */
     }, []);
 
-    // SSE error recovery with token refresh — extracted to a custom hook for testability.
-    // See useSseErrorRecovery.ts for the full implementation.
-    const cleanupMessages = useCallback(() => {
-        latestStatusText.current = null;
-        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
-    }, []);
-
-    const { sseReconnectKey, handleSseError } = useSseErrorRecovery(
-        {
-            isResponding,
-            isFinalizing,
-            isCancelling: isCancellingRef,
-            currentTaskId,
-        },
-        {
-            closeCurrentEventSource,
-            setError,
-            setIsResponding,
-            setCurrentTaskId,
-            cleanupMessages,
+    const handleSseError = useCallback(() => {
+        if (isResponding && !isFinalizing.current && !isCancellingRef.current) {
+            setError({ title: "Connection Failed", error: "Connection lost. Please try again." });
         }
-    );
+        if (!isFinalizing.current) {
+            setIsResponding(false);
+            if (!isCancellingRef.current) {
+                closeCurrentEventSource();
+                setCurrentTaskId(null);
+            }
+            latestStatusText.current = null;
+        }
+        setMessages(prev => prev.filter(msg => !msg.isStatusBubble).map((m, i, arr) => (i === arr.length - 1 && !m.isUser ? { ...m, isComplete: true } : m)));
+    }, [closeCurrentEventSource, isResponding, setError, setMessages]);
 
     const cleanupUploadedFiles = useCallback(async (uploadedFiles: Array<{ filename: string; sessionId: string }>) => {
         if (uploadedFiles.length === 0) {
@@ -2275,6 +1339,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             setIsResponding(true);
             setCurrentTaskId(null);
             latestStatusText.current = null;
+
             sseEventSequenceRef.current = 0;
 
             const userMsg: MessageFE = {
@@ -2517,7 +1582,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                         {
                             task_id: taskId,
                             user_message: currentInput,
-                            message_bubbles: [serializeMessageBubble(userMsg)],
+                            message_bubbles: [serializeChatMessage(userMsg)],
                             task_metadata: {
                                 schema_version: CURRENT_SCHEMA_VERSION,
                                 status: "pending",
@@ -2566,22 +1631,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         },
         [
-            sessionId,
             isResponding,
             isCancelling,
             selectedAgentName,
             closeCurrentEventSource,
+            sessionId,
+            setMessages,
+            backgroundTasksEnabled,
+            activeProject?.id,
+            registerTaskEarly,
             uploadArtifactFile,
-            saveTaskToBackend,
-            serializeMessageBubble,
-            activeProject,
             cleanupUploadedFiles,
             setError,
             backgroundTasksDefaultTimeoutMs,
-            backgroundTasksEnabled,
-            registerBackgroundTask,
             autoTitleGenerationEnabled,
             updateSessionName,
+            saveTaskToBackend,
+            registerBackgroundTask,
         ]
     );
 
@@ -2624,6 +1690,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("session-title-updated", handleTitleUpdated);
         };
     }, [sessionId]);
+
+    // Listen for switch-to-session events (e.g., after forking a shared chat)
+    useEffect(() => {
+        const handleSwitchToSession = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.sessionId) {
+                handleSwitchSession(detail.sessionId);
+            }
+        };
+        window.addEventListener("switch-to-session", handleSwitchToSession);
+        return () => {
+            window.removeEventListener("switch-to-session", handleSwitchToSession);
+        };
+    }, [handleSwitchSession]);
 
     useEffect(() => {
         const handleSessionUpdated = async (event: Event) => {
@@ -2776,7 +1856,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     // Note: handleSseMessageRef is declared earlier (line ~103) for use in loadSessionTasks
@@ -2854,7 +1934,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         } else {
             closeCurrentEventSource();
         }
-    }, [currentTaskId, closeCurrentEventSource, sseReconnectKey]);
+    }, [currentTaskId, closeCurrentEventSource, setMessages]);
 
     const contextValue: ChatContextValue = {
         ragData,
@@ -2871,6 +1951,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         messages,
         setMessages,
         isResponding,
+        isCollaborativeSession,
+        hasSharedEditors,
+        currentUserEmail,
+        sessionOwnerName,
+        sessionOwnerEmail,
         currentTaskId,
         isCancelling,
         latestStatusText,
@@ -2889,9 +1974,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         selectedAgentName,
         setSelectedAgentName,
         artifacts,
+        allArtifacts,
         artifactsLoading,
         artifactsRefetch,
         setArtifacts,
+        showWorkingArtifacts,
+        toggleShowWorkingArtifacts,
+        workingArtifactCount,
         uploadArtifactFile,
         isSidePanelCollapsed,
         activeSidePanelTab,
@@ -2943,6 +2032,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         backgroundTasks,
         backgroundNotifications,
         isTaskRunningInBackground,
+
+        hasModelConfigWrite: !configUseAuthorization,
     };
 
     // Handlers for the running task warning dialog

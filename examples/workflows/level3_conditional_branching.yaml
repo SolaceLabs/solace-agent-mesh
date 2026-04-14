@@ -3,7 +3,7 @@ log:
   log_file_level: DEBUG
   log_file: level3_conditional_branching.log
 
-!include ../../shared_config.yaml
+!include ../shared_config.yaml
 
 apps:
   # ============================================================================
@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ValueClassifier"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You classify numeric values into categories.
@@ -84,6 +86,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "SmallValueHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle small values by multiplying them by 10.
@@ -136,6 +140,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "MediumValueHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle medium values by doubling them.
@@ -188,6 +194,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "LargeValueHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle large values by halving them.

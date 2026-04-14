@@ -8,6 +8,7 @@ export { SearchInput } from "./search-input";
 export { Label } from "./label";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent } from "./card";
+export { ComboBox, type ComboBoxItem } from "./combobox";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormInputLabel } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
@@ -23,6 +24,7 @@ export { Sidebar, SidebarHeader, SidebarContent, SidebarProvider } from "./sideb
 
 // Interactive Components
 export { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./accordion";
+export { AccordionCard } from "./accordion-card";
 export { Menu, type MenuAction, type MenuProps } from "./menu";
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "./popover";
 export { PopoverManual } from "./popoverManual";
@@ -31,7 +33,8 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu";
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, SortableTableHead } from "./table";
+export { useSortableTable } from "./hooks/useSortableTable";
 export { type StepperConfigProps, type StepperDefineProps, type CircleStepIndicatorProps, type StepperVariant, type StepperLabelOrientation, defineStepper } from "./stepper";
 
 // Chat Components

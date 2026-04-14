@@ -16,6 +16,9 @@ shared_config:
       api_base: ${LLM_SERVICE_ENDPOINT} # Use env var for endpoint URL
       # 'api_key' provides authentication.
       api_key: ${LLM_SERVICE_API_KEY} # Use env var for API key
+      # Uncomment to enable extended thinking (requires compatible model like Claude claude-sonnet-4-20250514)
+      # thinking:
+      #   budget_tokens: 10000
 
     general: &general_model
       # This dictionary structure tells ADK to use the LiteLlm wrapper.

@@ -412,6 +412,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 user_identity=user_identity,
                 is_streaming=sam_task.is_streaming,
             )
+            self._start_task_timeout(task_id)
             return task_id
 
         except Exception as e:
@@ -868,6 +869,23 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
     ) -> None:
         """Translates a final A2A Task object to SAM types and calls the adapter."""
         response_context = self._create_response_context(external_request_context)
+
+        # Check if the task completed with a failure state.
+        # Failed tasks (e.g., LLM call errors) are routed through handle_error().
+        if task_data.status and task_data.status.state == TaskState.failed:
+            sam_error = self._task_to_sam_error(task_data)
+            log.debug(
+                "%s Task %s completed with state '%s'. Routing to handle_error().",
+                self.log_identifier,
+                response_context.task_id,
+                task_data.status.state.value,
+            )
+            await self.adapter.handle_error(sam_error, response_context)
+            # handle_task_complete ensures the adapter finishes any pending operations
+            # (e.g., waiting for message queues) and performs cleanup
+            await self.adapter.handle_task_complete(response_context)
+            return
+
         sam_update = SamUpdate(is_final=True)
 
         all_final_parts: List[a2a.ContentPart] = []
@@ -912,6 +930,58 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
 
         # Also signal task completion, as an error is a final state
         await self.adapter.handle_task_complete(response_context)
+
+    async def _handle_task_timeout(self, task_id: str) -> None:
+        """Handle a timed-out task by notifying the adapter and cleaning up."""
+        context = self.task_context_manager.get_context(task_id)
+        if not context:
+            return
+
+        log.warning(
+            "%s Task %s timed out after %d seconds of inactivity",
+            self.log_identifier,
+            task_id,
+            self.task_timeout_seconds,
+        )
+
+        # Inject task_id so _create_response_context can build a proper ResponseContext
+        context["a2a_task_id_for_event"] = task_id
+
+        timeout_error = JSONRPCError(
+            code=-32001,
+            message=f"Task timed out after {self.task_timeout_seconds} seconds of inactivity",
+            data={"taskStatus": "timeout"},
+        )
+        try:
+            await self._send_error_to_external(context, timeout_error)
+        except Exception:
+            log.warning(
+                "%s Failed to send timeout error to adapter for task %s",
+                self.log_identifier,
+                task_id,
+            )
+
+        # Cancel the A2A task so the agent knows to stop
+        try:
+            await self.cancel_task(task_id)
+        except Exception:
+            log.warning(
+                "%s Failed to cancel timed-out task %s",
+                self.log_identifier,
+                task_id,
+            )
+
+        # Clean up context — always remove even if close fails
+        try:
+            await self._close_external_connections(context)
+        except Exception:
+            log.warning(
+                "%s Failed to close external connections for timed-out task %s",
+                self.log_identifier,
+                task_id,
+            )
+        self.task_context_manager.remove_context(task_id)
+        self.task_context_manager.remove_context(f"{task_id}_stream_buffer")
 
     # --- Unused BaseGatewayComponent Abstract Methods ---
     # These are part of the old gateway pattern and are replaced by the adapter flow.
@@ -1018,9 +1088,49 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 category = "FAILED"
             elif task_status == TaskState.canceled:
                 category = "CANCELED"
+            elif task_status == "timeout":
+                category = "TIMED_OUT"
 
         return SamError(
             message=error.message,
             code=error.code,
+            category=category,
+        )
+
+    def _task_to_sam_error(self, task_data: Task) -> SamError:
+        """Converts a failed Task to a SamError.
+
+        This handles the case where an agent sends a Task with status.state="failed"
+        instead of a JSONRPCError. The error message is extracted from
+        the task's status message or artifacts.
+
+        Note: This method only handles failed tasks, not canceled tasks.
+        Canceled tasks are user-initiated and should not be treated as errors.
+        """
+        # Category is always FAILED - canceled tasks should not reach here
+        category = "FAILED"
+
+        # Extract error message from task status message or artifacts
+        error_message = "Task failed"
+
+        if task_data.status and task_data.status.message:
+            # Try to extract text from the status message
+            parts = a2a.get_parts_from_message(task_data.status.message)
+            text_parts = [p.text for p in parts if isinstance(p, TextPart)]
+            if text_parts:
+                error_message = " ".join(text_parts)
+
+        # If no message from status, check artifacts for error info
+        if error_message == "Task failed" and task_data.artifacts:
+            for artifact in task_data.artifacts:
+                artifact_parts = a2a.get_parts_from_artifact(artifact)
+                text_parts = [p.text for p in artifact_parts if isinstance(p, TextPart)]
+                if text_parts:
+                    error_message = " ".join(text_parts)
+                    break
+
+        return SamError(
+            message=error_message,
+            code=-32000,  # Generic error code for failed tasks
             category=category,
         )

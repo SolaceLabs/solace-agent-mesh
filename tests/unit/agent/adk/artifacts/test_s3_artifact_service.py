@@ -436,37 +436,33 @@ class TestS3ArtifactServiceLoadArtifact:
 
     @pytest.mark.asyncio
     async def test_load_artifact_client_error(self, mock_s3_client):
-        """Test loading artifact with S3 client error"""
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
         mock_s3_client.get_object.side_effect = ClientError(
             {'Error': {'Code': '403'}}, 'GetObject'
         )
-        
-        loaded_artifact = await service.load_artifact(
-            app_name="test_app",
-            user_id="user1",
-            session_id="session1",
-            filename="test.txt",
-            version=0
-        )
-        
-        assert loaded_artifact is None
+
+        with pytest.raises(OSError, match="Failed to load artifact version"):
+            await service.load_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+                version=0
+            )
 
     @pytest.mark.asyncio
     async def test_load_artifact_botocore_error(self, mock_s3_client):
-        """Test loading artifact with BotoCore error"""
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
         mock_s3_client.get_object.side_effect = BotoCoreError()
-        
-        loaded_artifact = await service.load_artifact(
-            app_name="test_app",
-            user_id="user1",
-            session_id="session1",
-            filename="test.txt",
-            version=0
-        )
-        
-        assert loaded_artifact is None
+
+        with pytest.raises(OSError, match="BotoCore error loading artifact"):
+            await service.load_artifact(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+                version=0
+            )
 
     @pytest.mark.asyncio
     async def test_load_artifact_user_namespace(self, mock_s3_client):
@@ -788,24 +784,21 @@ class TestS3ArtifactServiceListVersions:
 
     @pytest.mark.asyncio
     async def test_list_versions_client_error(self, mock_s3_client):
-        """Test listing versions with S3 client error"""
         service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
-        
-        # Mock paginator that raises error
+
         paginator = Mock()
         paginator.paginate.side_effect = ClientError(
             {'Error': {'Code': '403'}}, 'ListObjectsV2'
         )
         mock_s3_client.get_paginator.return_value = paginator
-        
-        versions = await service.list_versions(
-            app_name="test_app",
-            user_id="user1",
-            session_id="session1",
-            filename="test.txt"
-        )
-        
-        assert versions == []
+
+        with pytest.raises(OSError, match="Failed to list artifact versions from S3"):
+            await service.list_versions(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt"
+            )
 
     @pytest.mark.asyncio
     async def test_list_versions_user_namespace(self, mock_s3_client):
@@ -855,9 +848,205 @@ class TestS3ArtifactServiceListVersions:
         )
         
         assert versions == [0]
-        
+
         # Verify prefix doesn't have leading/trailing slashes
         paginator.paginate.assert_called_once_with(
             Bucket='test-bucket',
             Prefix='test_app/user1/session1/test.txt/'
         )
+
+
+class TestS3ArtifactServiceListArtifactVersions:
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_success(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        from datetime import datetime, timezone
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+        paginator = Mock()
+        objects = [
+            {'Key': 'test_app/user1/session1/test.txt/0', 'LastModified': ts},
+            {'Key': 'test_app/user1/session1/test.txt/1', 'LastModified': ts},
+        ]
+        paginator.paginate.return_value = [{'Contents': objects}]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        mock_s3_client.head_object.side_effect = [
+            {'ContentType': 'text/plain', 'LastModified': ts},
+            {'ContentType': 'image/png', 'LastModified': ts},
+        ]
+
+        versions = await service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert len(versions) == 2
+        assert versions[0].version == 0
+        assert versions[0].mime_type == "text/plain"
+        assert versions[1].version == 1
+        assert versions[1].mime_type == "image/png"
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_empty(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        paginator.paginate.return_value = [{'Contents': []}]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        versions = await service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert versions == []
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_client_error(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': '403'}}, 'ListObjectsV2'
+        )
+        mock_s3_client.get_paginator.return_value = paginator
+
+        with pytest.raises(OSError, match="Failed to list artifact versions from S3"):
+            await service.list_artifact_versions(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+    @pytest.mark.asyncio
+    async def test_list_artifact_versions_skips_bad_keys(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        from datetime import datetime, timezone
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+        paginator = Mock()
+        objects = [
+            {'Key': 'test_app/user1/session1/test.txt/0', 'LastModified': ts},
+            {'Key': 'test_app/user1/session1/test.txt/metadata', 'LastModified': ts},
+        ]
+        paginator.paginate.return_value = [{'Contents': objects}]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        mock_s3_client.head_object.return_value = {
+            'ContentType': 'text/plain', 'LastModified': ts
+        }
+
+        versions = await service.list_artifact_versions(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+        )
+
+        assert len(versions) == 1
+        assert versions[0].version == 0
+
+
+class TestS3ArtifactServiceGetArtifactVersion:
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_specific(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        from datetime import datetime, timezone
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+        mock_s3_client.head_object.return_value = {
+            'ContentType': 'text/plain', 'LastModified': ts
+        }
+
+        result = await service.get_artifact_version(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            version=3,
+        )
+
+        assert result is not None
+        assert result.version == 3
+        assert result.mime_type == "text/plain"
+        assert "s3://" in result.canonical_uri
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_latest(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        from datetime import datetime, timezone
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+
+        mock_s3_client.head_object.return_value = {
+            'ContentType': 'image/png', 'LastModified': ts
+        }
+
+        with patch.object(service, 'list_versions', return_value=[0, 1, 5]):
+            result = await service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+        assert result is not None
+        assert result.version == 5
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_no_versions(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        with patch.object(service, 'list_versions', return_value=[]):
+            result = await service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+            )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_not_found(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        mock_s3_client.head_object.side_effect = ClientError(
+            {'Error': {'Code': 'NoSuchKey'}}, 'HeadObject'
+        )
+
+        result = await service.get_artifact_version(
+            app_name="test_app",
+            user_id="user1",
+            session_id="session1",
+            filename="test.txt",
+            version=99,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_artifact_version_client_error(self, mock_s3_client):
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        mock_s3_client.head_object.side_effect = ClientError(
+            {'Error': {'Code': '403'}}, 'HeadObject'
+        )
+
+        with pytest.raises(OSError, match="Failed to get artifact version metadata from S3"):
+            await service.get_artifact_version(
+                app_name="test_app",
+                user_id="user1",
+                session_id="session1",
+                filename="test.txt",
+                version=0,
+            )

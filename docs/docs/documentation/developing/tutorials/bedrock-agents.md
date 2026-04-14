@@ -128,7 +128,9 @@ apps:
       supports_streaming: true 
       agent_name: "AwsAgent" 
       display_name: "AwsAgent Component" 
-      model: *general_model 
+      model: *general_model
+      model_provider: 
+        - "general" 
 
       instruction: |
         You're AwsAgent responsible for handling user queries by 

@@ -28,6 +28,13 @@ const defaultMockChatContext: DefaultMockContextType = {
     agentNameDisplayNameMap,
     selectedAgentName: transformedMockAgents[0]?.name || "",
 
+    // Collaborative session state
+    isCollaborativeSession: false,
+    hasSharedEditors: false,
+    currentUserEmail: "test@example.com",
+    sessionOwnerName: null,
+    sessionOwnerEmail: null,
+
     // Loading states
     isResponding: false,
     agentsLoading: false,
@@ -38,6 +45,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     // Collections
     notifications: [],
     artifacts: [],
+    allArtifacts: [],
     submittedFeedback: {},
     selectedArtifactFilenames: new Set(),
 
@@ -56,7 +64,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     sessionName: null,
     sessionToDelete: null,
     latestStatusText: React.createRef<string | null>(),
-
     // UI state
     isSidePanelCollapsed: false,
     activeSidePanelTab: "files",
@@ -64,6 +71,9 @@ const defaultMockChatContext: DefaultMockContextType = {
     isArtifactEditMode: false,
     isBatchDeleteModalOpen: false,
     configCollectFeedback: false,
+    showWorkingArtifacts: false,
+    workingArtifactCount: 0,
+    hasModelConfigWrite: false,
 
     // Background task monitoring
     backgroundTasks: [],
@@ -106,6 +116,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
     displayError: () => {},
+    toggleShowWorkingArtifacts: () => {},
 
     // Prompt handling
     pendingPrompt: null,

@@ -177,6 +177,7 @@ SUPPORTED_LANGUAGES = {
 from typing import Set
 
 DEFAULT_VOICE = "Kore"
+DEFAULT_TTS_MODEL = "gemini-2.5-flash-preview-tts"
 
 
 def _get_effective_tone_voices(
@@ -447,7 +448,7 @@ async def _generate_audio_with_gemini(
     client: genai.Client,
     prompt: str,
     speech_config: adk_types.SpeechConfig,
-    model: str = "gemini-2.5-flash-preview-tts",
+    model: str = DEFAULT_TTS_MODEL,
     language: str = "en-US",
 ) -> bytes:
     """
@@ -643,7 +644,7 @@ async def text_to_speech(
 
         config = tool_config or {}
         api_key = config.get("gemini_api_key")
-        model = config.get("model", "gemini-2.5-flash-preview-tts")
+        model = config.get("model", DEFAULT_TTS_MODEL)
         default_voice = config.get("voice_name", DEFAULT_VOICE)
         default_language = config.get("language", "en-US")
         voice_tone_mapping = config.get("voice_tone_mapping", VOICE_TONE_MAPPING)
@@ -799,7 +800,7 @@ async def multi_speaker_text_to_speech(
 
         config = tool_config or {}
         api_key = config.get("gemini_api_key")
-        model = config.get("model", "gemini-2.5-flash-preview-tts")
+        model = config.get("model", DEFAULT_TTS_MODEL)
         default_language = config.get("language", "en-US")
         default_speakers = config.get(
             "default_speakers",
@@ -1319,6 +1320,9 @@ async def transcribe_audio(
                         f"{log_identifier} Failed to clean up temporary file {temp_file_path}: {e}"
                     )
 
+    except json.JSONDecodeError as jde:
+        log.error(f"{log_identifier} JSON decode error: {jde}")
+        return ToolResult.error("Invalid JSON response from API")
     except ValueError as ve:
         log.error(f"{log_identifier} Value error: {ve}")
         return ToolResult.error(str(ve))
@@ -1330,9 +1334,6 @@ async def transcribe_audio(
     except httpx.RequestError as re:
         log.error(f"{log_identifier} Request error calling transcription API: {re}")
         return ToolResult.error(f"Request error: {re}")
-    except json.JSONDecodeError as jde:
-        log.error(f"{log_identifier} JSON decode error: {jde}")
-        return ToolResult.error("Invalid JSON response from API")
     except Exception as e:
         log.exception(f"{log_identifier} Unexpected error in transcribe_audio: {e}")
         return ToolResult.error(f"An unexpected error occurred: {e}")

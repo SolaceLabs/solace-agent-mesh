@@ -8,11 +8,27 @@ from .document_conversion_cache_model import DocumentConversionCacheModel
 from .feedback_model import FeedbackModel
 from .project_model import ProjectModel, CreateProjectModel, UpdateProjectModel
 from .project_user_model import ProjectUserModel, CreateProjectUserModel, UpdateProjectUserModel
+from .project_user_pin_model import ProjectUserPinModel
 from .session_model import SessionModel, CreateSessionModel, UpdateSessionModel
 from .sse_event_buffer_model import SSEEventBufferModel
 from .task_event_model import TaskEventModel
 from .task_model import TaskModel
 from .prompt_model import PromptGroupModel, PromptModel, PromptGroupUserModel
+from .scheduled_task_model import (
+    ScheduledTaskModel,
+    ScheduledTaskExecutionModel,
+    ScheduleType,
+    ExecutionStatus,
+)
+from .share_model import (
+    SharedLinkModel,
+    SharedArtifactModel,
+    CreateShareLinkRequest,
+    UpdateShareLinkRequest,
+    ShareLinkResponse,
+    ShareLinkItem,
+    SharedSessionView,
+)
 
 __all__ = [
     "Base",
@@ -21,6 +37,7 @@ __all__ = [
     "FeedbackModel",
     "ProjectModel",
     "ProjectUserModel",
+    "ProjectUserPinModel",
     "SessionModel",
     "SSEEventBufferModel",
     "CreateProjectModel",
@@ -35,4 +52,15 @@ __all__ = [
     "PromptGroupModel",
     "PromptModel",
     "PromptGroupUserModel",
+    "SharedLinkModel",
+    "SharedArtifactModel",
+    "CreateShareLinkRequest",
+    "UpdateShareLinkRequest",
+    "ShareLinkResponse",
+    "ShareLinkItem",
+    "SharedSessionView",
+    "ScheduledTaskModel",
+    "ScheduledTaskExecutionModel",
+    "ScheduleType",
+    "ExecutionStatus",
 ]

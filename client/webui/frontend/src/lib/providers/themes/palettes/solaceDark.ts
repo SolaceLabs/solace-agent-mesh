@@ -2,39 +2,39 @@ import type { ThemePalette, ThemeDefinition } from "./themePalette";
 
 export const solaceDark: ThemePalette = {
     brand: {
-        wMain: "#3fbfa0",
-        wMain30: "#3fbfa0B3",
-        w30: "#3a7066",
-        w10: "#123e39",
-        w60: "#57b6a0",
-        w100: "#a6e4d6",
+        wMain: "#00c895",
+        wMain30: "#00c895B3",
+        w30: "#005248",
+        w10: "#10332d",
+        w60: "#00ad93",
+        w100: "#66debf",
     },
 
     primary: {
         w100: "#66c7e5",
         w90: "#33b8e0",
-        wMain: "#0087c2",
+        wMain: "#0892ce",
         w60: "#016489",
         w40: "#015470",
         w20: "#013a52",
         w10: "#00293b",
 
         text: {
-            wMain: "#CBD5E1",
+            wMain: "#f5f5f5",
             w100: "#f5f5f5",
             w10: "#05172b",
         },
     },
 
     secondary: {
-        w70: "#536574",
-        w80: "#354e62",
+        w70: "#c5ced9",
+        w80: "#d1d8e1",
         w8040: "#00000066",
         w100: "#f5f5f5",
-        wMain: "#8790a0",
-        w40: "#536574",
-        w20: "#536574",
-        w10: "#354e62",
+        wMain: "#a8b5c5",
+        w40: "#6f8190",
+        w20: "#1e3a4d",
+        w10: "#172935",
 
         text: {
             wMain: "#acbac2",
@@ -43,9 +43,9 @@ export const solaceDark: ThemePalette = {
     },
 
     background: {
-        w100: "#f5f5f5",
-        wMain: "#03223B",
-        w20: "#071e36",
+        w100: "#d4dbe4",
+        wMain: "#7184A1",
+        w20: "#0F2336",
         w10: "#02172b",
     },
 
@@ -86,8 +86,8 @@ export const solaceDark: ThemePalette = {
     },
 
     stateLayer: {
-        w10: "#3C4652",
-        w20: "#c5ced9",
+        w10: "#d1d8e11a",
+        w20: "#d1d8e133",
     },
 
     accent: {
@@ -121,22 +121,22 @@ export const solaceDark: ThemePalette = {
         n4: {
             w100: "#e5b8d9",
             wMain: "#c05aab",
-            w30: "#5c2b54",
+            w30: "#76376c",
         },
         n5: {
             w100: "#f2b7ae",
             wMain: "#d96f5f",
-            w30: "#6a2f27",
-            w60: "#8d3428",
+            w30: "#8f3528",
+            w60: "#ae4132",
         },
         n6: {
             w100: "#e5ccaa",
             wMain: "#d4a055",
-            w30: "#776132",
+            w30: "#875e22",
         },
         n7: {
             w100: "#cfeaf6",
-            wMain: "#8bcbe8",
+            wMain: "#1a729f",
             w30: "#2f5e73",
         },
         n8: {
@@ -150,29 +150,30 @@ export const solaceDark: ThemePalette = {
     },
 
     learning: {
-        wMain: "#4a8fe0",
-        w90: "#7fb1ea",
-        w100: "#b6d1f5",
-        w20: "#142d4b",
-        w10: "#0a1621",
+        wMain: "#02264a",
+        w90: "#043465",
+        w100: "#054280",
+        w20: "#011528",
+        w10: "#02264a",
     },
 
-    // common to solace.ts except for bg => background-w10 to reduce the number of very close dark blue shades
+    // darkSurface and lightSurface are common for both themes
     darkSurface: {
-        bg: "#02172b",
+        bg: "#03223B",
         bgHover: "#021B2F",
         bgActive: "#021B2F",
-        text: "#CCCCCC",
-        textMuted: "#B1B9C0",
+        text: "#f5f5f5",
+        textMuted: "#acbac2",
         brandMain: "#00C895",
-        brandAccent: "#66DEBF",
+        brandAccent: "#00ad93",
         border: "#536574",
+        buttonText: "#0892ce",
+        buttonTextHover: "#33b8e0",
     },
 
-    temporary: {
-        primary: {
-            wMain: "#E6EFF2",
-        },
+    lightSurface: {
+        bg: "#CFD3D9",
+        bgActive: "#F3F4F6",
     },
 };
 

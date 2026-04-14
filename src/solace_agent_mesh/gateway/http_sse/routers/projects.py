@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from solace_ai_connector.common.log import log
 
 from ..dependencies import (
@@ -28,6 +29,7 @@ from ..dependencies import (
     get_db,
     get_indexing_task_service,
 )
+from ....common.features.fastapi import get_feature_value
 from ..services.project_service import ProjectService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
@@ -45,6 +47,7 @@ from .dto.requests.project_requests import (
     GetProjectsRequest,
     DeleteProjectRequest,
 )
+from ..repository.models.project_model import ProjectModel
 from .dto.responses.project_responses import (
     ProjectResponse,
     ProjectListResponse,
@@ -96,20 +99,7 @@ def check_projects_enabled(
                 detail="Projects feature is disabled via feature flag."
             )
 
-def check_project_indexing_enabled(
-    component: "WebUIBackendComponent" = Depends(get_sac_component)
-) -> bool:
-    """
-    Dependency to check if project indexing feature is enabled.
-    Reads from frontend_feature_enablement.projectIndexing.
-    """
-    feature_flags = component.get_config("frontend_feature_enablement", {})
-    indexing_enabled = feature_flags.get("projectIndexing", False)
-    if not indexing_enabled:
-        log.debug("Project indexing is disabled in frontend_feature_enablement")
-        return False
-    log.debug("Project indexing is enabled in frontend_feature_enablement")
-    return True
+check_project_indexing_enabled = get_feature_value("project_indexing")
 
 @router.post("/projects", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -175,6 +165,7 @@ async def create_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=getattr(project, 'is_pinned', False) or False,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -233,6 +224,7 @@ async def get_user_projects(
                     system_prompt=p.system_prompt,
                     default_agent_id=p.default_agent_id,
                     artifact_count=count,
+                    is_pinned=p.is_pinned,
                     created_at=p.created_at,
                     updated_at=p.updated_at,
                 )
@@ -250,6 +242,7 @@ async def get_user_projects(
                     description=p.description,
                     system_prompt=p.system_prompt,
                     default_agent_id=p.default_agent_id,
+                    is_pinned=p.is_pinned,
                     created_at=p.created_at,
                     updated_at=p.updated_at,
                 )
@@ -316,6 +309,7 @@ async def get_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=project.is_pinned,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -805,6 +799,7 @@ async def update_project(
             description=project.description,
             system_prompt=project.system_prompt,
             default_agent_id=project.default_agent_id,
+            is_pinned=getattr(project, 'is_pinned', False) or False,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -888,6 +883,66 @@ async def delete_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete project"
         )
+
+
+@router.patch("/projects/{project_id}/pin", response_model=ProjectResponse)
+async def toggle_pin_project(
+    project_id: str,
+    user: dict = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    db: Session = Depends(get_db),
+    _: None = Depends(check_projects_enabled),
+):
+    """
+    Toggle the per-user pin (star) status of a project for the authenticated user.
+    Any user with view access (owner or shared collaborator) can pin/unpin independently.
+    The service layer owns the commit/rollback for this operation.
+    """
+    user_id = user.get("id")
+    log.info("User %s toggling pin for project %s", user_id, project_id)
+
+    try:
+        project = project_service.toggle_pin(db=db, project_id=project_id, user_id=user_id)
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found."
+            )
+
+        log.info(
+            "Project %s pin status toggled to %s by user %s",
+            project_id,
+            project.is_pinned,
+            user_id,
+        )
+
+        return ProjectResponse(
+            id=project.id,
+            name=project.name,
+            user_id=project.user_id,
+            description=project.description,
+            system_prompt=project.system_prompt,
+            default_agent_id=project.default_agent_id,
+            is_pinned=project.is_pinned,
+            created_at=project.created_at,
+            updated_at=project.updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        # Service already rolled back; just surface a clean HTTP error
+        log.error("Error toggling pin for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle pin status"
+        ) from e
+    except Exception as e:
+        log.error("Unexpected error toggling pin for project %s for user %s: %s", project_id, user_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle pin status"
+        ) from e
 
 
 @router.get("/projects/{project_id}/export")

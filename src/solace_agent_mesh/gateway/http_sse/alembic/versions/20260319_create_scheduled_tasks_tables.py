@@ -1,0 +1,170 @@
+"""Create scheduled tasks tables and add source column to sessions
+
+Revision ID: 20260319_scheduled_tasks
+Revises: 20260320_project_user_pins
+Create Date: 2026-03-19 00:00:00.000000
+
+Creates tables for the scheduled tasks feature:
+- scheduled_tasks: task definitions with scheduling config
+- scheduled_task_executions: execution history records
+- Adds 'source' column to sessions table (chat/scheduler filtering)
+"""
+from typing import Sequence, Union
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy import inspect
+
+
+# revision identifiers, used by Alembic.
+revision: str = '20260319_scheduled_tasks'
+down_revision: Union[str, None] = '20260320_project_user_pins'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def _table_exists(table_name: str) -> bool:
+    """Check if a table already exists."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
+
+
+def _index_exists(table_name: str, index_name: str) -> bool:
+    """Check if an index already exists."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    existing_indexes = inspector.get_indexes(table_name)
+    return any(idx["name"] == index_name for idx in existing_indexes)
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    """Check if a column already exists in a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col["name"] for col in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
+def _enum_type_exists(enum_name: str) -> bool:
+    """Check if an enum type already exists (PostgreSQL only)."""
+    bind = op.get_bind()
+    if bind.dialect.name != "postgresql":
+        return False
+    result = bind.execute(
+        sa.text("SELECT 1 FROM pg_type WHERE typname = :name"),
+        {"name": enum_name},
+    )
+    return result.fetchone() is not None
+
+
+def upgrade() -> None:
+    dialect = op.get_bind().dialect.name
+
+    # Create scheduled_tasks table
+    if not _table_exists("scheduled_tasks"):
+        op.create_table(
+            "scheduled_tasks",
+            sa.Column("id", sa.String(36), nullable=False),
+            sa.Column("name", sa.String(255), nullable=False),
+            sa.Column("description", sa.Text(), nullable=True),
+            sa.Column("namespace", sa.String(255), nullable=False),
+            sa.Column("user_id", sa.String(255), nullable=True),
+            sa.Column("created_by", sa.String(255), nullable=False),
+            sa.Column("schedule_type", sa.String(64), nullable=False),
+            sa.Column("schedule_expression", sa.String(255), nullable=False),
+            sa.Column("timezone", sa.String(64), nullable=False, server_default="UTC"),
+            sa.Column("target_agent_name", sa.String(255), nullable=False),
+            sa.Column("target_type", sa.String(64), nullable=False, server_default="agent"),
+            sa.Column("task_message", sa.JSON(), nullable=False),
+            sa.Column("task_metadata", sa.JSON(), nullable=True),
+            sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+            sa.Column("max_retries", sa.Integer(), nullable=False, server_default=sa.text("0")),
+            sa.Column("retry_delay_seconds", sa.Integer(), nullable=False, server_default=sa.text("60")),
+            sa.Column("timeout_seconds", sa.Integer(), nullable=False, server_default=sa.text("3600")),
+            sa.Column("source", sa.String(64), nullable=True, server_default="ui"),
+            sa.Column("consecutive_failure_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+            sa.Column("run_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+            sa.Column("notification_config", sa.JSON(), nullable=True),
+            sa.Column("created_at", sa.BigInteger(), nullable=False),
+            sa.Column("updated_at", sa.BigInteger(), nullable=False),
+            sa.Column("next_run_at", sa.BigInteger(), nullable=True),
+            sa.Column("last_run_at", sa.BigInteger(), nullable=True),
+            sa.Column("deleted_at", sa.BigInteger(), nullable=True),
+            sa.Column("deleted_by", sa.String(255), nullable=True),
+            sa.PrimaryKeyConstraint("id"),
+        )
+
+        # Create indexes
+        op.create_index("ix_scheduled_tasks_name", "scheduled_tasks", ["name"])
+        op.create_index("ix_scheduled_tasks_namespace", "scheduled_tasks", ["namespace"])
+        op.create_index("ix_scheduled_tasks_user_id", "scheduled_tasks", ["user_id"])
+        op.create_index("ix_scheduled_tasks_schedule_type", "scheduled_tasks", ["schedule_type"])
+        op.create_index("ix_scheduled_tasks_target_agent_name", "scheduled_tasks", ["target_agent_name"])
+        op.create_index("ix_scheduled_tasks_enabled", "scheduled_tasks", ["enabled"])
+        op.create_index("ix_scheduled_tasks_next_run_at", "scheduled_tasks", ["next_run_at"])
+        op.create_index("ix_scheduled_tasks_deleted_at", "scheduled_tasks", ["deleted_at"])
+
+        # Unique partial index: only one active task per (namespace, name)
+        if dialect == "postgresql":
+            op.execute(
+                "CREATE UNIQUE INDEX uq_scheduled_tasks_namespace_name_active "
+                "ON scheduled_tasks (namespace, name) WHERE deleted_at IS NULL"
+            )
+        elif dialect == "sqlite":
+            # SQLite supports partial indexes
+            op.execute(
+                "CREATE UNIQUE INDEX uq_scheduled_tasks_namespace_name_active "
+                "ON scheduled_tasks (namespace, name) WHERE deleted_at IS NULL"
+            )
+        else:
+            # MySQL doesn't support partial indexes — skip unique constraint
+            pass
+
+    # Create scheduled_task_executions table
+    if not _table_exists("scheduled_task_executions"):
+        op.create_table(
+            "scheduled_task_executions",
+            sa.Column("id", sa.String(36), nullable=False),
+            sa.Column("scheduled_task_id", sa.String(36), nullable=False),
+            sa.Column("status", sa.String(64), nullable=False),
+            sa.Column("a2a_task_id", sa.String(255), nullable=True),
+            sa.Column("scheduled_for", sa.BigInteger(), nullable=False),
+            sa.Column("started_at", sa.BigInteger(), nullable=True),
+            sa.Column("completed_at", sa.BigInteger(), nullable=True),
+            sa.Column("result_summary", sa.JSON(), nullable=True),
+            sa.Column("error_message", sa.Text(), nullable=True),
+            sa.Column("retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+            sa.Column("artifacts", sa.JSON(), nullable=True),
+            sa.Column("notifications_sent", sa.JSON(), nullable=True),
+            sa.PrimaryKeyConstraint("id"),
+            sa.ForeignKeyConstraint(
+                ["scheduled_task_id"],
+                ["scheduled_tasks.id"],
+            ),
+        )
+
+        # Create indexes
+        op.create_index("ix_scheduled_task_executions_task_id", "scheduled_task_executions", ["scheduled_task_id"])
+        op.create_index("ix_scheduled_task_executions_status", "scheduled_task_executions", ["status"])
+        op.create_index("ix_scheduled_task_executions_a2a_task_id", "scheduled_task_executions", ["a2a_task_id"])
+        op.create_index("ix_scheduled_task_executions_scheduled_for", "scheduled_task_executions", ["scheduled_for"])
+
+    # Add source column to sessions table for chat/scheduler filtering
+    if _table_exists("sessions") and not _column_exists("sessions", "source"):
+        op.add_column(
+            "sessions",
+            sa.Column("source", sa.String(64), nullable=True, server_default="chat"),
+        )
+
+
+def downgrade() -> None:
+    dialect = op.get_bind().dialect.name
+
+    # Drop source column from sessions
+    if _table_exists("sessions") and _column_exists("sessions", "source"):
+        op.drop_column("sessions", "source")
+    # Drop scheduled tasks tables in reverse order
+    if _table_exists("scheduled_task_executions"):
+        op.drop_table("scheduled_task_executions")
+    if _table_exists("scheduled_tasks"):
+        op.drop_table("scheduled_tasks")

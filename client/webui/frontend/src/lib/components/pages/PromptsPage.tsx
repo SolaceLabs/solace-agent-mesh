@@ -4,7 +4,7 @@ import { RefreshCcw, Upload } from "lucide-react";
 
 import type { PromptGroup, Prompt } from "@/lib/types/prompts";
 import type { PromptImportData } from "@/lib/schemas";
-import { Button, EmptyState, Header, VariableDialog } from "@/lib/components";
+import { Button, EmptyState, Header, VariableDialog, LifecycleBadge } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
 import { detectVariables, downloadBlob, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -340,7 +340,11 @@ export const PromptsPage: React.FC = () => {
     return (
         <div className="flex h-full w-full flex-col">
             <Header
-                title="Prompts"
+                title={
+                    <>
+                        Prompts <LifecycleBadge>EXPERIMENTAL</LifecycleBadge>
+                    </>
+                }
                 buttons={[
                     <Button key="importPrompt" variant="ghost" title="Import Prompt" onClick={() => setShowImportDialog(true)}>
                         <Upload className="size-4" />
@@ -356,7 +360,7 @@ export const PromptsPage: React.FC = () => {
             {isLoading ? (
                 <EmptyState title="Loading prompts..." variant="loading" />
             ) : (
-                <div className="relative flex-1 bg-(--background-w20) p-4">
+                <div className="relative flex-1 p-4">
                     <PromptCards
                         prompts={promptGroups}
                         onManualCreate={() => navigate("/prompts/new?mode=manual")}

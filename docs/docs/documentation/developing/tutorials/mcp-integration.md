@@ -126,6 +126,8 @@ apps:
       agent_name: "FileSystemAgent"
       display_name: "File System"
       model: *general_model
+      model_provider: 
+        - "general"
       
       instruction: |
         You can interact with the local filesystem using MCP tools.

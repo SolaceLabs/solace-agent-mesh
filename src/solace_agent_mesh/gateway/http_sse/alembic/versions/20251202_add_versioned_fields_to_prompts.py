@@ -20,55 +20,82 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add versioned metadata fields to prompts table."""
-    
-    # Add new columns to prompts table
-    with op.batch_alter_table('prompts', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('name', sa.String(length=255), nullable=True))
-        batch_op.add_column(sa.Column('description', sa.Text(), nullable=True))
-        batch_op.add_column(sa.Column('category', sa.String(length=100), nullable=True))
-        batch_op.add_column(sa.Column('command', sa.String(length=50), nullable=True))
-    
-    # Migrate existing data: copy metadata from prompt_groups to prompts
-    # This ensures existing prompt versions have the metadata from their group
-    bind = op.get_bind()
 
-    if bind.dialect.name == 'postgresql':
-        # PostgreSQL: UPDATE ... FROM syntax
-        bind.execute(sa.text("""
-            UPDATE prompts
-            SET name = pg.name,
-                description = pg.description,
-                category = pg.category,
-                command = pg.command
-            FROM prompt_groups pg
-            WHERE prompts.group_id = pg.id
-        """))
-    elif bind.dialect.name == 'mysql':
-        # MySQL: UPDATE ... JOIN syntax
-        bind.execute(sa.text("""
-            UPDATE prompts p
-            INNER JOIN prompt_groups pg ON p.group_id = pg.id
-            SET p.name = pg.name,
-                p.description = pg.description,
-                p.category = pg.category,
-                p.command = pg.command
-        """))
-    else:
-        # SQLite: Use subqueries
-        bind.execute(sa.text("""
-            UPDATE prompts
-            SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
-                description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
-                category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
-                command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
-        """))
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    existing_columns = {col['name'] for col in inspector.get_columns('prompts')}
+
+    # Add new columns only if they don't exist (idempotency for corrupted databases)
+    columns_to_add = {
+        'name': sa.Column('name', sa.String(length=255), nullable=True),
+        'description': sa.Column('description', sa.Text(), nullable=True),
+        'category': sa.Column('category', sa.String(length=100), nullable=True),
+        'command': sa.Column('command', sa.String(length=50), nullable=True)
+    }
+
+    columns_needing_addition = [
+        (col_name, col_def)
+        for col_name, col_def in columns_to_add.items()
+        if col_name not in existing_columns
+    ]
+
+    if columns_needing_addition:
+        with op.batch_alter_table('prompts', schema=None) as batch_op:
+            for col_name, col_def in columns_needing_addition:
+                batch_op.add_column(col_def)
+
+        # Migrate existing data: copy metadata from prompt_groups to prompts
+        # This ensures existing prompt versions have the metadata from their group
+        dialect_name = connection.dialect.name
+
+        if dialect_name == 'postgresql':
+            # PostgreSQL: UPDATE ... FROM syntax
+            connection.execute(sa.text("""
+                UPDATE prompts
+                SET name = pg.name,
+                    description = pg.description,
+                    category = pg.category,
+                    command = pg.command
+                FROM prompt_groups pg
+                WHERE prompts.group_id = pg.id
+            """))
+        elif dialect_name == 'mysql':
+            # MySQL: UPDATE ... JOIN syntax
+            connection.execute(sa.text("""
+                UPDATE prompts p
+                INNER JOIN prompt_groups pg ON p.group_id = pg.id
+                SET p.name = pg.name,
+                    p.description = pg.description,
+                    p.category = pg.category,
+                    p.command = pg.command
+            """))
+        else:
+            # SQLite: Use subqueries
+            connection.execute(sa.text("""
+                UPDATE prompts
+                SET name = (SELECT name FROM prompt_groups WHERE id = prompts.group_id),
+                    description = (SELECT description FROM prompt_groups WHERE id = prompts.group_id),
+                    category = (SELECT category FROM prompt_groups WHERE id = prompts.group_id),
+                    command = (SELECT command FROM prompt_groups WHERE id = prompts.group_id)
+                WHERE group_id IS NOT NULL
+            """))
 
 
 def downgrade() -> None:
     """Remove versioned metadata fields from prompts table."""
-    
-    with op.batch_alter_table('prompts', schema=None) as batch_op:
-        batch_op.drop_column('command')
-        batch_op.drop_column('category')
-        batch_op.drop_column('description')
-        batch_op.drop_column('name')
+
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    existing_columns = {col['name'] for col in inspector.get_columns('prompts')}
+
+    # Only drop columns that exist (idempotency for partial downgrade failures)
+    columns_to_drop = ['command', 'category', 'description', 'name']
+    columns_needing_removal = [
+        col_name for col_name in columns_to_drop
+        if col_name in existing_columns
+    ]
+
+    if columns_needing_removal:
+        with op.batch_alter_table('prompts', schema=None) as batch_op:
+            for col_name in columns_needing_removal:
+                batch_op.drop_column(col_name)

@@ -46,7 +46,7 @@ class TestGetTaskTitleDataAuthorization:
 
         # Patch at the repository module level since imports are inside the function
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (
@@ -88,13 +88,13 @@ class TestGetTaskTitleDataAuthorization:
         task_id = "test-task-id"
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.SSEEventBufferRepository",
             return_value=mock_buffer_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.chat_task_repository.ChatTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.ChatTaskRepository",
             return_value=mock_chat_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (
@@ -133,13 +133,13 @@ class TestGetTaskTitleDataAuthorization:
         task_id = "test-task-id"
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.sse_event_buffer_repository.SSEEventBufferRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.SSEEventBufferRepository",
             return_value=mock_buffer_repo,
         ), patch(
-            "solace_agent_mesh.gateway.http_sse.repository.chat_task_repository.ChatTaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.ChatTaskRepository",
             return_value=mock_chat_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (
@@ -165,7 +165,7 @@ class TestGetTaskTitleDataAuthorization:
         task_id = "nonexistent-task-id"
 
         with patch(
-            "solace_agent_mesh.gateway.http_sse.repository.task_repository.TaskRepository",
+            "solace_agent_mesh.gateway.http_sse.routers.tasks.TaskRepository",
             return_value=mock_task_repo,
         ):
             from solace_agent_mesh.gateway.http_sse.routers.tasks import (

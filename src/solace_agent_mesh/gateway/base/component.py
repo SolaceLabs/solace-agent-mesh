@@ -24,6 +24,7 @@ from ...common.services.identity_service import (
 )
 from .task_context import TaskContextManager
 from .auth_interface import AuthHandler
+from .. import constants
 from ...common.a2a.types import ContentPart
 from ...common.utils.rbac_utils import validate_agent_access
 from a2a.types import (
@@ -203,6 +204,11 @@ class BaseGatewayComponent(SamComponentBase):
         self._gateway_card_config = self.get_config("gateway_card", {})
         self._gateway_card_timer_id = f"publish_gateway_card_{self.gateway_id}"
 
+        # Task timeout: max idle time (seconds) waiting for agent activity before canceling
+        self.task_timeout_seconds: int = self.get_config(
+            "task_timeout_seconds", constants.DEFAULT_TASK_TIMEOUT_SECONDS
+        )
+
         # Authentication handler (optional, enterprise feature)
         self.auth_handler: Optional[AuthHandler] = None
 
@@ -377,6 +383,7 @@ class BaseGatewayComponent(SamComponentBase):
         external_request_context["a2a_user_config"] = user_config
         external_request_context["api_version"] = api_version
         external_request_context["is_streaming"] = is_streaming
+        external_request_context["target_agent_name"] = target_agent_name
         log.debug(
             "%s Stored user_identity, configuration, api_version (%s), and is_streaming (%s) in external_request_context.",
             log_id_prefix,
@@ -1293,6 +1300,7 @@ class BaseGatewayComponent(SamComponentBase):
         # Keep user-facing data parts like general progress updates
         user_facing_types = {
             "agent_progress_update",
+            "thinking_content",
         }
 
         if data_type in user_facing_types:
@@ -1980,6 +1988,12 @@ class BaseGatewayComponent(SamComponentBase):
                         external_request_context, parsed_event, final_chunk_flag
                     )
 
+        # Manage task timeout timer: cancel on final events, reset on intermediate activity
+        if is_truly_final_event_for_context_cleanup:
+            self._cancel_task_timeout(a2a_task_id)
+        else:
+            self._start_task_timeout(a2a_task_id)
+
         if is_truly_final_event_for_context_cleanup:
             log.info(
                 "%s Truly final event processed for task %s. Closing connections and removing context.",
@@ -2105,6 +2119,58 @@ class BaseGatewayComponent(SamComponentBase):
                 f"{task_id_from_topic}_stream_buffer"
             )
             return False
+
+    # --- Task Timeout Methods ---
+
+    def _task_timeout_timer_id(self, task_id: str) -> str:
+        return f"task_timeout_{task_id}"
+
+    def _start_task_timeout(self, task_id: str) -> None:
+        """Start (or restart) the idle timeout timer for a task."""
+        if self.task_timeout_seconds <= 0:
+            return
+        timer_id = self._task_timeout_timer_id(task_id)
+        # Cancel existing timer before starting a new one (reset)
+        self.cancel_timer(timer_id)
+        log.debug(
+            "%s Starting task timeout timer for task %s (%d seconds)",
+            self.log_identifier,
+            task_id,
+            self.task_timeout_seconds,
+        )
+        SamComponentBase.add_timer(
+            self,
+            delay_ms=self.task_timeout_seconds * 1000,
+            timer_id=timer_id,
+            interval_ms=None,
+            callback=lambda td, tid=task_id: self._on_task_timeout(tid),
+        )
+
+    def _cancel_task_timeout(self, task_id: str) -> None:
+        """Cancel the idle timeout timer for a task."""
+        if self.task_timeout_seconds <= 0:
+            return
+        self.cancel_timer(self._task_timeout_timer_id(task_id))
+
+    def _on_task_timeout(self, task_id: str) -> None:
+        """Timer callback when a task times out. Schedules async cleanup on the event loop."""
+        log.warning(
+            "%s Task %s timed out after %d seconds of inactivity",
+            self.log_identifier,
+            task_id,
+            self.task_timeout_seconds,
+        )
+        asyncio.run_coroutine_threadsafe(
+            self._handle_task_timeout(task_id), self.get_async_loop()
+        )
+
+    async def _handle_task_timeout(self, task_id: str) -> None:
+        """Handle a timed-out task. Subclasses should override to send errors to the adapter."""
+        log.warning(
+            "%s Task %s timed out but _handle_task_timeout is not overridden",
+            self.log_identifier,
+            task_id,
+        )
 
     async def _async_setup_and_run(self) -> None:
         """Main async logic for the gateway component."""
@@ -2268,6 +2334,8 @@ class BaseGatewayComponent(SamComponentBase):
                     self.internal_event_queue.task_done()
 
         log.info("%s Message processor loop finished.", self.log_identifier)
+
+
 
     @abstractmethod
     async def _extract_initial_claims(

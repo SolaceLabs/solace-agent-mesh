@@ -81,6 +81,7 @@ export interface ArtifactInfo {
     isDisplayed?: boolean; // Optional: Tracks if artifact is currently visible to user
     needsEmbedResolution?: boolean; // Optional: Tracks if artifact needs download for embed resolution
     source?: string; // Optional: Source of the artifact (e.g., "project")
+    tags?: string[]; // Optional: Tags for categorization (e.g., ["__working"])
     sourceProjectId?: string; // Optional: ID of the project this artifact came from
 }
 
@@ -122,10 +123,28 @@ export type PartFE = Part | ArtifactPart;
 /**
  * Represents a single message in the chat conversation.
  */
+/** A single progress update entry for inline display in AI messages */
+export interface ProgressUpdate {
+    /** Type of progress event */
+    type: "status" | "tool_call" | "tool_result" | "artifact" | "delegation" | "thinking";
+    /** Human-readable text for the update */
+    text: string;
+    /** Timestamp when this update was received */
+    timestamp: number;
+    /** Expandable content (used for thinking/reasoning tokens) */
+    expandableContent?: string;
+    /** Whether the expandable content is complete */
+    isExpandableComplete?: boolean;
+}
+
 export interface MessageFE {
     taskId?: string; // The ID of the task that generated this message
+    createdTime?: number; // Epoch ms timestamp from the task that generated this message (for timeline ordering)
     role?: "user" | "agent";
     isStatusBubble?: boolean; // Added to indicate a temporary status message
+    progressUpdates?: ProgressUpdate[]; // Accumulated progress updates for inline display
+    thinkingContent?: string; // Accumulated thinking/reasoning text from LLM thinking tokens
+    isThinkingComplete?: boolean; // True when the thinking phase is done and main response has started
     isUser: boolean; // True if the message is from the user, false if from the agent/system
     isStatusMessage?: boolean; // True if this is a temporary status message (e.g., "Agent is thinking")
     isThinkingMessage?: boolean; // Specific flag for the "thinking" status message
@@ -144,6 +163,8 @@ export interface MessageFE {
         authenticationAttempted?: boolean; // Track if auth button was clicked
         rejected?: boolean; // Track if reject button was clicked
     };
+    senderDisplayName?: string; // Display name of the sender (for collaborative sessions)
+    senderEmail?: string; // Email of the sender (for collaborative sessions)
     metadata?: {
         // Optional metadata, e.g., for feedback or correlation
         messageId?: string; // Unique ID for the agent's message (if provided by backend)
@@ -315,12 +336,16 @@ export interface NewChatConfig {
 
 export interface Session {
     id: string;
+    userId?: string;
     createdTime: string;
     updatedTime: string;
     name: string | null;
     projectId?: string | null;
     projectName?: string | null;
+    source?: string | null; // "chat" or "scheduler"
     hasRunningBackgroundTask?: boolean;
+    ownerDisplayName?: string | null;
+    ownerEmail?: string | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

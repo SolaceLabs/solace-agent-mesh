@@ -8,7 +8,9 @@ for database session management and transaction handling.
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from ..exceptions.exceptions import EntityNotFoundError
 
@@ -43,6 +45,11 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         """Return the entity name for error messages."""
         pass
 
+    @property
+    def table_name(self) -> str:
+        """Return the database table name for observability."""
+        return self.model_class.__tablename__
+
     def create(self, session: Session, create_data: dict[str, Any]) -> EntityType:
         """
         Create a new entity.
@@ -58,11 +65,11 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
             This method does NOT commit the transaction.
             Commit/rollback is handled by the service layer.
         """
-        model_instance = self.model_class(**create_data)
-
-        session.add(model_instance)
-        session.flush()  # Flush to get generated IDs
-        session.refresh(model_instance)
+        with MonitorLatency(DBMonitor.insert(self.table_name)):
+            model_instance = self.model_class(**create_data)
+            session.add(model_instance)
+            session.flush()  # Flush to get generated IDs
+            session.refresh(model_instance)
 
         entity = self.entity_class.model_validate(model_instance)
 
@@ -82,11 +89,12 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = (
-            session.query(self.model_class)
-            .filter(self.model_class.id == str(entity_id))
-            .first()
-        )
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            model_instance = (
+                session.query(self.model_class)
+                .filter(self.model_class.id == str(entity_id))
+                .first()
+            )
 
         if not model_instance:
             raise EntityNotFoundError(self.entity_name, entity_id)
@@ -107,14 +115,16 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Returns:
             List of entities
         """
-        query = session.query(self.model_class)
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            query = session.query(self.model_class)
 
-        if offset:
-            query = query.offset(offset)
-        if limit:
-            query = query.limit(limit)
+            if offset:
+                query = query.offset(offset)
+            if limit:
+                query = query.limit(limit)
 
-        model_instances = query.all()
+            model_instances = query.all()
+
         return [
             self.entity_class.model_validate(instance) for instance in model_instances
         ]
@@ -136,21 +146,22 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = (
-            session.query(self.model_class)
-            .filter(self.model_class.id == str(entity_id))
-            .first()
-        )
+        with MonitorLatency(DBMonitor.update(self.table_name)):
+            model_instance = (
+                session.query(self.model_class)
+                .filter(self.model_class.id == str(entity_id))
+                .first()
+            )
 
-        if not model_instance:
-            raise EntityNotFoundError(self.entity_name, entity_id)
+            if not model_instance:
+                raise EntityNotFoundError(self.entity_name, entity_id)
 
-        for key, value in update_data.items():
-            if value is not None and hasattr(model_instance, key):
-                setattr(model_instance, key, value)
+            for key, value in update_data.items():
+                if value is not None and hasattr(model_instance, key):
+                    setattr(model_instance, key, value)
 
-        session.flush()  # Flush to validate constraints
-        session.refresh(model_instance)
+            session.flush()  # Flush to validate constraints
+            session.refresh(model_instance)
 
         entity = self.entity_class.model_validate(model_instance)
 
@@ -167,17 +178,38 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Raises:
             EntityNotFoundError: If entity not found
         """
-        model_instance = (
-            session.query(self.model_class)
-            .filter(self.model_class.id == str(entity_id))
-            .first()
-        )
+        with MonitorLatency(DBMonitor.delete(self.table_name)):
+            # with_for_update() acquires a row lock before the DELETE:
+            #   - Ensures the selected row is locked against concurrent conflicting writes.
+            #   - Helps prevent concurrent sessions from inserting child rows (e.g. deployments)
+            #     that reference this entity until the transaction completes, reducing the risk of
+            #     orphaned FK rows that would block the parent DELETE on MySQL.
+            # Note: with_for_update() does not by itself bypass the identity map or force a state
+            # refresh for already-loaded instances; relationship collections are explicitly expired
+            # below before the cascade is walked. On SQLite, with_for_update() is effectively a
+            # no-op (file-level locking only), but it is safe to call on all dialects.
+            model_instance = (
+                session.query(self.model_class)
+                .filter(self.model_class.id == str(entity_id))
+                .with_for_update()
+                .first()
+            )
 
-        if not model_instance:
-            raise EntityNotFoundError(self.entity_name, entity_id)
+            if not model_instance:
+                raise EntityNotFoundError(self.entity_name, entity_id)
 
-        session.delete(model_instance)
-        session.flush()  # Flush to validate constraints
+            # Expire all relationship collections (uselist=True) so SQLAlchemy
+            # re-fetches them before walking the cascade. Covers same-session
+            # staleness: if a child row was added later in the same session, it may
+            # only exist in the session's pending state and not in the cached
+            # collection, causing the cascade to miss it and the FK to block the
+            # parent DELETE.
+            for rel in inspect(type(model_instance)).relationships:
+                if rel.uselist:
+                    session.expire(model_instance, [rel.key])
+
+            session.delete(model_instance)
+            session.flush()  # Flush to validate constraints
 
     def exists(self, session: Session, entity_id: Any) -> bool:
         """
@@ -190,11 +222,12 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Returns:
             True if entity exists, False otherwise
         """
-        count = (
-            session.query(self.model_class)
-            .filter(self.model_class.id == str(entity_id))
-            .count()
-        )
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            count = (
+                session.query(self.model_class)
+                .filter(self.model_class.id == str(entity_id))
+                .count()
+            )
 
         return count > 0
 
@@ -208,7 +241,9 @@ class BaseRepository(ABC, Generic[ModelType, EntityType]):
         Returns:
             Total number of entities
         """
-        return session.query(self.model_class).count()
+        # Note: Cannot use decorator here since we need self.table_name dynamically
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            return session.query(self.model_class).count()
 
 
 class PaginatedRepository(BaseRepository[ModelType, EntityType]):

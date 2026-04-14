@@ -4,23 +4,46 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
+import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
+import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems } from "@/lib/hooks";
-import { api } from "@/lib/api";
-import type { Session } from "@/lib/types";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession } from "@/lib/hooks";
+import { useModelConfigStatus } from "@/lib/api/models";
 
 function AppLayoutContent() {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
-    const { addNotification } = useChatContext();
+    const { hasModelConfigWrite } = useChatContext();
+    const { isMoveDialogOpen, sessionToMove, handleMoveConfirm, closeMoveDialog } = useMoveSession();
 
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
-    const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
-    const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
+    const [isModelSetupDialogOpen, setIsModelSetupDialogOpen] = useState(false);
+    const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
+
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const showModelWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
+
+    useEffect(() => {
+        if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
+            setIsModelSetupDialogOpen(true);
+        }
+    }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
+
+    const handleModelSetupDialogChange = useCallback(
+        (open: boolean) => {
+            setIsModelSetupDialogOpen(open);
+            if (!open) {
+                setModelSetupDismissed(true);
+            }
+        },
+        [setModelSetupDismissed]
+    );
 
     // Temporary fix: Radix dialogs sometimes leave pointer-events: none on body when closed
     useEffect(() => {
@@ -46,40 +69,6 @@ function AppLayoutContent() {
         };
     }, []);
 
-    const handleOpenMoveDialog = useCallback((event: CustomEvent<{ session: Session }>) => {
-        setSessionToMove(event.detail.session);
-        setIsMoveDialogOpen(true);
-    }, []);
-
-    useEffect(() => {
-        window.addEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        return () => {
-            window.removeEventListener("open-move-session-dialog", handleOpenMoveDialog as EventListener);
-        };
-    }, [handleOpenMoveDialog]);
-
-    const handleMoveConfirm = async (targetProjectId: string | null) => {
-        if (!sessionToMove) return;
-
-        try {
-            await api.webui.patch(`/api/v1/sessions/${sessionToMove.id}/project`, { projectId: targetProjectId });
-
-            window.dispatchEvent(
-                new CustomEvent("session-updated", {
-                    detail: {
-                        sessionId: sessionToMove.id,
-                        projectId: targetProjectId,
-                    },
-                })
-            );
-
-            addNotification?.("Session moved successfully", "success");
-        } catch (error) {
-            console.error("Failed to move session:", error);
-            addNotification?.("Failed to move session", "warning");
-        }
-    };
-
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
@@ -93,6 +82,7 @@ function AppLayoutContent() {
         projectsEnabled,
         promptLibraryEnabled: configFeatureEnablement?.promptLibrary ?? false,
         artifactsPageEnabled: configFeatureEnablement?.artifactsPage ?? false,
+        schedulerEnabled: configFeatureEnablement?.scheduler ?? false,
         logoutEnabled,
         isAuthenticated,
         onUserAccountClick: handleUserAccountClick,
@@ -103,7 +93,7 @@ function AppLayoutContent() {
 
     const getActiveItem = () => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat")) return "chat";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/recent-chats")) return "chat";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/prompts")) return "prompts";
@@ -150,22 +140,15 @@ function AppLayoutContent() {
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="h-full w-full flex-1 overflow-auto">
+                <ModelWarningBanner showWarning={!!showModelWarning} hasModelConfigWrite={hasModelConfigWrite} />
                 <Outlet />
             </main>
             <ToastContainer />
             <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
 
-            <MoveSessionDialog
-                isOpen={isMoveDialogOpen}
-                onClose={() => {
-                    setIsMoveDialogOpen(false);
-                    setSessionToMove(null);
-                }}
-                onConfirm={handleMoveConfirm}
-                session={sessionToMove}
-                currentProjectId={sessionToMove?.projectId}
-            />
+            <MoveSessionDialog isOpen={isMoveDialogOpen} onClose={closeMoveDialog} onConfirm={handleMoveConfirm} session={sessionToMove} currentProjectId={sessionToMove?.projectId} />
             <SettingsDialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen} />
+            <ModelSetupDialog open={isModelSetupDialogOpen} onOpenChange={handleModelSetupDialogChange} hasWritePermissions={hasModelConfigWrite} />
         </div>
     );
 }

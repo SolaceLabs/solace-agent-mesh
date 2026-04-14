@@ -51,10 +51,12 @@ from ...common.utils.embeds.modifiers import MODIFIER_IMPLEMENTATIONS
 
 from ...common import a2a
 from ...common.a2a.types import ArtifactInfo
+from ...common.constants import ARTIFACT_TAG_WORKING
 from ...common.data_parts import (
     AgentProgressUpdateData,
     ArtifactCreationProgressData,
     LlmInvocationData,
+    ThinkingContentData,
     ToolInvocationStartData,
     ToolResultData,
     TemplateBlockData,
@@ -87,6 +89,20 @@ A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 
 if TYPE_CHECKING:
     from ..sac.component import SamAgentComponent
+
+
+def _parse_tags_param(tags_str: Optional[str]) -> List[str]:
+    """Parse comma-separated tags string into a list.
+
+    Args:
+        tags_str: Comma-separated string of tags, or None/empty string
+
+    Returns:
+        List of trimmed, non-empty tag strings (empty list if no valid tags)
+    """
+    if not tags_str:
+        return []
+    return [t.strip() for t in tags_str.split(",") if t.strip()]
 
 
 async def _publish_data_part_status_update(
@@ -185,6 +201,122 @@ async def _resolve_early_embeds_in_chunk(
         return chunk  # Return original chunk on error
 
 
+async def process_thinking_content_callback(
+    callback_context: CallbackContext,
+    llm_response: LlmResponse,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """
+    ADK after_model_callback to intercept and stream thinking/reasoning content.
+
+    Checks for thinking content in the LlmResponse custom_metadata (set by
+    the LiteLlm adapter when the model produces reasoning tokens) and publishes
+    it as a ThinkingContentData signal via the A2A data part mechanism.
+
+    Thinking content is stripped from the LlmResponse so it does not appear
+    in the main text stream. The frontend renders it in a collapsible block.
+    """
+    log_identifier = "[Callback:ProcessThinkingContent]"
+
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        return None
+
+    # Track thinking phase state in session to detect transitions
+    session = get_session_from_callback_context(callback_context)
+    thinking_phase_key = "thinking_phase_active"
+    thinking_just_yielded_key = "thinking_just_yielded"
+
+    # Check for phase transition BEFORE the metadata guard so that
+    # chunks with no custom_metadata (text after thinking) still close
+    # the thinking phase.
+    if not llm_response.custom_metadata:
+        if session.state.get(thinking_just_yielded_key):
+            session.state[thinking_just_yielded_key] = False
+            log.debug(
+                "%s Skipping is_complete: text chunk follows thinking chunk in same delta",
+                log_identifier,
+            )
+            return None
+
+        if session.state.get(thinking_phase_key):
+            session.state[thinking_phase_key] = False
+            thinking_complete = ThinkingContentData(
+                content="",
+                is_complete=True,
+            )
+            await _publish_data_part_status_update(
+                host_component, a2a_context, thinking_complete
+            )
+            log.debug("%s Thinking phase completed (no metadata), sent is_complete signal", log_identifier)
+        return None
+
+    is_thinking = llm_response.custom_metadata.get("is_thinking_content", False)
+    thinking_text_full = llm_response.custom_metadata.get("thinking_content")
+
+    # Bug 5 fix: reset thinking_just_yielded at the start of each metadata-bearing
+    # response so stale flags from a previous turn don't carry over.
+    session.state[thinking_just_yielded_key] = False
+
+    if is_thinking and llm_response.content and llm_response.content.parts:
+        # Streaming thinking chunk — publish each text part as a signal
+        session.state[thinking_phase_key] = True
+        # Bug 6 fix: mark that a thinking chunk was just yielded so the next
+        # no-metadata yield (text portion of the same delta) is not mistaken
+        # for a thinking-phase-end transition.
+        session.state[thinking_just_yielded_key] = True
+        for part in llm_response.content.parts:
+            if part.text:
+                thinking_data = ThinkingContentData(
+                    content=part.text,
+                    is_complete=False,
+                )
+                await _publish_data_part_status_update(
+                    host_component, a2a_context, thinking_data
+                )
+                log.debug(
+                    "%s Published thinking chunk (%d chars)",
+                    log_identifier,
+                    len(part.text),
+                )
+
+        # Strip thinking content from the LlmResponse so it does not
+        # appear in the main text stream
+        llm_response.content = adk_types.Content(role="model", parts=[])
+        return None
+
+    # Check if thinking phase just ended (transition from thinking to regular content)
+    if session.state.get(thinking_phase_key) and not is_thinking:
+        session.state[thinking_phase_key] = False
+        thinking_complete = ThinkingContentData(
+            content="",
+            is_complete=True,
+        )
+        await _publish_data_part_status_update(
+            host_component, a2a_context, thinking_complete
+        )
+        log.debug("%s Thinking phase completed, sent is_complete signal", log_identifier)
+
+    elif thinking_text_full:
+        # Non-streaming: full thinking content in metadata (from non-streaming response)
+        thinking_data = ThinkingContentData(
+            content=thinking_text_full,
+            is_complete=True,
+        )
+        await _publish_data_part_status_update(
+            host_component, a2a_context, thinking_data
+        )
+        log.debug(
+            "%s Published full thinking content (%d chars)",
+            log_identifier,
+            len(thinking_text_full),
+        )
+        # Remove from metadata to avoid downstream confusion
+        llm_response.custom_metadata.pop("thinking_content", None)
+
+    return None
+
+
 async def process_artifact_blocks_callback(
     callback_context: CallbackContext,
     llm_response: LlmResponse,
@@ -255,6 +387,8 @@ async def process_artifact_blocks_callback(
                                 "%s Fenced artifact block started without a 'filename' parameter.",
                                 log_identifier,
                             )
+                        # Extract tags from params (comma-separated string to list)
+                        tags = _parse_tags_param(event.params.get("tags")) or None
                         if a2a_context:
                             status_text = f"Receiving artifact `{filename}`..."
                             if description:
@@ -274,6 +408,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=0,
                                 artifact_chunk=None,
+                                tags=tags,
                             )
 
                             await _publish_data_part_status_update(
@@ -306,6 +441,8 @@ async def process_artifact_blocks_callback(
                                 host_component=host_component,
                                 log_identifier=f"{log_identifier}[ResolveChunk]",
                             )
+                            # Extract tags from params (comma-separated string to list)
+                            tags = _parse_tags_param(params.get("tags")) or None
 
                             progress_data = ArtifactCreationProgressData(
                                 filename=filename,
@@ -313,6 +450,7 @@ async def process_artifact_blocks_callback(
                                 status="in-progress",
                                 bytes_transferred=event.buffered_size,
                                 artifact_chunk=resolved_chunk,  # Resolved chunk
+                                tags=tags,
                             )
 
                             # Track the cumulative character count of what we've sent
@@ -395,6 +533,20 @@ async def process_artifact_blocks_callback(
                                     log_identifier,
                                     params["schema_max_keys"],
                                 )
+                        # Extract tags from params (comma-separated string to list)
+                        tags_list = _parse_tags_param(params.get("tags"))
+
+                        # Auto-tag artifacts as internal when created during structured invocation
+                        logical_task_id_for_tags = a2a_context.get("logical_task_id")
+                        if logical_task_id_for_tags:
+                            with host_component.active_tasks_lock:
+                                task_ctx = host_component.active_tasks.get(logical_task_id_for_tags)
+                            if task_ctx and task_ctx.get_flag("is_structured_invocation"):
+                                if ARTIFACT_TAG_WORKING not in tags_list:
+                                    tags_list.append(ARTIFACT_TAG_WORKING)
+
+                        if tags_list:
+                            kwargs_for_call["tags"] = tags_list
                         wrapped_creator = ADKToolWrapper(
                             original_func=_internal_create_artifact,
                             tool_config=None,  # No specific config for this internal tool
@@ -478,6 +630,8 @@ async def process_artifact_blocks_callback(
 
                             # Publish completion status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                completion_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
@@ -485,6 +639,7 @@ async def process_artifact_blocks_callback(
                                     bytes_transferred=len(event.content),
                                     mime_type=params.get("mime_type"),
                                     version=version_for_tool,
+                                    tags=completion_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -494,11 +649,14 @@ async def process_artifact_blocks_callback(
                             version_for_tool = 0
                             # Publish failure status immediately via SSE
                             if a2a_context:
+                                # Get tags (already parsed above as kwargs_for_call["tags"])
+                                failure_tags = kwargs_for_call.get("tags")
                                 progress_data = ArtifactCreationProgressData(
                                     filename=filename,
                                     description=params.get("description"),
                                     status="failed",
                                     bytes_transferred=len(event.content),
+                                    tags=failure_tags,
                                 )
                                 await _publish_data_part_status_update(
                                     host_component, a2a_context, progress_data
@@ -513,6 +671,7 @@ async def process_artifact_blocks_callback(
                                 "mime_type": params.get("mime_type"),
                                 "bytes_transferred": len(event.content),
                                 "original_text": original_text,
+                                "tags": kwargs_for_call.get("tags"),
                             }
                         )
 
@@ -1188,6 +1347,10 @@ Parameters for `{open_delim}save_artifact: ...`:
 - `filename="your_filename.ext"` (REQUIRED)
 - `mime_type="text/plain"` (optional, defaults to text/plain)
 - `description="A brief description."` (optional)
+- `tags="tag1,tag2"` (optional, comma-separated list of tags for categorization)
+
+Tagging Working Files:
+Add `tags="{ARTIFACT_TAG_WORKING}"` to artifacts that are intermediate or internal (e.g., scratch data, temp files, intermediate results used as input to further processing). These are hidden from the user's file list by default. Do NOT tag artifacts that are the final deliverable for the user.
 
 The system will automatically save the content and confirm it in the next turn.
 """
@@ -1504,34 +1667,51 @@ Response Content Rules:
    - Play-by-play commentary on your actions
    - Transitional phrases between tool calls
 
-3. Use invisible status_update embeds for ALL process updates:
-   - "Searching for..."
-   - "Analyzing..."
-   - "Creating..."
-   - "Querying..."
-   - "Calling agent X..."
+3. **MANDATORY: Emit a status_update embed BEFORE EVERY tool call.** This is required — the user sees a progress timeline and needs to know what is happening. The status text must be:
+   - Objective and user-centric (describe what is happening, not what tool is being called)
+   - Contextual (include the specific topic, query, or subject being worked on)
+   - Concise (one short sentence, no more than 80 characters)
+   - NEVER expose internal tool names, agent names, or implementation details
+
+   Good status_update examples:
+   - "{open_delim}status_update:Searching for current TSLA stock price...{close_delim}"
+   - "{open_delim}status_update:Looking up weather in Ottawa...{close_delim}"
+   - "{open_delim}status_update:Analyzing the quarterly sales data...{close_delim}"
+   - "{open_delim}status_update:Creating a summary report...{close_delim}"
+   - "{open_delim}status_update:Checking available flight options...{close_delim}"
+
+   Bad status_update examples (DO NOT use these patterns):
+   - "{open_delim}status_update:Calling web_search_google tool...{close_delim}" (exposes tool name)
+   - "{open_delim}status_update:Delegating to ResearchAgent...{close_delim}" (exposes agent name)
+   - "{open_delim}status_update:Processing...{close_delim}" (too vague, no context)
+   - "{open_delim}status_update:Using peer_ResearchAgent...{close_delim}" (exposes internal name)
 
 4. NEVER mix process narration with status updates - if you use a status_update embed, do NOT repeat that information in visible text.
 
+5. When delegating to another agent (peer_ tools), still emit a status_update describing what you're asking them to do, NOT which agent you're calling.
+
 Examples:
 
-**Excellent (no visible text, just status and tools):**
-"{open_delim}status_update:Retrieving sales data...{close_delim}" [then calls tool, no visible text]
+**Excellent (status update before tool call, no visible text):**
+"{open_delim}status_update:Searching for current TSLA stock price...{close_delim}" [then calls web_search_google tool, no visible text]
+
+**Excellent (status update before peer delegation):**
+"{open_delim}status_update:Researching Tesla stock performance...{close_delim}" [then calls peer_ResearchAgent, no visible text]
 
 **Good (visible text only contains results):**
-"{open_delim}status_update:Analyzing Q4 sales...{close_delim}" [calls tool]
+"{open_delim}status_update:Analyzing Q4 sales data...{close_delim}" [calls tool]
 "Sales increased 23% in Q4, driven primarily by enterprise accounts."
 
-**Bad (unnecessary narration):**
+**Bad (no status_update before tool call):**
+[calls tool directly without any status_update embed]
+
+**Bad (unnecessary narration instead of status_update):**
 "Let me retrieve the sales data for you." [then calls tool]
 
-**Bad (narration mixed with results):**
-"I've analyzed the data and found that sales increased 23% in Q4."
+**Bad (exposes internal names):**
+"{open_delim}status_update:Calling web_search_google...{close_delim}" [then calls tool]
 
-**Bad (play-by-play commentary):**
-"Now I'll search for the information. After that I'll analyze it."
-
-Remember: The user can see status updates and tool calls. You don't need to announce them in visible text.
+Remember: The user sees a progress timeline. Every tool call MUST be preceded by a contextual status_update embed. Never expose tool or agent names in status updates.
 """
 
 
@@ -1591,6 +1771,10 @@ def inject_dynamic_instructions_callback(
     log_identifier = "[Callback:InjectInstructions]"
     log.debug("%s Running instruction injection callback...", log_identifier)
 
+    session = get_session_from_callback_context(callback_context)
+    session.state["thinking_phase_active"] = False
+    session.state["thinking_just_yielded"] = False
+
     if not host_component:
         log.error(
             "%s Host component instance not provided. Cannot inject instructions.",
@@ -1606,7 +1790,9 @@ The system is capable of calling multiple tools in parallel to speed up processi
 
 **Response Formatting - CRITICAL**:
 In most cases when calling tools, you should produce NO visible text at all - only status_update embeds and the tool calls themselves.
-The user can see your tool calls and status updates, so narrating your actions is redundant and creates noise.
+The user can see a progress timeline showing your status updates, so narrating your actions is redundant and creates noise.
+
+**MANDATORY: You MUST emit a status_update embed BEFORE EVERY tool call.** The user's progress timeline depends on these. Status text must describe what you're doing in user-friendly terms — never expose tool names or agent names.
 
 If you do include visible text:
 - It must contain actual results, insights, or answers - NOT process narration
@@ -1614,9 +1800,10 @@ If you do include visible text:
 - Prefer ending with a period (".") if you must include visible text
 
 Examples:
- - BEST: "{open_delim}status_update:Searching database...{close_delim}" [then calls tool, NO visible text]
+ - BEST: "{open_delim}status_update:Looking up current TSLA stock price...{close_delim}" [then calls tool, NO visible text]
  - BAD: "Let me search for that information." [then calls tool]
  - BAD: "Searching for information..." [then calls tool]
+ - BAD: [calls tool directly without any status_update embed]
 
 **CRITICAL - No Links From Training Data**:
 - DO NOT include URLs, links, or markdown links from your training data in responses

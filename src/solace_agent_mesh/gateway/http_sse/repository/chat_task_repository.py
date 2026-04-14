@@ -5,6 +5,7 @@ ChatTask repository implementation using SQLAlchemy.
 from typing import List, Optional
 
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.utils.types import SessionId, UserId
@@ -18,49 +19,71 @@ class ChatTaskRepository(IChatTaskRepository):
 
     def save(self, session: DBSession, task: ChatTask) -> ChatTask:
         """Save or update a chat task (upsert)."""
-        existing = session.query(ChatTaskModel).filter(
-            ChatTaskModel.id == task.id
-        ).first()
+        with MonitorLatency(DBMonitor.query("chat_tasks")):
+            existing = session.query(ChatTaskModel).filter(
+                ChatTaskModel.id == task.id
+            ).first()
 
         if existing:
             # Update existing task - store strings directly
-            existing.user_message = task.user_message
-            existing.message_bubbles = task.message_bubbles  # Already a string
-            existing.task_metadata = task.task_metadata      # Already a string
-            existing.updated_time = now_epoch_ms()
+            with MonitorLatency(DBMonitor.update("chat_tasks")):
+                existing.user_message = task.user_message
+                existing.message_bubbles = task.message_bubbles  # Already a string
+                existing.task_metadata = task.task_metadata      # Already a string
+                existing.updated_time = now_epoch_ms()
+                session.flush()
         else:
             # Create new task - store strings directly
-            model = ChatTaskModel(
-                id=task.id,
-                session_id=task.session_id,
-                user_id=task.user_id,
-                user_message=task.user_message,
-                message_bubbles=task.message_bubbles,  # Already a string
-                task_metadata=task.task_metadata,      # Already a string
-                created_time=task.created_time,
-                updated_time=task.updated_time
-            )
-            session.add(model)
-
-        session.flush()
+            with MonitorLatency(DBMonitor.insert("chat_tasks")):
+                model = ChatTaskModel(
+                    id=task.id,
+                    session_id=task.session_id,
+                    user_id=task.user_id,
+                    user_message=task.user_message,
+                    message_bubbles=task.message_bubbles,  # Already a string
+                    task_metadata=task.task_metadata,      # Already a string
+                    created_time=task.created_time,
+                    updated_time=task.updated_time
+                )
+                session.add(model)
+                session.flush()
 
         # Reload to get updated values
-        model = session.query(ChatTaskModel).filter(
-            ChatTaskModel.id == task.id
-        ).first()
+        with MonitorLatency(DBMonitor.query("chat_tasks")):
+            model = session.query(ChatTaskModel).filter(
+                ChatTaskModel.id == task.id
+            ).first()
 
         return self._model_to_entity(model)
 
+    @MonitorLatency(DBMonitor.query("chat_tasks"))
     def find_by_session(
         self,
         session: DBSession,
         session_id: SessionId,
         user_id: UserId
     ) -> List[ChatTask]:
-        """Find all tasks for a session."""
+        """Find all tasks for a session belonging to a specific user."""
         models = session.query(ChatTaskModel).filter(
             ChatTaskModel.session_id == session_id,
             ChatTaskModel.user_id == user_id
+        ).order_by(ChatTaskModel.created_time.asc()).all()
+
+        return [self._model_to_entity(m) for m in models]
+
+    @MonitorLatency(DBMonitor.query("chat_tasks"))
+    def find_by_session_all_users(
+        self,
+        session: DBSession,
+        session_id: SessionId
+    ) -> List[ChatTask]:
+        """Find all tasks for a session regardless of which user created them.
+
+        Used for shared sessions where multiple users (owner + editors) may
+        have created tasks in the same session.
+        """
+        models = session.query(ChatTaskModel).filter(
+            ChatTaskModel.session_id == session_id
         ).order_by(ChatTaskModel.created_time.asc()).all()
 
         return [self._model_to_entity(m) for m in models]
@@ -72,19 +95,22 @@ class ChatTaskRepository(IChatTaskRepository):
         user_id: UserId
     ) -> Optional[ChatTask]:
         """Find a specific task."""
-        model = session.query(ChatTaskModel).filter(
-            ChatTaskModel.id == task_id,
-            ChatTaskModel.user_id == user_id
-        ).first()
+        with MonitorLatency(DBMonitor.query("chat_tasks")):
+            model = session.query(ChatTaskModel).filter(
+                ChatTaskModel.id == task_id,
+                ChatTaskModel.user_id == user_id
+            ).first()
 
         return self._model_to_entity(model) if model else None
 
+    @MonitorLatency(DBMonitor.delete("chat_tasks"))
     def delete_by_session(self, session: DBSession, session_id: SessionId) -> bool:
         """Delete all tasks for a session."""
         result = session.query(ChatTaskModel).filter(
             ChatTaskModel.session_id == session_id
         ).delete()
         session.flush()
+
         return result > 0
 
     def _model_to_entity(self, model: ChatTaskModel) -> ChatTask:

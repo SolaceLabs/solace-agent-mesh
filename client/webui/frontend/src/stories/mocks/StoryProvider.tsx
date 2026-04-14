@@ -1,4 +1,5 @@
 import React from "react";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 import { MockAuthProvider } from "./MockAuthProvider";
 import { MockTaskProvider } from "./MockTaskProvider";
@@ -57,25 +58,29 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     taskContextValues = {},
     configContextValues = {},
 }) => {
+    const featureFlags = configContextValues.configFeatureEnablement ?? {};
+
     return (
         <QueryProvider>
-            <ThemeProvider>
-                <MockConfigProvider mockValues={configContextValues}>
-                    <MockAuthProvider mockValues={authContextValues}>
-                        <SSEProvider>
-                            <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
-                                <MockProjectProvider mockValues={projectContextValues}>
-                                    <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                                        <MockTaskProvider mockValues={taskContextValues}>
-                                            <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                                        </MockTaskProvider>
-                                    </MockTextSelectionProvider>
-                                </MockProjectProvider>
-                            </MockAudioSettingsProvider>
-                        </SSEProvider>
-                    </MockAuthProvider>
-                </MockConfigProvider>
-            </ThemeProvider>
+            <OpenFeatureTestProvider flagValueMap={featureFlags}>
+                <ThemeProvider>
+                    <MockConfigProvider mockValues={configContextValues}>
+                        <MockAuthProvider mockValues={authContextValues}>
+                            <SSEProvider>
+                                <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                                    <MockProjectProvider mockValues={projectContextValues}>
+                                        <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                            <MockTaskProvider mockValues={taskContextValues}>
+                                                <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                            </MockTaskProvider>
+                                        </MockTextSelectionProvider>
+                                    </MockProjectProvider>
+                                </MockAudioSettingsProvider>
+                            </SSEProvider>
+                        </MockAuthProvider>
+                    </MockConfigProvider>
+                </ThemeProvider>
+            </OpenFeatureTestProvider>
         </QueryProvider>
     );
 };

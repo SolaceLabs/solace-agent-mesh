@@ -2,20 +2,26 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Trash2, Check, X, Pencil, MessageCircle, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, Loader2 } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock } from "lucide-react";
+import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
-import { useChatContext, useConfigContext, useTitleGeneration, useTitleAnimation } from "@/lib/hooks";
+import { useSharedWithMe } from "@/lib/api/share";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
+import type { SharedWithMeItem } from "@/lib/types/share";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
+import { ShareDialog } from "@/lib/components/share/ShareDialog";
+
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 interface SessionNameProps {
     session: Session;
     respondingSessionId: string | null;
-    isSelected: boolean;
 }
 
-const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId, isSelected }) => {
-    const { autoTitleGenerationEnabled } = useConfigContext();
+const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId }) => {
+    const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
 
     const displayName = useMemo(() => {
         if (session.name && session.name.trim()) {
@@ -61,28 +67,8 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return "opacity-100";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
-    return <span className={`truncate transition-opacity duration-300 ${isSelected ? "font-semibold" : ""} ${animationClass}`}>{animatedName}</span>;
+    return <span className={cn("truncate font-semibold transition-opacity duration-300", animationClass)}>{animatedName}</span>;
 };
-import { formatTimestamp, getErrorMessage } from "@/lib/utils";
-import { MoveSessionDialog, ProjectBadge, SessionSearch } from "@/lib/components/chat";
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-    Spinner,
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from "@/lib/components/ui";
-
 export interface PaginatedSessionsResponse {
     data: Session[];
     meta: {
@@ -103,7 +89,9 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
-    const { persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
+    const schedulerEnabled = configFeatureEnablement?.scheduler ?? false;
+    const chatSharingEnabled = useIsChatSharingEnabled();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -137,36 +125,53 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedProject, setSelectedProject] = useState<string>("all");
+    const [activeTab, setActiveTab] = useState<"chat" | "scheduler">("chat");
     const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
     const [sessionToMove, setSessionToMove] = useState<Session | null>(null);
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
+    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
+
+    // Reset to chat tab when scheduler feature is disabled
+    useEffect(() => {
+        if (!schedulerEnabled) setActiveTab("chat");
+    }, [schedulerEnabled]);
+
+    // Shared-with-me (React Query)
+    const sharedWithMeQuery = useSharedWithMe();
+    const sharedWithMe = sharedWithMeQuery.data ?? [];
 
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
         triggerOnce: false,
     });
 
-    const fetchSessions = useCallback(async (pageNumber: number = 1, append: boolean = false) => {
-        setIsLoading(true);
+    const fetchSessions = useCallback(
+        async (pageNumber: number = 1, append: boolean = false) => {
+            setIsLoading(true);
 
-        try {
-            const result: PaginatedSessionsResponse = await api.webui.get(`/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`);
+            try {
+                let url = `/api/v1/sessions?pageNumber=${pageNumber}&pageSize=20`;
+                url += `&source=${activeTab}`;
+                const result: PaginatedSessionsResponse = await api.webui.get(url);
 
-            if (append) {
-                setSessions(prev => [...prev, ...result.data]);
-            } else {
-                setSessions(result.data);
+                if (append) {
+                    setSessions(prev => [...prev, ...result.data]);
+                } else {
+                    setSessions(result.data);
+                }
+
+                // Use metadata to determine if there are more pages
+                setHasMore(result.meta.pagination.nextPage !== null);
+                setCurrentPage(pageNumber);
+            } catch (error) {
+                console.error("An error occurred while fetching sessions:", error);
+            } finally {
+                setIsLoading(false);
             }
-
-            // Use metadata to determine if there are more pages
-            setHasMore(result.meta.pagination.nextPage !== null);
-            setCurrentPage(pageNumber);
-        } catch (error) {
-            console.error("An error occurred while fetching sessions:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+        },
+        [activeTab]
+    );
 
     useEffect(() => {
         fetchSessions(1, false);
@@ -218,7 +223,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             window.removeEventListener("session-title-updated", handleTitleUpdated);
             window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
         };
-    }, [fetchSessions]);
+    }, [fetchSessions, activeTab]);
 
     // Periodic refresh when there are sessions with running background tasks
     // This is necessary to detect task completion when user is on a different session
@@ -244,15 +249,28 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [inView, hasMore, isLoading, currentPage, fetchSessions]);
 
+    const handleViewSharedChat = useCallback(
+        (item: SharedWithMeItem) => {
+            // For editors with session_id, switch to the session directly
+            if (item.accessLevel === "RESOURCE_EDITOR" && item.sessionId) {
+                handleSwitchSession(item.sessionId);
+            } else {
+                // Open shared chat view in the same window but preserve session panel state via router state
+                navigate(`/shared-chat/${item.shareId}`, { state: { openSessionsPanel: true } });
+            }
+        },
+        [navigate, handleSwitchSession]
+    );
+
     useEffect(() => {
         if (editingSessionId && inputRef.current) {
             inputRef.current.focus();
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (sessionId: string) => {
-        if (editingSessionId !== sessionId) {
-            await handleSwitchSession(sessionId);
+    const handleSessionClick = async (clickedSessionId: string) => {
+        if (editingSessionId !== clickedSessionId) {
+            await handleSwitchSession(clickedSessionId);
         }
     };
 
@@ -281,6 +299,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const handleMoveClick = (session: Session) => {
         setSessionToMove(session);
         setIsMoveDialogOpen(true);
+    };
+
+    const handleShareClick = (session: Session) => {
+        setSessionToShare(session);
+        setIsShareDialogOpen(true);
     };
     const handleGoToProject = (session: Session) => {
         if (!session.projectId) return;
@@ -441,8 +464,26 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
 
-                {/* Project Filter - Only show when persistence is enabled */}
-                {persistenceEnabled && projectNames.length > 0 && (
+                {/* Tabs: Chats / Scheduled (only when scheduler is enabled) */}
+                {schedulerEnabled && (
+                    <div className="pr-4">
+                        <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                            <TabsList className="w-full bg-transparent p-0">
+                                <TabsTrigger value="chat" className="rounded-none rounded-l-md">
+                                    <MessageCircle className="h-4 w-4 shrink-0" />
+                                    Chats
+                                </TabsTrigger>
+                                <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0">
+                                    <CalendarClock className="h-4 w-4 shrink-0" />
+                                    Scheduled Tasks
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                )}
+
+                {/* Project Filter (only for chats tab) */}
+                {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
                     <div className="flex items-center gap-2 pr-4">
                         <label className="text-sm font-medium">Project:</label>
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -463,11 +504,45 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto">
+                {/* Shared with me section */}
+                {chatSharingEnabled && sharedWithMe.length > 0 && (
+                    <div className="border-b pr-4 pb-4">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wider text-(--secondary-text-wMain) uppercase">
+                            <UserSearch size={14} />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="cursor-default">Shared with me</span>
+                                </TooltipTrigger>
+                                <TooltipContent>Experimental Feature</TooltipContent>
+                            </Tooltip>
+                        </div>
+                        <ul>
+                            {sharedWithMe.map(item => {
+                                const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
+                                return (
+                                    <li key={item.shareId} className="group my-2">
+                                        <button onClick={() => handleViewSharedChat(item)} className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-left hover:bg-(--background-w20)">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate font-semibold">{item.title}</span>
+                                                    {isEditor && <span className="shrink-0 rounded bg-(--primary-w10) px-1.5 py-0.5 text-[10px] font-medium text-(--primary-wMain)">Editor</span>}
+                                                </div>
+                                                <span className="truncate text-xs text-(--darkSurface-text)">
+                                                    from {item.ownerEmail} • {formatTimestamp(new Date(item.sharedAt).toISOString())}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
                 {filteredSessions.length > 0 && (
                     <ul>
                         {filteredSessions.map(session => (
                             <li key={session.id} className="group my-2 pr-4">
-                                <div className={`flex items-center gap-2 rounded-xs px-2 py-2 ${session.id === sessionId ? "bg-(--secondary-w10)" : "hover:bg-(--primary-w10)"}`}>
+                                <div className={sessionRowStyles({ active: session.id === sessionId })}>
                                     {editingSessionId === session.id ? (
                                         <input
                                             ref={inputRef}
@@ -487,7 +562,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
+                                                        <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
@@ -514,67 +589,16 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                                 </Button>
                                             </>
                                         ) : (
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={e => e.stopPropagation()}>
-                                                        <MoreHorizontal size={16} />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-48">
-                                                    {session.projectId && (
-                                                        <>
-                                                            <DropdownMenuItem
-                                                                onClick={e => {
-                                                                    e.stopPropagation();
-                                                                    handleGoToProject(session);
-                                                                }}
-                                                            >
-                                                                <PanelsTopLeft size={16} className="mr-2" />
-                                                                Go to Project
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
-                                                        </>
-                                                    )}
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleEditClick(session);
-                                                        }}
-                                                    >
-                                                        <Pencil size={16} className="mr-2" />
-                                                        Rename
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleRenameWithAI(session);
-                                                        }}
-                                                        disabled={regeneratingTitleForSession === session.id}
-                                                    >
-                                                        <Sparkles size={16} className={`mr-2 ${regeneratingTitleForSession === session.id ? "animate-pulse" : ""}`} />
-                                                        Rename with AI
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleMoveClick(session);
-                                                        }}
-                                                    >
-                                                        <FolderInput size={16} className="mr-2" />
-                                                        Move to Project
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={e => {
-                                                            e.stopPropagation();
-                                                            handleDeleteClick(session);
-                                                        }}
-                                                    >
-                                                        <Trash2 size={16} className="mr-2" />
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
+                                            <SessionActionMenu
+                                                session={session}
+                                                onRename={handleEditClick}
+                                                onRenameWithAI={handleRenameWithAI}
+                                                onMove={handleMoveClick}
+                                                onDelete={handleDeleteClick}
+                                                onGoToProject={handleGoToProject}
+                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
+                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                            />
                                         )}
                                     </div>
                                 </div>
@@ -612,6 +636,22 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                 projects={projects}
                 currentProjectId={sessionToMove?.projectId}
             />
+
+            {sessionToShare && (
+                <ShareDialog
+                    sessionId={sessionToShare.id}
+                    sessionTitle={sessionToShare.name || "Untitled Chat"}
+                    open={isShareDialogOpen}
+                    onOpenChange={open => {
+                        setIsShareDialogOpen(open);
+                        if (!open) {
+                            setSessionToShare(null);
+                        }
+                    }}
+                    onError={error => displayError({ title: error.title, error: error.message })}
+                    onSuccess={message => addNotification(message, "success")}
+                />
+            )}
         </div>
     );
 };
