@@ -1213,6 +1213,11 @@ async def _handle_send_message_request(
                 error_response.model_dump(exclude_none=True),
                 target_topic,
             )
+        else:
+            log.warning(
+                "%s Model override error response could not be delivered (no reply topic)",
+                component.log_identifier,
+            )
         message.call_negative_acknowledgements()
         return None
 

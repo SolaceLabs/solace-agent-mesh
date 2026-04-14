@@ -12,6 +12,7 @@ from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
 
 from .dynamic_model_provider_topics import (
+    extract_model_id_from_topic,
     get_bootstrap_request_topic,
     get_bootstrap_response_topic,
     get_model_config_update_topic,
@@ -99,17 +100,9 @@ class ModelConfigReceiverComponent(ComponentBase):
 
             model_config = payload.get("model_config")
 
-            # Extract model_id from topic based on shape:
-            #   Bootstrap response: .../response/{model_id}/{component_id} → parts[-2]
-            #   Config update:      .../configuration/model/{model_id}    → parts[-1]
-            parts = topic.split("/")
-            is_bootstrap_response = len(parts) >= 3 and parts[-3] == "response"
-            if is_bootstrap_response:
-                topic_model_id = parts[-2]
-            else:
-                topic_model_id = parts[-1] if parts else None
+            topic_model_id, _ = extract_model_id_from_topic(topic)
 
-            if topic_model_id == self.model_provider._model_id:
+            if topic_model_id == self.model_provider.model_id:
                 if model_config:
                     log.info(
                         "%s Model config found, updating LiteLlm: %s",
@@ -158,16 +151,25 @@ class DynamicModelProvider:
         # Initial model configuration
         self._initialized = False
 
+        # Event loop reference, captured during initialize() for cross-thread use
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
         # One-shot alias resolution state (thread-safe)
         self._pending_resolves: Dict[str, List[asyncio.Future]] = {}
         self._resolve_lock = threading.Lock()
 
         asyncio.create_task(self.initialize())
 
+    @property
+    def model_id(self) -> str:
+        """The model identifier this provider is configured for."""
+        return self._model_id
+
     async def initialize(self):
         """
         Initialize the DynamicModelProvider by starting to listen for model config changes.
         """
+        self._loop = asyncio.get_running_loop()
         await self.listen_for_model_config_change()
 
         # Call request_model_config up to 3 times, once every 5 seconds, until initialized
@@ -450,7 +452,7 @@ class DynamicModelProvider:
         if not futures:
             return
 
-        loop = self._component._async_loop
+        loop = self._loop
         for future in futures:
             if not future.done():
                 loop.call_soon_threadsafe(future.set_result, model_config)

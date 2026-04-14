@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import contextvars
+import copy
 import hashlib
 import json
 import logging
@@ -1212,7 +1213,7 @@ class LiteLlm(BaseLlm):
         # runs before every LLM call, so we just read here — no clearing.
         override_config = get_model_override()
         if override_config:
-            override_copy = override_config.copy()
+            override_copy = copy.deepcopy(override_config)
             override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
             override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
             logger.info(

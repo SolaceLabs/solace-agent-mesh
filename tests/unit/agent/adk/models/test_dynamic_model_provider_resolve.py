@@ -16,13 +16,13 @@ def _make_provider():
     component.namespace = "test/"
     component.get_component_id.return_value = "agent_1"
     component._get_component_type.return_value = "agent"
-    component._async_loop = asyncio.get_event_loop()
 
     litellm = MagicMock()
 
     with patch.object(DynamicModelProvider, "initialize", return_value=asyncio.sleep(0)):
         provider = DynamicModelProvider(component, litellm, "default-model")
         provider._internal_app = MagicMock()
+        provider._loop = asyncio.get_running_loop()
 
     return provider, component
 
@@ -126,7 +126,7 @@ class TestReceiverRouting:
         )
 
         provider = MagicMock()
-        provider._model_id = "my-model"
+        provider.model_id = "my-model"
 
         receiver = ModelConfigReceiverComponent.__new__(ModelConfigReceiverComponent)
         receiver.model_provider = provider
@@ -151,7 +151,7 @@ class TestReceiverRouting:
         )
 
         provider = MagicMock()
-        provider._model_id = "my-model"
+        provider.model_id = "my-model"
 
         receiver = ModelConfigReceiverComponent.__new__(ModelConfigReceiverComponent)
         receiver.model_provider = provider
