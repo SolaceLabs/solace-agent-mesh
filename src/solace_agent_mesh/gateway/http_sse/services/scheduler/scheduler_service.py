@@ -127,6 +127,10 @@ class SchedulerService:
         """Start the scheduler service."""
         log.info("[SchedulerService:%s] Starting scheduler service", self.instance_id)
 
+        # Mark any executions left in RUNNING/PENDING state from a previous
+        # crash as FAILED so they don't appear stuck in the UI forever.
+        await self._recover_orphaned_executions()
+
         self.scheduler.start()
         log.info("[SchedulerService:%s] APScheduler started", self.instance_id)
 
@@ -214,6 +218,56 @@ class SchedulerService:
         except Exception as e:
             log.error(
                 "[SchedulerService:%s] Error cleaning up stale executions: %s",
+                self.instance_id, e,
+                exc_info=True,
+            )
+
+    async def _recover_orphaned_executions(self):
+        """Mark executions left in RUNNING/PENDING state as FAILED on startup.
+
+        When the backend crashes or restarts, any in-flight executions lose
+        their in-memory tracking (result_handler, completion events, etc.)
+        and can never complete normally.  This method runs once at startup
+        to mark them as failed so they don't appear stuck in the UI.
+        """
+        try:
+            with self.session_factory() as session:
+                stmt = select(ScheduledTaskExecutionModel).where(
+                    ScheduledTaskExecutionModel.status.in_([
+                        ExecutionStatus.RUNNING,
+                        ExecutionStatus.PENDING,
+                    ]),
+                )
+                orphaned = session.execute(stmt).scalars().all()
+
+                if not orphaned:
+                    log.info(
+                        "[SchedulerService:%s] No orphaned executions found on startup",
+                        self.instance_id,
+                    )
+                    return
+
+                now = now_epoch_ms()
+                for execution in orphaned:
+                    log.warning(
+                        "[SchedulerService:%s] Marking orphaned execution %s (status=%s) as FAILED",
+                        self.instance_id, execution.id, execution.status,
+                    )
+                    execution.status = ExecutionStatus.FAILED
+                    execution.completed_at = now
+                    execution.error_message = (
+                        "Execution was interrupted by a server restart"
+                    )
+
+                session.commit()
+                log.info(
+                    "[SchedulerService:%s] Recovered %d orphaned executions on startup",
+                    self.instance_id, len(orphaned),
+                )
+
+        except Exception as e:
+            log.error(
+                "[SchedulerService:%s] Failed to recover orphaned executions: %s",
                 self.instance_id, e,
                 exc_info=True,
             )
