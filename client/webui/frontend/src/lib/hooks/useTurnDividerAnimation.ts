@@ -2,6 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from "rea
 
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 
+// Shared timing constants — keep in sync with CSS transitions in ChatPage.tsx
+export const WAITING_DELAY_MS = 600;
+export const SLIDE_OUT_DURATION_MS = 400;
+export const FADE_OUT_DURATION_MS = 350;
+
 interface AnimationState {
     isHistoryRevealed: boolean;
     isExitingHistory: boolean;
@@ -124,8 +129,8 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
                             }
                             chatMessageListRef.current?.pauseAutoScroll();
                         });
-                    }, 400);
-                }, 600);
+                    }, SLIDE_OUT_DURATION_MS);
+                }, WAITING_DELAY_MS);
             }
         }
         if (!dispatched && !hasDivider && lastDividerIndexRef.current !== null) {
@@ -224,6 +229,9 @@ export function useTurnDividerAnimation({ turnDividerIndex, messagesLength, sess
         }
     }, [chatMessageListRef]);
 
+    // No dependency array: must run every render because the anchor element may not
+    // exist in the DOM until a subsequent render after needsScrollRef is set. Once
+    // needsScrollRef is consumed (set to false), the body is a no-op on future renders.
     useLayoutEffect(() => {
         if (needsScrollRef.current && isHistoryCollapsed && newTurnAnchorRef.current) {
             needsScrollRef.current = false;

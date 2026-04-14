@@ -432,10 +432,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
             const restoreInputState = () => {
                 // Only restore fields the user hasn't modified since the reset.
-                // If the user typed new content while the async operation was
-                // in-flight, overwriting it would lose their work.
-                // NOTE: We read live DOM state — `inputValue` from the outer
-                // closure is stale (captured before resetInputState cleared it).
+                // If the user typed new content or attached new files while the
+                // async operation was in-flight, overwriting would lose their work.
                 const currentInnerHTML = chatInputRef.current?.innerHTML || "";
                 const userHasTypedNew = currentInnerHTML !== "";
                 if (!userHasTypedNew) {
@@ -445,11 +443,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         chatInputRef.current.innerHTML = capturedInnerHTML;
                     }
                 }
-                setSelectedFiles(capturedSelectedFiles);
-                setPendingPastedTextItems(capturedPendingPastedTextItems);
-                setContextText(capturedContextText);
-                setContextSourceId(capturedContextSourceId);
-                setShowContextBadge(capturedShowContextBadge);
+                // Only restore non-text fields if the user hasn't added new ones
+                setSelectedFiles(current => (current.length > 0 ? current : capturedSelectedFiles));
+                setPendingPastedTextItems(current => (current.length > 0 ? current : capturedPendingPastedTextItems));
+                setContextText(current => (current !== null ? current : capturedContextText));
+                setContextSourceId(current => (current !== null ? current : capturedContextSourceId));
+                setShowContextBadge(current => (current ? current : capturedShowContextBadge));
             };
 
             // Clear input immediately for snappy UX — all needed values are captured above

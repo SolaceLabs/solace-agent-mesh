@@ -7,6 +7,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
+import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -620,7 +621,7 @@ export function ChatPage() {
                                                         style={{
                                                             marginTop: isExitingHistory && prevTurnHeight > 0 ? `-${prevTurnHeight}px` : 0,
                                                             opacity: isExitingHistory ? 0 : 1,
-                                                            transition: isExitingHistory ? "margin-top 400ms ease-out, opacity 350ms ease-in" : undefined,
+                                                            transition: isExitingHistory ? `margin-top ${SLIDE_OUT_DURATION_MS}ms ease-out, opacity ${FADE_OUT_DURATION_MS}ms ease-in` : undefined,
                                                             overflow: "hidden",
                                                         }}
                                                     >
