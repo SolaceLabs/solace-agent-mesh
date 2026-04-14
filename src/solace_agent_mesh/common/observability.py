@@ -82,3 +82,68 @@ class ToolMonitor(OperationMonitor):
             component_name=name,
             operation="execute"
         )
+
+
+class ArtifactMonitor(OperationMonitor):
+    """
+    Type-safe monitor for artifact service operation duration.
+
+    Inherits from OperationMonitor but constrains the API via named factory
+    methods to prevent metric explosion. Automatically sets type="artifact"
+    and component.name="artifact_service".
+
+    Maps to: operation.duration histogram
+    Labels: type="artifact", component.name="artifact_service",
+            operation.name=<operation>, error.type
+
+    Usage:
+        from solace_agent_mesh.common.observability import ArtifactMonitor
+        from solace_ai_connector.common.observability import MonitorLatency
+
+        with MonitorLatency(ArtifactMonitor.save()):
+            result = await service.save_artifact(...)
+    """
+
+    @classmethod
+    def _create(cls, operation: str) -> MonitorInstance:
+        """Internal factory — all public methods delegate here."""
+        return super().create(
+            component_type="artifact",
+            component_name="artifact_service",
+            operation=operation,
+        )
+
+    @classmethod
+    def save(cls) -> MonitorInstance:
+        """Create monitor instance for save_artifact operation."""
+        return cls._create("save")
+
+    @classmethod
+    def load(cls) -> MonitorInstance:
+        """Create monitor instance for load_artifact operation."""
+        return cls._create("load")
+
+    @classmethod
+    def delete(cls) -> MonitorInstance:
+        """Create monitor instance for delete_artifact operation."""
+        return cls._create("delete")
+
+    @classmethod
+    def list_keys(cls) -> MonitorInstance:
+        """Create monitor instance for list_artifact_keys operation."""
+        return cls._create("list_keys")
+
+    @classmethod
+    def list_versions(cls) -> MonitorInstance:
+        """Create monitor instance for list_versions operation."""
+        return cls._create("list_versions")
+
+    @classmethod
+    def list_artifact_versions(cls) -> MonitorInstance:
+        """Create monitor instance for list_artifact_versions operation."""
+        return cls._create("list_artifact_versions")
+
+    @classmethod
+    def get_version(cls) -> MonitorInstance:
+        """Create monitor instance for get_artifact_version operation."""
+        return cls._create("get_version")

@@ -13,6 +13,9 @@ from google.adk.artifacts import (
     InMemoryArtifactService,
 )
 from google.adk.artifacts.base_artifact_service import ArtifactVersion
+from solace_ai_connector.common.observability import MonitorLatency
+
+from ...common.observability import ArtifactMonitor
 from google.adk.auth.credential_service.base_credential_service import (
     BaseCredentialService,
 )
@@ -99,13 +102,14 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         artifact: adk_types.Part,
     ) -> int:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.save_artifact(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            artifact=artifact,
-        )
+        with MonitorLatency(ArtifactMonitor.save()):
+            return await self.wrapped_service.save_artifact(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                artifact=artifact,
+            )
 
     @override
     async def load_artifact(
@@ -118,47 +122,50 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         version: Optional[int] = None,
     ) -> Optional[adk_types.Part]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.load_artifact(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-            version=version,
-        )
+        with MonitorLatency(ArtifactMonitor.load()):
+            return await self.wrapped_service.load_artifact(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=version,
+            )
 
     @override
     async def list_artifact_keys(
         self, *, app_name: str, user_id: str, session_id: str
     ) -> List[str]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.list_artifact_keys(
-            app_name=scoped_app_name, user_id=user_id, session_id=session_id
-        )
+        with MonitorLatency(ArtifactMonitor.list_keys()):
+            return await self.wrapped_service.list_artifact_keys(
+                app_name=scoped_app_name, user_id=user_id, session_id=session_id
+            )
 
     @override
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> None:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        await self.wrapped_service.delete_artifact(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-        )
-        return
+        with MonitorLatency(ArtifactMonitor.delete()):
+            await self.wrapped_service.delete_artifact(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
 
     @override
     async def list_versions(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> List[int]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.list_versions(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=filename,
-        )
+        with MonitorLatency(ArtifactMonitor.list_versions()):
+            return await self.wrapped_service.list_versions(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+            )
 
     @override
     async def list_artifact_versions(
@@ -170,12 +177,13 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         session_id: str,
     ) -> List[ArtifactVersion]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.list_artifact_versions(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            filename=filename,
-            session_id=session_id,
-        )
+        with MonitorLatency(ArtifactMonitor.list_artifact_versions()):
+            return await self.wrapped_service.list_artifact_versions(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                filename=filename,
+                session_id=session_id,
+            )
 
     @override
     async def get_artifact_version(
@@ -188,13 +196,14 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         version: Optional[int] = None,
     ) -> Optional[ArtifactVersion]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        return await self.wrapped_service.get_artifact_version(
-            app_name=scoped_app_name,
-            user_id=user_id,
-            filename=filename,
-            session_id=session_id,
-            version=version,
-        )
+        with MonitorLatency(ArtifactMonitor.get_version()):
+            return await self.wrapped_service.get_artifact_version(
+                app_name=scoped_app_name,
+                user_id=user_id,
+                filename=filename,
+                session_id=session_id,
+                version=version,
+            )
 
 
 def _sanitize_for_path(identifier: str) -> str:
