@@ -25,7 +25,7 @@ from a2a.types import (
 )
 
 from .. import a2a
-from ..utils.mime_helpers import resolve_mime_type
+from ..utils.mime_helpers import resolve_mime_type, is_image_artifact
 from ...agent.utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
@@ -37,6 +37,73 @@ if TYPE_CHECKING:
 
 A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
+
+
+async def _try_inline_vision_part(
+    load_artifact_content_or_metadata,
+    artifact_service: "BaseArtifactService",
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    version: int,
+    mime_type: str,
+    content_bytes: Optional[bytes],
+    log_id: str,
+) -> Optional[adk_types.Part]:
+    """Attempt to build an inline-vision Part for an image artifact.
+
+    Returns an ``adk_types.Part`` with ``inline_data`` on success, or ``None``
+    if the image bytes could not be obtained (callers should fall back to a
+    text metadata summary).
+    """
+    if content_bytes is None:
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=get_original_session_id(session_id),
+            filename=filename,
+            version=version,
+            load_metadata_only=False,
+            return_raw_bytes=True,
+        )
+        if load_result["status"] == "success":
+            raw_bytes = load_result.get("raw_bytes")
+            if raw_bytes:
+                content_bytes = raw_bytes
+            else:
+                log.warning(
+                    "%s Could not extract image bytes from artifact '%s'. "
+                    "Falling back to text metadata.",
+                    log_id,
+                    filename,
+                )
+        else:
+            log.warning(
+                "%s Failed to load image artifact '%s': %s. "
+                "Falling back to text metadata.",
+                log_id,
+                filename,
+                load_result.get("message", "unknown error"),
+            )
+
+    if content_bytes:
+        log.info(
+            "%s Inline vision: passing image '%s' (%d bytes, %s) directly to LLM.",
+            log_id,
+            filename,
+            len(content_bytes),
+            mime_type,
+        )
+        return adk_types.Part(
+            inline_data=adk_types.Blob(
+                mime_type=mime_type,
+                data=content_bytes,
+            )
+        )
+
+    return None
 
 
 async def _prepare_a2a_filepart_for_adk(
@@ -63,7 +130,7 @@ async def _prepare_a2a_filepart_for_adk(
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
-    enable_inline_vision = getattr(component, "enable_inline_vision", False)
+    enable_inline_vision = component.enable_inline_vision
 
     if not artifact_service:
         log.error(
@@ -130,53 +197,21 @@ async def _prepare_a2a_filepart_for_adk(
 
         # Inline vision: for image files, pass the image bytes directly to the LLM
         # so vision-capable models can reason about the image natively.
-        if enable_inline_vision and mime_type and mime_type.startswith("image/"):
-            if content_bytes is None:
-                # Load actual content from artifact store (for FileWithUri case)
-                load_result = await load_artifact_content_or_metadata(
-                    artifact_service=artifact_service,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=get_original_session_id(session_id),
-                    filename=filename,
-                    version=version,
-                    load_metadata_only=False,
-                    return_raw_bytes=True,
-                )
-                if load_result["status"] == "success":
-                    raw_bytes = load_result.get("raw_bytes")
-                    if raw_bytes:
-                        content_bytes = raw_bytes
-                    else:
-                        log.warning(
-                            "%s Could not extract image bytes from artifact '%s'. "
-                            "Falling back to text metadata.",
-                            log_id,
-                            filename,
-                        )
-                else:
-                    log.warning(
-                        "%s Failed to load image artifact '%s': %s. "
-                        "Falling back to text metadata.",
-                        log_id,
-                        filename,
-                        load_result.get("message", "unknown error"),
-                    )
-
-            if content_bytes:
-                log.info(
-                    "%s Inline vision: passing image '%s' (%d bytes, %s) directly to LLM.",
-                    log_id,
-                    filename,
-                    len(content_bytes),
-                    mime_type,
-                )
-                return adk_types.Part(
-                    inline_data=adk_types.Blob(
-                        mime_type=mime_type,
-                        data=content_bytes,
-                    )
-                )
+        if enable_inline_vision and is_image_artifact(filename, mime_type):
+            vision_part = await _try_inline_vision_part(
+                load_artifact_content_or_metadata=load_artifact_content_or_metadata,
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=version,
+                mime_type=mime_type,
+                content_bytes=content_bytes,
+                log_id=log_id,
+            )
+            if vision_part is not None:
+                return vision_part
 
         # Default: fetch metadata only and return text summary
         load_result = await load_artifact_content_or_metadata(

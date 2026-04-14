@@ -34,6 +34,7 @@ from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wr
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
 from ...common.error_handlers import get_error_message
+from ...common.utils.mime_helpers import is_image_artifact
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -952,19 +953,17 @@ async def _prepare_adk_content_with_artifacts(
     )
 
     if invoked_artifacts:
-        enable_inline_vision = getattr(component, "enable_inline_vision", False)
+        enable_inline_vision = component.enable_inline_vision
 
         # When inline vision is enabled, image artifacts will be passed directly
         # as inline_data to the LLM (handled in _prepare_a2a_filepart_for_adk).
         # Filter them out from the metadata summary to avoid redundancy.
         artifacts_for_summary = invoked_artifacts
         if enable_inline_vision:
-            _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
             artifacts_for_summary = [
                 a for a in invoked_artifacts
-                if not any(
-                    a.get("filename", "").lower().endswith(ext)
-                    for ext in _IMAGE_EXTENSIONS
+                if not is_image_artifact(
+                    a.get("filename"), a.get("mime_type")
                 )
             ]
             skipped_count = len(invoked_artifacts) - len(artifacts_for_summary)
@@ -1003,6 +1002,11 @@ async def _prepare_adk_content_with_artifacts(
                 message=a2a_message_for_adk,
                 new_parts=[a2a.create_text_part(text=final_prompt)],
             )
+            log.debug(
+                "%s Generated new prompt for task %s with artifact context.",
+                component.log_identifier,
+                logical_task_id,
+            )
         elif invoked_artifacts:
             log.info(
                 "%s Task %s: all %d artifact(s) are images handled by inline vision.",
@@ -1010,11 +1014,6 @@ async def _prepare_adk_content_with_artifacts(
                 logical_task_id,
                 len(invoked_artifacts),
             )
-        log.debug(
-            "%s Generated new prompt for task %s with artifact context.",
-            component.log_identifier,
-            logical_task_id,
-        )
 
     adk_content = await translate_a2a_to_adk_content(
         a2a_message=a2a_message_for_adk,

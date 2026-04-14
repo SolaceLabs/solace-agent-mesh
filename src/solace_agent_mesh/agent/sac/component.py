@@ -127,6 +127,7 @@ class SamAgentComponent(SamComponentBase):
     CORRELATION_DATA_PREFIX = CORRELATION_DATA_PREFIX
     HOST_COMPONENT_VERSION = "1.0.0-alpha"
     HEALTH_CHECK_TIMER_ID = "agent_health_check"
+    enable_inline_vision = False
 
     def __init__(self, **kwargs):
         """
