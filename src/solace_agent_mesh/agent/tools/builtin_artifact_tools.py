@@ -39,7 +39,7 @@ from ...agent.utils.context_helpers import get_original_session_id
 from ...agent.adk.models.lite_llm import LiteLlm
 from google.adk.models import LlmRequest
 from google.adk.models.registry import LLMRegistry
-from ...common.utils.mime_helpers import is_text_based_file
+from ...common.utils.mime_helpers import is_text_based_file, is_image_artifact
 
 log = logging.getLogger(__name__)
 
@@ -419,6 +419,50 @@ async def load_artifact(
         session_id = get_original_session_id(tool_context._invocation_context)
         agent = getattr(tool_context._invocation_context, "agent", None)
         host_component = getattr(agent, "host_component", None) if agent else None
+
+        # Check if inline vision is enabled and this is an image artifact
+        enable_inline_vision = getattr(host_component, "enable_inline_vision", False) if host_component else False
+        is_image = is_image_artifact(filename, None)
+
+        if enable_inline_vision and is_image and not load_metadata_only:
+            # Load raw bytes for image artifacts so the LLM can see them
+            result = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                version=version,
+                load_metadata_only=False,
+                return_raw_bytes=True,
+                log_identifier_prefix="[BuiltinArtifactTool:load_artifact:vision]",
+            )
+            status = result.pop("status", "success")
+            if status in ("error", "not_found"):
+                message = result.pop("message", "Unknown error")
+                return ToolResult.error(message, data=result)
+
+            raw_bytes = result.get("raw_bytes")
+            mime_type = result.get("mime_type", "image/png")
+            if raw_bytes:
+                import base64 as b64
+                b64_data = b64.b64encode(raw_bytes).decode("utf-8")
+                data_url = f"data:{mime_type};base64,{b64_data}"
+                log.info(
+                    "%s Inline vision: returning image '%s' (%d bytes) as data URL for LLM viewing.",
+                    log_identifier, filename, len(raw_bytes),
+                )
+                return ToolResult.ok(
+                    f"Image '{filename}' loaded for viewing. The image is included inline below.",
+                    data={
+                        "filename": result.get("filename", filename),
+                        "version": result.get("version", version),
+                        "mime_type": mime_type,
+                        "size_bytes": len(raw_bytes),
+                        "_vision_image_data_url": data_url,
+                    }
+                )
+
         result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
@@ -1706,7 +1750,7 @@ list_artifacts_tool_def = BuiltinTool(
 load_artifact_tool_def = BuiltinTool(
     name="load_artifact",
     implementation=load_artifact,
-    description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types. Line numbers can be optionally included for precise line range identification.",
+    description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types. For image artifacts (PNG, JPG, etc.) on vision-enabled agents, the image is returned inline so you can see and analyze it directly. Use this to view images created by tools or uploaded by users. Line numbers can be optionally included for precise line range identification.",
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,

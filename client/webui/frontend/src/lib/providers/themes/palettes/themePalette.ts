@@ -172,12 +172,13 @@ export type ThemePalette = {
         brandMain: string;
         brandAccent: string;
         border: string;
+        buttonText: string;
+        buttonTextHover: string;
     };
 
-    temporary: {
-        primary: {
-            wMain: string;
-        };
+    lightSurface: {
+        bg: string;
+        bgActive: string;
     };
 };
 

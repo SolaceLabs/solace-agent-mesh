@@ -5,6 +5,7 @@ from typing import List, Optional
 import uuid
 
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from .models import ProjectUserModel
 from .entities.project_user import ProjectUser
@@ -36,47 +37,53 @@ class ProjectUserRepository:
         Returns:
             ProjectUser: The created project user access record
         """
-        model = ProjectUserModel(
-            id=str(uuid.uuid4()),
-            project_id=project_id,
-            user_id=user_id,
-            role=role,
-            added_at=now_epoch_ms(),
-            added_by_user_id=added_by_user_id,
-        )
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
+        with MonitorLatency(DBMonitor.insert("project_users")):
+            model = ProjectUserModel(
+                id=str(uuid.uuid4()),
+                project_id=project_id,
+                user_id=user_id,
+                role=role,
+                added_at=now_epoch_ms(),
+                added_by_user_id=added_by_user_id,
+            )
+            self.db.add(model)
+            self.db.commit()
+            self.db.refresh(model)
+
         return self._model_to_entity(model)
 
+    @MonitorLatency(DBMonitor.query("project_users"))
     def get_project_users(self, project_id: str) -> List[ProjectUser]:
         """
         Get all users who have access to a project.
-        
+
         Args:
             project_id: The project ID
-            
+
         Returns:
             List[ProjectUser]: List of users with access to the project
         """
         models = self.db.query(ProjectUserModel).filter(
             ProjectUserModel.project_id == project_id
         ).all()
+
         return [self._model_to_entity(model) for model in models]
 
+    @MonitorLatency(DBMonitor.query("project_users"))
     def get_user_projects_access(self, user_id: str) -> List[ProjectUser]:
         """
         Get all projects a user has access to.
-        
+
         Args:
             user_id: The user ID
-            
+
         Returns:
             List[ProjectUser]: List of project access records for the user
         """
         models = self.db.query(ProjectUserModel).filter(
             ProjectUserModel.user_id == user_id
         ).all()
+
         return [self._model_to_entity(model) for model in models]
 
     def get_user_project_access(
@@ -94,11 +101,12 @@ class ProjectUserRepository:
         Returns:
             Optional[ProjectUser]: The access record if found, None otherwise
         """
-        model = self.db.query(ProjectUserModel).filter(
-            ProjectUserModel.project_id == project_id,
-            ProjectUserModel.user_id == user_id
-        ).first()
-        
+        with MonitorLatency(DBMonitor.query("project_users")):
+            model = self.db.query(ProjectUserModel).filter(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id
+            ).first()
+
         return self._model_to_entity(model) if model else None
 
     def update_user_role(
@@ -118,17 +126,19 @@ class ProjectUserRepository:
         Returns:
             Optional[ProjectUser]: The updated access record if found, None otherwise
         """
-        model = self.db.query(ProjectUserModel).filter(
-            ProjectUserModel.project_id == project_id,
-            ProjectUserModel.user_id == user_id
-        ).first()
-        
-        if not model:
-            return None
-        
-        model.role = new_role
-        self.db.commit()
-        self.db.refresh(model)
+        with MonitorLatency(DBMonitor.update("project_users")):
+            model = self.db.query(ProjectUserModel).filter(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id
+            ).first()
+
+            if not model:
+                return None
+
+            model.role = new_role
+            self.db.commit()
+            self.db.refresh(model)
+
         return self._model_to_entity(model)
 
     def remove_user_from_project(
@@ -146,13 +156,16 @@ class ProjectUserRepository:
         Returns:
             bool: True if removed successfully, False otherwise
         """
-        result = self.db.query(ProjectUserModel).filter(
-            ProjectUserModel.project_id == project_id,
-            ProjectUserModel.user_id == user_id
-        ).delete()
-        self.db.commit()
+        with MonitorLatency(DBMonitor.delete("project_users")):
+            result = self.db.query(ProjectUserModel).filter(
+                ProjectUserModel.project_id == project_id,
+                ProjectUserModel.user_id == user_id
+            ).delete()
+            self.db.commit()
+
         return result > 0
 
+    @MonitorLatency(DBMonitor.query("project_users"))
     def user_has_access(
         self,
         project_id: str,
@@ -160,11 +173,11 @@ class ProjectUserRepository:
     ) -> bool:
         """
         Check if a user has access to a project.
-        
+
         Args:
             project_id: The project ID
             user_id: The user ID
-            
+
         Returns:
             bool: True if user has access, False otherwise
         """
@@ -172,6 +185,7 @@ class ProjectUserRepository:
             ProjectUserModel.project_id == project_id,
             ProjectUserModel.user_id == user_id
         ).count()
+
         return count > 0
 
     def _model_to_entity(self, model: ProjectUserModel) -> ProjectUser:

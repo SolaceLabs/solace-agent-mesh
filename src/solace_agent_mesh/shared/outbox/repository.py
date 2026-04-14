@@ -71,7 +71,7 @@ class OutboxEventRepository:
     def has_pending_event(
         self, session: Session, entity_type: str, entity_id: str, event_type: str
     ) -> bool:
-        return (
+        result = (
             session.query(OutboxEventModel)
             .filter(
                 OutboxEventModel.entity_type == entity_type,
@@ -80,8 +80,8 @@ class OutboxEventRepository:
                 OutboxEventModel.status == "pending",
             )
             .first()
-            is not None
         )
+        return result is not None
 
     def update_event(self, session: Session, event_id: str, data: UpdateOutboxEventModel) -> OutboxEventEntity:
         with MonitorLatency(DBMonitor.query("outbox_events")):
@@ -192,7 +192,6 @@ class OutboxEventRepository:
             older.error_message = "Deduplicated by newer event"
         with MonitorLatency(DBMonitor.update("outbox_events")):
             session.flush()
-
         return True
 
     @MonitorLatency(DBMonitor.delete("outbox_events"))
