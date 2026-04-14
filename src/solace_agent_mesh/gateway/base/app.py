@@ -129,6 +129,18 @@ BASE_GATEWAY_APP_SCHEMA: Dict[str, List[Dict[str, Any]]] = {
             "default": constants.DEFAULT_MAX_BATCH_UPLOAD_SIZE_BYTES,
             "description": "Maximum total size in bytes for all files in a single batch upload request.",
         },
+        # --- Task Timeout Configuration ---
+        {
+            "name": "task_timeout_seconds",
+            "required": False,
+            "type": "integer",
+            "default": constants.DEFAULT_TASK_TIMEOUT_SECONDS,
+            "description": (
+                "Maximum time in seconds to wait for agent activity before canceling a task. "
+                "The timer resets on each streaming update, so only truly idle tasks are canceled. "
+                "Set to 0 to disable the timeout."
+            ),
+        },
         # --- Default User Identity Configuration ---
         {
             "name": "default_user_identity",

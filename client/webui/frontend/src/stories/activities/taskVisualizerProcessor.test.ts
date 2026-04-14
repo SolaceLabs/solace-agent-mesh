@@ -2,14 +2,7 @@ import { describe, test, expect } from "vitest";
 
 import { processTaskForVisualization } from "@/lib/components/activities/taskVisualizerProcessor";
 import type { TaskFE } from "@/lib/types";
-import {
-    makeEvent,
-    makeTask,
-    makeRequestEvent,
-    makeCompletedResponseEvent,
-    makeFailedResponseEvent,
-    makeStatusUpdateEvent,
-} from "../data/a2aEventSSEPayloadFactories";
+import { makeEvent, makeTask, makeRequestEvent, makeCompletedResponseEvent, makeFailedResponseEvent, makeStatusUpdateEvent } from "../data/a2aEventSSEPayloadFactories";
 
 describe("processTaskForVisualization", () => {
     // -- Null / empty input handling --

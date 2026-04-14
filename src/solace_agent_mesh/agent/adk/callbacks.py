@@ -2309,6 +2309,29 @@ def log_streaming_chunk_callback(
     return None
 
 
+def _sanitize_bytes_in_dict_inplace(obj):
+    """Recursively replace bytes values **in place** in a dict/list with a placeholder string.
+
+    Mutates *obj* directly — callers should not rely on a return value.
+
+    This is needed because LLM request dumps may contain inline_data with raw
+    bytes (e.g., from inline vision images) which cannot be JSON-serialized
+    for publishing over the Solace broker.
+    """
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(value, (bytes, bytearray)):
+                obj[key] = f"<binary data: {len(value)} bytes>"
+            elif isinstance(value, (dict, list)):
+                _sanitize_bytes_in_dict_inplace(value)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, (bytes, bytearray)):
+                obj[i] = f"<binary data: {len(item)} bytes>"
+            elif isinstance(item, (dict, list)):
+                _sanitize_bytes_in_dict_inplace(item)
+
+
 def solace_llm_invocation_callback(
     callback_context: CallbackContext,
     llm_request: LlmRequest,
@@ -2353,7 +2376,11 @@ def solace_llm_invocation_callback(
             model_name = model_name.get("model", "unknown")
         callback_context.state["model_name"] = model_name
 
-        llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
+        request_dump = llm_request.model_dump(exclude_none=True)
+        # Sanitize binary data (e.g., inline_data from images) to make it JSON-serializable.
+        # The raw bytes cannot be sent over the Solace broker in status events.
+        _sanitize_bytes_in_dict_inplace(request_dump)
+        llm_data = LlmInvocationData(request=request_dump)
         status_update_event = a2a.create_data_signal_event(
             task_id=logical_task_id,
             context_id=context_id,

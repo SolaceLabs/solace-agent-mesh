@@ -412,6 +412,7 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 user_identity=user_identity,
                 is_streaming=sam_task.is_streaming,
             )
+            self._start_task_timeout(task_id)
             return task_id
 
         except Exception as e:
@@ -930,6 +931,58 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
         # Also signal task completion, as an error is a final state
         await self.adapter.handle_task_complete(response_context)
 
+    async def _handle_task_timeout(self, task_id: str) -> None:
+        """Handle a timed-out task by notifying the adapter and cleaning up."""
+        context = self.task_context_manager.get_context(task_id)
+        if not context:
+            return
+
+        log.warning(
+            "%s Task %s timed out after %d seconds of inactivity",
+            self.log_identifier,
+            task_id,
+            self.task_timeout_seconds,
+        )
+
+        # Inject task_id so _create_response_context can build a proper ResponseContext
+        context["a2a_task_id_for_event"] = task_id
+
+        timeout_error = JSONRPCError(
+            code=-32001,
+            message=f"Task timed out after {self.task_timeout_seconds} seconds of inactivity",
+            data={"taskStatus": "timeout"},
+        )
+        try:
+            await self._send_error_to_external(context, timeout_error)
+        except Exception:
+            log.warning(
+                "%s Failed to send timeout error to adapter for task %s",
+                self.log_identifier,
+                task_id,
+            )
+
+        # Cancel the A2A task so the agent knows to stop
+        try:
+            await self.cancel_task(task_id)
+        except Exception:
+            log.warning(
+                "%s Failed to cancel timed-out task %s",
+                self.log_identifier,
+                task_id,
+            )
+
+        # Clean up context — always remove even if close fails
+        try:
+            await self._close_external_connections(context)
+        except Exception:
+            log.warning(
+                "%s Failed to close external connections for timed-out task %s",
+                self.log_identifier,
+                task_id,
+            )
+        self.task_context_manager.remove_context(task_id)
+        self.task_context_manager.remove_context(f"{task_id}_stream_buffer")
+
     # --- Unused BaseGatewayComponent Abstract Methods ---
     # These are part of the old gateway pattern and are replaced by the adapter flow.
 
@@ -1035,6 +1088,8 @@ class GenericGatewayComponent(BaseGatewayComponent, GatewayContext):
                 category = "FAILED"
             elif task_status == TaskState.canceled:
                 category = "CANCELED"
+            elif task_status == "timeout":
+                category = "TIMED_OUT"
 
         return SamError(
             message=error.message,
