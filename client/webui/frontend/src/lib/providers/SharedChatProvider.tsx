@@ -192,13 +192,6 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             latestStatusText,
             isLoadingSession: false,
 
-            // Agents - Empty for shared sessions
-            agents: [],
-            agentsError: null,
-            agentsLoading: false,
-            agentsRefetch: async () => {},
-            agentNameDisplayNameMap: {},
-
             // Artifacts
             artifacts,
             allArtifacts: artifacts,

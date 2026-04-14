@@ -1,31 +1,18 @@
 import { ChatContext, type ChatContextValue } from "@/lib/contexts/ChatContext";
 import React, { useState } from "react";
 import { mockAgentCards } from "./data";
-import { transformAgentCard } from "@/lib/hooks/useAgentCards";
+import { transformAgentCard } from "@/lib/api/agent-cards";
 
 type DefaultMockContextType = Omit<ChatContextValue, "setIsSidePanelCollapsed">;
 
 // Transform AgentCard to AgentCardInfo using the exported utility
 const transformedMockAgents = mockAgentCards.map(transformAgentCard);
 
-// Generate agentNameDisplayNameMap from transformed agents
-const agentNameDisplayNameMap = transformedMockAgents.reduce(
-    (acc, agent) => {
-        if (agent.name) {
-            acc[agent.name] = agent.displayName || agent.name;
-        }
-        return acc;
-    },
-    {} as Record<string, string>
-);
-
 // Minimal default mock values - stories can override as needed
 const defaultMockChatContext: DefaultMockContextType = {
     // Core state
     sessionId: "",
     messages: [],
-    agents: transformedMockAgents,
-    agentNameDisplayNameMap,
     selectedAgentName: transformedMockAgents[0]?.name || "",
 
     // Collaborative session state
@@ -37,7 +24,6 @@ const defaultMockChatContext: DefaultMockContextType = {
 
     // Loading states
     isResponding: false,
-    agentsLoading: false,
     artifactsLoading: false,
     isLoadingSession: false,
     isCancelling: false,
@@ -51,7 +37,6 @@ const defaultMockChatContext: DefaultMockContextType = {
 
     // Nullable state
     currentTaskId: null,
-    agentsError: null,
     ragData: [],
     ragEnabled: true,
     expandedDocumentFilename: null,
@@ -112,7 +97,6 @@ const defaultMockChatContext: DefaultMockContextType = {
     handleFeedbackSubmit: async () => {},
     markArtifactAsDisplayed: () => {},
     downloadAndResolveArtifact: async () => null,
-    agentsRefetch: async () => {},
     artifactsRefetch: async () => {},
     setArtifacts: () => {},
     displayError: () => {},

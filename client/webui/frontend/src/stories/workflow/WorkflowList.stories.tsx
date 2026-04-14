@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { http, HttpResponse } from "msw";
 import { WorkflowList } from "@/lib/components/workflows/WorkflowList";
 import { mockWorkflows } from "../data/workflows";
 
@@ -12,6 +13,9 @@ const meta = {
             description: {
                 component: "List component for displaying and managing workflows with search, filtering, and detail panel.",
             },
+        },
+        msw: {
+            handlers: [http.get("*/api/v1/agentCards", () => HttpResponse.json(mockWorkflows))],
         },
     },
     decorators: [
@@ -27,9 +31,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-    args: {
-        workflows: mockWorkflows,
-    },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
@@ -48,8 +49,10 @@ export const Default: Story = {
 };
 
 export const EmptyList: Story = {
-    args: {
-        workflows: [],
+    parameters: {
+        msw: {
+            handlers: [http.get("*/api/v1/agentCards", () => HttpResponse.json([]))],
+        },
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);

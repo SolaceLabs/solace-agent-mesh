@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+/**
+ * API functions and transforms for agent card discovery.
+ */
+
 import { api } from "@/lib/api";
 
 import type { AgentCard, AgentExtension, AgentCardInfo, AgentSkill } from "@/lib/types";
@@ -52,57 +55,9 @@ export const transformAgentCard = (card: AgentCard): AgentCardInfo => {
     };
 };
 
-interface useAgentCardsReturn {
-    agents: AgentCardInfo[];
-    agentNameMap: Record<string, string>;
-    isLoading: boolean;
-    error: string | null;
-    refetch: () => Promise<void>;
+/**
+ * Fetch all discovered agent cards from the gateway.
+ */
+export async function fetchAgentCards(): Promise<AgentCard[]> {
+    return api.webui.get("/api/v1/agentCards");
 }
-
-export const useAgentCards = (): useAgentCardsReturn => {
-    const [agents, setAgents] = useState<AgentCardInfo[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchAgents = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data: AgentCard[] = await api.webui.get("/api/v1/agentCards");
-            const transformedAgents = data.map(transformAgentCard);
-            setAgents(transformedAgents);
-        } catch (err: unknown) {
-            console.error("Error fetching agents:", err);
-            setError(err instanceof Error ? err.message : "Could not load agent information.");
-            setAgents([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchAgents();
-    }, [fetchAgents]);
-
-    const agentNameMap = useMemo(() => {
-        const nameDisplayNameMap: Record<string, string> = {};
-        agents.forEach(agent => {
-            if (agent.name) {
-                nameDisplayNameMap[agent.name] = agent.displayName || agent.name;
-            }
-        });
-        return nameDisplayNameMap;
-    }, [agents]);
-
-    return useMemo(
-        () => ({
-            agents,
-            agentNameMap,
-            isLoading,
-            error,
-            refetch: fetchAgents,
-        }),
-        [agents, agentNameMap, isLoading, error, fetchAgents]
-    );
-};

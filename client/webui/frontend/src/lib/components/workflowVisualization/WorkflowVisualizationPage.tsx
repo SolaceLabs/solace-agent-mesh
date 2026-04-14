@@ -4,7 +4,7 @@ import { Workflow } from "lucide-react";
 
 import { Button, EmptyState } from "@/lib/components";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
-import { useChatContext } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
 import type { LayoutNode } from "./utils/types";
 import { extractNodeIdsFromConfig } from "./utils/expressionParser";
@@ -40,7 +40,7 @@ export function WorkflowVisualizationPage() {
     const { workflowName } = useParams<{ workflowName: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { agents, agentsLoading, agentsError } = useChatContext();
+    const { agents, isLoading: agentsLoading, error: agentsError } = useAgentCards();
 
     // Parse parent workflow path from URL search params
     // Format: ?from=parent1,parent2,... (closest parent first)

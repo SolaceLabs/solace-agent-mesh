@@ -6,7 +6,8 @@ import { MessageBanner } from "@/lib/components/common";
 import { TaskBuilderChat } from "./TaskBuilderChat";
 import { TaskPreviewPanel } from "./TaskPreviewPanel";
 import { ScheduleBuilder } from "./ScheduleBuilder";
-import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
+import { useNavigationBlocker } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { useCreateScheduledTask, useUpdateScheduledTask } from "@/lib/api/scheduled-tasks";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
 

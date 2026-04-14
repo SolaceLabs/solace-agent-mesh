@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
@@ -6,15 +5,14 @@ import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { WorkflowList } from "@/lib/components/workflows";
 import { ModelsView } from "@/lib/components/models";
-import { useChatContext } from "@/lib/hooks";
-import { isWorkflowAgent } from "@/lib/utils/agentUtils";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { RefreshCcw, Plus } from "lucide-react";
 
 type AgentMeshTab = "agents" | "workflows" | "models";
 
 export function AgentMeshPage() {
     const navigate = useNavigate();
-    const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
+    const { isLoading: agentsLoading, error: agentsError, refetch: agentsRefetch } = useAgentCards();
     const [searchParams, setSearchParams] = useSearchParams();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
 
@@ -30,12 +28,6 @@ export function AgentMeshPage() {
         }
         setSearchParams(searchParams);
     };
-
-    const { regularAgents, workflowAgents } = useMemo(() => {
-        const regular = agents.filter(agent => !isWorkflowAgent(agent));
-        const workflows = agents.filter(agent => isWorkflowAgent(agent));
-        return { regularAgents: regular, workflowAgents: workflows };
-    }, [agents]);
 
     const tabs = [
         {
@@ -90,8 +82,8 @@ export function AgentMeshPage() {
                 <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
             ) : (
                 <div className="relative min-h-0 flex-1 overflow-hidden">
-                    {activeTab === "agents" && <AgentMeshCards agents={regularAgents} />}
-                    {activeTab === "workflows" && <WorkflowList workflows={workflowAgents} />}
+                    {activeTab === "agents" && <AgentMeshCards />}
+                    {activeTab === "workflows" && <WorkflowList />}
                     {activeTab === "models" && <ModelsView />}
                 </div>
             )}

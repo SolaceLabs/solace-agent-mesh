@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+import type { ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -26,12 +26,6 @@ export interface ChatState {
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
     isLoadingSession: boolean;
-    // Agents
-    agents: AgentCardInfo[];
-    agentsError: string | null;
-    agentsLoading: boolean;
-    agentsRefetch: () => Promise<void>;
-    agentNameDisplayNameMap: Record<string, string>;
     // Chat Side Panel State
     artifacts: ArtifactInfo[];
     allArtifacts: ArtifactInfo[];

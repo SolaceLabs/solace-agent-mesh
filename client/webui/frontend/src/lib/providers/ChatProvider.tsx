@@ -5,7 +5,8 @@ import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import { useConfigContext, useArtifacts, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
@@ -52,7 +53,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
-    const { agents, agentNameMap: agentNameDisplayNameMap, error: agentsError, isLoading: agentsLoading, refetch: agentsRefetch } = useAgentCards();
+    const { agents } = useAgentCards();
     const { autoTitleGenerationEnabled, autoGenerateTitle, autoGenerateTitleForTask } = useAutoGenerateTitle();
 
     // ============ State ============
@@ -1960,11 +1961,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isCancelling,
         latestStatusText,
         isLoadingSession,
-        agents,
-        agentsLoading,
-        agentsError,
-        agentsRefetch,
-        agentNameDisplayNameMap,
         handleNewSession,
         handleSwitchSession,
         handleSubmit,

@@ -5,6 +5,7 @@ import type { Preview } from "@storybook/react-vite";
 import { withProviders } from "../src/stories/decorators/withProviders";
 import { withTheme } from "../src/stories/decorators/withTheme";
 import { initialize, mswLoader } from "msw-storybook-addon";
+import { globalHandlers } from "../src/stories/mocks/handlers";
 
 initialize({
     onUnhandledRequest: "bypass",
@@ -17,6 +18,8 @@ const preview: Preview = {
     loaders: [mswLoader],
 
     parameters: {
+        msw: { handlers: globalHandlers },
+
         actions: { argTypesRegex: "^on[A-Z].*" },
 
         controls: {

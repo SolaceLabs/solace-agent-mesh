@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { WorkflowIllustration } from "@/lib/assets";
+import { useAgentCards } from "@/lib/api/agent-cards";
+import { isWorkflowAgent } from "@/lib/utils/agentUtils";
 import type { AgentCardInfo } from "@/lib/types";
 import { EmptyState, OnboardingBanner, OnboardingView } from "@/lib/components/common";
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/lib/components/ui";
@@ -17,11 +19,12 @@ const WORKFLOW_DESCRIPTION =
 const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
 
 interface WorkflowListProps {
-    workflows: AgentCardInfo[];
     className?: string;
 }
 
-export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
+export const WorkflowList = ({ className }: WorkflowListProps) => {
+    const { agents } = useAgentCards();
+    const workflows = useMemo(() => agents.filter(agent => isWorkflowAgent(agent)), [agents]);
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);

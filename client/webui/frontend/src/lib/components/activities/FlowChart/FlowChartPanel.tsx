@@ -3,7 +3,8 @@ import { Scan } from "lucide-react";
 
 import type { VisualizerStep } from "@/lib/types";
 import { Dialog, DialogContent, DialogFooter, VisuallyHidden, DialogTitle, DialogDescription, Button, Tooltip, TooltipTrigger, TooltipContent, Switch } from "@/lib/components/ui";
-import { useChatContext, useTaskContext } from "@/lib/hooks";
+import { useTaskContext } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import WorkflowRenderer from "./WorkflowRenderer";
 import type { LayoutNode, Edge } from "./utils/types";
 import { findNodeDetails, type NodeDetails } from "./utils/nodeDetailsHelper";
@@ -23,7 +24,7 @@ interface FlowChartPanelProps {
 
 const FlowChartPanel = ({ processedSteps, isRightPanelVisible = false }: FlowChartPanelProps) => {
     const { highlightedStepId, setHighlightedStepId } = useTaskContext();
-    const { agentNameDisplayNameMap, agentsRefetch } = useChatContext();
+    const { agentNameMap: agentNameDisplayNameMap, refetch: agentsRefetch } = useAgentCards();
 
     // Callback for when agent name resolution fails
     const handleUnknownAgent = useCallback(
