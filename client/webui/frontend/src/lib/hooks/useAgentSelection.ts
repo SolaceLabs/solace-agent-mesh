@@ -1,8 +1,10 @@
 import { useCallback } from "react";
 import { useChatContext } from "./useChatContext";
+import { useAgentCards } from "@/lib/api/agent-cards";
 
 export const useAgentSelection = () => {
-    const { agents, sessionId, setMessages, setSelectedAgentName, handleNewSession } = useChatContext();
+    const { sessionId, setMessages, setSelectedAgentName, handleNewSession } = useChatContext();
+    const { agents } = useAgentCards();
 
     const handleAgentSelection = useCallback(
         (agentName: string, startNewChat = false) => {

@@ -31,6 +31,7 @@ export const useAgentCards = (): UseAgentCardsReturn => {
             return data.map(transformAgentCard);
         },
         retry: 0,
+        staleTime: 30_000,
     });
 
     const error = queryError ? (queryError instanceof Error ? queryError.message : "Could not load agent information.") : null;

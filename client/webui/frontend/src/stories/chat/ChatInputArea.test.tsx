@@ -8,7 +8,7 @@ import { MemoryRouter } from "react-router-dom";
 import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
 import { StoryProvider } from "../mocks/StoryProvider";
 import { mockAgentCards } from "../mocks/data";
-import { transformAgentCard } from "@/lib/hooks/useAgentCards";
+import { transformAgentCard } from "@/lib/api/agent-cards";
 import { SNIP_TO_CHAT_EVENT } from "@/lib/components/chat/preview/Renderers/PdfRenderer";
 
 expect.extend(matchers);

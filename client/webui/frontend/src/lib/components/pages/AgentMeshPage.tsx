@@ -6,7 +6,7 @@ import { Button, EmptyState, Header } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { WorkflowList } from "@/lib/components/workflows";
 import { ModelsView } from "@/lib/components/models";
-import { useChatContext } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { isWorkflowAgent } from "@/lib/utils/agentUtils";
 import { RefreshCcw, Plus } from "lucide-react";
 
@@ -14,7 +14,7 @@ type AgentMeshTab = "agents" | "workflows" | "models";
 
 export function AgentMeshPage() {
     const navigate = useNavigate();
-    const { agents, agentsLoading, agentsError, agentsRefetch } = useChatContext();
+    const { agents, isLoading: agentsLoading, error: agentsError, refetch: agentsRefetch } = useAgentCards();
     const [searchParams, setSearchParams] = useSearchParams();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
 

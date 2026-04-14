@@ -4,7 +4,8 @@ import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import { http, HttpResponse } from "msw";
 
 import { ProjectDetailView } from "@/lib";
-import { transformAgentCard, useStartIndexing } from "@/lib/hooks";
+import { useStartIndexing } from "@/lib/hooks";
+import { transformAgentCard } from "@/lib/api/agent-cards";
 
 import { getMockAgentCards, mockAgentCards } from "../mocks/data";
 import { emptyProject, imageArtifact, jsonArtifact, markdownArtifact, ownerWithAuthorization, pdfArtifact, populatedProject, sessions } from "../data";

@@ -8,6 +8,7 @@ import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, 
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { useChatContext, useCitationClick } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
@@ -904,7 +905,8 @@ const getChatBubble = (
 };
 export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: boolean; isStreaming?: boolean }> = ({ message, isLastWithTaskId, isStreaming }) => {
     const chatContext = useChatContext();
-    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
+    const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail } = chatContext;
+    const { agentNameMap: agentNameDisplayNameMap } = useAgentCards();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
 

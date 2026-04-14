@@ -7,6 +7,7 @@ import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useAgentCards } from "@/lib/api/agent-cards";
 import { useProjectContext } from "@/lib/providers";
 import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -48,8 +49,8 @@ export function ChatPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { agents } = useAgentCards();
     const {
-        agents,
         sessionId,
         sessionName,
         messages,
