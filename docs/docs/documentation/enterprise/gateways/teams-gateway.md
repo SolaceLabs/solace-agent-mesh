@@ -188,7 +188,7 @@ This step differs based on your SAM environment.
 
 In SAM Cloud, the platform automatically provisions a public endpoint for your Teams gateway when you deploy it.
 
-1. After deploying the gateway in the Agent Mesh Enterprise web interface, the platform provides you with the **gateway endpoint**
+1. After deploying the gateway in the Agent Mesh Enterprise web interface, the platform provides you with the **gateway endpoint** in the gateway details.
 2. Your gateway endpoint is:
 
    ```
@@ -207,7 +207,7 @@ In SAM Kubernetes, the platform creates a **ClusterIP Service** for the gateway.
 
 #### What SAM Creates
 
-When you deploy the Teams gateway, SAM creates a ClusterIP Kubernetes Service. For example:
+When you deploy the Teams gateway, SAM creates a ClusterIP Kubernetes Service. For example: (Shown here for reference only so you can identify it in your cluster.)
 
 ```yaml
 apiVersion: v1
@@ -264,6 +264,10 @@ spec:
                   number: 8092
 ```
 
+> **Note**: The `gw-<dns-id>` in the Ingress backend is the Kubernetes Service name created by SAM during deployment. To find this value, run `kubectl get services -n <namespace>` and look for the service prefixed with `gw-`. This example uses AWS ALB annotations -- for other ingress controllers (NGINX, Traefik, GKE), adapt the annotations accordingly. The key requirements are:
+> - TLS termination (HTTPS) at the ingress
+> - Route to the gateway service on port 8092
+
 To expose **multiple Teams gateways**, add a rule per gateway with a unique hostname. You can use a single Ingress resource for all gateways rather than creating separate Ingress resources:
 
 ```yaml
@@ -319,10 +323,6 @@ If your cluster does not have [external-dns](https://github.com/kubernetes-sigs/
    sam-teams.yourdomain.com -> <load balancer hostname from above>
    ```
    If using Route 53 with an ALB, you can use an **Alias** record instead.
-
-> **Note**: The `gw-<dns-id>` in the Ingress backend is the Kubernetes Service name created by SAM during deployment. To find this value, run `kubectl get services -n <namespace>` and look for the service prefixed with `gw-`. This example uses AWS ALB annotations -- for other ingress controllers (NGINX, Traefik, GKE), adapt the annotations accordingly. The key requirements are:
-> - TLS termination (HTTPS) at the ingress
-> - Route to the gateway service on port 8092
 
 **Option 2: LoadBalancer Service**
 

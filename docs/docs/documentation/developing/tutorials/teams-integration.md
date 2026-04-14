@@ -12,7 +12,7 @@ This guide is for users deploying the Teams Gateway **manually** using Docker or
 This tutorial shows you how to configure and run a Microsoft Teams Gateway with Agent Mesh Enterprise using Docker or wheel-based deployments.
 
 :::warning[Enterprise Feature]
-The Microsoft Teams Gateway requires the `sam-teams-gateway-adapter` package. Install it via pip/wheel or use the Agent Mesh Enterprise Docker image, which includes the adapter. This feature requires:
+The Microsoft Teams Gateway requires:
 - Agent Mesh Enterprise (Docker image or wheel installation with `sam-teams-gateway-adapter`)
 - Azure Active Directory tenant access
 - Azure Bot Service setup
@@ -187,7 +187,7 @@ If `docker compose` is not available, try the standalone command:
 docker-compose up -d
 ```
 
-## Configure the Webhook URL
+## Configure the Gateway Endpoint
 
 After the gateway is running, configure the Azure Bot Service to route messages to the gateway.
 
