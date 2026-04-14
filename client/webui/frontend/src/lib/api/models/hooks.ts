@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { modelKeys } from "./keys";
-import { deleteModel, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider } from "./service";
+import { createModelConfig, deleteModel, fetchModelById, fetchModelConfigs, fetchModelConfigStatus, fetchSupportedModelsByProvider, testModelConnection, updateModelConfig } from "./service";
+import type { ModelData, TestConnectionRequest } from "./service";
 
 export interface SupportedModelsQueryParams {
     provider: string;
@@ -9,6 +10,18 @@ export interface SupportedModelsQueryParams {
     apiBase?: string;
     authConfig?: Record<string, unknown>;
     modelParams?: Record<string, unknown>;
+}
+
+/**
+ * Hook to fetch a single model configuration by ID.
+ */
+export function useModelById(id: string | undefined) {
+    return useQuery({
+        queryKey: modelKeys.detail(id!),
+        queryFn: () => fetchModelById(id!),
+        enabled: !!id,
+        retry: 0,
+    });
 }
 
 /**
@@ -67,5 +80,42 @@ export function useModelConfigStatus() {
         staleTime: Infinity,
         refetchOnWindowFocus: false,
         retry: 1,
+    });
+}
+
+/**
+ * Hook to create a new model configuration.
+ */
+export function useCreateModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: ModelData) => createModelConfig(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+        },
+    });
+}
+
+/**
+ * Hook to update an existing model configuration.
+ */
+export function useUpdateModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: ModelData }) => updateModelConfig(id, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+        },
+    });
+}
+
+/**
+ * Hook to test a model configuration connection.
+ */
+export function useTestModelConnection() {
+    return useMutation({
+        mutationFn: (data: TestConnectionRequest) => testModelConnection(data),
     });
 }
