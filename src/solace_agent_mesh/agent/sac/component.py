@@ -229,10 +229,19 @@ class SamAgentComponent(SamComponentBase):
             self.enable_inline_vision = self.get_config(
                 "enable_inline_vision", False
             )
+            self.max_inline_vision_images = self.get_config(
+                "max_inline_vision_images", 5
+            )
+            self.max_inline_vision_bytes = self.get_config(
+                "max_inline_vision_bytes", 20971520  # 20MB
+            )
             if self.enable_inline_vision:
                 log.info(
-                    "%s Inline vision enabled: image files will be passed directly to the LLM.",
+                    "%s Inline vision enabled: image files will be passed directly to the LLM "
+                    "(max %d images, max %d bytes).",
                     self.log_identifier,
+                    self.max_inline_vision_images,
+                    self.max_inline_vision_bytes,
                 )
             if self.artifact_handling_mode == "reference":
                 log.warning(

@@ -111,6 +111,7 @@ async def _prepare_a2a_filepart_for_adk(
     component: "SamAgentComponent",
     user_id: str,
     session_id: str,
+    inline_vision_tracker: Optional[Dict[str, int]] = None,
 ) -> Optional[adk_types.Part]:
     """
     Prepares an incoming A2A FilePart for the ADK.
@@ -120,6 +121,11 @@ async def _prepare_a2a_filepart_for_adk(
     - For image files when enable_inline_vision is True: returns an inline_data
       Part so the LLM can process the image natively via its vision capability.
     - Otherwise: formats metadata into a text string for the LLM.
+
+    Args:
+        inline_vision_tracker: Mutable dict tracking {"images_inlined": int, "bytes_inlined": int}
+            across multiple FileParts in a single message. Used to enforce
+            max_inline_vision_images and max_inline_vision_bytes limits.
     """
     from ...agent.utils.artifact_helpers import (
         save_artifact_with_metadata,
@@ -130,7 +136,7 @@ async def _prepare_a2a_filepart_for_adk(
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
-    enable_inline_vision = component.enable_inline_vision
+    enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
     if not artifact_service:
         log.error(
@@ -198,20 +204,42 @@ async def _prepare_a2a_filepart_for_adk(
         # Inline vision: for image files, pass the image bytes directly to the LLM
         # so vision-capable models can reason about the image natively.
         if enable_inline_vision and is_image_artifact(filename, mime_type):
-            vision_part = await _try_inline_vision_part(
-                load_artifact_content_or_metadata=load_artifact_content_or_metadata,
-                artifact_service=artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                version=version,
-                mime_type=mime_type,
-                content_bytes=content_bytes,
-                log_id=log_id,
-            )
-            if vision_part is not None:
-                return vision_part
+            # Check limits before attempting inline vision
+            tracker = inline_vision_tracker or {"images_inlined": 0, "bytes_inlined": 0}
+            max_images = getattr(component, "max_inline_vision_images", 5)
+            max_bytes = getattr(component, "max_inline_vision_bytes", 20971520)
+
+            if tracker["images_inlined"] >= max_images:
+                log.info(
+                    "%s Inline vision limit reached (%d/%d images). "
+                    "Falling back to text metadata for '%s'.",
+                    log_id, tracker["images_inlined"], max_images, filename,
+                )
+            elif tracker["bytes_inlined"] >= max_bytes:
+                log.info(
+                    "%s Inline vision byte limit reached (%d/%d bytes). "
+                    "Falling back to text metadata for '%s'.",
+                    log_id, tracker["bytes_inlined"], max_bytes, filename,
+                )
+            else:
+                vision_part = await _try_inline_vision_part(
+                    load_artifact_content_or_metadata=load_artifact_content_or_metadata,
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    version=version,
+                    mime_type=mime_type,
+                    content_bytes=content_bytes,
+                    log_id=log_id,
+                )
+                if vision_part is not None:
+                    # Update tracker with the inlined image
+                    image_size = len(vision_part.inline_data.data) if vision_part.inline_data and vision_part.inline_data.data else 0
+                    tracker["images_inlined"] += 1
+                    tracker["bytes_inlined"] += image_size
+                    return vision_part
 
         # Default: fetch metadata only and return text summary
         load_result = await load_artifact_content_or_metadata(
@@ -257,11 +285,15 @@ async def translate_a2a_to_adk_content(
 ) -> adk_types.Content:
     """
     Translates an A2A Message object to ADK Content.
-    FileParts are converted to textual metadata summaries.
+    FileParts are converted to textual metadata summaries, or to inline_data
+    Parts for images when enable_inline_vision is True (subject to limits).
     """
     adk_parts: List[adk_types.Part] = []
     unwrapped_parts = a2a.get_parts_from_message(a2a_message)
     log_identifier = component.log_identifier
+
+    # Track inline vision usage across all FileParts in this message
+    inline_vision_tracker: Dict[str, int] = {"images_inlined": 0, "bytes_inlined": 0}
 
     for part in unwrapped_parts:
         try:
@@ -269,7 +301,8 @@ async def translate_a2a_to_adk_content(
                 adk_parts.append(adk_types.Part(text=a2a.get_text_from_text_part(part)))
             elif isinstance(part, FilePart):
                 adk_part = await _prepare_a2a_filepart_for_adk(
-                    part, component, user_id, session_id
+                    part, component, user_id, session_id,
+                    inline_vision_tracker=inline_vision_tracker,
                 )
                 if adk_part:
                     adk_parts.append(adk_part)

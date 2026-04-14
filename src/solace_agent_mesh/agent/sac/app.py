@@ -414,6 +414,19 @@ class SamAgentAppConfig(SamConfigBase):
         "instead of being converted to text metadata summaries. Requires a "
         "vision-capable model (e.g., Claude Sonnet 4, GPT-4o).",
     )
+    max_inline_vision_images: int = Field(
+        default=5,
+        ge=1,
+        description="Maximum number of images to inline per message when enable_inline_vision "
+        "is True. Additional images fall back to text metadata summaries.",
+    )
+    max_inline_vision_bytes: int = Field(
+        default=20971520,  # 20MB
+        ge=0,
+        description="Maximum total bytes of inline image data per message. "
+        "Once exceeded, remaining images fall back to text metadata summaries. "
+        "Default: 20MB (20971520 bytes).",
+    )
     schema_max_keys: int = Field(
         default=DEFAULT_SCHEMA_MAX_KEYS,
         ge=0,
