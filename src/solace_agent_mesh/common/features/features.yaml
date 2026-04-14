@@ -97,7 +97,7 @@ features:
   - key: model_config_ui
     name: Model Configuration UI
     release_phase: general_availability
-    default: false
+    default: true
     jira: DATAGO-109787
     description: >
       Enable the Models tab in the Agent Mesh interface to view and manage
