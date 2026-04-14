@@ -60,6 +60,10 @@ export const completeOrderWorkflow: AgentCardInfo = {
     capabilities: {
         extensions: [
             {
+                uri: "https://solace.com/a2a/extensions/display-name",
+                params: { display_name: "Complete Order Workflow" },
+            },
+            {
                 uri: "https://solace.com/a2a/extensions/sam/workflow-visualization",
                 params: {
                     workflow_config: {
@@ -93,6 +97,10 @@ export const completeOrderWorkflow: AgentCardInfo = {
                     },
                 },
             },
+            {
+                uri: "https://solace.com/a2a/extensions/agent-type",
+                params: { type: "workflow" },
+            },
         ],
     },
     defaultInputModes: [],
@@ -109,7 +117,18 @@ export const simpleLoopWorkflow: AgentCardInfo = {
     version: "1.0.0",
     description: "A simple workflow demonstrating loop functionality",
     isWorkflow: true,
-    capabilities: {},
+    capabilities: {
+        extensions: [
+            {
+                uri: "https://solace.com/a2a/extensions/display-name",
+                params: { display_name: "SimpleLoopWorkflow" },
+            },
+            {
+                uri: "https://solace.com/a2a/extensions/agent-type",
+                params: { type: "workflow" },
+            },
+        ],
+    },
     defaultInputModes: [],
     defaultOutputModes: [],
     protocolVersion: "1.0",
@@ -124,7 +143,18 @@ export const customerEnrichmentWorkflow: AgentCardInfo = {
     version: "2.1.0",
     description: "Enriches customer data with external sources",
     isWorkflow: true,
-    capabilities: {},
+    capabilities: {
+        extensions: [
+            {
+                uri: "https://solace.com/a2a/extensions/display-name",
+                params: { display_name: "Customer Enrichment" },
+            },
+            {
+                uri: "https://solace.com/a2a/extensions/agent-type",
+                params: { type: "workflow" },
+            },
+        ],
+    },
     defaultInputModes: [],
     defaultOutputModes: [],
     protocolVersion: "1.0",

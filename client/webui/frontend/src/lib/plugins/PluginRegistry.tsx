@@ -44,9 +44,8 @@ class PluginRegistry implements PluginManagerInterface {
             label: "Cards",
             icon: Grid,
             priority: 100,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            render: (data: any) => {
-                return <AgentMeshCards agents={data.agents || []} />;
+            render: () => {
+                return <AgentMeshCards />;
             },
         });
     }

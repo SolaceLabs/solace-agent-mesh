@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { agentCardKeys } from "./keys";
 import { fetchAgentCards, transformAgentCard } from "./service";
@@ -31,7 +32,7 @@ export const useAgentCards = (): UseAgentCardsReturn => {
             return data.map(transformAgentCard);
         },
         retry: 0,
-        staleTime: 30_000,
+        refetchOnMount: "always",
     });
 
     const error = queryError ? (queryError instanceof Error ? queryError.message : "Could not load agent information.") : null;
@@ -46,9 +47,9 @@ export const useAgentCards = (): UseAgentCardsReturn => {
         return nameDisplayNameMap;
     }, [agents]);
 
-    const refetch = async () => {
+    const refetch = useCallback(async () => {
         await queryRefetch();
-    };
+    }, [queryRefetch]);
 
     return useMemo(
         () => ({

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
-import type { AgentCardInfo } from "@/lib/types";
+import { useAgentCards } from "@/lib/api/agent-cards";
+import { isWorkflowAgent } from "@/lib/utils/agentUtils";
 
 import { AgentDisplayCard } from "./AgentDisplayCard";
 import { EmptyState } from "../common";
@@ -9,11 +10,9 @@ import { Bot } from "lucide-react";
 
 const AgentImage = <Bot className="text-(--secondary-text-wMain)" size={64} />;
 
-interface AgentMeshCardsProps {
-    agents: AgentCardInfo[];
-}
-
-export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
+export const AgentMeshCards: React.FC = () => {
+    const { agents: allAgents } = useAgentCards();
+    const agents = useMemo(() => allAgents.filter(agent => !isWorkflowAgent(agent)), [allAgents]);
     const [expandedAgentName, setExpandedAgentName] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
 
