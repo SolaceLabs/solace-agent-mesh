@@ -26,11 +26,12 @@ function AppLayoutContent() {
     const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
     const { data: modelConfigStatus } = useModelConfigStatus();
+
     useEffect(() => {
         if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
             setIsModelSetupDialogOpen(true);
         }
-    }, [modelConfigStatus, modelSetupDismissed, modelConfigUiEnabled]);
+    }, [modelConfigUiEnabled, modelConfigStatus, modelSetupDismissed]);
 
     const handleModelSetupDialogChange = useCallback(
         (open: boolean) => {

@@ -1,15 +1,17 @@
 import { useNavigate } from "react-router-dom";
+import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
+import { useModelConfigStatus } from "@/lib/api/models";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { Button } from "@/lib/components/ui";
+import { useChatContext } from "@/lib/hooks";
 
-interface ModelWarningBannerProps {
-    showWarning: boolean;
-    hasModelConfigWrite: boolean;
-}
-
-export function ModelWarningBanner({ showWarning, hasModelConfigWrite }: ModelWarningBannerProps) {
+export function ModelWarningBanner() {
     const navigate = useNavigate();
+    const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
+    const { hasModelConfigWrite } = useChatContext();
+    const { data: modelConfigStatus } = useModelConfigStatus();
+    const showWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     if (!showWarning) return null;
 

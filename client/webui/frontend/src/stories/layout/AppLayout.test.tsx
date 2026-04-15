@@ -65,26 +65,11 @@ describe("AppLayout model warning banner", () => {
             expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
         });
 
-        test("shows warning when models not configured", () => {
+        test("does not show warning in AppLayout (banner moved to PageLayout)", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
-        });
-
-        test("shows Go to Models button when user has write permission", () => {
-            mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
-            renderLayout({ hasModelConfigWrite: true }, { model_config_ui: true });
-            // Banner and dialog may both show a "Go to Models" button
-            const buttons = screen.getAllByRole("button", { name: /Go to Models/i });
-            expect(buttons.length).toBeGreaterThanOrEqual(1);
-            expect(screen.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
-        });
-
-        test("shows contact admin text when user lacks write permission", () => {
-            mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
-            renderLayout({ hasModelConfigWrite: false }, { model_config_ui: true });
-            expect(screen.getByText(/Ask your administrator/)).toBeInTheDocument();
-            expect(screen.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
+            // Banner is now rendered by PageLayout inside each page, not AppLayout
+            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
         });
     });
 });

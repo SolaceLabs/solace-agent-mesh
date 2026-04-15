@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { within, expect } from "storybook/test";
 
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
-import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 
 const meta = {
     title: "Pages/Models/ModelSetupDialog",
@@ -53,41 +52,5 @@ export const NonAdminVariant: Story = {
         // Admin-only buttons should NOT be present
         expect(content.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         expect(content.queryByRole("button", { name: /Skip for Now/i })).not.toBeInTheDocument();
-    },
-};
-
-export const WarningBannerAdmin: StoryObj = {
-    parameters: {
-        layout: "fullscreen",
-    },
-    render: () => (
-        <div style={{ padding: "1rem", width: "100vw" }}>
-            <ModelWarningBanner showWarning={true} hasModelConfigWrite={true} />
-        </div>
-    ),
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
-        expect(canvas.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
-        expect(canvas.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
-    },
-};
-
-export const WarningBannerNonAdmin: StoryObj = {
-    parameters: {
-        layout: "fullscreen",
-    },
-    render: () => (
-        <div style={{ padding: "1rem", width: "100vw" }}>
-            <ModelWarningBanner showWarning={true} hasModelConfigWrite={false} />
-        </div>
-    ),
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
-        expect(canvas.getByText(/Ask your administrator/)).toBeInTheDocument();
-        expect(canvas.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
     },
 };
