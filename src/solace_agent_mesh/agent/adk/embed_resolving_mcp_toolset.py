@@ -18,6 +18,9 @@ from google.adk.auth.credential_manager import CredentialManager
 from google.adk.tools.mcp_tool import MCPTool, MCPToolset
 from google.adk.tools.tool_context import ToolContext
 
+from solace_ai_connector.common.observability import MonitorLatency
+
+from ...common.observability import McpRemoteMonitor
 from ...common.utils.embeds import (
     EARLY_EMBED_TYPES,
     EMBED_DELIMITER_OPEN,
@@ -403,7 +406,8 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
         )
         start_time = time.perf_counter()
         try:
-            result = await tool_call()
+            with MonitorLatency(McpRemoteMonitor.call_tool()):
+                result = await tool_call()
             duration_ms = (time.perf_counter() - start_time) * 1000
             _log_mcp_tool_success(
                 tool_context.session.user_id,
