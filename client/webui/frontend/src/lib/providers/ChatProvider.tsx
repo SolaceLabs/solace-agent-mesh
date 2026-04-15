@@ -73,6 +73,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [pendingPrompt, setPendingPrompt] = useState<PendingPromptData | null>(null);
     const [runningTaskWarningOpen, setRunningTaskWarningOpen] = useState<boolean>(false);
     const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+    const [turnDividerIndex, setTurnDividerIndex] = useState<number | null>(null);
 
     // ============ Hooks that depend on state ============
     const { isCollaborativeSession, hasSharedEditors, currentUserEmail, sessionOwnerName, sessionOwnerEmail, detectCollaborativeSession, resetCollaborativeState, getCurrentUserId } = useCollaborativeSession(sessionId);
@@ -88,6 +89,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const isCancellingRef = useRef(isCancelling);
     const currentSessionIdRef = useRef(sessionId);
     const messagesRef = useRef<MessageFE[]>([]);
+    const pendingSessionDividerRef = useRef(false);
     const allArtifactsRef = useRef<ArtifactInfo[]>([]);
     const backgroundTasksRef = useRef<typeof backgroundTasks>([]);
     const inlineActivityTimelineEnabledRef = useRef(inlineActivityTimelineEnabled);
@@ -928,6 +930,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName("");
             setMessages([]);
+            setTurnDividerIndex(null);
             setIsResponding(false);
             setCurrentTaskId(null);
             setTaskIdInSidePanel(null);
@@ -1004,6 +1007,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             if (!hasRunningBackgroundTask && !hasAnyBackgroundTasks) {
                 setMessages([]);
             }
+            setTurnDividerIndex(null);
 
             closeCurrentEventSource();
 
@@ -1084,6 +1088,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 deepResearchQueryHistoryRef.current.clear();
 
                 await loadSessionTasks(newSessionId);
+
+                // Flag for the useEffect below to set turnDividerIndex once messages are in state
+                pendingSessionDividerRef.current = true;
 
                 // Check for running background tasks in this session and reconnect
                 const sessionBackgroundTasks = backgroundTasks.filter(t => t.sessionId === newSessionId);
@@ -1357,6 +1364,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             };
             latestStatusText.current = "Thinking";
+            // Set turn divider so ChatPage can visually separate this turn from history
+            if (messagesRef.current.length > 0) {
+                setTurnDividerIndex(messagesRef.current.length);
+            }
             setMessages(prev => [...prev, userMsg]);
 
             try {
@@ -1654,6 +1665,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const prevProjectIdRef = useRef<string | null | undefined>("");
     const isSessionSwitchRef = useRef(false);
     const isSessionMoveRef = useRef(false);
+
+    // After a session switch, once messages are loaded into state, set turnDividerIndex
+    // to the last user message so it appears at the top of the page.
+    useEffect(() => {
+        if (pendingSessionDividerRef.current && messages.length > 1) {
+            pendingSessionDividerRef.current = false;
+            let lastUserIdx = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].isUser) {
+                    lastUserIdx = i;
+                    break;
+                }
+            }
+            if (lastUserIdx > 0) {
+                setTurnDividerIndex(lastUserIdx);
+            }
+        }
+    }, [messages, setTurnDividerIndex]);
 
     useEffect(() => {
         const handleProjectDeleted = (deletedProjectId: string) => {
@@ -2034,6 +2063,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         isTaskRunningInBackground,
 
         hasModelConfigWrite: !configUseAuthorization,
+        turnDividerIndex,
     };
 
     // Handlers for the running task warning dialog
