@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
-import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
+import { AudioRecorder, Button, MarkdownWrapper, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -276,7 +276,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                 {messages.map((message, index) => (
                     <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-[var(--message-background)]" : ""}`}>
-                            <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>
+                            {message.role === "assistant" ? <MarkdownWrapper content={message.content} className="text-sm leading-relaxed" /> : <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
                         </div>
                     </div>
                 ))}

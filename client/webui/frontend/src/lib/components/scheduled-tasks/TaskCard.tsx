@@ -49,17 +49,27 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
         error: { label: "Error", className: "bg-(--error-w10) text-(--error-w100)" },
     };
 
-    const formatNextRun = (timestamp?: number): string => {
-        if (!timestamp) return "Not scheduled";
-        const date = new Date(timestamp);
-        const now = new Date();
-        const diff = date.getTime() - now.getTime();
+    const formatNextRun = (task: ScheduledTask): string => {
+        if (task.status === "paused") return "Paused";
+        if (!task.nextRunAt) return "Not scheduled";
 
-        if (diff < 0) return "Overdue";
-        if (diff < 60000) return "In < 1 minute";
-        if (diff < 3600000) return `In ${Math.floor(diff / 60000)} minutes`;
-        if (diff < 86400000) return `In ${Math.floor(diff / 3600000)} hours`;
-        return `In ${Math.floor(diff / 86400000)} days`;
+        const now = Date.now();
+        const diff = task.nextRunAt - now;
+
+        if (diff >= 0) {
+            if (diff < 60000) return "In < 1 minute";
+            if (diff < 3600000) return `In ${Math.floor(diff / 60000)} minutes`;
+            if (diff < 86400000) return `In ${Math.floor(diff / 3600000)} hours`;
+            return `In ${Math.floor(diff / 86400000)} days`;
+        }
+
+        // nextRunAt is in the past
+        // If lastRunAt is close to or after nextRunAt, the task likely ran (or is running)
+        if (task.lastRunAt && task.lastRunAt >= task.nextRunAt - 60000) {
+            return task.scheduleType === "one_time" ? "Completed" : "Awaiting next schedule";
+        }
+
+        return "Overdue";
     };
 
     return (
@@ -135,7 +145,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                         </div>
                         <div className="flex items-center gap-1 text-xs text-(--secondary-text-wMain)">
                             <Calendar className="h-3 w-3" />
-                            <span>Next: {formatNextRun(task.nextRunAt)}</span>
+                            <span>Next: {formatNextRun(task)}</span>
                         </div>
                         <div className="text-xs text-(--secondary-text-wMain)">
                             <span className="truncate">

@@ -202,6 +202,13 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
         if (!config.scheduleExpression.trim()) {
             errors.scheduleExpression = "Schedule expression is required";
+        } else if (config.scheduleType === "one_time") {
+            const scheduled = new Date(config.scheduleExpression);
+            if (isNaN(scheduled.getTime())) {
+                errors.scheduleExpression = "Invalid date and time";
+            } else if (scheduled.getTime() <= Date.now()) {
+                errors.scheduleExpression = "Scheduled time must be in the future";
+            }
         }
 
         if (!config.targetAgentName.trim()) {
@@ -396,21 +403,34 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                         </div>
                                     )}
 
-                                    {/* One Time Date Picker */}
+                                    {/* One Time Date & Time Picker */}
                                     {config.scheduleType === "one_time" && (
                                         <div className="space-y-2">
-                                            <Label htmlFor="schedule-expression">
+                                            <Label>
                                                 Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
                                             </Label>
-                                            <Input
-                                                id="schedule-expression"
-                                                placeholder="2025-12-25T09:00:00"
-                                                value={config.scheduleExpression}
-                                                onChange={e => updateConfig({ scheduleExpression: e.target.value })}
-                                                className={`max-w-md ${validationErrors.scheduleExpression ? "border-red-500" : ""}`}
-                                            />
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="date"
+                                                    value={config.scheduleExpression.split("T")[0] || ""}
+                                                    onChange={e => {
+                                                        const time = config.scheduleExpression.split("T")[1] || "09:00:00";
+                                                        updateConfig({ scheduleExpression: e.target.value ? `${e.target.value}T${time}` : "" });
+                                                    }}
+                                                    min={new Date().toISOString().split("T")[0]}
+                                                    className={`w-fit ${validationErrors.scheduleExpression ? "border-red-500" : ""}`}
+                                                />
+                                                <Input
+                                                    type="time"
+                                                    value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
+                                                    onChange={e => {
+                                                        const date = config.scheduleExpression.split("T")[0] || "";
+                                                        updateConfig({ scheduleExpression: date ? `${date}T${e.target.value}:00` : "" });
+                                                    }}
+                                                    className={`w-fit ${validationErrors.scheduleExpression ? "border-red-500" : ""}`}
+                                                />
+                                            </div>
                                             {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
-                                            <p className="text-xs text-(--secondary-text-wMain)">ISO 8601 format: YYYY-MM-DDTHH:MM:SS</p>
                                         </div>
                                     )}
 
