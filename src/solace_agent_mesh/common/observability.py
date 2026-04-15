@@ -7,6 +7,7 @@ to prevent accidental metric explosion.
 """
 
 from solace_ai_connector.common.observability.monitors.operation import OperationMonitor
+from solace_ai_connector.common.observability.monitors.remote import RemoteRequestMonitor
 from solace_ai_connector.common.observability.monitors.base import MonitorInstance
 
 
@@ -82,3 +83,56 @@ class ToolMonitor(OperationMonitor):
             component_name=name,
             operation="execute"
         )
+
+
+class ArtifactMonitor(RemoteRequestMonitor):
+    """
+    Type-safe monitor for artifact service operation duration.
+
+    Uses RemoteRequestMonitor since artifacts are a single external service,
+    not a group of equivalent components. Constrains the API via named factory
+    methods to prevent metric explosion.
+
+    Maps to: outbound.request.duration histogram
+    Labels: service.peer.name="artifact_service",
+            operation.name=<operation>, error.type
+
+    Usage:
+        from solace_agent_mesh.common.observability import ArtifactMonitor
+        from solace_ai_connector.common.observability import MonitorLatency
+
+        with MonitorLatency(ArtifactMonitor.save()):
+            result = await service.save_artifact(...)
+    """
+
+    @classmethod
+    def _create(cls, operation: str) -> MonitorInstance:
+        """Internal factory — all public methods delegate here."""
+        return MonitorInstance(
+            monitor_type=cls.monitor_type,
+            labels={
+                "service.peer.name": "artifact_service",
+                "operation.name": operation,
+            },
+            error_parser=cls.parse_error,
+        )
+
+    @classmethod
+    def save(cls) -> MonitorInstance:
+        """Create monitor instance for save_artifact operation."""
+        return cls._create("save")
+
+    @classmethod
+    def load(cls) -> MonitorInstance:
+        """Create monitor instance for load_artifact and get_artifact_version operations."""
+        return cls._create("load")
+
+    @classmethod
+    def delete(cls) -> MonitorInstance:
+        """Create monitor instance for delete_artifact operation."""
+        return cls._create("delete")
+
+    @classmethod
+    def list(cls) -> MonitorInstance:
+        """Create monitor instance for all list operations (keys, versions, artifact_versions)."""
+        return cls._create("list")
