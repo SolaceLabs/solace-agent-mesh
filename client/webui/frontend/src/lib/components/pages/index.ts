@@ -1,4 +1,5 @@
 export { AgentMeshPage } from "./AgentMeshPage";
+export { PageLayout } from "./PageLayout";
 export { ArtifactsPage } from "./ArtifactsPage";
 export { ChatPage } from "./ChatPage";
 export { PromptsPage } from "./PromptsPage";

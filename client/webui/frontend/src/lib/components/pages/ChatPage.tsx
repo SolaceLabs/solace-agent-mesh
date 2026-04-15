@@ -6,6 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
+import { PageLayout } from "./PageLayout";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
@@ -521,7 +522,7 @@ export function ChatPage() {
     }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream]);
 
     return (
-        <div className="relative flex h-screen w-full flex-col overflow-hidden">
+        <PageLayout className="relative">
             {!useNewNav && (
                 <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
@@ -694,6 +695,6 @@ export function ChatPage() {
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
-        </div>
+        </PageLayout>
     );
 }

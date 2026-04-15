@@ -5,7 +5,6 @@ import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottom
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
-import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -27,8 +26,6 @@ function AppLayoutContent() {
     const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
     const { data: modelConfigStatus } = useModelConfigStatus();
-    const showModelWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
-
     useEffect(() => {
         if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
             setIsModelSetupDialogOpen(true);
@@ -140,7 +137,6 @@ function AppLayoutContent() {
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="h-full w-full flex-1 overflow-auto">
-                <ModelWarningBanner showWarning={!!showModelWarning} hasModelConfigWrite={hasModelConfigWrite} />
                 <Outlet />
             </main>
             <ToastContainer />
