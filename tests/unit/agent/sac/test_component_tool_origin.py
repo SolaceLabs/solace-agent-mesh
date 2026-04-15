@@ -3,7 +3,8 @@
 Unit tests for the SamAgentComponent class
 """
 
-from unittest.mock import Mock, patch
+import pytest
+from unittest.mock import Mock, AsyncMock, patch
 from google.genai import types as adk_types
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.models.llm_request import LlmRequest
@@ -346,3 +347,195 @@ class TestSyncToolsCallback:
             )
         # tools_dict should have it — ADK can dispatch if LLM calls from history
         assert "index_search" in request.tools_dict
+
+
+# ---------------------------------------------------------------------------
+# Agent card tool manifest builder
+# ---------------------------------------------------------------------------
+
+
+class _FakeDynamicTool:
+    """Simulates a DynamicTool subclass.
+
+    `name` / `description` are still the placeholder values (as they would be
+    before _get_declaration() fires), but `tool_name` / `tool_description`
+    return the real, user-defined values via properties.
+    """
+
+    name = "dynamic_tool_placeholder"
+    description = "dynamic_tool_placeholder"
+
+    @property
+    def tool_name(self):
+        return "my_real_tool"
+
+    @property
+    def tool_description(self):
+        return "Does something genuinely useful."
+
+
+class _FakeRegularTool:
+    """Simulates a plain BaseTool that has no tool_name / tool_description properties."""
+
+    def __init__(self, name="regular_tool", description="A regular tool."):
+        self.name = name
+        self.description = description
+
+
+def _make_manifest_component():
+    """Return a bare Mock that satisfies _perform_async_init's attribute accesses."""
+    component = Mock()
+    component.log_identifier = "[TestAgent]"
+    component.agent_name = "test_agent"
+    # _async_init_future = None → the signaling branch is skipped (just logs a warning)
+    component._async_init_future = None
+    # Bind the real async/sync methods so `await _build_tool_manifest(...)` works
+    component._build_tool_manifest = lambda tools: SamAgentComponent._build_tool_manifest(component, tools)
+    component._get_single_tool_manifest_entry = lambda tool: SamAgentComponent._get_single_tool_manifest_entry(component, tool)
+    return component
+
+
+def _patch_setup(loaded_tools, scopes_map=None):
+    """Context managers that patch load_adk_tools, initialize_adk_agent, and
+    initialize_adk_runner so _perform_async_init runs only the manifest builder."""
+    return (
+        patch(
+            "src.solace_agent_mesh.agent.sac.component.load_adk_tools",
+            new_callable=AsyncMock,
+            return_value=(loaded_tools, [], [], scopes_map or {}),
+        ),
+        patch(
+            "src.solace_agent_mesh.agent.sac.component.initialize_adk_agent",
+            return_value=Mock(),
+        ),
+        patch(
+            "src.solace_agent_mesh.agent.sac.component.initialize_adk_runner",
+            return_value=Mock(),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+class TestManifestBuilderDynamicToolFix:
+    """_perform_async_init must use tool_name / tool_description for DynamicTool subclasses."""
+
+    async def test_dynamic_tool_real_name_in_manifest(self):
+        """Manifest id/name must be tool_name, not the 'dynamic_tool_placeholder' attr."""
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup([_FakeDynamicTool()])
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        assert len(component.agent_card_tool_manifest) == 1
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["id"] == "my_real_tool"
+        assert entry["name"] == "my_real_tool"
+        assert "placeholder" not in entry["name"]
+
+    async def test_dynamic_tool_real_description_in_manifest(self):
+        """Manifest description must come from tool_description, not the placeholder attr."""
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup([_FakeDynamicTool()])
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["description"] == "Does something genuinely useful."
+        assert "placeholder" not in entry["description"]
+
+    async def test_dynamic_tool_scopes_resolved_by_real_name(self):
+        """required_scopes lookup uses tool_name (not the placeholder) as the key."""
+        scopes_map = {"my_real_tool": ["read:data", "write:data"]}
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup(
+            [_FakeDynamicTool()], scopes_map=scopes_map
+        )
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["required_scopes"] == ["read:data", "write:data"]
+
+    async def test_dynamic_tool_no_scopes_when_map_uses_placeholder_key(self):
+        """If scopes_map was incorrectly keyed by the placeholder, no scopes are found.
+
+        Documents the contract: the manifest builder looks up by real name, so a
+        map keyed by the placeholder returns no scopes (empty list).
+        """
+        scopes_map = {"dynamic_tool_placeholder": ["should:not:match"]}
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup(
+            [_FakeDynamicTool()], scopes_map=scopes_map
+        )
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["required_scopes"] == []
+
+    async def test_regular_tool_uses_name_attribute(self):
+        """Non-DynamicTool tools fall back to the `name` attribute as before."""
+        component = _make_manifest_component()
+        tool = _FakeRegularTool(name="fetch_data", description="Fetches remote data.")
+        load_patch, agent_patch, runner_patch = _patch_setup([tool])
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        assert len(component.agent_card_tool_manifest) == 1
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["id"] == "fetch_data"
+        assert entry["name"] == "fetch_data"
+        assert entry["description"] == "Fetches remote data."
+
+    async def test_mixed_tools_both_resolved_correctly(self):
+        """A mix of DynamicTool and regular tools both appear with the correct names."""
+        component = _make_manifest_component()
+        tools = [_FakeDynamicTool(), _FakeRegularTool(name="plain_tool", description="Plain.")]
+        load_patch, agent_patch, runner_patch = _patch_setup(tools)
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        assert len(component.agent_card_tool_manifest) == 2
+        names = {e["name"] for e in component.agent_card_tool_manifest}
+        assert names == {"my_real_tool", "plain_tool"}
+        assert "dynamic_tool_placeholder" not in names
+
+    async def test_dynamic_tool_null_description_falls_back(self):
+        """tool_description returning None produces 'No description available.' in the manifest."""
+
+        class _NullDescTool:
+            name = "dynamic_tool_placeholder"
+            description = "dynamic_tool_placeholder"
+
+            @property
+            def tool_name(self):
+                return "no_desc_tool"
+
+            @property
+            def tool_description(self):
+                return None
+
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup([_NullDescTool()])
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        entry = component.agent_card_tool_manifest[0]
+        assert entry["description"] == "No description available."
+
+    async def test_empty_tool_list_produces_empty_manifest(self):
+        """No tools → empty manifest (sanity check, no regression)."""
+        component = _make_manifest_component()
+        load_patch, agent_patch, runner_patch = _patch_setup([])
+
+        with load_patch, agent_patch, runner_patch:
+            await SamAgentComponent._perform_async_init(component)
+
+        assert component.agent_card_tool_manifest == []
