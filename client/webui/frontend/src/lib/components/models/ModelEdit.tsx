@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { AccordionCard } from "@/lib/components/ui/accordion-card";
 import { Plus } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
@@ -11,7 +12,6 @@ import { PasswordInput } from "@/lib/components/common";
 import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
-import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
 import { DEFAULT_MODEL_ALIASES } from "./common";
 import { useDebounce } from "@/lib/hooks";
@@ -547,14 +547,13 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group mt-4">
-                                    <summary className="cursor-pointer text-sm font-medium text-(--primary-text-wMain) select-none hover:text-(--secondary-text-wMain)">Advanced Settings</summary>
-                                    <div className="mt-4 flex flex-col gap-6">
+                                <AccordionCard value="advanced-settings" variant="borderless" trigger={<span className="text-sm font-medium text-(--primary-text-wMain)">Advanced Settings</span>} className="mt-4">
+                                    <div className="flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
                                         {/* Custom Parameters */}
-                                        <div className="mt-10">
+                                        <div className="mt-2">
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
@@ -589,14 +588,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
-                                                            {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
                                                         </>
                                                     )}
                                                 />
+                                                {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
                                             </div>
                                         </div>
                                     </div>
-                                </details>
+                                </AccordionCard>
 
                                 {/* Test Connection */}
                                 <TestConnectionSection

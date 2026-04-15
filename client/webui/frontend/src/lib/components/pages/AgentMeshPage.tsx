@@ -77,7 +77,7 @@ export function AgentMeshPage() {
                 buttons={[
                     ...(activeTab === "models" && modelConfigUiEnabled
                         ? [
-                              <Button key="add-model" variant="ghost" title="Add Model" onClick={() => navigate("/models/new/edit")}>
+                              <Button key="add-model" variant="outline" title="Add Model" onClick={() => navigate("/models/new/edit")}>
                                   <Plus className="size-4" />
                                   Add Model
                               </Button>,
