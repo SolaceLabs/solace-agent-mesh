@@ -56,6 +56,11 @@ describe("filterRenderableDataParts", () => {
         expect(filterRenderableDataParts(parts, true)).toEqual(parts);
     });
 
+    it("keeps redirect data parts", () => {
+        const parts: Part[] = [dataPart("redirect")];
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
+    });
+
     it("returns empty array for empty input", () => {
         expect(filterRenderableDataParts([], false)).toEqual([]);
     });
@@ -95,6 +100,10 @@ describe("checkHasVisibleContent", () => {
 
     it("returns false for empty parts", () => {
         expect(checkHasVisibleContent([])).toBe(false);
+    });
+
+    it("returns true for redirect data part", () => {
+        expect(checkHasVisibleContent([dataPart("redirect")])).toBe(true);
     });
 
     it("returns false for generic data part only", () => {

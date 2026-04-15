@@ -474,6 +474,12 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                             if (flags.ragEnabled) {
                                 ragData = processToolResultRag(data, ragData ?? input.ragData, currentTaskIdFromResult);
                             }
+                            // Extract redirect data from tool results and inject as a
+                            // renderable DataPart so RedirectButton can find it.
+                            const resultData = (data as ToolResultPayload).result_data;
+                            if (resultData && (resultData as Record<string, unknown>).type === "redirect" && messageToProcess) {
+                                messageToProcess.parts.push({ kind: "data", data: resultData } as DataPart);
+                            }
                             break;
                         }
                         default:

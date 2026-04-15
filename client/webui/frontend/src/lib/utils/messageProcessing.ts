@@ -12,7 +12,7 @@ export function filterRenderableDataParts(parts: Part[], hasDeepResearchProgress
         if (p.kind === "data") {
             const dataPart = p as DataPart;
             const dataType = dataPart.data && (dataPart.data as Record<string, unknown>).type;
-            return dataType === "deep_research_progress" || dataType === "compaction_notification";
+            return dataType === "deep_research_progress" || dataType === "compaction_notification" || dataType === "redirect";
         }
         // Filter out text parts if we have deep research progress (to show progress-only)
         if (p.kind === "text" && hasDeepResearchProgress) {
@@ -29,7 +29,10 @@ export function filterRenderableDataParts(parts: Part[], hasDeepResearchProgress
  */
 export function checkHasVisibleContent(parts: Part[]): boolean {
     return parts.some(
-        p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
+        p =>
+            (p.kind === "text" && (p as TextPart).text.trim()) ||
+            p.kind === "file" ||
+            (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification" || (p as DataPart).data.type === "redirect"))
     );
 }
 
