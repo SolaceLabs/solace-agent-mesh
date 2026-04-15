@@ -42,11 +42,13 @@ from a2a.types import (
 )
 
 from solace_ai_connector.common.log import log
+from solace_ai_connector.common.observability import MonitorLatency
 
 from datetime import datetime, timezone
 
 from ....common import a2a
 from ....common.auth_headers import build_full_auth_headers
+from ....common.observability import RemoteAgentProxyMonitor
 from ....common.oauth import OAuth2Client, validate_https_url
 from ....common.data_parts import AgentProgressUpdateData
 from ....agent.utils.artifact_helpers import format_artifact_uri
@@ -732,262 +734,282 @@ class A2AProxyComponent(BaseProxyComponent):
         # (static_bearer, static_apikey, oauth2_client_credentials, or authorized oauth2_authorization_code)
         received_final_task = False
 
-        while auth_retry_count <= max_auth_retries:
-            try:
-                # Get or create A2AClient
-                client = await self._get_or_create_a2a_client(agent_name, task_context)
-                if not client:
-                    raise ValueError(
-                        f"Could not create A2A client for agent '{agent_name}'"
+        # Observability: Track latency and errors for remote agent invocation
+        latency_monitor = MonitorLatency(
+            RemoteAgentProxyMonitor.forward_request(agent_name)
+        )
+        latency_monitor.start()
+
+        try:
+            while auth_retry_count <= max_auth_retries:
+                try:
+                    # Get or create A2AClient
+                    client = await self._get_or_create_a2a_client(agent_name, task_context)
+                    if not client:
+                        raise ValueError(
+                            f"Could not create A2A client for agent '{agent_name}'"
+                        )
+
+                    # Create context with sessionId (camelCase!) so AuthInterceptor can look up credentials
+                    from a2a.client.middleware import ClientCallContext
+
+                    session_id = task_context.a2a_context.get(
+                        "session_id", "default_session"
                     )
+                    call_context = ClientCallContext(state={"sessionId": session_id})
 
-                # Create context with sessionId (camelCase!) so AuthInterceptor can look up credentials
-                from a2a.client.middleware import ClientCallContext
+                    # Forward the request with context
+                    if isinstance(
+                        request, (SendStreamingMessageRequest, SendMessageRequest)
+                    ):
+                        # Extract the Message from the request params
+                        message_to_send = request.params.message
 
-                session_id = task_context.a2a_context.get(
-                    "session_id", "default_session"
-                )
-                call_context = ClientCallContext(state={"sessionId": session_id})
+                        # Check if this is a RUN_BASED request by inspecting message metadata
+                        # For RUN_BASED requests, omit context_id to indicate independent tasks
+                        if message_to_send.metadata:
+                            session_behavior = message_to_send.metadata.get("sessionBehavior")
+                            if session_behavior:
+                                session_behavior = str(session_behavior).upper()
+                                if session_behavior == "RUN_BASED" and message_to_send.context_id:
+                                    # For RUN_BASED requests, omit context_id entirely
+                                    # Each request is independent with no logical grouping
+                                    log.debug(
+                                        "%s RUN_BASED request detected. Omitting context_id "
+                                        "(independent task)",
+                                        log_identifier,
+                                    )
+                                    message_to_send = message_to_send.model_copy(
+                                        update={"context_id": None}
+                                    )
 
-                # Forward the request with context
-                if isinstance(
-                    request, (SendStreamingMessageRequest, SendMessageRequest)
-                ):
-                    # Extract the Message from the request params
-                    message_to_send = request.params.message
-
-                    # Check if this is a RUN_BASED request by inspecting message metadata
-                    # For RUN_BASED requests, omit context_id to indicate independent tasks
-                    if message_to_send.metadata:
-                        session_behavior = message_to_send.metadata.get("sessionBehavior")
-                        if session_behavior:
-                            session_behavior = str(session_behavior).upper()
-                            if session_behavior == "RUN_BASED" and message_to_send.context_id:
-                                # For RUN_BASED requests, omit context_id entirely
-                                # Each request is independent with no logical grouping
-                                log.debug(
-                                    "%s RUN_BASED request detected. Omitting context_id "
-                                    "(independent task)",
-                                    log_identifier,
-                                )
-                                message_to_send = message_to_send.model_copy(
-                                    update={"context_id": None}
-                                )
-
-                    # WORKAROUND: The A2A SDK has a bug in ClientTaskManager that breaks streaming.
-                    # For streaming requests, we bypass the Client.send_message() method and call
-                    # the transport directly to avoid the buggy ClientTaskManager.
-                    # Non-streaming requests work fine with the normal client method.
-                    # TODO: Remove this workaround once SDK bug is fixed upstream.
-                    if task_context.a2a_context.get("is_streaming", True):
-                        # Access transport directly (private API) to bypass ClientTaskManager
-                        log.debug(
-                            "%s Using transport directly for streaming request (SDK bug workaround)",
-                            log_identifier,
-                        )
-                        async for raw_event in client._transport.send_message_streaming(
-                            request.params, context=call_context
-                        ):
-                            # Process raw events directly without ClientTaskManager
-                            await self._process_downstream_response(
-                                raw_event, task_context, client, agent_name
+                        # WORKAROUND: The A2A SDK has a bug in ClientTaskManager that breaks streaming.
+                        # For streaming requests, we bypass the Client.send_message() method and call
+                        # the transport directly to avoid the buggy ClientTaskManager.
+                        # Non-streaming requests work fine with the normal client method.
+                        # TODO: Remove this workaround once SDK bug is fixed upstream.
+                        if task_context.a2a_context.get("is_streaming", True):
+                            # Access transport directly (private API) to bypass ClientTaskManager
+                            log.debug(
+                                "%s Using transport directly for streaming request (SDK bug workaround)",
+                                log_identifier,
                             )
-                            # Check if this is a final task
-                            if isinstance(raw_event, Task) and raw_event.status:
-                                if raw_event.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
-                                    received_final_task = True
-                    else:
-                        # Non-streaming: use normal client method (works fine)
-                        log.debug(
-                            "%s Using normal client method for non-streaming request",
-                            log_identifier,
-                        )
-                        async for event in client.send_message(
-                            message_to_send, context=call_context
-                        ):
-                            await self._process_downstream_response(
-                                event, task_context, client, agent_name
-                            )
-                            # Check if this is a final task (event is tuple of (Task, Optional[UpdateEvent]))
-                            if isinstance(event, tuple) and len(event) > 0:
-                                task = event[0]
-                                if isinstance(task, Task) and task.status:
-                                    if task.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                            async for raw_event in client._transport.send_message_streaming(
+                                request.params, context=call_context
+                            ):
+                                # Process raw events directly without ClientTaskManager
+                                await self._process_downstream_response(
+                                    raw_event, task_context, client, agent_name
+                                )
+                                # Check if this is a final task
+                                if isinstance(raw_event, Task) and raw_event.status:
+                                    if raw_event.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
                                         received_final_task = True
-                elif isinstance(request, CancelTaskRequest):
-                    # Forward cancel request to downstream agent using the downstream task ID
-                    # The request.params.id contains SAM's task ID, but we need to send
-                    # the downstream agent's task ID for the cancel to work
+                        else:
+                            # Non-streaming: use normal client method (works fine)
+                            log.debug(
+                                "%s Using normal client method for non-streaming request",
+                                log_identifier,
+                            )
+                            async for event in client.send_message(
+                                message_to_send, context=call_context
+                            ):
+                                await self._process_downstream_response(
+                                    event, task_context, client, agent_name
+                                )
+                                # Check if this is a final task (event is tuple of (Task, Optional[UpdateEvent]))
+                                if isinstance(event, tuple) and len(event) > 0:
+                                    task = event[0]
+                                    if isinstance(task, Task) and task.status:
+                                        if task.status.state in [TaskState.completed, TaskState.failed, TaskState.canceled]:
+                                            received_final_task = True
+                    elif isinstance(request, CancelTaskRequest):
+                        # Forward cancel request to downstream agent using the downstream task ID
+                        # The request.params.id contains SAM's task ID, but we need to send
+                        # the downstream agent's task ID for the cancel to work
 
-                    if not task_context.downstream_task_id:
-                        log.error(
-                            "%s Cannot forward cancel request: downstream task ID not yet captured for SAM task %s",
+                        if not task_context.downstream_task_id:
+                            log.error(
+                                "%s Cannot forward cancel request: downstream task ID not yet captured for SAM task %s",
+                                log_identifier,
+                                task_context.task_id,
+                            )
+                            # Create an error response
+                            from a2a.types import InvalidRequestError
+                            error = InvalidRequestError(
+                                message=f"Cannot cancel task {task_context.task_id}: downstream task ID not available",
+                                data={"taskId": task_context.task_id}
+                            )
+                            # Publish error response
+                            await self._publish_error_response(error, task_context.a2a_context)
+                            break
+
+                        log.info(
+                            "%s Forwarding cancel request for task %s (SAM ID: %s, downstream ID: %s) to downstream agent.",
                             log_identifier,
+                            task_context.downstream_task_id,
                             task_context.task_id,
+                            task_context.downstream_task_id,
                         )
-                        # Create an error response
-                        from a2a.types import InvalidRequestError
-                        error = InvalidRequestError(
-                            message=f"Cannot cancel task {task_context.task_id}: downstream task ID not available",
-                            data={"taskId": task_context.task_id}
+
+                        # Create new params with the downstream task ID
+                        from a2a.types import TaskIdParams
+                        downstream_params = TaskIdParams(id=task_context.downstream_task_id)
+
+                        # Use the modern client's cancel_task method with the downstream task ID
+                        result = await client.cancel_task(
+                            downstream_params, context=call_context
                         )
-                        # Publish error response
-                        await self._publish_error_response(error, task_context.a2a_context)
+                        # Publish the canceled task response
+                        await self._publish_task_response(result, task_context.a2a_context)
+                    else:
+                        log.warning(
+                            "%s Unhandled request type for forwarding: %s",
+                            log_identifier,
+                            type(request),
+                        )
+
+                    # Step 5: Success - break out of retry loop
+                    break
+
+                except RuntimeError as e:
+                    # WORKAROUND: The A2A SDK raises StopAsyncIteration for connection failures,
+                    # which Python 3.7+ automatically converts to RuntimeError (PEP 479).
+                    # We catch this here to provide a more meaningful error message.
+                    # This should be fixed upstream in the A2A SDK to raise proper connection exceptions.
+                    if "StopAsyncIteration" in str(e):
+                        error_msg = (
+                            f"Failed to connect to agent '{agent_name}': "
+                            "Connection refused or agent unreachable"
+                        )
+                        log.error(
+                            "%s Connection error (SDK raised StopAsyncIteration): %s",
+                            log_identifier,
+                            error_msg,
+                        )
+                        # Raise a more descriptive error that will be caught by the outer handler
+                        raise ConnectionError(error_msg) from e
+                    else:
+                        # Some other RuntimeError - re-raise it
+                        raise
+
+                except A2AClientJSONRPCError as e:
+                    # Handle JSON-RPC protocol errors
+
+                    # Special case: Task already in terminal state (canceled/completed/failed)
+                    # This is not a fatal error - the cancellation is effectively a no-op
+                    if (e.error.code == -32002 and
+                        "cannot be canceled" in e.error.message.lower() and
+                        isinstance(request, CancelTaskRequest)):
+                        log.warning(
+                            "%s Task %s is already in terminal state: %s. Treating as successful cancellation.",
+                            log_identifier,
+                            task_context.downstream_task_id,
+                            e.error.message,
+                        )
+                        # Task is already done - return success (cancellation is effectively complete)
+                        # We don't need to publish a response because the task already sent its final response
                         break
 
-                    log.info(
-                        "%s Forwarding cancel request for task %s (SAM ID: %s, downstream ID: %s) to downstream agent.",
-                        log_identifier,
-                        task_context.downstream_task_id,
-                        task_context.task_id,
-                        task_context.downstream_task_id,
-                    )
-
-                    # Create new params with the downstream task ID
-                    from a2a.types import TaskIdParams
-                    downstream_params = TaskIdParams(id=task_context.downstream_task_id)
-
-                    # Use the modern client's cancel_task method with the downstream task ID
-                    result = await client.cancel_task(
-                        downstream_params, context=call_context
-                    )
-                    # Publish the canceled task response
-                    await self._publish_task_response(result, task_context.a2a_context)
-                else:
-                    log.warning(
-                        "%s Unhandled request type for forwarding: %s",
-                        log_identifier,
-                        type(request),
-                    )
-
-                # Step 5: Success - break out of retry loop
-                break
-
-            except RuntimeError as e:
-                # WORKAROUND: The A2A SDK raises StopAsyncIteration for connection failures,
-                # which Python 3.7+ automatically converts to RuntimeError (PEP 479).
-                # We catch this here to provide a more meaningful error message.
-                # This should be fixed upstream in the A2A SDK to raise proper connection exceptions.
-                if "StopAsyncIteration" in str(e):
-                    error_msg = (
-                        f"Failed to connect to agent '{agent_name}': "
-                        "Connection refused or agent unreachable"
-                    )
                     log.error(
-                        "%s Connection error (SDK raised StopAsyncIteration): %s",
-                        log_identifier,
-                        error_msg,
-                    )
-                    # Raise a more descriptive error that will be caught by the outer handler
-                    raise ConnectionError(error_msg) from e
-                else:
-                    # Some other RuntimeError - re-raise it
-                    raise
-
-            except A2AClientJSONRPCError as e:
-                # Handle JSON-RPC protocol errors
-
-                # Special case: Task already in terminal state (canceled/completed/failed)
-                # This is not a fatal error - the cancellation is effectively a no-op
-                if (e.error.code == -32002 and
-                    "cannot be canceled" in e.error.message.lower() and
-                    isinstance(request, CancelTaskRequest)):
-                    log.warning(
-                        "%s Task %s is already in terminal state: %s. Treating as successful cancellation.",
-                        log_identifier,
-                        task_context.downstream_task_id,
-                        e.error.message,
-                    )
-                    # Task is already done - return success (cancellation is effectively complete)
-                    # We don't need to publish a response because the task already sent its final response
-                    break
-
-                log.error(
-                    "%s JSON-RPC error from agent '%s': %s",
-                    log_identifier,
-                    agent_name,
-                    e.error,
-                )
-                # TODO: Publish error response to Solace
-                # Do not retry - this is a protocol-level error
-                raise
-
-            except ConnectionError as e:
-                # Connection errors (including those converted from RuntimeError above)
-                log.error(
-                    "%s Connection error forwarding request to agent '%s': %s",
-                    log_identifier,
-                    agent_name,
-                    e,
-                )
-                raise
-
-            except A2AClientHTTPError as e:
-                # Step 4: Check for 401 errors FIRST (they need retry logic)
-                if self._is_401_error(e) and auth_retry_count < max_auth_retries:
-                    log.warning(
-                        "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
+                        "%s JSON-RPC error from agent '%s': %s",
                         log_identifier,
                         agent_name,
-                        str(e)[:100],
-                        auth_retry_count + 1,
-                        max_auth_retries,
+                        e.error,
+                    )
+                    # TODO: Publish error response to Solace
+                    # Do not retry - this is a protocol-level error
+                    raise
+
+                except ConnectionError as e:
+                    # Connection errors (including those converted from RuntimeError above)
+                    log.error(
+                        "%s Connection error forwarding request to agent '%s': %s",
+                        log_identifier,
+                        agent_name,
+                        e,
+                    )
+                    raise
+
+                except A2AClientHTTPError as e:
+                    # Step 4: Check for 401 errors FIRST (they need retry logic)
+                    if self._is_401_error(e) and auth_retry_count < max_auth_retries:
+                        log.warning(
+                            "%s Received 401 Unauthorized from agent '%s' (detected from error: %s). Attempting token refresh (retry %d/%d).",
+                            log_identifier,
+                            agent_name,
+                            str(e)[:100],
+                            auth_retry_count + 1,
+                            max_auth_retries,
+                        )
+
+                        should_retry = await self._handle_auth_error(
+                            agent_name, task_context
+                        )
+                        if should_retry:
+                            auth_retry_count += 1
+                            continue  # Retry with fresh token
+
+                    # Step 5: Check for SSE Content-Type errors on first attempt
+                    # These include 307 redirects, 401 auth errors, and endpoint misconfigurations
+                    error_str = str(e)
+                    is_sse_content_type_error = (
+                        "Content-Type" in error_str and
+                        "text/event-stream" in error_str and
+                        "Invalid SSE response" in error_str and
+                        auth_retry_count == 0
                     )
 
-                    should_retry = await self._handle_auth_error(
-                        agent_name, task_context
+                    if is_sse_content_type_error:
+                        await self._handle_sse_content_type_error(
+                            agent_name, task_context, log_identifier
+                        )
+                        break
+
+                    # Not a retryable auth error, or max retries exceeded
+                    log.exception(
+                        "%s HTTP error forwarding request: %s",
+                        log_identifier,
+                        e,
                     )
-                    if should_retry:
-                        auth_retry_count += 1
-                        continue  # Retry with fresh token
+                    raise
 
-                # Step 5: Check for SSE Content-Type errors on first attempt
-                # These include 307 redirects, 401 auth errors, and endpoint misconfigurations
-                error_str = str(e)
-                is_sse_content_type_error = (
-                    "Content-Type" in error_str and
-                    "text/event-stream" in error_str and
-                    "Invalid SSE response" in error_str and
-                    auth_retry_count == 0
-                )
-
-                if is_sse_content_type_error:
-                    await self._handle_sse_content_type_error(
-                        agent_name, task_context, log_identifier
+                except Exception as e:
+                    log.exception(
+                        "%s Unexpected error forwarding request: %s",
+                        log_identifier,
+                        e,
                     )
-                    break
+                    # Let base class exception handler in _handle_a2a_request catch this
+                    # and publish an error response.
+                    raise
 
-                # Not a retryable auth error, or max retries exceeded
-                log.exception(
-                    "%s HTTP error forwarding request: %s",
-                    log_identifier,
-                    e,
+            # After retry loop completes - check if we received a final task
+            # This detects cases where the stream closes without error but also without final response
+            if not received_final_task and isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
+                from ....common.a2a import create_error_response
+
+                error_msg = f"Remote agent '{agent_name}' disconnected without completing the task. Agent may have crashed."
+                log.error("%s %s", log_identifier, error_msg)
+
+                error = InternalError(message=error_msg, data={"agent_name": agent_name})
+                reply_topic = task_context.a2a_context.get("reply_to_topic")
+                if reply_topic:
+                    response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
+                    self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
+
+                latency_monitor.error(
+                    ConnectionError(
+                        f"Remote agent '{agent_name}' disconnected without completing the task."
+                    )
                 )
-                raise
+                return
 
-            except Exception as e:
-                log.exception(
-                    "%s Unexpected error forwarding request: %s",
-                    log_identifier,
-                    e,
-                )
-                # Let base class exception handler in _handle_a2a_request catch this
-                # and publish an error response.
-                raise
+            latency_monitor.stop()
 
-        # After retry loop completes - check if we received a final task
-        # This detects cases where the stream closes without error but also without final response
-        if not received_final_task and isinstance(request, (SendStreamingMessageRequest, SendMessageRequest)):
-            from ....common.a2a import create_error_response
-
-            error_msg = f"Remote agent '{agent_name}' disconnected without completing the task. Agent may have crashed."
-            log.error("%s %s", log_identifier, error_msg)
-
-            error = InternalError(message=error_msg, data={"agent_name": agent_name})
-            reply_topic = task_context.a2a_context.get("reply_to_topic")
-            if reply_topic:
-                response = create_error_response(error=error, request_id=task_context.a2a_context.get("jsonrpc_request_id"))
-                self._publish_a2a_message(response.model_dump(exclude_none=True), reply_topic)
+        except Exception as e:
+            latency_monitor.error(e)
+            raise
 
     def _is_401_error(self, error: A2AClientHTTPError) -> bool:
         """
