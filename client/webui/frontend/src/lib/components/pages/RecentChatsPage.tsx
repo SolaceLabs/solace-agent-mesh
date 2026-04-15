@@ -69,7 +69,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
 export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
@@ -133,7 +133,17 @@ export const RecentChatsPage: React.FC = () => {
     }, [editingSessionId]);
 
     const handleSessionClick = async (session: Session) => {
-        if (editingSessionId !== session.id) {
+        if (editingSessionId === session.id) return;
+        const route = (session.agentId && agentSessionRoutes?.[session.agentId]) || "/chat";
+        if (route !== "/chat") {
+            // Dispatch event for the host app to handle agent-specific routing
+            // (e.g., Builder sessions navigate to /builder)
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+        } else {
             await handleSwitchSession(session.id);
             navigate("/chat");
         }
@@ -428,9 +438,11 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Empty States */}
-                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && selectedProject !== "all" && (
+                    <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />
+                )}
 
-                {sessions.length === 0 && !isFetchingNextPage && (
+                {filteredSessions.length === 0 && (sessions.length === 0 || selectedProject === "all") && !isFetchingNextPage && (
                     <EmptyState
                         variant="noImage"
                         title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}
