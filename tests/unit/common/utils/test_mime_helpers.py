@@ -5,6 +5,7 @@ Unit tests for common/utils/mime_helpers.py
 from solace_agent_mesh.common.utils.mime_helpers import (
     resolve_mime_type,
     get_extension_for_mime_type,
+    is_image_artifact,
     _EXTENSION_TO_MIME,
 )
 
@@ -132,3 +133,63 @@ class TestExtensionToMimeAliases:
 
     def test_bin_not_in_reverse_map(self):
         assert ".bin" not in _EXTENSION_TO_MIME
+
+
+# --- is_image_artifact ---
+
+
+class TestIsImageArtifact:
+    """Tests for is_image_artifact()."""
+
+    def test_image_mime_type_returns_true(self):
+        assert is_image_artifact("photo.png", "image/png") is True
+
+    def test_image_jpeg_returns_true(self):
+        assert is_image_artifact("photo.jpg", "image/jpeg") is True
+
+    def test_image_webp_returns_true(self):
+        assert is_image_artifact("anim.webp", "image/webp") is True
+
+    def test_svg_mime_type_excluded(self):
+        assert is_image_artifact("icon.svg", "image/svg+xml") is False
+
+    def test_non_image_mime_type_returns_false(self):
+        assert is_image_artifact("doc.pdf", "application/pdf") is False
+
+    def test_non_image_mime_with_image_extension_returns_false(self):
+        """A .png file with text/plain mime should not be treated as image."""
+        assert is_image_artifact("report.png", "text/plain") is False
+
+    def test_octet_stream_falls_back_to_extension(self):
+        assert is_image_artifact("photo.png", "application/octet-stream") is True
+
+    def test_octet_stream_non_image_extension(self):
+        assert is_image_artifact("data.bin", "application/octet-stream") is False
+
+    def test_none_mime_falls_back_to_extension(self):
+        assert is_image_artifact("photo.jpg", None) is True
+
+    def test_none_mime_non_image_extension(self):
+        assert is_image_artifact("readme.md", None) is False
+
+    def test_no_filename_no_mime_returns_false(self):
+        assert is_image_artifact(None, None) is False
+
+    def test_no_filename_with_image_mime_returns_true(self):
+        assert is_image_artifact(None, "image/png") is True
+
+    def test_extensionless_file_with_image_mime_returns_true(self):
+        assert is_image_artifact("photo", "image/gif") is True
+
+    def test_extensionless_file_no_mime_returns_false(self):
+        assert is_image_artifact("photo", None) is False
+
+    def test_mime_type_case_insensitive(self):
+        assert is_image_artifact("x.png", "Image/PNG") is True
+
+    def test_mime_type_with_parameters(self):
+        assert is_image_artifact("x.png", "image/png; charset=binary") is True
+
+    def test_svg_extension_no_mime_returns_false(self):
+        """SVG extension is not in _INLINE_VISION_EXTENSIONS."""
+        assert is_image_artifact("icon.svg", None) is False

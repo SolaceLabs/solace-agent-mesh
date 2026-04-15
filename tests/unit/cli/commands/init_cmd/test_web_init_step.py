@@ -18,6 +18,7 @@ class TestPerformWebInit:
         
         # Simulate config data from web portal
         config_data = {
+            "llm_provider": "openai",
             "llm_api_key": "test-api-key",
             "llm_endpoint_url": "https://api.test.com",
             "llm_model_name": "gpt-4",
@@ -48,6 +49,7 @@ class TestPerformWebInit:
         mock_echo = mocker.patch("click.echo")
         
         config_data = {
+            "llm_provider": "openai",
             "llm_service_planning_model_name": "gpt-4-planning",
             "llm_service_general_model_name": "gpt-3.5-general",
         }
@@ -65,6 +67,7 @@ class TestPerformWebInit:
         mock_echo = mocker.patch("click.echo")
         
         config_data = {
+            "llm_provider": "openai",
             "llm_model_name": "gpt-4-base",
         }
         mock_multiprocessing["dict"].update(config_data)
@@ -82,6 +85,7 @@ class TestPerformWebInit:
         mock_echo = mocker.patch("click.echo")
         
         config_data = {
+            "llm_provider": "openai",
             "llm_planning_model_name": "old-planning",
             "llm_general_model_name": "old-general",
         }
@@ -162,6 +166,7 @@ class TestPerformWebInit:
         mock_echo = mocker.patch("click.echo")
         
         config_data = {
+            "llm_provider": "openai",
             "llm_api_key": "old-key",
             "llm_endpoint_url": "old-endpoint",
             "llm_model_name": "old-model",

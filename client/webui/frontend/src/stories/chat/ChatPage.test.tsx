@@ -87,14 +87,18 @@ describe("ChatPage", () => {
         mockUseShareLink.mockReturnValue({ data: null });
         mockUseShareUsers.mockReturnValue({ data: { users: [] } });
 
-        vi.doMock("@/lib/hooks", () => ({
-            useChatContext: mockUseChatContext,
-            useTaskContext: mockUseTaskContext,
-            useTitleAnimation: mockUseTitleAnimation,
-            useConfigContext: mockUseConfigContext,
-            useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
-            useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
-        }));
+        vi.doMock("@/lib/hooks", async () => {
+            const actual = await vi.importActual<typeof import("@/lib/hooks")>("@/lib/hooks");
+            return {
+                ...actual,
+                useChatContext: mockUseChatContext,
+                useTaskContext: mockUseTaskContext,
+                useTitleAnimation: mockUseTitleAnimation,
+                useConfigContext: mockUseConfigContext,
+                useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
+                useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
+            };
+        });
 
         vi.doMock("@/lib/providers", () => ({
             useProjectContext: mockUseProjectContext,

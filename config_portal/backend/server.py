@@ -70,18 +70,11 @@ def get_agent_field_definitions():
     )
     fields.append(
         {
-            "name": "model_type",
-            "label": "Model Type",
-            "type": "select",
-            "options": [
-                "planning",
-                "general",
-                "image_gen",
-                "report_gen",
-                "multimodal",
-                "gemini_pro",
-            ],
-            "default": AGENT_DEFAULTS["model_type"],
+            "name": "model_provider",
+            "label": "Model Provider",
+            "type": "text",
+            "default": AGENT_DEFAULTS["model_provider"],
+            "description": "Model provider alias defined in shared_config.yaml (e.g., general, planning).",
         }
     )
     fields.append(

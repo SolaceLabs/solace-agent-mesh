@@ -61,13 +61,15 @@ const editModelHandlers = [
             ],
         });
     }),
-    http.put("*/api/v1/platform/models/:id", async ({ request }) => {
+    http.patch("*/api/v1/platform/models/:id", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
-            ...anthropicModelConfig,
-            ...body,
-            updatedBy: "test-user",
-            updatedTime: Date.now(),
+            data: {
+                ...anthropicModelConfig,
+                ...body,
+                updatedBy: "test-user",
+                updatedTime: Date.now(),
+            },
         });
     }),
 ];

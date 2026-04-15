@@ -230,11 +230,78 @@ class TestCreateOrchestratorConfig:
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.orchestrator_step.ask_if_not_provided")
         mock_ask.return_value = "test"
-        
+
         options = {"agent_name": "TestAgent"}
-        
+
         create_orchestrator_config(temp_project_dir, options, skip_interactive=True)
-        
+
         echo_calls = [str(call) for call in mock_echo.call_args_list]
         assert any("Configuring main orchestrator" in call for call in echo_calls)
         assert any("Configured" in call or "Created" in call for call in echo_calls)
+
+    def _base_options(self, **overrides):
+        """Return a full set of valid orchestrator options with optional overrides"""
+        opts = {
+            "agent_name": "TestAgent",
+            "supports_streaming": True,
+            "artifact_service_type": "filesystem",
+            "artifact_service_base_path": "/tmp/artifacts",
+            "artifact_service_scope": "namespace",
+            "artifact_handling_mode": "reference",
+            "enable_embed_resolution": True,
+            "enable_artifact_content_instruction": True,
+            "agent_card_description": "Test description",
+            "agent_card_default_input_modes": ["text"],
+            "agent_card_default_output_modes": ["text", "file"],
+            "agent_discovery_enabled": True,
+            "agent_card_publishing_interval": 10,
+            "inter_agent_communication_allow_list": ["*"],
+            "inter_agent_communication_deny_list": [],
+            "inter_agent_communication_timeout": 30,
+        }
+        opts.update(overrides)
+        return opts
+
+    def test_no_provider_strips_models_from_shared_config(self, temp_project_dir, mocker, mock_templates, mock_get_formatted_names):
+        """Test that shared_config has no models section when no LLM provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.orchestrator_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = self._base_options(llm_provider="")
+
+        result = create_orchestrator_config(temp_project_dir, options, skip_interactive=True)
+
+        assert result is True
+        shared_config = (temp_project_dir / "configs" / "shared_config.yaml").read_text()
+        assert "- models:" not in shared_config
+
+    def test_no_provider_strips_model_from_orchestrator(self, temp_project_dir, mocker, mock_templates, mock_get_formatted_names):
+        """Test that orchestrator yaml has no model anchor when no LLM provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.orchestrator_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = self._base_options(llm_provider="")
+
+        result = create_orchestrator_config(temp_project_dir, options, skip_interactive=True)
+
+        assert result is True
+        orch_content = (temp_project_dir / "configs" / "agents" / "main_orchestrator.yaml").read_text()
+        assert "model: *planning_model" not in orch_content
+        assert "model_provider" in orch_content
+
+    def test_with_provider_keeps_model_in_orchestrator(self, temp_project_dir, mocker, mock_templates, mock_get_formatted_names):
+        """Test that orchestrator yaml retains model anchor when a provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.orchestrator_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = self._base_options(llm_provider="openai")
+
+        result = create_orchestrator_config(temp_project_dir, options, skip_interactive=True)
+
+        assert result is True
+        orch_content = (temp_project_dir / "configs" / "agents" / "main_orchestrator.yaml").read_text()
+        assert "model: *planning_model" in orch_content
+        assert "model_provider" in orch_content

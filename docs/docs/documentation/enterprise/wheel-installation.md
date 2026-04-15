@@ -14,7 +14,7 @@ To run Agent Mesh Enterprise from a wheel file, you need:
 - Python 3.10.16 – 3.13.x
 - pip or uv package manager
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
-- An LLM service API key and endpoint
+- An LLM service API key and endpoint (optional—you can configure models through the Agent Mesh UI after starting the application)
 - For production deployments, Solace broker credentials
 
 ## Step 1: Download the Wheel File

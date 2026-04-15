@@ -118,6 +118,12 @@ Check the [Setting up Queue Templates](../deploying/deployment-options.md#settin
 
 ## LLM Configuration
 
+:::tip[Recommended: Manage Models Through the UI]
+The recommended way to configure models is through the Agent Mesh UI. You can start Agent Mesh without any pre-configured models and set them up from the **Models** page. This provides centralized credential management, dynamic updates without restarts, and visibility into model usage. For details, see [Model Configurations](./model_configurations.md).
+
+The YAML-based configuration described in the following section is intended for advanced use cases such as CI/CD pipelines, fully automated deployments, or scenarios where UI access is not available.
+:::
+
 The models section configures the various Large Language Models and other generative models that power your agents' intelligence. This configuration leverages the [LiteLLM](https://litellm.ai/) library, which provides a standardized interface for interacting with [different model providers](https://docs.litellm.ai/docs/providers), simplifying the process of switching between or combining multiple AI services.
 
 ### Model Configuration Parameters
