@@ -9,6 +9,7 @@ import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload, buildTestPayload } from "./modelProviderUtils";
 import { useModelById, useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
 import { getErrorMessage } from "@/lib/utils/api";
+import { useChatContext } from "@/lib/hooks";
 import type { ModelFormData } from "./modelProviderUtils";
 
 export const ModelEditPage = () => {
@@ -24,6 +25,7 @@ export const ModelEditPage = () => {
     const { data: modelToEdit, isLoading: modelLoading, error: fetchErrorObj } = useModelById(isNew ? undefined : modelId);
     const fetchError = fetchErrorObj ? getErrorMessage(fetchErrorObj, "Failed to load model.") : null;
 
+    const { agentsRefetch } = useChatContext();
     const createMutation = useCreateModel();
     const updateMutation = useUpdateModel();
     const testConnectionMutation = useTestModelConnection();
@@ -41,9 +43,11 @@ export const ModelEditPage = () => {
             try {
                 if (isNew) {
                     const result = await createMutation.mutateAsync(payload);
+                    agentsRefetch();
                     navigate("/agents?tab=models", { state: { highlightModelId: result.id } });
                 } else if (modelToEdit) {
                     await updateMutation.mutateAsync({ id: modelToEdit.id, data: payload });
+                    agentsRefetch();
                     navigate("/agents?tab=models");
                 }
             } catch (error) {

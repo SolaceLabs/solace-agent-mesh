@@ -47,6 +47,7 @@ export function useDeleteModel() {
         mutationFn: (id: string) => deleteModel(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
         },
     });
 }
@@ -71,13 +72,11 @@ export function useSupportedModels(params: SupportedModelsQueryParams | null) {
 
 /**
  * Hook to check if default LLM models are configured.
- * Fetches once and caches indefinitely for the session.
  */
 export function useModelConfigStatus() {
     return useQuery({
         queryKey: modelKeys.status(),
         queryFn: fetchModelConfigStatus,
-        staleTime: Infinity,
         refetchOnWindowFocus: false,
         retry: 1,
     });
@@ -93,6 +92,7 @@ export function useCreateModel() {
         mutationFn: (data: ModelData) => createModelConfig(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
         },
     });
 }
@@ -107,6 +107,7 @@ export function useUpdateModel() {
         mutationFn: ({ id, data }: { id: string; data: ModelData }) => updateModelConfig(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: modelKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: modelKeys.status() });
         },
     });
 }
