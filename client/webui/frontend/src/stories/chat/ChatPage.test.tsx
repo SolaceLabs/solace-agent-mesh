@@ -44,6 +44,7 @@ function makeDefaultChatContext(overrides: Record<string, unknown> = {}) {
         sessionOwnerName: null,
         sessionOwnerEmail: null,
         handleSwitchSession: vi.fn(),
+        agentsRefetch: vi.fn(),
         ...overrides,
     };
 }
