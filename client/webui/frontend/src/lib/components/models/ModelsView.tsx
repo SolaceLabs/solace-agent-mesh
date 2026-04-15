@@ -37,7 +37,7 @@ const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
 const MODELS_DESCRIPTION =
     "Existing models from your local backend configuration have been imported here and are now accessible for anyone in your organization. Going forward, changes you make in this UI will take precedence over your shared config file.";
 const MODELS_LEARN_MORE_TEXT = "Learn about managing models";
-const MODELS_URL = "#"; // TODO: Add documentation URL
+const MODELS_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/installing-and-configuring/model_configurations";
 
 const EMPTY_STATE_TITLE = "Match AI Models to Your Team's Workflows";
 const EMPTY_STATE_DESCRIPTION =
