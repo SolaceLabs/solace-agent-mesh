@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { MoreHorizontal } from "lucide-react";
 import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/scheduled-tasks";
 import { Header } from "@/lib/components/header";
+import { PageLayout } from "./PageLayout";
 import { Button } from "@/lib/components/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useNavigate } from "react-router-dom";
@@ -156,7 +157,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     );
 
     return (
-        <div className="flex h-full flex-col">
+        <PageLayout>
             {/* Header with Breadcrumbs */}
             <Header
                 title={task.name}
@@ -190,6 +191,6 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                     <ArtifactPreviewPanel artifact={previewArtifact} content={artifactContent} mimeType={artifactMimeType} isLoading={loadingArtifact} onClose={() => setPreviewArtifact(null)} resolveArtifactUri={resolveArtifactUri} />
                 )}
             </div>
-        </div>
+        </PageLayout>
     );
 };

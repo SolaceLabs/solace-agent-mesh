@@ -11,6 +11,7 @@ import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
+import { PageLayout } from "./PageLayout";
 import { EmptyState } from "@/lib/components/common/EmptyState";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
@@ -278,7 +279,7 @@ export const RecentChatsPage: React.FC = () => {
     }
 
     return (
-        <div className="flex h-full flex-col">
+        <PageLayout>
             <Header
                 title="Recent Chats"
                 buttons={[
@@ -462,6 +463,6 @@ export const RecentChatsPage: React.FC = () => {
                     }}
                 />
             )}
-        </div>
+        </PageLayout>
     );
 };

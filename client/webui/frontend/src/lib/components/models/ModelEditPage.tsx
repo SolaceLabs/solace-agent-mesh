@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
+import { PageLayout } from "@/lib/components/pages/PageLayout";
 
 import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
 import { ModelEdit } from "./ModelEdit";
@@ -111,7 +112,7 @@ export const ModelEditPage = () => {
     }
 
     return (
-        <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
+        <PageLayout className="min-w-4xl">
             <Header title={title} breadcrumbs={[{ label: "Agent Mesh", onClick: () => navigate("/agents?tab=models") }, { label: title }]} />
 
             <PageContentWrapper>
@@ -142,6 +143,6 @@ export const ModelEditPage = () => {
                     {isSaving ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
             </Footer>
-        </div>
+        </PageLayout>
     );
 };

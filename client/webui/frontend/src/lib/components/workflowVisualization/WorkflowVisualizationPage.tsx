@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
-import { Button, EmptyState } from "@/lib/components";
+import { Button, EmptyState, PageLayout } from "@/lib/components";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -295,7 +295,7 @@ export function WorkflowVisualizationPage() {
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title={
                     <div className="flex items-center gap-2">
@@ -350,7 +350,7 @@ export function WorkflowVisualizationPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </PageLayout>
     );
 }
 
