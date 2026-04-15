@@ -290,9 +290,10 @@ def create_orchestrator_config(
         # Load the single shared_config.yaml template
         shared_template_content = load_template("shared_config.yaml")
 
-        # Check if AWS Bedrock provider is being used
+        # Check which LLM provider is being used (if any)
         llm_provider = options.get("llm_provider", "")
-        
+        has_llm_provider = bool(llm_provider)
+
         # Configure model sections based on provider
         if llm_provider == "aws_bedrock":
             planning_model_config = """# Note: If you want a different model for planning, change it here
@@ -303,7 +304,7 @@ def create_orchestrator_config(
       aws_session_token: ${AWS_SESSION_TOKEN}
       temperature: 0.1  # Lower temperature for more focused responses
       # max_tokens: 2048  # Limit response length"""
-            
+
             general_model_config = """# Note: If you want a different model for general, change it here
       model: ${BEDROCK_MODEL_NAME}
       model_id: ${BEDROCK_MODEL_ID}
@@ -312,7 +313,7 @@ def create_orchestrator_config(
       aws_session_token: ${AWS_SESSION_TOKEN}
       temperature: 0.1  # Lower temperature for more focused responses
       # max_tokens: 1536  # Limit response length for general queries"""
-        else:
+        elif llm_provider:
             planning_model_config = """# This dictionary structure tells ADK to use the LiteLlm wrapper.
       # 'model' uses the specific model identifier your endpoint expects.
       model: ${LLM_SERVICE_PLANNING_MODEL_NAME} # Use env var for model name
@@ -327,7 +328,7 @@ def create_orchestrator_config(
 
       # max_tokens: ${MAX_TOKENS, 16000} # Set a reasonable max token limit for planning
       # temperature: 0.1 # Lower temperature for more deterministic planning"""
-            
+
             general_model_config = """# This dictionary structure tells ADK to use the LiteLlm wrapper.
       # 'model' uses the specific model identifier your endpoint expects.
       model: ${LLM_SERVICE_GENERAL_MODEL_NAME} # Use env var for model name
@@ -360,15 +361,24 @@ def create_orchestrator_config(
                 placeholder, str(value)
             )
 
-        # Replace model configuration placeholders
-        modified_shared_content = modified_shared_content.replace(
-            "      # __PLANNING_MODEL_CONFIG__",
-            planning_model_config,
-        )
-        modified_shared_content = modified_shared_content.replace(
-            "      # __GENERAL_MODEL_CONFIG__",
-            general_model_config,
-        )
+        if has_llm_provider:
+            # Replace model configuration placeholders
+            modified_shared_content = modified_shared_content.replace(
+                "      # __PLANNING_MODEL_CONFIG__",
+                planning_model_config,
+            )
+            modified_shared_content = modified_shared_content.replace(
+                "      # __GENERAL_MODEL_CONFIG__",
+                general_model_config,
+            )
+        else:
+            # No provider — strip the entire models section from shared_config
+            modified_shared_content = re.sub(
+                r"\n  - models:.*?(?=\n  - )",
+                "",
+                modified_shared_content,
+                flags=re.DOTALL,
+            )
 
         # Replace artifact base path line
         if not artifact_base_path_line:
@@ -507,6 +517,15 @@ def create_orchestrator_config(
         else:
             modified_orchestrator_content = re.sub(
                 r"^\s*__INTER_AGENT_COMMUNICATION_DENY_LIST_LINE__\n?$",
+                "",
+                modified_orchestrator_content,
+                flags=re.MULTILINE,
+            )
+
+        # If no LLM provider, strip the model anchor line (keep model_provider)
+        if not has_llm_provider:
+            modified_orchestrator_content = re.sub(
+                r"^\s*model: \*planning_model\n",
                 "",
                 modified_orchestrator_content,
                 flags=re.MULTILINE,

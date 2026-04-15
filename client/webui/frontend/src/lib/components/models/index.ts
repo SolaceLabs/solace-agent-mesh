@@ -1,7 +1,9 @@
 export { ModelsView } from "./ModelsView";
 export { ModelDetailsPage } from "./ModelDetailsPage";
 export { ModelDeleteDialog } from "./ModelDeleteDialog";
+export { ModelEdit } from "./ModelEdit";
 export { ModelEditPage } from "./ModelEditPage";
+export { ALL_PROVIDERS, buildModelPayload, type ModelFormData } from "./modelProviderUtils";
 export { ModelSetupDialog } from "./ModelSetupDialog";
 export { ModelWarningBanner } from "./ModelWarningBanner";
 export { ModelProviderIcon } from "./ModelProviderIcon";

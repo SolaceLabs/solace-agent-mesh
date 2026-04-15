@@ -411,6 +411,31 @@ class TestTestConnection:
             # Check that sensitive key doesn't appear
             assert "sk-very-secret-key" not in message
 
+    @pytest.mark.asyncio
+    async def test_test_connection_succeeds_without_temperature(self):
+        """Test connection succeeds when no temperature is provided in model_params."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(
+            provider="openai",
+            model_name="gpt-5",
+            auth_config={"type": "apikey", "api_key": "sk-test-key"},
+            # No model_params / no temperature — should not crash
+        )
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _mock_llm_success_response()
+
+            success, message = await service.test_connection(mock_db, request)
+
+            assert success is True
+            assert "successful" in message.lower()
+
 
 class TestGetModelsFromProviderById:
     """Tests for get_models_from_provider_by_id with override logic."""

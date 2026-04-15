@@ -3346,3 +3346,37 @@ async def audit_log_openapi_tool_execution_result(
         )
 
     return None
+
+
+def apply_model_override_callback(
+    callback_context: CallbackContext,
+    llm_request: LlmRequest,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """Read model_override from A2A task metadata.
+
+    model_override is a full LiteLLM-ready config dict (same format as
+    ``ModelConfigService.get_by_alias(raw=True)``).  Applied via a
+    ``ContextVar`` that ``LiteLlm.generate_content_async`` consumes.
+    """
+    # Inline import to avoid circular dependency (callbacks ← setup → lite_llm)
+    from .models.lite_llm import set_model_override
+
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        set_model_override(None)
+        return None
+
+    metadata = a2a_context.get("original_message_metadata") or {}
+
+    model_override = metadata.get("model_override")
+    if isinstance(model_override, dict) and model_override.get("model"):
+        set_model_override(model_override)
+        log.info(
+            "[Callback:ModelOverride] Set per-request model override: %s",
+            model_override["model"],
+        )
+    else:
+        set_model_override(None)
+
+    return None

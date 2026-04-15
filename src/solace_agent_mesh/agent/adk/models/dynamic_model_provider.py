@@ -2,14 +2,17 @@
 Dynamic Model Provider for enterprise model configuration.
 """
 
-from typing import Any, Dict, Union
 import asyncio
+import logging
+import threading
+from typing import Any, Dict, List, Optional, Union
+
 from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 from solace_ai_connector.components.component_base import ComponentBase
 from solace_ai_connector.common.message import Message as SolaceMessage
-import logging
 
 from .dynamic_model_provider_topics import (
+    extract_model_id_from_topic,
     get_bootstrap_request_topic,
     get_bootstrap_response_topic,
     get_model_config_update_topic,
@@ -19,6 +22,7 @@ log = logging.getLogger(__name__)
 
 _MAX_BOOTSTRAP_RETRIES = 3
 _BOOTSTRAP_RETRY_INTERVAL_SECONDS = 5
+_RESOLVE_TIMEOUT_SECONDS = 10.0
 
 
 # SAC Component Info for ModelConfigReceiverComponent
@@ -75,12 +79,13 @@ class ModelConfigReceiverComponent(ComponentBase):
         log.info("%s ModelConfigReceiverComponent initialized.", self.log_identifier)
 
     def invoke(self, message: SolaceMessage, data: Dict[str, Any]) -> None:
-        """
-        Processes the incoming model configuration message.
+        """Process an incoming model configuration message.
 
-        Args:
-            message: The SolaceMessage object from BrokerInput.
-            data: The data extracted by BrokerInput (payload, topic, user_properties).
+        Routes by model_id extracted from the topic:
+        - If model_id matches this provider's configured model, updates
+          the LiteLlm instance (bootstrap response or config change).
+        - Otherwise, completes any pending one-shot resolve futures for
+          that model_id (per-request alias resolution).
         """
         log_id_prefix = f"{self.log_identifier}[Invoke]"
         try:
@@ -93,26 +98,32 @@ class ModelConfigReceiverComponent(ComponentBase):
                 topic,
             )
 
-            # Check if model_config exists in payload
             model_config = payload.get("model_config")
 
-            if model_config:
-                log.info(
-                    "%s Model config found, updating LiteLlm: %s",
-                    log_id_prefix,
-                    model_config.get('model', 'N/A'),
-                )
-                self.model_provider.mark_initialized()
-                self.model_provider.update_litellm_model(model_config)
+            topic_model_id, _ = extract_model_id_from_topic(topic)
+
+            if topic_model_id == self.model_provider.model_id:
+                if model_config:
+                    log.info(
+                        "%s Model config found, updating LiteLlm: %s",
+                        log_id_prefix,
+                        model_config.get('model', 'N/A'),
+                    )
+                    self.model_provider.mark_initialized()
+                    self.model_provider.update_litellm_model(model_config)
+                else:
+                    log.info(
+                        "%s No model config or empty config, removing LiteLlm model",
+                        log_id_prefix,
+                    )
+                    self.model_provider.remove_litellm_model()
             else:
-                log.info(
-                    "%s No model config or empty config, removing LiteLlm model",
-                    log_id_prefix,
+                # Response for a different model_id — one-shot alias resolution
+                self.model_provider.complete_pending_resolve(
+                    topic_model_id, model_config
                 )
-                self.model_provider.remove_litellm_model()
 
             message.call_acknowledgements()
-            log.debug("%s Message acknowledged to BrokerInput.", log_id_prefix)
 
         except Exception as e:
             log.exception(
@@ -139,12 +150,26 @@ class DynamicModelProvider:
 
         # Initial model configuration
         self._initialized = False
+
+        # Event loop reference, captured during initialize() for cross-thread use
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # One-shot alias resolution state (thread-safe)
+        self._pending_resolves: Dict[str, List[asyncio.Future]] = {}
+        self._resolve_lock = threading.Lock()
+
         asyncio.create_task(self.initialize())
+
+    @property
+    def model_id(self) -> str:
+        """The model identifier this provider is configured for."""
+        return self._model_id
 
     async def initialize(self):
         """
         Initialize the DynamicModelProvider by starting to listen for model config changes.
         """
+        self._loop = asyncio.get_running_loop()
         await self.listen_for_model_config_change()
 
         # Call request_model_config up to 3 times, once every 5 seconds, until initialized
@@ -232,9 +257,10 @@ class DynamicModelProvider:
                 )
                 raise ValueError("Main app broker configuration is missing.")
 
-            # Subscribe to the model config update topic
             config_update_topic = get_model_config_update_topic(self._component.namespace, self._model_id)
-            config_bootstrap_topic = get_bootstrap_response_topic(self._component.namespace, self._model_id, self._component.get_component_id())
+            # Wildcard subscription catches both own-model bootstrap responses
+            # and one-shot alias resolution responses for any model_id
+            config_bootstrap_topic = get_bootstrap_response_topic(self._component.namespace, "*", self._component.get_component_id())
             component_id = self._component.get_component_id()
 
             broker_input_cfg = {
@@ -345,11 +371,103 @@ class DynamicModelProvider:
         log.info("Setting up model configuration listener...")
         self._ensure_config_listener_flow_is_running()
 
+    async def resolve(
+        self, alias: str, timeout: float = _RESOLVE_TIMEOUT_SECONDS
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve a model config alias to a raw LiteLLM config dict.
+
+        Sends a bootstrap request to the platform service and awaits the
+        response. Concurrent requests for the same alias are de-duplicated:
+        only the first publishes a broker message; subsequent callers
+        piggyback on the pending response.
+
+        Returns None on timeout or if the platform returns no config.
+        """
+        if not self._internal_app:
+            log.warning(
+                "%s Cannot resolve alias '%s' — listener not running",
+                self._component.log_identifier,
+                alias,
+            )
+            return None
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+
+        with self._resolve_lock:
+            if alias in self._pending_resolves:
+                self._pending_resolves[alias].append(future)
+                should_publish = False
+            else:
+                self._pending_resolves[alias] = [future]
+                should_publish = True
+
+        if should_publish:
+            component_id = self._component.get_component_id()
+            response_topic = get_bootstrap_response_topic(
+                self._component.namespace, alias, component_id
+            )
+            self._component.publish_a2a_message(
+                payload={
+                    "model_id": alias,
+                    "reply_to": response_topic,
+                    "component_id": component_id,
+                    "component_type": self._component._get_component_type(),
+                },
+                topic=get_bootstrap_request_topic(
+                    self._component.namespace, alias
+                ),
+            )
+
+        try:
+            result = await asyncio.wait_for(future, timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            log.warning(
+                "%s Model alias resolution timed out for '%s' after %.1fs",
+                self._component.log_identifier,
+                alias,
+                timeout,
+            )
+            return None
+        finally:
+            with self._resolve_lock:
+                futures = self._pending_resolves.get(alias, [])
+                if future in futures:
+                    futures.remove(future)
+                if not futures:
+                    self._pending_resolves.pop(alias, None)
+
+    def complete_pending_resolve(
+        self, alias: str, model_config: Optional[Dict[str, Any]]
+    ) -> None:
+        """Complete all pending resolve futures for a given alias.
+
+        Called from the SAC receiver thread. Uses call_soon_threadsafe to
+        safely set results on asyncio.Futures from a non-event-loop thread.
+        """
+        with self._resolve_lock:
+            futures = self._pending_resolves.pop(alias, [])
+
+        if not futures:
+            return
+
+        loop = self._loop
+        for future in futures:
+            if not future.done():
+                loop.call_soon_threadsafe(future.set_result, model_config)
+
     def cleanup(self) -> None:
-        """
-        Cleanup resources when the provider is no longer needed.
-        """
+        """Cleanup resources when the provider is no longer needed."""
         log.info("Cleaning up DynamicModelProvider...")
+
+        with self._resolve_lock:
+            for futures in self._pending_resolves.values():
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
+            self._pending_resolves.clear()
+
         if self._internal_app:
             log.info("Cleaning up internal model config app...")
             try:
