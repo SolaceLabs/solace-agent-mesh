@@ -26,9 +26,8 @@ describe("ScheduleBuilder", () => {
         expect(select).toBeInTheDocument();
         expect(select).toHaveValue("daily");
 
-        // Time input present
-        const timeInput = screen.getByPlaceholderText("09:00");
-        expect(timeInput).toBeInTheDocument();
+        // Time picker present (TimePicker renders hour, minute, and AM/PM selects)
+        expect(screen.getByText("AM")).toBeInTheDocument();
 
         // Preview section present
         expect(screen.getByText("Preview:")).toBeInTheDocument();

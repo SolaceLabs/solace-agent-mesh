@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
+import { TimePicker } from "@/lib/components/ui";
 
 // Schedule builder types
 type FrequencyType = "daily" | "weekly" | "monthly" | "hourly" | "custom";
@@ -423,41 +424,29 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
             {config.frequency !== "hourly" && (
                 <div>
                     <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Time</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            className="w-20 rounded-md border px-2 py-1.5 text-center text-sm"
-                            value={config.time}
-                            onChange={e => {
-                                const value = e.target.value;
-                                // Validate format HH:MM where HH is 01-12
-                                if (value.match(/^(0[1-9]|1[0-2]):[0-5][0-9]$/) || value.length < 5) {
-                                    updateConfig({ time: value });
-                                }
-                            }}
-                            onBlur={e => {
-                                // Auto-format on blur
-                                const value = e.target.value;
-                                const match = value.match(/^(\d{1,2}):?(\d{0,2})$/);
-                                if (match) {
-                                    let hours = parseInt(match[1]);
-                                    const minutes = match[2] ? match[2].padStart(2, "0") : "00";
-
-                                    // Clamp hours to 1-12
-                                    if (hours < 1) hours = 1;
-                                    if (hours > 12) hours = 12;
-
-                                    updateConfig({ time: `${hours.toString().padStart(2, "0")}:${minutes}` });
-                                }
-                            }}
-                            placeholder="09:00"
-                            maxLength={5}
-                        />
-                        <select className="w-16 rounded-md border px-2 py-1.5 text-sm" value={config.ampm} onChange={e => updateConfig({ ampm: e.target.value as "AM" | "PM" })}>
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <TimePicker
+                        value={(() => {
+                            // Convert 12h config to 24h for TimePicker
+                            const parts = config.time.split(":");
+                            const h12 = Number(parts[0]);
+                            const m = Number(parts[1]);
+                            if (isNaN(h12) || isNaN(m)) return "09:00";
+                            let h24 = h12;
+                            if (config.ampm === "PM") h24 = h12 === 12 ? 12 : h12 + 12;
+                            else if (config.ampm === "AM") h24 = h12 === 12 ? 0 : h12;
+                            return `${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                        })()}
+                        onChange={val => {
+                            // Convert 24h back to 12h config
+                            const [h24, m] = val.split(":").map(Number);
+                            const ampm: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
+                            const h12 = h24 % 12 || 12;
+                            updateConfig({
+                                time: `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+                                ampm,
+                            });
+                        }}
+                    />
                 </div>
             )}
 

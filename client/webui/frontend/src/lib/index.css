@@ -37,6 +37,7 @@
     --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
 
+
 /* Shimmer animation for processing nodes */
 @keyframes shimmer {
     0% {

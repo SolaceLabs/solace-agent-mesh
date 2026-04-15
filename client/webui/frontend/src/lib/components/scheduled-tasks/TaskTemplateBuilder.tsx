@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label } from "@/lib/components/ui";
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker } from "@/lib/components/ui";
 import { Sparkles, Loader2, Pencil } from "lucide-react";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
@@ -410,24 +410,22 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                 Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
                                             </Label>
                                             <div className="flex items-center gap-2">
-                                                <Input
-                                                    type="date"
+                                                <DatePicker
                                                     value={config.scheduleExpression.split("T")[0] || ""}
-                                                    onChange={e => {
+                                                    onChange={date => {
                                                         const time = config.scheduleExpression.split("T")[1] || "09:00:00";
-                                                        updateConfig({ scheduleExpression: e.target.value ? `${e.target.value}T${time}` : "" });
+                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}` : "" });
                                                     }}
                                                     min={new Date().toISOString().split("T")[0]}
-                                                    className={`w-fit ${validationErrors.scheduleExpression ? "border-red-500" : ""}`}
+                                                    invalid={!!validationErrors.scheduleExpression}
                                                 />
-                                                <Input
-                                                    type="time"
+                                                <TimePicker
                                                     value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
-                                                    onChange={e => {
+                                                    onChange={time => {
                                                         const date = config.scheduleExpression.split("T")[0] || "";
-                                                        updateConfig({ scheduleExpression: date ? `${date}T${e.target.value}:00` : "" });
+                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}:00` : "" });
                                                     }}
-                                                    className={`w-fit ${validationErrors.scheduleExpression ? "border-red-500" : ""}`}
+                                                    invalid={!!validationErrors.scheduleExpression}
                                                 />
                                             </div>
                                             {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}

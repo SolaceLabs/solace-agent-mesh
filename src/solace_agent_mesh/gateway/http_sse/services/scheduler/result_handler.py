@@ -10,7 +10,7 @@ import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from a2a.types import Task, TaskStatusUpdateEvent, JSONRPCResponse, JSONRPCError
+from a2a.types import Task, TaskState, TaskStatusUpdateEvent, JSONRPCResponse, JSONRPCError
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
@@ -164,6 +164,10 @@ class ResultHandler:
         By accumulating them here we ensure they are available when the final
         response arrives – regardless of whether the TaskLoggerService has
         persisted them to the database yet.
+
+        Also detects ``input_required`` and ``auth_required`` states which require
+        user interaction that is impossible in a scheduled (non-interactive)
+        execution, and fails the execution immediately.
         """
         if not isinstance(result, TaskStatusUpdateEvent):
             return
@@ -171,6 +175,30 @@ class ResultHandler:
         status_msg = getattr(result, "status", None)
         if not status_msg:
             return
+
+        # Scheduled tasks are non-interactive — if the agent requests user
+        # interaction (OAuth consent, input prompts, etc.) we must fail fast
+        # instead of blocking indefinitely.
+        if status_msg.state in (TaskState.input_required, TaskState.auth_required):
+            log.warning(
+                "%s Scheduled task %s requires user interaction (state=%s) — failing execution",
+                self.log_prefix, a2a_task_id, status_msg.state.value,
+            )
+            async with self.pending_executions_lock:
+                execution_id = self.pending_executions.pop(a2a_task_id, None)
+            if execution_id:
+                error = JSONRPCError(
+                    code=-32001,
+                    message=(
+                        "Task requires user authentication or input which is not "
+                        "available in scheduled (non-interactive) executions. "
+                        "Please ensure the required tool credentials are "
+                        "pre-configured before scheduling this task."
+                    ),
+                )
+                await self._handle_error(execution_id, error, a2a_task_id)
+            return
+
         message = getattr(status_msg, "message", None)
         if not message:
             return

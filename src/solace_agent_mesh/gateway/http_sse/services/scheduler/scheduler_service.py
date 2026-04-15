@@ -528,6 +528,13 @@ class SchedulerService:
                             if task:
                                 task.consecutive_failure_count = 0
                                 task.run_count = (task.run_count or 0) + 1
+                                # Update next_run_at from APScheduler so the frontend shows
+                                # the correct countdown for the next execution.
+                                job_info = self.active_tasks.get(task_id)
+                                if job_info and job_info.get("job") and job_info["job"].next_run_time:
+                                    task.next_run_at = int(job_info["job"].next_run_time.timestamp() * 1000)
+                                elif task.schedule_type == "one_time":
+                                    task.next_run_at = None
                                 session.commit()
                                 await self.notification_service.notify_execution_complete(
                                     execution=execution, task=task,
@@ -564,6 +571,14 @@ class SchedulerService:
                         execution = session.get(ScheduledTaskExecutionModel, execution_id)
                         task = session.get(ScheduledTaskModel, task_id)
                         if execution and task:
+                            # Update next_run_at even on failure so the card
+                            # shows the next scheduled time, not "Overdue".
+                            job_info = self.active_tasks.get(task_id)
+                            if job_info and job_info.get("job") and job_info["job"].next_run_time:
+                                task.next_run_at = int(job_info["job"].next_run_time.timestamp() * 1000)
+                            elif task.schedule_type == "one_time":
+                                task.next_run_at = None
+                            session.commit()
                             await self.notification_service.notify_execution_complete(
                                 execution=execution, task=task,
                             )

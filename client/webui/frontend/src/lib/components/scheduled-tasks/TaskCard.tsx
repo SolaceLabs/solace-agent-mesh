@@ -51,7 +51,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
 
     const formatNextRun = (task: ScheduledTask): string => {
         if (task.status === "paused") return "Paused";
-        if (!task.nextRunAt) return "Not scheduled";
+
+        if (!task.nextRunAt) {
+            // One-time tasks clear nextRunAt after completion
+            if (task.scheduleType === "one_time" && task.lastRunAt) return "Completed";
+            return "Not scheduled";
+        }
 
         const now = Date.now();
         const diff = task.nextRunAt - now;
@@ -63,10 +68,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
             return `In ${Math.floor(diff / 86400000)} days`;
         }
 
-        // nextRunAt is in the past
-        // If lastRunAt is close to or after nextRunAt, the task likely ran (or is running)
+        // nextRunAt is in the past — task likely ran or is running
         if (task.lastRunAt && task.lastRunAt >= task.nextRunAt - 60000) {
-            return task.scheduleType === "one_time" ? "Completed" : "Awaiting next schedule";
+            return "Ran recently";
         }
 
         return "Overdue";
