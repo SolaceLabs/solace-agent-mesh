@@ -8,7 +8,6 @@ to prevent accidental metric explosion.
 
 from solace_ai_connector.common.observability.monitors.operation import OperationMonitor
 from solace_ai_connector.common.observability.monitors.base import MonitorInstance
-from solace_ai_connector.common.observability.monitors.remote import RemoteRequestMonitor
 
 
 class AgentMonitor(OperationMonitor):
@@ -85,21 +84,21 @@ class ToolMonitor(OperationMonitor):
         )
 
 
-class RemoteAgentProxyMonitor(RemoteRequestMonitor):
+class RemoteAgentProxyMonitor(OperationMonitor):
     """
-    Type-safe monitor for outbound A2A proxy request duration.
+    Type-safe monitor for A2A proxy request duration.
 
-    Tracks latency and error type for forwarded requests from the A2A proxy
-    to downstream remote A2A agents.
+    Inherits from OperationMonitor but constrains the API to prevent metric explosion.
+    Automatically sets type="a2a_agent" and operation.name="forward_request".
 
-    Maps to: outbound.request.duration histogram
-    Labels: service.peer.name=<agent_name>, operation.name="forward_request", error.type
+    Maps to: operation.duration histogram
+    Labels: type="a2a_agent", component.name=<agent_name>, operation.name="forward_request", error.type
 
     Usage:
         from solace_agent_mesh.common.observability import RemoteAgentProxyMonitor
         from solace_ai_connector.common.observability import MonitorLatency
 
-        monitor = MonitorLatency(RemoteAgentProxyMonitor.forward_request("MyAgent"))
+        monitor = MonitorLatency(RemoteAgentProxyMonitor.create("MyAgent"))
         monitor.start()
         try:
             # ... forwarding logic ...
@@ -154,24 +153,26 @@ class RemoteAgentProxyMonitor(RemoteRequestMonitor):
         except ImportError:
             pass
 
-        return RemoteRequestMonitor.parse_error(exc)
+        if isinstance(exc, ConnectionError):
+            return "connection_error"
+
+        return OperationMonitor.parse_error(exc)
 
     @classmethod
-    def forward_request(cls, agent_name: str) -> MonitorInstance:
+    def create(cls, name: str) -> MonitorInstance:
         """
         Create monitor instance for a forward_request operation to a remote A2A agent.
 
         Args:
-            agent_name: The name of the downstream agent being called.
+            name: The name of the downstream agent being called (e.g., "MyRemoteAgent").
 
         Returns:
-            MonitorInstance configured for remote agent request tracking.
+            MonitorInstance configured for A2A proxy request tracking.
         """
-        return MonitorInstance(
-            monitor_type=cls.monitor_type,
-            labels={
-                "service.peer.name": agent_name,
-                "operation.name": "forward_request",
-            },
-            error_parser=cls.parse_error,
+        instance = super().create(
+            component_type="a2a_agent",
+            component_name=name,
+            operation="forward_request"
         )
+        instance.error_parser = cls.parse_error
+        return instance

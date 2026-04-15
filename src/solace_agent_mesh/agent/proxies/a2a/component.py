@@ -736,7 +736,7 @@ class A2AProxyComponent(BaseProxyComponent):
 
         # Observability: Track latency and errors for remote agent invocation
         latency_monitor = MonitorLatency(
-            RemoteAgentProxyMonitor.forward_request(agent_name)
+            RemoteAgentProxyMonitor.create(agent_name)
         )
         latency_monitor.start()
 

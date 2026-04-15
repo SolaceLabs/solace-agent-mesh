@@ -100,28 +100,32 @@ class TestRemoteAgentProxyMonitorParseError:
         exc = RuntimeError("something unexpected")
         assert RemoteAgentProxyMonitor.parse_error(exc) == "RuntimeError"
 
-    def test_value_error_returns_class_name(self):
+    def test_value_error_returns_validation_error(self):
         exc = ValueError("invalid config")
-        assert RemoteAgentProxyMonitor.parse_error(exc) == "ValueError"
+        assert RemoteAgentProxyMonitor.parse_error(exc) == "validation_error"
 
 
 class TestRemoteAgentProxyMonitorFactory:
     """Test that factory method produces correctly configured MonitorInstance."""
 
-    def test_forward_request_returns_correct_monitor_type(self):
-        instance = RemoteAgentProxyMonitor.forward_request("TestAgent")
-        assert instance.monitor_type == "outbound.request.duration"
+    def test_create_returns_correct_monitor_type(self):
+        instance = RemoteAgentProxyMonitor.create("TestAgent")
+        assert instance.monitor_type == "operation.duration"
 
-    def test_forward_request_sets_agent_name_label(self):
-        instance = RemoteAgentProxyMonitor.forward_request("MyRemoteAgent")
-        assert instance.labels["service.peer.name"] == "MyRemoteAgent"
+    def test_create_sets_component_type_label(self):
+        instance = RemoteAgentProxyMonitor.create("TestAgent")
+        assert instance.labels["type"] == "a2a_agent"
 
-    def test_forward_request_sets_operation_name_label(self):
-        instance = RemoteAgentProxyMonitor.forward_request("TestAgent")
+    def test_create_sets_agent_name_label(self):
+        instance = RemoteAgentProxyMonitor.create("MyRemoteAgent")
+        assert instance.labels["component.name"] == "MyRemoteAgent"
+
+    def test_create_sets_operation_name_label(self):
+        instance = RemoteAgentProxyMonitor.create("TestAgent")
         assert instance.labels["operation.name"] == "forward_request"
 
-    def test_forward_request_sets_error_parser(self):
-        instance = RemoteAgentProxyMonitor.forward_request("TestAgent")
+    def test_create_sets_error_parser(self):
+        instance = RemoteAgentProxyMonitor.create("TestAgent")
         assert instance.error_parser is RemoteAgentProxyMonitor.parse_error
 
 
@@ -142,7 +146,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             mock_registry.get_instance = Mock(return_value=mock_registry_instance)
 
             monitor = MonitorLatency(
-                RemoteAgentProxyMonitor.forward_request("SuccessAgent")
+                RemoteAgentProxyMonitor.create("SuccessAgent")
             )
             monitor.start()
             # Simulate successful operation
@@ -151,7 +155,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "SuccessAgent",
+                    "component.name": "SuccessAgent",
                     "operation.name": "forward_request",
                 },
             )
@@ -176,7 +180,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             mock_registry.get_instance = Mock(return_value=mock_registry_instance)
 
             monitor = MonitorLatency(
-                RemoteAgentProxyMonitor.forward_request("FailAgent")
+                RemoteAgentProxyMonitor.create("FailAgent")
             )
             monitor.start()
             monitor.error(ConnectionError("agent disconnected"))
@@ -184,7 +188,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "FailAgent",
+                    "component.name": "FailAgent",
                     "operation.name": "forward_request",
                 },
             )
@@ -209,7 +213,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             mock_registry.get_instance = Mock(return_value=mock_registry_instance)
 
             monitor = MonitorLatency(
-                RemoteAgentProxyMonitor.forward_request("AuthFailAgent")
+                RemoteAgentProxyMonitor.create("AuthFailAgent")
             )
             monitor.start()
             monitor.error(A2AClientHTTPError(401, "Unauthorized"))
@@ -217,7 +221,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "AuthFailAgent",
+                    "component.name": "AuthFailAgent",
                     "operation.name": "forward_request",
                 },
             )
@@ -239,14 +243,14 @@ class TestRemoteAgentProxyMonitorIntegration:
             mock_registry.get_instance = Mock(return_value=mock_registry_instance)
 
             with MonitorLatency(
-                RemoteAgentProxyMonitor.forward_request("CtxAgent")
+                RemoteAgentProxyMonitor.create("CtxAgent")
             ):
                 pass  # Simulate successful operation
 
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "CtxAgent",
+                    "component.name": "CtxAgent",
                     "operation.name": "forward_request",
                 },
             )
@@ -269,14 +273,14 @@ class TestRemoteAgentProxyMonitorIntegration:
 
             with pytest.raises(A2AClientHTTPError):
                 with MonitorLatency(
-                    RemoteAgentProxyMonitor.forward_request("ErrorCtxAgent")
+                    RemoteAgentProxyMonitor.create("ErrorCtxAgent")
                 ):
                     raise A2AClientHTTPError(500, "Internal Server Error")
 
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "ErrorCtxAgent",
+                    "component.name": "ErrorCtxAgent",
                     "operation.name": "forward_request",
                 },
             )
@@ -298,7 +302,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             mock_registry.get_instance = Mock(return_value=mock_registry_instance)
 
             monitor = MonitorLatency(
-                RemoteAgentProxyMonitor.forward_request("RPCFailAgent")
+                RemoteAgentProxyMonitor.create("RPCFailAgent")
             )
             monitor.start()
             monitor.error(_make_jsonrpc_error(-32000, "Server error"))
@@ -306,7 +310,7 @@ class TestRemoteAgentProxyMonitorIntegration:
             metric = find_metric(
                 recorded_metrics,
                 **{
-                    "service.peer.name": "RPCFailAgent",
+                    "component.name": "RPCFailAgent",
                     "operation.name": "forward_request",
                 },
             )
