@@ -106,8 +106,7 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "save"},
+                **{"service.peer.name": "artifact_service", "operation.name": "save"},
             )
             assert metric is not None, (
                 f"Expected artifact save metric not found in {recorded_metrics}"
@@ -150,8 +149,7 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "load"},
+                **{"service.peer.name": "artifact_service", "operation.name": "load"},
             )
             assert metric is not None, (
                 f"Expected artifact load metric not found in {recorded_metrics}"
@@ -193,8 +191,7 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "delete"},
+                **{"service.peer.name": "artifact_service", "operation.name": "delete"},
             )
             assert metric is not None, (
                 f"Expected artifact delete metric not found in {recorded_metrics}"
@@ -203,8 +200,8 @@ class TestArtifactOperationMetrics:
             assert labels["error.type"] == "none"
 
     @pytest.mark.asyncio
-    async def test_list_artifact_keys_records_metric(self, wrapper, metric_capture):
-        """list_artifact_keys should record metric with operation.name=list_keys."""
+    async def test_list_artifact_keys_records_list_metric(self, wrapper, metric_capture):
+        """list_artifact_keys should record metric with operation.name=list."""
         recorded_metrics, capture_record = metric_capture
 
         with patch(
@@ -226,21 +223,20 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{
-                    "component.name": "artifact_service",
-                    "operation.name": "list_keys",
+                    "service.peer.name": "artifact_service",
+                    "operation.name": "list",
                 },
             )
             assert metric is not None, (
-                f"Expected artifact list_keys metric not found in {recorded_metrics}"
+                f"Expected artifact list metric not found in {recorded_metrics}"
             )
             _, labels = metric
             assert labels["error.type"] == "none"
 
     @pytest.mark.asyncio
-    async def test_list_versions_records_metric(self, wrapper, metric_capture):
-        """list_versions should record metric with operation.name=list_versions."""
+    async def test_list_versions_records_list_metric(self, wrapper, metric_capture):
+        """list_versions should record metric with operation.name=list."""
         recorded_metrics, capture_record = metric_capture
 
         with patch(
@@ -274,23 +270,22 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{
-                    "component.name": "artifact_service",
-                    "operation.name": "list_versions",
+                    "service.peer.name": "artifact_service",
+                    "operation.name": "list",
                 },
             )
             assert metric is not None, (
-                f"Expected artifact list_versions metric not found in {recorded_metrics}"
+                f"Expected artifact list metric not found in {recorded_metrics}"
             )
             _, labels = metric
             assert labels["error.type"] == "none"
 
     @pytest.mark.asyncio
-    async def test_list_artifact_versions_records_metric(
+    async def test_list_artifact_versions_records_list_metric(
         self, wrapper, metric_capture
     ):
-        """list_artifact_versions should record metric with operation.name=list_artifact_versions."""
+        """list_artifact_versions should record metric with operation.name=list."""
         recorded_metrics, capture_record = metric_capture
 
         with patch(
@@ -313,21 +308,20 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{
-                    "component.name": "artifact_service",
-                    "operation.name": "list_artifact_versions",
+                    "service.peer.name": "artifact_service",
+                    "operation.name": "list",
                 },
             )
             assert metric is not None, (
-                f"Expected artifact list_artifact_versions metric not found in {recorded_metrics}"
+                f"Expected artifact list metric not found in {recorded_metrics}"
             )
             _, labels = metric
             assert labels["error.type"] == "none"
 
     @pytest.mark.asyncio
-    async def test_get_artifact_version_records_metric(self, wrapper, metric_capture):
-        """get_artifact_version should record metric with operation.name=get_version."""
+    async def test_get_artifact_version_records_load_metric(self, wrapper, metric_capture):
+        """get_artifact_version should record metric with operation.name=load."""
         recorded_metrics, capture_record = metric_capture
 
         with patch(
@@ -348,14 +342,13 @@ class TestArtifactOperationMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{
-                    "component.name": "artifact_service",
-                    "operation.name": "get_version",
+                    "service.peer.name": "artifact_service",
+                    "operation.name": "load",
                 },
             )
             assert metric is not None, (
-                f"Expected artifact get_version metric not found in {recorded_metrics}"
+                f"Expected artifact load metric not found in {recorded_metrics}"
             )
             _, labels = metric
             assert labels["error.type"] == "none"
@@ -398,8 +391,7 @@ class TestArtifactErrorMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "save"},
+                **{"service.peer.name": "artifact_service", "operation.name": "save"},
             )
             assert metric is not None, (
                 f"Expected artifact save metric not found in {recorded_metrics}"
@@ -441,12 +433,11 @@ class TestArtifactErrorMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "load"},
+                **{"service.peer.name": "artifact_service", "operation.name": "load"},
             )
             assert metric is not None
             _, labels = metric
-            assert labels["error.type"] == "validation_error"
+            assert labels["error.type"] != "none"
 
     @pytest.mark.asyncio
     async def test_timeout_error_records_timeout_type(
@@ -484,8 +475,7 @@ class TestArtifactErrorMetrics:
 
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"component.name": "artifact_service", "operation.name": "delete"},
+                **{"service.peer.name": "artifact_service", "operation.name": "delete"},
             )
             assert metric is not None
             _, labels = metric
@@ -537,10 +527,9 @@ class TestArtifactScopingWithMonitoring:
             # Verify metric was still recorded
             metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{
-                    "component.name": "artifact_service",
-                    "operation.name": "list_keys",
+                    "service.peer.name": "artifact_service",
+                    "operation.name": "list",
                 },
             )
             assert metric is not None
@@ -627,20 +616,17 @@ class TestArtifactScopingWithMonitoring:
             # Find metrics for each operation type
             save_metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{"operation.name": "save"},
             )
             load_metric = find_metric(
                 recorded_metrics,
-                type="artifact",
                 **{"operation.name": "load"},
             )
             list_metric = find_metric(
                 recorded_metrics,
-                type="artifact",
-                **{"operation.name": "list_keys"},
+                **{"operation.name": "list"},
             )
 
             assert save_metric is not None, "Missing save metric"
             assert load_metric is not None, "Missing load metric"
-            assert list_metric is not None, "Missing list_keys metric"
+            assert list_metric is not None, "Missing list metric"

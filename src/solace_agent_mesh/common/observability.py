@@ -7,6 +7,7 @@ to prevent accidental metric explosion.
 """
 
 from solace_ai_connector.common.observability.monitors.operation import OperationMonitor
+from solace_ai_connector.common.observability.monitors.remote import RemoteRequestMonitor
 from solace_ai_connector.common.observability.monitors.base import MonitorInstance
 
 
@@ -84,16 +85,16 @@ class ToolMonitor(OperationMonitor):
         )
 
 
-class ArtifactMonitor(OperationMonitor):
+class ArtifactMonitor(RemoteRequestMonitor):
     """
     Type-safe monitor for artifact service operation duration.
 
-    Inherits from OperationMonitor but constrains the API via named factory
-    methods to prevent metric explosion. Automatically sets type="artifact"
-    and component.name="artifact_service".
+    Uses RemoteRequestMonitor since artifacts are a single external service,
+    not a group of equivalent components. Constrains the API via named factory
+    methods to prevent metric explosion.
 
-    Maps to: operation.duration histogram
-    Labels: type="artifact", component.name="artifact_service",
+    Maps to: outbound.request.duration histogram
+    Labels: service.peer.name="artifact_service",
             operation.name=<operation>, error.type
 
     Usage:
@@ -107,10 +108,13 @@ class ArtifactMonitor(OperationMonitor):
     @classmethod
     def _create(cls, operation: str) -> MonitorInstance:
         """Internal factory — all public methods delegate here."""
-        return super().create(
-            component_type="artifact",
-            component_name="artifact_service",
-            operation=operation,
+        return MonitorInstance(
+            monitor_type=cls.monitor_type,
+            labels={
+                "service.peer.name": "artifact_service",
+                "operation.name": operation,
+            },
+            error_parser=cls.parse_error,
         )
 
     @classmethod
@@ -120,7 +124,7 @@ class ArtifactMonitor(OperationMonitor):
 
     @classmethod
     def load(cls) -> MonitorInstance:
-        """Create monitor instance for load_artifact operation."""
+        """Create monitor instance for load_artifact and get_artifact_version operations."""
         return cls._create("load")
 
     @classmethod
@@ -129,21 +133,6 @@ class ArtifactMonitor(OperationMonitor):
         return cls._create("delete")
 
     @classmethod
-    def list_keys(cls) -> MonitorInstance:
-        """Create monitor instance for list_artifact_keys operation."""
-        return cls._create("list_keys")
-
-    @classmethod
-    def list_versions(cls) -> MonitorInstance:
-        """Create monitor instance for list_versions operation."""
-        return cls._create("list_versions")
-
-    @classmethod
-    def list_artifact_versions(cls) -> MonitorInstance:
-        """Create monitor instance for list_artifact_versions operation."""
-        return cls._create("list_artifact_versions")
-
-    @classmethod
-    def get_version(cls) -> MonitorInstance:
-        """Create monitor instance for get_artifact_version operation."""
-        return cls._create("get_version")
+    def list(cls) -> MonitorInstance:
+        """Create monitor instance for all list operations (keys, versions, artifact_versions)."""
+        return cls._create("list")

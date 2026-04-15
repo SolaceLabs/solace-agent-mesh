@@ -136,7 +136,7 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         self, *, app_name: str, user_id: str, session_id: str
     ) -> List[str]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        with MonitorLatency(ArtifactMonitor.list_keys()):
+        with MonitorLatency(ArtifactMonitor.list()):
             return await self.wrapped_service.list_artifact_keys(
                 app_name=scoped_app_name, user_id=user_id, session_id=session_id
             )
@@ -159,7 +159,7 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         self, *, app_name: str, user_id: str, session_id: str, filename: str
     ) -> List[int]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        with MonitorLatency(ArtifactMonitor.list_versions()):
+        with MonitorLatency(ArtifactMonitor.list()):
             return await self.wrapped_service.list_versions(
                 app_name=scoped_app_name,
                 user_id=user_id,
@@ -177,7 +177,7 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         session_id: str,
     ) -> List[ArtifactVersion]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        with MonitorLatency(ArtifactMonitor.list_artifact_versions()):
+        with MonitorLatency(ArtifactMonitor.list()):
             return await self.wrapped_service.list_artifact_versions(
                 app_name=scoped_app_name,
                 user_id=user_id,
@@ -196,7 +196,7 @@ class ScopedArtifactServiceWrapper(BaseArtifactService):
         version: Optional[int] = None,
     ) -> Optional[ArtifactVersion]:
         scoped_app_name = self._get_scoped_app_name(app_name)
-        with MonitorLatency(ArtifactMonitor.get_version()):
+        with MonitorLatency(ArtifactMonitor.load()):
             return await self.wrapped_service.get_artifact_version(
                 app_name=scoped_app_name,
                 user_id=user_id,
