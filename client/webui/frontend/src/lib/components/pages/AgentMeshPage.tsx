@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
@@ -20,6 +20,12 @@ export function AgentMeshPage() {
 
     // Read active tab from URL, default to "agents"
     const activeTab: AgentMeshTab = (searchParams.get("tab") as AgentMeshTab) || "agents";
+
+    useEffect(() => {
+        if (activeTab === "agents" || activeTab === "workflows") {
+            agentsRefetch();
+        }
+    }, [activeTab, agentsRefetch]);
 
     const setActiveTab = (tab: AgentMeshTab) => {
         if (tab === "agents") {

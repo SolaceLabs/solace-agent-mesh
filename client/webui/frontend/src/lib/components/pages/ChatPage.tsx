@@ -55,6 +55,7 @@ export function ChatPage() {
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const {
         agents,
+        agentsRefetch,
         sessionId,
         sessionName,
         messages,
@@ -77,6 +78,10 @@ export function ChatPage() {
         handleNewSession,
         turnDividerIndex,
     } = useChatContext();
+
+    useEffect(() => {
+        agentsRefetch();
+    }, [agentsRefetch]);
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
