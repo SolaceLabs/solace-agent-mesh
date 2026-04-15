@@ -211,7 +211,9 @@ def _write_agent_yaml_from_data(
                     "supports_streaming", AGENT_DEFAULTS["supports_streaming"]
                 )
             ).lower(),
-            "__MODEL_ALIAS__": f"*{config_options.get('model_type', AGENT_DEFAULTS['model_type'])}_model",
+            "__MODEL_PROVIDER__": config_options.get(
+                "model_provider", AGENT_DEFAULTS.get("model_provider", "general")
+            ),
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
@@ -298,6 +300,8 @@ def _write_agent_yaml_from_data(
 
         for placeholder, value in replacements.items():
             modified_content = modified_content.replace(placeholder, str(value))
+
+
         if config_options.get(DATABASE_URL_KEY):
             env_key = f"{formatted_names['SNAKE_UPPER_CASE_NAME']}_DATABASE_URL"
             if config_options[DATABASE_URL_KEY] == "default_agent_db":
@@ -362,20 +366,12 @@ def create_agent_config(
         skip_interactive,
         is_bool=True,
     )
-    collected_options["model_type"] = ask_if_not_provided(
+    collected_options["model_provider"] = ask_if_not_provided(
         collected_options,
-        "model_type",
-        "Enter model type",
-        AGENT_DEFAULTS["model_type"],
+        "model_provider",
+        "Enter model provider",
+        AGENT_DEFAULTS.get("model_provider", "general"),
         skip_interactive,
-        choices=[
-            "planning",
-            "general",
-            "image_gen",
-            "report_gen",
-            "multimodal",
-            "gemini_pro",
-        ],
     )
     default_instruction = AGENT_DEFAULTS["instruction"].replace(
         "__AGENT_NAME__", agent_name_camel_case
@@ -599,13 +595,7 @@ def create_agent_config(
 )
 @click.option("--namespace", help="namespace (e.g., myorg/dev).")
 @click.option("--supports-streaming", type=bool, help="Enable streaming support.")
-@click.option(
-    "--model-type",
-    type=click.Choice(
-        ["planning", "general", "image_gen", "report_gen", "multimodal", "gemini_pro"]
-    ),
-    help="Model type for the agent.",
-)
+@click.option("--model-provider", help="Model provider alias (e.g., general, planning).", default=None)
 @click.option("--instruction", help="Custom instruction for the agent.")
 @click.option(
     "--session-service-type",

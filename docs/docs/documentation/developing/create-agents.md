@@ -358,7 +358,7 @@ This configuration file connects all the pieces of your agent. Let's examine eac
 
 The `namespace` uniquely identifies your agent in the mesh. This allows multiple agents to coexist and communicate. The `agent_name` and `display_name` provide human-readable identifiers for your agent.
 
-The `model` section specifies which LLM to use. The `*general_model` reference points to a model configuration defined elsewhere in your configuration files (typically in `shared_config.yaml`). This allows you to centrally manage model configurations across multiple agents.
+The `model` section specifies which LLM to use. The `*general_model` reference points to a model configuration defined elsewhere in your configuration files (typically in `shared_config.yaml`). Alternatively, you can use the `model_provider` field to reference a model configured through the Agent Mesh UI, which is the recommended approach for most deployments. For details on both approaches, see [Model Configurations](../installing-and-configuring/model_configurations.md#using-model-configurations-in-agents).
 
 The `instruction` field contains the system prompt that defines your agent's personality and behavior. This text tells the LLM what role it should play and what capabilities it has. You
 should write clear, specific instructions that help the LLM understand its role.

@@ -651,11 +651,12 @@ class ModelConfigService:
             # sends: system instruction, tools with schemas, and a user message.
             # This catches models that pass a bare "Say OK" test but fail under
             # real orchestrator usage (e.g. can't handle tools or system prompts).
-            # Temperature must be in GenerateContentConfig (not just model_config)
-            # because _get_completion_inputs requires it to be present.
-            # Use the user's value from model_params if set, otherwise default.
+            # Only include temperature if the user explicitly set one.
+            # Many models have restrictions on temperature values (e.g. GPT-5
+            # only supports temperature=1), so we let the provider use its own
+            # default rather than imposing 0.1.
             model_params = request.model_params or {}
-            temperature = model_params.get("temperature", 0.1)
+            temperature = model_params.get("temperature")
 
             llm_request = LlmRequest(
                 contents=[
@@ -694,8 +695,8 @@ class ModelConfigService:
                             ]
                         )
                     ],
-                    temperature=temperature,
-                    max_output_tokens=50,
+                    **({"temperature": temperature} if temperature is not None else {}),
+                    max_output_tokens=256,
                 ),
             )
 
