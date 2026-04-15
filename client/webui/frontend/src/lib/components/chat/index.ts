@@ -16,6 +16,7 @@ export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
 export { SessionActionMenu } from "./SessionActionMenu";
+export { SessionIcon } from "./SessionIcon";
 export { sessionCardStyles, sessionRowStyles, sessionTitleStyles } from "./sessionCardStyles";
 export { ShareNotification } from "./ShareNotification";
 export { UserPresenceAvatars } from "./UserPresenceAvatars";

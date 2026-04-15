@@ -1,13 +1,14 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { Hammer, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+import { SessionIcon } from "./SessionIcon";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -149,7 +150,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                     <Tooltip key={session.id}>
                         <TooltipTrigger asChild>
                             <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: session.id === sessionId })}>
-                                {session.agentId === "Builder" && <Hammer className="h-3.5 w-3.5 shrink-0 text-(--darkSurface-textMuted)" />}
+                                <SessionIcon session={session} className="text-(--darkSurface-textMuted)" />
                                 <div className="min-w-0 flex-1">
                                     <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>

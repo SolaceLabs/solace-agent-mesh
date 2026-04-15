@@ -8,7 +8,7 @@ import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
-import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
+import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, SessionIcon, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -254,16 +254,27 @@ export const RecentChatsPage: React.FC = () => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project
+    // Filter sessions by source (client-side fallback until backend supports ?source filtering)
+    // and then by selected project.
     const filteredSessions = useMemo(() => {
+        let result = sessions;
+
+        // Client-side source filter: scheduler tab shows only scheduler sessions,
+        // chat tab excludes them.
+        if (activeTab === "scheduler") {
+            result = result.filter(session => session.source === "scheduler");
+        } else {
+            result = result.filter(session => session.source !== "scheduler");
+        }
+
         if (selectedProject === "all") {
-            return sessions;
+            return result;
         }
         if (selectedProject === "(No Project)") {
-            return sessions.filter(session => !session.projectName);
+            return result.filter(session => !session.projectName);
         }
-        return sessions.filter(session => session.projectName === selectedProject);
-    }, [sessions, selectedProject]);
+        return result.filter(session => session.projectName === selectedProject);
+    }, [sessions, selectedProject, activeTab]);
 
     // Get the project ID for the selected project name (for search filtering)
     const selectedProjectId = useMemo(() => {
@@ -378,6 +389,7 @@ export const RecentChatsPage: React.FC = () => {
                                     <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
                                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                                             <div className="flex items-center gap-2">
+                                                <SessionIcon session={session} className="text-(--secondary-text-wMain)" />
                                                 <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
                                                 {session.hasRunningBackgroundTask && (
                                                     <Tooltip>

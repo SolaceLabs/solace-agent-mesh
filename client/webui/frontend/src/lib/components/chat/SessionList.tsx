@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock, Hammer } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
@@ -10,7 +10,7 @@ import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
-import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, SessionIcon, sessionRowStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -570,7 +570,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
-                                                        {session.agentId === "Builder" && <Hammer className="text-muted-foreground h-3.5 w-3.5 shrink-0" />}
+                                                        <SessionIcon session={session} className="text-muted-foreground" />
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>

@@ -110,7 +110,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ compact = false, hideWelcome
                         <ChatMessageList className={textSizeClass} ref={chatMessageListRef}>
                             {filteredMessages.map((message, index) => {
                                 const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                // Guard against duplicate messageIds (e.g. replay races where
+                                // user and agent bubbles share the same taskId-derived id).
+                                const messageKey = `${message.metadata?.messageId || `temp-${index}`}-${message.isUser ? "u" : "a"}`;
                                 const isLastMessage = index === filteredMessages.length - 1;
                                 const shouldStream = isLastMessage && isResponding && !message.isUser;
                                 return (
