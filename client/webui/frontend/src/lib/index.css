@@ -107,6 +107,10 @@
         box-shadow: none;
     }
 
+    html {
+        overflow-y: hidden;
+    }
+
     body {
         background-color: var(--background-w10);
         color: var(--primary-text-wMain);
