@@ -70,7 +70,9 @@ export default function CompletionStep({
   const isValueEmpty = (value: unknown) => {
     return (
       value === undefined ||
+      value === null ||
       value === "" ||
+      value === false ||
       (Array.isArray(value) && value.length === 0)
     );
   };
@@ -243,7 +245,6 @@ export default function CompletionStep({
           String(cleanedData.llm_model_name),
           String(cleanedData.llm_provider)
         );
-        delete cleanedData.llm_provider;
       }
     }
     
@@ -318,9 +319,11 @@ export default function CompletionStep({
       <form onSubmit={onSubmit}>
         <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
           {(data.setupPath === "quick")
-            ? renderGroup("AI Provider", CONFIG_GROUPS["AI Provider"])
+            ? (data.llm_provider ? renderGroup("AI Provider", CONFIG_GROUPS["AI Provider"]) : null)
             : Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
-                renderGroup(groupName, keys)
+                groupName === "AI Provider" && !data.llm_provider
+                  ? null
+                  : renderGroup(groupName, keys)
               )}
         </div>
         {submitError && (
