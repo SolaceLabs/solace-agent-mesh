@@ -12,7 +12,6 @@ import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { MarkdownWrapper } from "@/lib/components";
-import { cn } from "@/lib/utils";
 import type { ProgressUpdate } from "@/lib/types";
 
 interface InlineProgressUpdatesProps {
@@ -101,16 +100,14 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
             </div>
 
             {/* Timeline items wrapper - uses flex layout for guaranteed dot/line alignment */}
-            <div className="relative">
-                {/* Vertical connecting line - positioned in the center of the 20px dot column */}
-                {visibleUpdates.length > 1 && <div className={cn("absolute top-[21px] left-[9px] z-0 w-[2px] rounded-full bg-current opacity-30", isActive ? "bottom-[33px]" : "bottom-[21px]")} />}
-
+            <div>
                 {visibleUpdates.map((update, index) => {
                     const dedupedIndex = visibleIndices[index];
                     const isLast = index === visibleUpdates.length - 1;
                     const isThinking = update.type === "thinking";
                     const isThinkingExpanded = expandedThinkingIds.has(dedupedIndex);
                     const isActiveStep = isLast && isActive;
+                    const showConnector = !isLast && visibleUpdates.length > 1;
 
                     // Show expand button after first item when list is collapsed
                     const showExpandButton = shouldCollapseList && !isListExpanded && index === 0;
@@ -118,12 +115,18 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
                     return (
                         <Fragment key={`${update.timestamp}-${dedupedIndex}`}>
                             <div
-                                className="flex items-start gap-3 py-2"
+                                className="relative flex items-start gap-3 py-2"
                                 style={{
                                     animation: "progressSlideIn 0.3s ease-out both",
                                     animationDelay: `${Math.min(index * 50, 200)}ms`,
                                 }}
                             >
+                                {/* Vertical connector line from this dot center to bottom of row.
+                                    Combined with the next row's line from top to its dot center,
+                                    this creates a continuous line between dots without overshooting. */}
+                                {showConnector && <div className="absolute top-[18px] bottom-0 left-[9px] z-0 w-[2px] rounded-full bg-current opacity-30" />}
+                                {index > 0 && visibleUpdates.length > 1 && <div className="absolute top-0 left-[9px] z-0 h-[18px] w-[2px] rounded-full bg-current opacity-30" />}
+
                                 {/* Dot or spinner indicator - fixed 20px wide column, centered */}
                                 <div className="relative z-10 flex h-5 w-5 flex-shrink-0 items-center justify-center">
                                     {isActiveStep ? <Loader2 className="h-[14px] w-[14px] animate-spin text-(--primary-wMain)" /> : <div className="h-[10px] w-[10px] rounded-full bg-(--success-wMain)" />}
