@@ -333,7 +333,7 @@ export const CollapsibleNavigationSidebar = ({
                         <ConditionalTooltip key={item.id} show={isCollapsed} label={item.label}>
                             <button onClick={() => handleBottomItemClick(item)} className={navButtonStyles()} disabled={item.disabled}>
                                 <div className={iconWrapperStyles({ active: isActive, withMargin: true })}>
-                                    <item.icon className={iconStyles({ active: isActive })} />
+                                    {item.icon && <item.icon className={iconStyles({ active: isActive })} />}
                                 </div>
                                 <span className={cn(navTextStyles(), textAnimBase, textAnimClass)}>{item.label}</span>
                             </button>

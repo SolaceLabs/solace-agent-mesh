@@ -30,7 +30,7 @@ export const NavItemButton: React.FC<NavItemButtonProps> = ({ item, isActive, on
             ) : (
                 <>
                     <div className={iconWrapperStyles({ active: isHighlighted, withMargin: true })}>
-                        <item.icon className={iconStyles({ active: isHighlighted })} />
+                        {item.icon && <item.icon className={iconStyles({ active: isHighlighted })} />}
                     </div>
                     <span className={cn(navTextStyles({ active: isActive }), "overflow-hidden whitespace-nowrap transition-[opacity,max-width] duration-200", isCollapsed ? "max-w-0 opacity-0" : "max-w-[180px] opacity-100")}>{item.label}</span>
                 </>

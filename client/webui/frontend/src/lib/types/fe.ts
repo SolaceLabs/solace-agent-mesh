@@ -262,8 +262,8 @@ export interface NavItemConfig {
     /** Display text shown next to the icon in expanded mode */
     label: string;
 
-    /** Lucide icon component or any React component that accepts className prop */
-    icon: React.ElementType;
+    /** Lucide icon component or any React component that accepts className prop. Optional for submenu children. */
+    icon?: React.ElementType;
 
     /**
      * Route path to navigate to when clicked (e.g., "/agents").
