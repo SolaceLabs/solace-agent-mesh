@@ -389,6 +389,9 @@ def _make_manifest_component():
     component.agent_name = "test_agent"
     # _async_init_future = None → the signaling branch is skipped (just logs a warning)
     component._async_init_future = None
+    # Bind the real async/sync methods so `await _build_tool_manifest(...)` works
+    component._build_tool_manifest = lambda tools: SamAgentComponent._build_tool_manifest(component, tools)
+    component._get_single_tool_manifest_entry = lambda tool: SamAgentComponent._get_single_tool_manifest_entry(component, tool)
     return component
 
 
