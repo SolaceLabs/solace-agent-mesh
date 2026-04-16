@@ -19,9 +19,11 @@ const WORKFLOW_LEARN_MORE_TEXT = "Learn how to create workflows";
 interface WorkflowListProps {
     workflows: AgentCardInfo[];
     className?: string;
+    /** Callback to edit a workflow in the builder */
+    onEditInBuilder?: (workflow: AgentCardInfo) => void;
 }
 
-export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
+export const WorkflowList = ({ workflows, className, onEditInBuilder }: WorkflowListProps) => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
@@ -237,7 +239,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
             {selectedWorkflow && (
                 <div className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out ${isSidePanelOpen ? "w-[400px]" : "w-0"}`}>
                     <div className={`h-full transition-opacity duration-300 ${isSidePanelOpen ? "opacity-100 delay-100" : "pointer-events-none opacity-0"}`}>
-                        <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} />
+                        <WorkflowDetailPanel workflow={selectedWorkflow} onClose={handleCloseSidePanel} onEditInBuilder={onEditInBuilder} />
                     </div>
                 </div>
             )}

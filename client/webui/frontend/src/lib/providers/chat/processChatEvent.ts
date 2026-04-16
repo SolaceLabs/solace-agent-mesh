@@ -537,7 +537,9 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             }
         }
 
-        // Mark last task message as complete
+        // Mark the last task message as complete, and also complete any earlier
+        // messages for this task that are still incomplete (e.g. a separate
+        // message created by appendProgressUpdate for the inline timeline).
         const taskMessageIndex = messages.findLastIndex(msg => !msg.isUser && msg.taskId === currentTaskIdFromResult);
         if (taskMessageIndex !== -1) {
             messages[taskMessageIndex] = {
@@ -545,7 +547,15 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                 isComplete: true,
                 metadata: { ...messages[taskMessageIndex].metadata, lastProcessedEventSequence: eventSequence },
             };
-        } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
+            // Also complete earlier incomplete messages for this task
+            for (let i = taskMessageIndex - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (!msg.isUser && msg.taskId === currentTaskIdFromResult && !msg.isComplete) {
+                    messages[i] = { ...msg, isComplete: true };
+                }
+            }
+        }
+        if (taskMessageIndex === -1 && result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
             const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
             if (fallbackParts.length > 0) {
                 messages.push({

@@ -862,7 +862,7 @@ const getChatBubble = (
                 <div className="pl-4">
                     <InlineProgressUpdates
                         updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
-                        isActive={!message.isComplete}
+                        isActive={!message.isComplete && !!isLastWithTaskId}
                         onViewWorkflow={message.taskId ? handleViewWorkflowClick : undefined}
                     />
                 </div>

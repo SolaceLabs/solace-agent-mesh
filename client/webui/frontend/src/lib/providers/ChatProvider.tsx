@@ -218,7 +218,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         downloadAndResolveArtifact,
     } = useArtifactOperations({
         sessionId,
-        artifacts,
+        artifacts: allArtifacts,
         setArtifacts,
         artifactsRefetch,
         addNotification,
