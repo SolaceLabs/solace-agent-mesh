@@ -230,6 +230,8 @@ class ModelListService:
         if not api_base:
             raise RuntimeError(f"API base URL is required for provider {provider}")
 
+        api_base = api_base.rstrip("/")
+
         # Build endpoint URL and prepare query params based on provider
         query_params = {}
         if provider == ModelProviders.OPENAI or provider == ModelProviders.CUSTOM:
@@ -246,7 +248,7 @@ class ModelListService:
                 else:
                     raise RuntimeError("API key required for Google AI Studio")
         elif provider == ModelProviders.OLLAMA:
-            endpoint = f"{api_base.rstrip('/')}/api/tags"
+            endpoint = f"{api_base}/api/tags"
         else:
             raise RuntimeError(f"Unsupported provider for model listing: {provider}")
 
