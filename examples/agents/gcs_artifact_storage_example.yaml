@@ -1,0 +1,150 @@
+# GCS Artifact Storage Configuration Example
+#
+# This file demonstrates how to configure agents to use Google Cloud Storage (GCS)
+# for artifact management in Solace Agent Mesh applications.
+#
+# Required Environment Variables (choose one authentication method):
+# - GOOGLE_APPLICATION_CREDENTIALS: Path to service account JSON file (Option 1)
+# - GCS_CREDENTIALS_JSON: Inline service account JSON string (Option 2)
+# - Neither: Uses Application Default Credentials / Workload Identity (Option 3)
+#
+# Optional Environment Variables:
+# - GCS_PROJECT: GCP project ID (defaults to project from credentials)
+# - GCS_BUCKET_NAME: Name of your GCS bucket
+# - NAMESPACE: Your application namespace
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: gcs_artifact_example.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  # Example 1: GCS with Service Account JSON File
+  - name: gcs_file_auth_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "GcsFileAuthAgent"
+      display_name: "GCS File Auth Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Google Cloud Storage
+        using a service account JSON key file.
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "gcs"
+        bucket_name: ${GCS_BUCKET_NAME}
+        project: ${GCS_PROJECT}
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in GCS using a service account file."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 2: GCS with Inline Credentials JSON
+  - name: gcs_inline_auth_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "GcsInlineAuthAgent"
+      display_name: "GCS Inline Auth Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Google Cloud Storage
+        using inline credentials JSON (useful in containerized environments).
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "gcs"
+        bucket_name: ${GCS_BUCKET_NAME}
+        artifact_scope: app
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in GCS using inline credentials."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
+        request_timeout_seconds: 30
+
+  # Example 3: GCS with Workload Identity (GKE)
+  - name: gcs_workload_identity_agent_app
+    app_base_path: .
+    app_module: src.solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "GcsWorkloadIdentityAgent"
+      display_name: "GCS Workload Identity Agent"
+      model: *planning_model
+      instruction: |
+        You can create and manage artifacts stored in Google Cloud Storage
+        using GKE Workload Identity (no explicit credentials needed).
+
+      tools:
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service: { type: "memory" }
+      artifact_service:
+        type: "gcs"
+        bucket_name: ${GCS_BUCKET_NAME}
+        artifact_scope: namespace
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+
+      agent_card:
+        description: "An agent that stores artifacts in GCS using workload identity."
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills: []
+
+      agent_card_publishing: { interval_seconds: 10 }
+      agent_discovery: { enabled: true }
+      inter_agent_communication:
+        allow_list: ["GcsFileAuthAgent", "GcsInlineAuthAgent"]
+        request_timeout_seconds: 45
