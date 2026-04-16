@@ -37,10 +37,3 @@ jobs:
           ddb_output_name: RC_VERSION
           aws_region: us-east-1
 
-      - name: Post to Slack
-        uses: SolaceDev/solace-public-workflows/.github/actions/cicd-helper@feat/dynamic-github-org-image-pull
-        with:
-          rc_step: post_to_channel
-          slack_token: ${{ secrets.SLACK_TOKEN }}
-          slack_channel: G015384QZAB
-          message: "[cicd-helper branch test] changelog prepared ✓ | RC_VERSION=${{ steps.get_rc_version.outputs.RC_VERSION }}"
