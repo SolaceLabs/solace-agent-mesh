@@ -37,7 +37,14 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
                 width: isDefault ? "auto" : `${node.width}px`,
                 height: `${node.height}px`,
             }}
-            onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
+            onClick={
+                onClick
+                    ? e => {
+                          e.stopPropagation();
+                          onClick(node);
+                      }
+                    : undefined
+            }
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             title={fullText}
@@ -48,7 +55,7 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
                     <div className="h-4 w-px bg-(--color-secondary-w20) dark:bg-(--color-secondary-w80)" />
                 </>
             )}
-            <span className="text-secondary-foreground block flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{displayText}</span>
+            <span className="block flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-(--color-secondary-text-wMain)">{displayText}</span>
         </div>
     );
 };

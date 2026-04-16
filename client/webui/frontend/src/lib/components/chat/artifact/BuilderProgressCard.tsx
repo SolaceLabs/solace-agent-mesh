@@ -46,9 +46,9 @@ const COMPONENT_ICON_MAP: Record<string, typeof Bot> = {
 function StateIcon({ state, className = "h-4 w-4" }: { state: BuilderComponentState; className?: string }) {
     switch (state) {
         case "completed":
-            return <CheckCircle2 className={`${className} text-green-500`} />;
+            return <CheckCircle2 className={`${className} text-(--success-wMain)`} />;
         case "active":
-            return <Loader2 className={`${className} animate-spin text-teal-500`} />;
+            return <Loader2 className={`${className} animate-spin text-(--primary-wMain)`} />;
         case "failed":
             return <XCircle className={`${className} text-destructive`} />;
         case "skipped":
@@ -111,7 +111,7 @@ export const BuilderProgressCard: React.FC<BuilderProgressCardProps> = ({ compon
         <div className="flex max-w-[480px] min-w-[300px] flex-col gap-2 rounded-lg border px-4 py-3" style={{ backgroundColor: "var(--background-w10)", borderColor: "var(--secondary-w8040)" }}>
             {/* Header row: spinner/checkmark + title */}
             <div className="flex items-center gap-2.5">
-                {isBuilding ? <Loader2 className="h-4 w-4 animate-spin text-teal-500" /> : hasFailed ? <XCircle className="text-destructive h-4 w-4" /> : <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                {isBuilding ? <Loader2 className="h-4 w-4 animate-spin text-(--primary-wMain)" /> : hasFailed ? <XCircle className="text-destructive h-4 w-4" /> : <CheckCircle2 className="h-4 w-4 text-(--success-wMain)" />}
                 <span className="truncate text-sm font-semibold">{headerText}</span>
             </div>
 
@@ -119,7 +119,7 @@ export const BuilderProgressCard: React.FC<BuilderProgressCardProps> = ({ compon
             {totalCount > 0 && (
                 <div className="flex items-center gap-2">
                     <div className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
-                        <div className="h-full rounded-full bg-green-500 transition-all duration-500 ease-out" style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }} />
+                        <div className="h-full rounded-full bg-(--success-wMain) transition-all duration-500 ease-out" style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }} />
                     </div>
                     <span className="text-muted-foreground text-xs">
                         {completedCount}/{totalCount}
@@ -172,7 +172,7 @@ export const BuilderProgressCard: React.FC<BuilderProgressCardProps> = ({ compon
                                     {/* Progress bar for skills with progressPercent */}
                                     {component.state === "active" && component.type === "skill" && component.progressPercent != null && (
                                         <div className="bg-muted mt-1 h-1 overflow-hidden rounded-full">
-                                            <div className="h-full rounded-full bg-teal-500 transition-all duration-300 ease-out" style={{ width: `${component.progressPercent}%` }} />
+                                            <div className="h-full rounded-full bg-(--primary-wMain) transition-all duration-300 ease-out" style={{ width: `${component.progressPercent}%` }} />
                                         </div>
                                     )}
                                 </div>

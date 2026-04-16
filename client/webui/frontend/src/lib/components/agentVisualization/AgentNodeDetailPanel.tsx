@@ -79,7 +79,7 @@ const AgentNodeDetailPanel: React.FC<AgentNodeDetailPanelProps> = ({ node, confi
                         {config.instruction && (
                             <div className="mb-4">
                                 <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Instruction</label>
-                                <div className="scrollbar-themed max-h-64 overflow-auto whitespace-pre-wrap text-sm">{config.instruction}</div>
+                                <div className="scrollbar-themed max-h-64 overflow-auto text-sm whitespace-pre-wrap">{config.instruction}</div>
                             </div>
                         )}
 
@@ -88,7 +88,7 @@ const AgentNodeDetailPanel: React.FC<AgentNodeDetailPanelProps> = ({ node, confi
                                 <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Input Modes</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {config.inputModes.map(mode => (
-                                        <span key={mode} className="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-gray-700">
+                                        <span key={mode} className="rounded bg-(--color-secondary-w10) px-2 py-0.5 text-xs">
                                             {mode}
                                         </span>
                                     ))}
@@ -101,7 +101,7 @@ const AgentNodeDetailPanel: React.FC<AgentNodeDetailPanelProps> = ({ node, confi
                                 <label className="mb-1 block text-sm font-medium text-(--color-secondary-text-wMain)">Output Modes</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {config.outputModes.map(mode => (
-                                        <span key={mode} className="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-gray-700">
+                                        <span key={mode} className="rounded bg-(--color-secondary-w10) px-2 py-0.5 text-xs">
                                             {mode}
                                         </span>
                                     ))}

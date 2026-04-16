@@ -57,6 +57,12 @@ const getFileAttachment = (artifactInfos: ArtifactInfo[], filename: string, mime
  * Handles upload, download, delete (single and batch), and modal state
  */
 export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, artifactsRefetch, addNotification, setError, previewArtifact, closePreview }: UseArtifactOperationsOptions): UseArtifactOperationsReturn => {
+    // Ref for artifacts so downloadAndResolveArtifact doesn't depend on the
+    // artifacts array reference (which changes on every streaming chunk when
+    // allArtifacts is passed). This keeps the callback reference stable.
+    const artifactsRef = useRef(artifacts);
+    artifactsRef.current = artifacts;
+
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
@@ -70,6 +76,12 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
     // Instead of returning null for duplicates, subsequent callers wait for
     // the in-progress download to complete and receive the same result.
     const artifactDownloadInProgressRef = useRef<Map<string, Promise<FileAttachment | null>>>(new Map());
+
+    // Track the current sessionId so async callbacks can detect stale sessions
+    const sessionIdRef = useRef(sessionId);
+    useEffect(() => {
+        sessionIdRef.current = sessionId;
+    }, [sessionId]);
 
     // Clear in-flight downloads on session change so stale promises from the
     // previous session don't block new downloads for the same filenames.
@@ -231,10 +243,12 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
             }
 
             // Create the download promise and store it for deduplication
+            // Capture sessionId at download start to detect stale results
+            const downloadSessionId = sessionId;
             const downloadPromise = (async () => {
                 try {
-                    // Find the artifact in state
-                    const artifact = artifacts.find(art => art.filename === filename);
+                    // Find the artifact in state (use ref to avoid stale closure)
+                    const artifact = artifactsRef.current.find(art => art.filename === filename);
                     if (!artifact) {
                         console.error(`Artifact ${filename} not found in state`);
                         return null;
@@ -256,12 +270,15 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
 
                     const blob = await contentResponse.blob();
                     const base64Content = await blobToBase64(blob);
-                    const fileData = getFileAttachment(artifacts, filename, artifact.mime_type || "application/octet-stream", base64Content);
+                    const fileData = getFileAttachment(artifactsRef.current, filename, artifact.mime_type || "application/octet-stream", base64Content);
 
                     // Clear the accumulated content and flags after successful download.
                     // Keep accumulated content for SAM config artifacts (e.g. build manifests)
                     // — they render via BuildPlanCard which needs the content to persist.
+                    // Guard against stale session: if sessionId changed while the download
+                    // was in flight, don't apply results from the old session.
                     setArtifacts(prevArtifacts => {
+                        if (downloadSessionId !== sessionIdRef.current) return prevArtifacts;
                         return prevArtifacts.map(art =>
                             art.filename === filename
                                 ? {
@@ -286,7 +303,9 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
             artifactDownloadInProgressRef.current.set(filename, downloadPromise);
             return downloadPromise;
         },
-        [sessionId, artifacts, setArtifacts, setError]
+        // artifactsRef used instead of artifacts to keep callback reference stable
+
+        [sessionId, setArtifacts, setError]
     );
 
     return {

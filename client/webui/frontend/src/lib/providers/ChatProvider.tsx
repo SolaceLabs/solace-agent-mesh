@@ -1852,7 +1852,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             let selectedAgent = agents[0];
 
             // In onboard mode, select the Manager agent (the dedicated intro agent)
-            const isOnboard = window.location.hash?.includes("mode=onboard");
+            const hashParams = new URLSearchParams(window.location.hash?.replace(/^#\/?/, "").split("?")[1] || "");
+            const isOnboard = hashParams.get("mode") === "onboard";
             if (isOnboard) {
                 const managerAgent = agents.find(agent => agent.name === "Manager");
                 if (managerAgent) {

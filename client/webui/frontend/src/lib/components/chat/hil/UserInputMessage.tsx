@@ -101,7 +101,7 @@ function buildAnswerEntries(surface: A2UISurface, context: Record<string, unknow
 
 export function UserInputMessage({ message }: { message: MessageFE }) {
     const req = message.userInputRequest;
-    const { setMessages } = useChatContext();
+    const { setMessages, displayError } = useChatContext();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const updateMessage = useCallback(
@@ -143,12 +143,12 @@ export function UserInputMessage({ message }: { message: MessageFE }) {
                 }
                 updateMessage({ responded: true, responseText });
             } catch (err) {
-                console.error("Failed to submit HIL response:", err);
+                displayError({ title: "Failed to submit response", error: err instanceof Error ? err.message : "An unknown error occurred." });
             } finally {
                 setIsSubmitting(false);
             }
         },
-        [req, updateMessage]
+        [req, updateMessage, displayError]
     );
 
     if (!req) return null;

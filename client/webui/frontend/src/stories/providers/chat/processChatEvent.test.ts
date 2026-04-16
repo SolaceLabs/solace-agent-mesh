@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import type { MessageFE, ArtifactInfo, RAGSearchResult } from "@/lib/types";
+import type { MessageFE, ArtifactInfo, RAGSearchResult, DataPart } from "@/lib/types";
 import type { ChatEffect, ChatEventInput, ChatEventOutput } from "@/lib/providers/chat";
 import { processChatEvent } from "@/lib/providers/chat";
 
@@ -268,6 +268,38 @@ describe("processChatEvent", () => {
             expect(taskMsg).toBeDefined();
             expect(taskMsg!.isComplete).toBe(true);
             expect(taskMsg!.parts).toContainEqual(expect.objectContaining({ kind: "text", text: "final answer" }));
+        });
+
+        it("marks earlier incomplete messages for the same task as complete", () => {
+            const existing = [
+                agentMessage("task-1", [{ kind: "text", text: "progress update 1" }], { isComplete: false }),
+                agentMessage("task-1", [{ kind: "text", text: "progress update 2" }], { isComplete: false }),
+                userMessage("task-1"),
+                agentMessage("task-1", [{ kind: "text", text: "final response" }], { isComplete: false }),
+            ];
+            const eventData = taskCompleteEvent("task-1");
+            const output = processChatEvent(makeInput({ eventData, messages: existing }));
+
+            // All agent messages for task-1 should be marked complete
+            const taskMessages = output.messages!.filter(m => !m.isUser && m.taskId === "task-1");
+            expect(taskMessages).toHaveLength(3);
+            taskMessages.forEach(msg => {
+                expect(msg.isComplete).toBe(true);
+            });
+        });
+
+        it("does not mark messages from other tasks as complete", () => {
+            const existing = [
+                agentMessage("task-other", [{ kind: "text", text: "other task" }], { isComplete: false }),
+                agentMessage("task-1", [{ kind: "text", text: "progress" }], { isComplete: false }),
+                agentMessage("task-1", [{ kind: "text", text: "response" }], { isComplete: false }),
+            ];
+            const eventData = taskCompleteEvent("task-1");
+            const output = processChatEvent(makeInput({ eventData, messages: existing }));
+
+            const otherTaskMsg = output.messages!.find(m => m.taskId === "task-other");
+            expect(otherTaskMsg).toBeDefined();
+            expect(otherTaskMsg!.isComplete).toBeFalsy();
         });
 
         it("creates error message for failed task", () => {
@@ -539,6 +571,78 @@ describe("processChatEvent", () => {
         });
     });
 
+    describe("tool_result with redirect data", () => {
+        it("extracts redirect data from tool_result and injects as DataPart", () => {
+            const existing = [agentMessage("task-1", [{ kind: "text", text: "Here is a redirect" }])];
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "tool_result",
+                        result_data: {
+                            type: "redirect",
+                            route: "/builder",
+                            label: "Go to Builder",
+                            context: "Build me an app",
+                        },
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData, messages: existing }));
+
+            const taskMsg = output.messages!.find(m => m.taskId === "task-1");
+            expect(taskMsg).toBeDefined();
+            const redirectPart = taskMsg!.parts.find(p => p.kind === "data" && (p as DataPart).data?.type === "redirect");
+            expect(redirectPart).toBeDefined();
+            expect((redirectPart as DataPart).data).toMatchObject({
+                type: "redirect",
+                route: "/builder",
+                label: "Go to Builder",
+                context: "Build me an app",
+            });
+        });
+
+        it("does not inject DataPart when result_data type is not redirect", () => {
+            const existing = [agentMessage("task-1", [{ kind: "text", text: "response" }])];
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "tool_result",
+                        result_data: {
+                            type: "other_type",
+                            some_field: "value",
+                        },
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData, messages: existing }));
+
+            const taskMsg = output.messages!.find(m => m.taskId === "task-1");
+            expect(taskMsg).toBeDefined();
+            const redirectPart = taskMsg!.parts.find(p => p.kind === "data" && (p as DataPart).data?.type === "redirect");
+            expect(redirectPart).toBeUndefined();
+        });
+
+        it("does not inject DataPart when result_data is missing", () => {
+            const existing = [agentMessage("task-1", [{ kind: "text", text: "response" }])];
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "tool_result",
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData, messages: existing }));
+
+            const taskMsg = output.messages!.find(m => m.taskId === "task-1");
+            expect(taskMsg).toBeDefined();
+            const redirectPart = taskMsg!.parts.find(p => p.kind === "data" && (p as DataPart).data?.type === "redirect");
+            expect(redirectPart).toBeUndefined();
+        });
+    });
+
     describe("tool_result with RAG metadata", () => {
         it("appends RAG data for web_search", () => {
             const eventData = statusUpdateEvent("task-1", [
@@ -707,6 +811,91 @@ describe("processChatEvent", () => {
             const taskMsg = output.messages!.find(m => m.taskId === "task-1");
             expect(taskMsg!.parts.find(p => p.kind === "artifact")).toBeUndefined();
             expect(taskMsg!.parts).toContainEqual(expect.objectContaining({ kind: "text", text: "Some original text" }));
+        });
+    });
+
+    describe("user_input_request events", () => {
+        it("creates a HIL message with correct userInputRequest shape", () => {
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "user_input_request",
+                        request_id: "req-42",
+                        surface: "chat",
+                        expires_at: "2026-04-15T12:00:00Z",
+                        source: "ask_user_question",
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData, sessionId: "session-1", selectedAgentName: "agent-1" }));
+
+            const hilMsg = output.messages!.find(m => m.userInputRequest);
+            expect(hilMsg).toBeDefined();
+            expect(hilMsg!.role).toBe("agent");
+            expect(hilMsg!.isUser).toBe(false);
+            expect(hilMsg!.isComplete).toBe(false);
+            expect(hilMsg!.taskId).toBe("task-1");
+            expect(hilMsg!.metadata).toEqual({ messageId: "hil-req-42" });
+            expect(hilMsg!.userInputRequest).toMatchObject({
+                requestId: "req-42",
+                expiresAt: "2026-04-15T12:00:00Z",
+                source: "ask_user_question",
+                surface: "chat",
+                taskId: "task-1",
+                agentName: "agent-1",
+            });
+        });
+
+        it("uses tool_approval source when source is tool_approval", () => {
+            const eventData = statusUpdateEvent("task-2", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "user_input_request",
+                        request_id: "req-99",
+                        surface: "chat",
+                        source: "tool_approval",
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData }));
+
+            const hilMsg = output.messages!.find(m => m.userInputRequest);
+            expect(hilMsg).toBeDefined();
+            expect(hilMsg!.userInputRequest!.source).toBe("tool_approval");
+        });
+
+        it("does not create a message when request_id is missing", () => {
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "user_input_request",
+                        surface: "chat",
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData }));
+
+            const hilMsg = output.messages?.find(m => m.userInputRequest);
+            expect(hilMsg).toBeUndefined();
+        });
+
+        it("does not create a message when surface is missing", () => {
+            const eventData = statusUpdateEvent("task-1", [
+                {
+                    kind: "data",
+                    data: {
+                        type: "user_input_request",
+                        request_id: "req-1",
+                    },
+                },
+            ]);
+            const output = processChatEvent(makeInput({ eventData }));
+
+            const hilMsg = output.messages?.find(m => m.userInputRequest);
+            expect(hilMsg).toBeUndefined();
         });
     });
 

@@ -23,6 +23,7 @@ import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
 import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
+import { SESSION_STORAGE_KEYS } from "@/lib/utils/sessionStorageKeys";
 import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
 const createEnhancedMessage = (command: ChatCommand, conversationContext?: string): string => {
@@ -55,7 +56,24 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt, builderMode, inputAreaLeftSlot } = useChatContext();
+    const {
+        isResponding,
+        isCancelling,
+        selectedAgentName,
+        sessionId,
+        setSessionId,
+        handleSubmit,
+        handleCancel,
+        uploadArtifactFile,
+        displayError,
+        artifacts,
+        messages,
+        startNewChatWithPrompt,
+        pendingPrompt,
+        clearPendingPrompt,
+        builderMode,
+        inputAreaLeftSlot,
+    } = useChatContext();
     const { handleAgentSelection, switchConfirmOpen, setSwitchConfirmOpen, confirmAgentSwitch, cancelAgentSwitch } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -210,10 +228,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             const text = customEvent.detail.text;
             setInputValue(text);
             setDesiredCursorPosition(text.length);
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 chatInputRef.current?.focus();
                 setDesiredCursorPosition(undefined);
-            }, 100);
+            });
         };
 
         window.addEventListener("set-chat-input", handleSetChatInput);
@@ -223,26 +241,21 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     }, []);
 
     // On mount, check for pending redirect input stored by BuilderPage / redirect flow.
-    // The key is kept in sessionStorage until this component stays mounted for a few
-    // seconds, so it survives unmount/remount cycles caused by agent-list re-fetches.
+    // Clear the key immediately after applying to prevent re-application; a ref guards
+    // against duplicate application within the same component lifecycle.
+    const redirectAppliedRef = useRef(false);
     useEffect(() => {
-        const pending = sessionStorage.getItem("sam_redirect_pending_input");
+        if (redirectAppliedRef.current) return;
+        const pending = sessionStorage.getItem(SESSION_STORAGE_KEYS.REDIRECT_PENDING_INPUT);
         if (pending) {
-            console.log("[SAM-REDIRECT] ChatInputArea applying pending input, length:", pending.length);
+            redirectAppliedRef.current = true;
+            sessionStorage.removeItem(SESSION_STORAGE_KEYS.REDIRECT_PENDING_INPUT);
             setInputValue(pending);
             setDesiredCursorPosition(pending.length);
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 chatInputRef.current?.focus();
                 setDesiredCursorPosition(undefined);
-            }, 100);
-            // Only remove the key after we've been mounted long enough to be stable.
-            // If we unmount before this fires, the timer is cancelled and the next
-            // mount will re-apply the input.
-            const cleanup = setTimeout(() => {
-                console.log("[SAM-REDIRECT] ChatInputArea stable — clearing pending input");
-                sessionStorage.removeItem("sam_redirect_pending_input");
-            }, 3000);
-            return () => clearTimeout(cleanup);
+            });
         }
     }, []);
 
@@ -445,9 +458,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]
     );
 
+    const isSubmittingRef = useRef(false);
     const onSubmit = async (event: FormEvent) => {
         event.preventDefault();
+        if (isSubmittingRef.current) return;
         if (isSubmittingEnabled) {
+            isSubmittingRef.current = true;
             let fullMessage = chatInputRef.current ? buildMessageFromDOM(chatInputRef.current).trim() : inputValue.trim();
 
             // Capture the display HTML for showing in user's message bubble
@@ -469,6 +485,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 mimeType: string;
             }
             const uploadedArtifacts: UploadedArtifact[] = [];
+            const uploadErrors: string[] = [];
             let effectiveSessionId = sessionId;
 
             // Build list of existing artifact filenames for uniqueness check
@@ -529,11 +546,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         });
                     } else {
                         const errorDetail = result && "error" in result ? result.error : "An unknown upload error occurred.";
-                        throw new Error(errorDetail);
+                        uploadErrors.push(errorDetail);
                     }
                 } catch (error) {
-                    displayError({ title: "Failed to Save Pasted Text", error: getErrorMessage(error) });
+                    uploadErrors.push(getErrorMessage(error));
                 }
+            }
+
+            if (uploadErrors.length > 0) {
+                displayError({ title: "Failed to Save Pasted Text", error: uploadErrors.join("; ") });
+                return;
             }
 
             // Create artifact reference files for all uploaded artifacts
@@ -559,16 +581,41 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
             const contextQuoteToPass = contextQuotes.length > 0 ? contextQuotes.map(q => q.text).join(" | ") : contextText && showContextBadge ? contextText : null;
             const contextQuoteSourceIdToPass = contextSourceId && showContextBadge ? contextSourceId : null;
-            await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
-            setSelectedFiles([]);
-            setPendingPastedTextItems([]);
-            setInputValue("");
-            setMentionMap(new Map()); // Clear mention map after submit
-            setContextText(null);
-            setContextSourceId(null);
-            setShowContextBadge(false);
-            setContextQuotes([]);
-            scrollToBottom?.();
+            // Capture input state before clearing so we can restore on error
+            const prevSelectedFiles = [...selectedFiles];
+            const prevPendingPastedTextItems = [...pendingPastedTextItems];
+            const prevInputValue = inputValue;
+            const prevMentionMap = new Map(mentionMap);
+            const prevContextText = contextText;
+            const prevContextSourceId = contextSourceId;
+            const prevShowContextBadge = showContextBadge;
+            const prevContextQuotes = [...contextQuotes];
+
+            try {
+                await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
+                setSelectedFiles([]);
+                setPendingPastedTextItems([]);
+                setInputValue("");
+                setMentionMap(new Map()); // Clear mention map after submit
+                setContextText(null);
+                setContextSourceId(null);
+                setShowContextBadge(false);
+                setContextQuotes([]);
+                scrollToBottom?.();
+            } catch (err) {
+                // Restore all input state so the user doesn't lose their message
+                setSelectedFiles(prevSelectedFiles);
+                setPendingPastedTextItems(prevPendingPastedTextItems);
+                setInputValue(prevInputValue);
+                setMentionMap(prevMentionMap);
+                setContextText(prevContextText);
+                setContextSourceId(prevContextSourceId);
+                setShowContextBadge(prevShowContextBadge);
+                setContextQuotes(prevContextQuotes);
+                displayError({ title: "Failed to send message", error: getErrorMessage(err) });
+            } finally {
+                isSubmittingRef.current = false;
+            }
         }
     };
 
@@ -836,11 +883,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                                 variant="ghost"
                                 className="h-4 w-4 shrink-0"
                                 onClick={() => {
-                                    setContextQuotes(prev => prev.filter((_, idx) => idx !== i));
-                                    if (contextQuotes.length <= 1) {
-                                        setContextText(null);
-                                        setShowContextBadge(false);
-                                    }
+                                    setContextQuotes(prev => {
+                                        const next = prev.filter((_, idx) => idx !== i);
+                                        if (next.length === 0) {
+                                            setContextText(null);
+                                            setShowContextBadge(false);
+                                        }
+                                        return next;
+                                    });
                                 }}
                                 tooltip="Remove"
                             >

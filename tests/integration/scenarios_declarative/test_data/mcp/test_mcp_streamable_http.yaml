@@ -51,7 +51,7 @@ expected_gateway_output:
   - type: "final_response"
     kind: task
     id: '*'
-    contextId: "session_streamable_http_transport_001"
+    contextId: "session_mcp_streamable_http_transport_001"
     status:
       state: completed
       message:

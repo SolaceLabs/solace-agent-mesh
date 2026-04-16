@@ -51,7 +51,7 @@ function getChildrenIds(comp: A2UIComponent): string[] {
 }
 
 /** Read a value from the data model by JSON pointer path (e.g. "/answers/q0"). */
-function getByPath(model: Record<string, unknown>, path: string): unknown {
+export function getByPath(model: Record<string, unknown>, path: string): unknown {
     const parts = path.replace(/^\//, "").split("/");
     let current: unknown = model;
     for (const part of parts) {
@@ -65,7 +65,7 @@ function getByPath(model: Record<string, unknown>, path: string): unknown {
 }
 
 /** Set a value in the data model by JSON pointer path. Returns a new model (immutable). */
-function setByPath(model: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
+export function setByPath(model: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
     const parts = path.replace(/^\//, "").split("/");
     const clone = structuredClone(model);
     let current: Record<string, unknown> = clone;
@@ -80,7 +80,7 @@ function setByPath(model: Record<string, unknown>, path: string, value: unknown)
 }
 
 /** Resolve action context — replace {path: "/..."} refs with data model values. */
-function resolveContext(context: Record<string, unknown>, model: Record<string, unknown>): Record<string, unknown> {
+export function resolveContext(context: Record<string, unknown>, model: Record<string, unknown>): Record<string, unknown> {
     const resolved: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(context)) {
         if (val && typeof val === "object" && "path" in val) {
@@ -536,7 +536,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
         }, 1000);
 
         return () => clearInterval(interval);
-    });
+    }, [expiresAt]);
 
     if (!text) return null;
 

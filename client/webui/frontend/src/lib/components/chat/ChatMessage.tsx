@@ -674,16 +674,10 @@ const getChatBubble = (
         return <AuthenticationMessage message={message} />;
     }
 
-    if (message.userInputRequest) {
-        // In builder mode, skip rendering the PENDING A2UI surface here — the
-        // enterprise BuilderChatPanel renders it via renderMessageAddon AFTER the
-        // build activity timeline so the credential input appears below the timeline.
-        // Responded / timed-out states still render inline as summary banners.
-        if (builderMode && !message.userInputRequest.responded && !message.userInputRequest.timedOut) {
-            return null;
-        }
-        return <UserInputMessage message={message} />;
-    }
+    // Determine if we need to render a userInputRequest surface.
+    // In builder mode, pending (not yet responded/timed-out) surfaces are rendered
+    // externally by BuilderChatPanel via renderMessageAddon, so skip them here.
+    const shouldRenderUserInput = message.userInputRequest && !(builderMode && !message.userInputRequest.responded && !message.userInputRequest.timedOut);
 
     // Check for deep research progress data
     const progressPart = message.parts?.find(p => p.kind === "data") as DataPart | undefined;
@@ -776,6 +770,16 @@ const getChatBubble = (
     }
 
     const hasContent = groupedParts.some(p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || p.kind === "artifact" || p.kind === "build-plan");
+
+    // For messages that ONLY have a userInputRequest and no other visible content, early-return.
+    // Computed after builder-mode artifact filtering so hidden artifacts don't count.
+    if (shouldRenderUserInput && !hasContent) {
+        return <UserInputMessage message={message} />;
+    }
+    if (message.userInputRequest && !shouldRenderUserInput && !hasContent) {
+        return null;
+    }
+
     const hasProgressUpdates = inlineActivityTimelineEnabled && message.progressUpdates && message.progressUpdates.length > 0;
     if (!hasContent && !hasProgressUpdates) {
         return null;
@@ -890,6 +894,8 @@ const getChatBubble = (
                     </button>
                 </div>
             )}
+            {/* Render userInputRequest alongside other content when both exist */}
+            {shouldRenderUserInput && <UserInputMessage message={message} />}
             {/* Render parts in their original order to preserve interleaving */}
             {groupedParts.map((part, index) => {
                 const isLastPart = index === lastPartIndex;

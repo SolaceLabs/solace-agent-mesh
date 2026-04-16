@@ -54,14 +54,14 @@ const COMPONENT_TYPE_LABELS: Record<string, string> = {
  * so that yaml.load() doesn't choke on a half-written value.
  * Once `isComplete` is true, the full content is used as-is.
  */
-function trimToCompleteYaml(raw: string, isComplete: boolean): string {
+export function trimToCompleteYaml(raw: string, isComplete: boolean): string {
     if (isComplete) return raw;
     const lastNewline = raw.lastIndexOf("\n");
     if (lastNewline <= 0) return "";
     return raw.slice(0, lastNewline + 1);
 }
 
-function parseManifest(raw: string, isComplete: boolean): BuildManifest | null {
+export function parseManifest(raw: string, isComplete: boolean): BuildManifest | null {
     const trimmed = trimToCompleteYaml(raw, isComplete);
     if (!trimmed) return null;
     try {
@@ -128,7 +128,7 @@ export interface BuildPlanCardProps {
  * "Edit Plan" link, and "Keep Editing" / "Build & Activate" buttons.
  */
 export const BuildPlanCard: React.FC<BuildPlanCardProps> = ({ filename, isComplete, onBuildActivate, onKeepEditing, onPlanEdited, hideActions = false, isMessageComplete = true, onTestRequest }) => {
-    const { artifacts, downloadAndResolveArtifact, handleSubmit, isResponding, builderMode } = useChatContext();
+    const { artifacts, downloadAndResolveArtifact, handleSubmit, isResponding, builderMode, displayError } = useChatContext();
     // When builderMode is true, we're in the dedicated builder page which has its own
     // InlinePlanCard with approve/request changes flow. Keep the community BuildPlanCard
     // compact to avoid conflicting with the enterprise approval flow.
@@ -164,7 +164,7 @@ export const BuildPlanCard: React.FC<BuildPlanCardProps> = ({ filename, isComple
                 }
             })
             .catch(err => {
-                console.error(`[BuildPlanCard] Failed to fetch ${filename}:`, err);
+                displayError({ title: "Failed to load build plan", error: err instanceof Error ? err.message : `Could not fetch ${filename}.` });
             })
             .finally(() => {
                 isFetchingRef.current = false;

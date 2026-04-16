@@ -2,6 +2,7 @@ import type { FC, ReactNode, MouseEvent } from "react";
 import { RefreshCw, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { NODE_BASE_STYLES, NODE_HIGHLIGHT_CLASSES, NODE_SELECTED_CLASS, LAYOUT_CONSTANTS, type NodeProps } from "../utils/types";
+import { NODE_COLORS } from "@/lib/constants";
 
 const { NODE_HEIGHTS } = LAYOUT_CONSTANTS;
 
@@ -47,15 +48,22 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
                     width: `${node.width}px`,
                     height: `${node.height}px`,
                 }}
-                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
+                onClick={
+                    onClick
+                        ? e => {
+                              e.stopPropagation();
+                              onClick(node);
+                          }
+                        : undefined
+                }
             >
                 <div className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <RefreshCw className={`h-4 w-4 ${NODE_COLORS.loop}`} />
                     <span className="text-sm font-semibold">Loop</span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {node.data.maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>}
+                    {node.data.maxIterations && <span className="text-sm text-(--color-secondary-text-wMain)">max: {node.data.maxIterations}</span>}
                     {canHaveChildren && (
                         <Button onClick={handleToggle} variant="ghost" size="icon" className="h-8 w-8" tooltip="Expand">
                             <Maximize2 className="h-4 w-4" />
@@ -94,17 +102,24 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
             {/* Solid Header Box - straddles the dotted container border */}
             <div
                 className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
-                onClick={onClick ? e => { e.stopPropagation(); onClick(node); } : undefined}
+                onClick={
+                    onClick
+                        ? e => {
+                              e.stopPropagation();
+                              onClick(node);
+                          }
+                        : undefined
+                }
             >
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 text-(--color-accent-n0-wMain)" />
+                        <RefreshCw className={`h-4 w-4 ${NODE_COLORS.loop}`} />
                         <span className="text-sm font-semibold">Loop</span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {node.data.maxIterations && <span className="text-sm text-gray-500 dark:text-gray-400">max: {node.data.maxIterations}</span>}
+                        {node.data.maxIterations && <span className="text-sm text-(--color-secondary-text-wMain)">max: {node.data.maxIterations}</span>}
                         <Button onClick={handleToggle} variant="ghost" size="icon" className="h-8 w-8" tooltip="Collapse">
                             <Minimize2 className="h-4 w-4" />
                         </Button>

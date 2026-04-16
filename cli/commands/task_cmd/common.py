@@ -3,6 +3,7 @@ Common utilities shared between task send and task run commands.
 """
 import asyncio
 import base64
+import json
 import mimetypes
 import sys
 import uuid
@@ -99,18 +100,16 @@ def build_structured_invocation_part(
     output_schema_path: Optional[str],
 ) -> dict:
     """Build a StructuredInvocationRequest data part from schema file paths."""
-    import json as _json
-
     input_schema = None
     output_schema = None
 
     if input_schema_path:
         with open(input_schema_path) as f:
-            input_schema = _json.load(f)
+            input_schema = json.load(f)
 
     if output_schema_path:
         with open(output_schema_path) as f:
-            output_schema = _json.load(f)
+            output_schema = json.load(f)
 
     data = {
         "type": "structured_invocation_request",
@@ -142,14 +141,12 @@ async def download_stim_file(
 
 def build_data_part(data_str: str) -> dict:
     """Build a DataPart from inline JSON or a @file path."""
-    import json as _json
-
     if data_str.startswith("@"):
         file_path = data_str[1:]
         with open(file_path) as f:
-            data = _json.load(f)
+            data = json.load(f)
     else:
-        data = _json.loads(data_str)
+        data = json.loads(data_str)
 
     return {"kind": "data", "data": data}
 

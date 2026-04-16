@@ -16,6 +16,8 @@ const mockUseTitleAnimation = vi.fn();
 const mockUseConfigContext = vi.fn();
 const mockUseIsChatSharingEnabled = vi.fn();
 const mockUseIsAutoTitleGenerationEnabled = vi.fn();
+const mockUseUIMode = vi.fn();
+const mockUseTurnDividerAnimation = vi.fn();
 const mockUseProjectContext = vi.fn();
 const mockUseLocation = vi.fn();
 const mockUseNavigate = vi.fn();
@@ -44,7 +46,10 @@ function makeDefaultChatContext(overrides: Record<string, unknown> = {}) {
         sessionOwnerName: null,
         sessionOwnerEmail: null,
         handleSwitchSession: vi.fn(),
+        handleNewSession: vi.fn(),
         agentsRefetch: vi.fn(),
+        turnDividerIndex: null,
+        selectedAgentName: null,
         ...overrides,
     };
 }
@@ -69,6 +74,8 @@ describe("ChatPage", () => {
         mockUseConfigContext.mockReset();
         mockUseIsChatSharingEnabled.mockReset();
         mockUseIsAutoTitleGenerationEnabled.mockReset();
+        mockUseUIMode.mockReset();
+        mockUseTurnDividerAnimation.mockReset();
         mockUseProjectContext.mockReset();
         mockUseLocation.mockReset();
         mockUseNavigate.mockReset();
@@ -82,6 +89,8 @@ describe("ChatPage", () => {
         mockUseConfigContext.mockReturnValue({});
         mockUseIsChatSharingEnabled.mockReturnValue(false);
         mockUseIsAutoTitleGenerationEnabled.mockReturnValue(false);
+        mockUseUIMode.mockReturnValue({ isOnboardMode: false });
+        mockUseTurnDividerAnimation.mockReturnValue({ hasDivider: false, isHistoryCollapsed: false, isExitingHistory: false, newTurnAnchorRef: { current: null }, collapsedUpToIndex: null });
         mockUseProjectContext.mockReturnValue({ activeProject: null });
         mockUseLocation.mockReturnValue({ pathname: "/chat", state: null });
         mockUseNavigate.mockReturnValue(vi.fn());
@@ -98,6 +107,8 @@ describe("ChatPage", () => {
                 useConfigContext: mockUseConfigContext,
                 useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
                 useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
+                useUIMode: mockUseUIMode,
+                useTurnDividerAnimation: mockUseTurnDividerAnimation,
             };
         });
 
@@ -160,6 +171,7 @@ describe("ChatPage", () => {
             ChatSessionDeleteDialog: () => React.createElement("div", { "data-testid": "chat-session-delete-dialog" }),
             ChatSidePanel: () => React.createElement("div", { "data-testid": "chat-side-panel" }),
             ChatInputArea: () => React.createElement("div", { "data-testid": "chat-input-area" }),
+            ChatWelcomeScreen: () => React.createElement("div", { "data-testid": "chat-welcome-screen" }),
             LoadingMessageRow: () => React.createElement("div", { "data-testid": "loading-message-row" }),
             ProjectBadge: ({ text }: { text: string }) => React.createElement("span", { "data-testid": "project-badge" }, text),
             SessionSidePanel: ({ onToggle }: { onToggle: () => void }) => React.createElement("div", { "data-testid": "session-side-panel", onClick: onToggle }),
@@ -174,6 +186,14 @@ describe("ChatPage", () => {
         vi.doMock("@/lib/components/share/ShareDialog", () => ({
             ShareDialog: () => React.createElement("div", { "data-testid": "share-dialog" }),
         }));
+
+        vi.doMock("@/lib/hooks/useTurnDividerAnimation", async () => {
+            const actual = await vi.importActual<typeof import("@/lib/hooks/useTurnDividerAnimation")>("@/lib/hooks/useTurnDividerAnimation");
+            return {
+                ...actual,
+                useTurnDividerAnimation: mockUseTurnDividerAnimation,
+            };
+        });
 
         vi.doMock("@/lib/api", () => ({
             api: {
