@@ -37,6 +37,57 @@ jobs:
           echo "is_regular_pr=$IS_REGULAR_PR" >> "$GITHUB_OUTPUT"
           echo "is_release_please_pr=$IS_RELEASE_PLEASE_PR" >> "$GITHUB_OUTPUT"
 
+  validate-conventional-commit:
+    name: Validate Conventional Commit
+    needs: detect-context
+    if: >-
+      fromJSON(needs.detect-context.outputs.is_regular_pr) ||
+      fromJSON(needs.detect-context.outputs.is_fork_pr)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Validate PR Title
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          disallowScopes: |
+            release
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            is not empty.
+
+  pr-size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    needs: detect-context
+    if: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Validate PR Size
+        uses: SolaceDev/solace-public-workflows/.github/actions/pr-size-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-lines: 1500
+
   fossa_pr_scan:
     name: FOSSA PR Scan
     needs: detect-context
@@ -213,6 +264,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - detect-context
+      - validate-conventional-commit
       - fossa_pr_scan
       - test-and-sonarqube
       - build-and-push
@@ -229,7 +281,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           IS_RP_PR: ${{ needs.detect-context.outputs.is_release_please_pr }}
+          IS_PUSH: ${{ needs.detect-context.outputs.is_push_to_main }}
           CONTEXT_RESULT: ${{ needs.detect-context.result }}
+          COMMIT_RESULT: ${{ needs.validate-conventional-commit.result }}
           FOSSA_RESULT: ${{ needs.fossa_pr_scan.result }}
           TEST_RESULT: ${{ needs.test-and-sonarqube.result }}
           BUILD_RESULT: ${{ needs.build-and-push.result }}
@@ -258,6 +312,9 @@ jobs:
             require_result "Release Readiness" "${READINESS_RESULT}" success
             require_result "RC Gate" "${RC_GATE_RESULT}" success
             require_result "Propagate Statuses" "${PROPAGATION_RESULT}" success
+          elif [[ "$IS_PUSH" == "true" ]]; then
+            require_result "FOSSA PR Scan" "${FOSSA_RESULT}" success skipped
           else
+            require_result "Conventional Commit" "${COMMIT_RESULT}" success
             require_result "FOSSA PR Scan" "${FOSSA_RESULT}" success skipped
           fi
