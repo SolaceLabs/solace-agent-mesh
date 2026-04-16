@@ -5,6 +5,7 @@ import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottom
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
+import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -137,8 +138,11 @@ function AppLayoutContent() {
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
-            <main className="h-full w-full flex-1 overflow-auto">
-                <Outlet />
+            <main className="flex h-full w-full flex-1 flex-col overflow-hidden">
+                <ModelWarningBanner />
+                <div className="min-h-0 flex-1">
+                    <Outlet />
+                </div>
             </main>
             <ToastContainer />
             <SelectionContextMenu isOpen={isMenuOpen} position={menuPosition} selectedText={selectedText || ""} sourceTaskId={sourceTaskId} onClose={clearSelection} />
