@@ -31,14 +31,14 @@ describe("ModelWarningBanner", () => {
     test("renders nothing when models are configured", () => {
         mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
         renderBanner();
-        expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Default models have not been configured./)).not.toBeInTheDocument();
     });
 
     test("renders warning text when models not configured", async () => {
         mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
         renderBanner();
         await waitFor(() => {
-            expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
+            expect(screen.getByText(/Default models have not been configured./)).toBeInTheDocument();
         });
     });
 

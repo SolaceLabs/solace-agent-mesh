@@ -48,7 +48,7 @@ describe("AppLayout model warning banner", () => {
 
         test("does not show warning", () => {
             renderLayout();
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Default models have not been configured./)).not.toBeInTheDocument();
         });
     });
 
@@ -56,20 +56,20 @@ describe("AppLayout model warning banner", () => {
         test("does not show warning when models are configured", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Default models have not been configured./)).not.toBeInTheDocument();
         });
 
         test("does not show warning when status is still loading", () => {
             mockModelConfigStatus.mockReturnValue({ data: undefined });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Default models have not been configured./)).not.toBeInTheDocument();
         });
 
         test("does not show warning in AppLayout (banner moved to PageLayout)", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({}, { model_config_ui: true });
             // Banner is now rendered by PageLayout inside each page, not AppLayout
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            expect(screen.queryByText(/Default models have not been configured./)).not.toBeInTheDocument();
         });
     });
 });

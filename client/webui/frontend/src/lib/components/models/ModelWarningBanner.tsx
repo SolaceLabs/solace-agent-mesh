@@ -22,7 +22,7 @@ export function ModelWarningBanner() {
             message={
                 <div className="flex w-full items-center justify-between gap-3">
                     <span>
-                        No model has been set up. Some features may not work as intended without a configured model.
+                        Default models have not been configured. Chat, agent creation, and other AI features require a General and Planning model to function.
                         {hasModelConfigWrite ? " Go to Agent Mesh to configure your models." : " Ask your administrator to configure models in Agent Mesh."}
                     </span>
                     {hasModelConfigWrite && (
