@@ -4,7 +4,7 @@ import { RefreshCcw, Upload } from "lucide-react";
 
 import type { PromptGroup, Prompt } from "@/lib/types/prompts";
 import type { PromptImportData } from "@/lib/schemas";
-import { Button, EmptyState, Header, VariableDialog, LifecycleBadge } from "@/lib/components";
+import { Button, EmptyState, Header, PageLayout, VariableDialog, LifecycleBadge } from "@/lib/components";
 import { GeneratePromptDialog, PromptCards, PromptDeleteDialog, PromptTemplateBuilder, VersionHistoryPage, PromptImportDialog } from "@/lib/components/prompts";
 import { detectVariables, downloadBlob, getErrorMessage } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -338,7 +338,7 @@ export const PromptsPage: React.FC = () => {
 
     // Main prompts view
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title={
                     <>
@@ -392,6 +392,6 @@ export const PromptsPage: React.FC = () => {
             )}
 
             <PromptImportDialog open={showImportDialog} onOpenChange={setShowImportDialog} onImport={handleImport} existingPrompts={promptGroups} />
-        </div>
+        </PageLayout>
     );
 };

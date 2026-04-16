@@ -1,8 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { http, HttpResponse } from "msw";
 import { within, expect } from "storybook/test";
 
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
 import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
+import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
+
+const warningBannerHandlers = [
+    http.get("*/api/v1/platform/models/status", () => {
+        return HttpResponse.json({ configured: false });
+    }),
+];
+
+const OpenFeatureModelConfigEnabled = createOpenFeatureDecorator({
+    flags: { model_config_ui: true },
+});
 
 const meta = {
     title: "Pages/Models/ModelSetupDialog",
@@ -59,16 +71,19 @@ export const NonAdminVariant: Story = {
 export const WarningBannerAdmin: StoryObj = {
     parameters: {
         layout: "fullscreen",
+        msw: { handlers: warningBannerHandlers },
+        chatContext: { hasModelConfigWrite: true },
     },
+    decorators: [OpenFeatureModelConfigEnabled],
     render: () => (
         <div style={{ padding: "1rem", width: "100vw" }}>
-            <ModelWarningBanner showWarning={true} hasModelConfigWrite={true} />
+            <ModelWarningBanner />
         </div>
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
+        expect(await canvas.findByText(/Default models have not been configured/)).toBeInTheDocument();
         expect(canvas.getByRole("button", { name: /Go to Models/i })).toBeInTheDocument();
         expect(canvas.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
     },
@@ -77,16 +92,19 @@ export const WarningBannerAdmin: StoryObj = {
 export const WarningBannerNonAdmin: StoryObj = {
     parameters: {
         layout: "fullscreen",
+        msw: { handlers: warningBannerHandlers },
+        chatContext: { hasModelConfigWrite: false },
     },
+    decorators: [OpenFeatureModelConfigEnabled],
     render: () => (
         <div style={{ padding: "1rem", width: "100vw" }}>
-            <ModelWarningBanner showWarning={true} hasModelConfigWrite={false} />
+            <ModelWarningBanner />
         </div>
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        expect(canvas.getByText(/No model has been set up/)).toBeInTheDocument();
+        expect(await canvas.findByText(/Default models have not been configured/)).toBeInTheDocument();
         expect(canvas.getByText(/Ask your administrator/)).toBeInTheDocument();
         expect(canvas.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
     },

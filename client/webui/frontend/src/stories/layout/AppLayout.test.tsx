@@ -1,5 +1,5 @@
 /// <reference types="@testing-library/jest-dom" />
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
@@ -46,44 +46,49 @@ describe("AppLayout model warning banner", () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
         });
 
-        test("does not show warning", () => {
+        test("does not show warning", async () => {
             renderLayout();
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            await new Promise(r => setTimeout(r, 0));
+            expect(screen.queryByText(/Default models have not been configured/)).not.toBeInTheDocument();
         });
     });
 
     describe("when model_config_ui flag is enabled", () => {
-        test("does not show warning when models are configured", () => {
+        test("does not show warning when models are configured", async () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            await new Promise(r => setTimeout(r, 0));
+            expect(screen.queryByText(/Default models have not been configured/)).not.toBeInTheDocument();
         });
 
-        test("does not show warning when status is still loading", () => {
+        test("does not show warning when status is still loading", async () => {
             mockModelConfigStatus.mockReturnValue({ data: undefined });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.queryByText(/No model has been set up/)).not.toBeInTheDocument();
+            await new Promise(r => setTimeout(r, 0));
+            expect(screen.queryByText(/Default models have not been configured/)).not.toBeInTheDocument();
         });
 
-        test("shows warning when models not configured", () => {
+        test("shows warning when models not configured", async () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({}, { model_config_ui: true });
-            expect(screen.getByText(/No model has been set up/)).toBeInTheDocument();
+            expect(await screen.findByText(/Default models have not been configured/)).toBeInTheDocument();
         });
 
-        test("shows Go to Models button when user has write permission", () => {
+        test("shows Go to Models button when user has write permission", async () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({ hasModelConfigWrite: true }, { model_config_ui: true });
             // Banner and dialog may both show a "Go to Models" button
-            const buttons = screen.getAllByRole("button", { name: /Go to Models/i });
-            expect(buttons.length).toBeGreaterThanOrEqual(1);
+            await waitFor(() => {
+                const buttons = screen.getAllByRole("button", { name: /Go to Models/i });
+                expect(buttons.length).toBeGreaterThanOrEqual(1);
+            });
             expect(screen.queryByText(/Ask your administrator/)).not.toBeInTheDocument();
         });
 
-        test("shows contact admin text when user lacks write permission", () => {
+        test("shows contact admin text when user lacks write permission", async () => {
             mockModelConfigStatus.mockReturnValue({ data: { configured: false } });
             renderLayout({ hasModelConfigWrite: false }, { model_config_ui: true });
-            expect(screen.getByText(/Ask your administrator/)).toBeInTheDocument();
+            expect(await screen.findByText(/Ask your administrator/)).toBeInTheDocument();
             expect(screen.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         });
     });
