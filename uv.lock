@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10.16, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
@@ -4861,7 +4861,7 @@ requires-dist = [
     { name = "rouge", specifier = "==1.0.1" },
     { name = "ruff", marker = "extra == 'test'" },
     { name = "setuptools", specifier = "==80.10.2" },
-    { name = "solace-ai-connector", specifier = "==3.3.9" },
+    { name = "solace-ai-connector", specifier = "==3.3.10" },
     { name = "sqlalchemy", specifier = "==2.0.40" },
     { name = "sse-starlette", specifier = "==3.0.2" },
     { name = "starlette", specifier = "==0.49.1" },
@@ -4876,7 +4876,7 @@ provides-extras = ["employee-tools", "test", "vertex"]
 
 [[package]]
 name = "solace-ai-connector"
-version = "3.3.9"
+version = "3.3.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gevent" },
@@ -4892,9 +4892,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/47/fee852b5bc58851267225ba093f0f526955709c8606f58ea6d721fc2b39f/solace_ai_connector-3.3.9.tar.gz", hash = "sha256:32498d7138f69b2d1840bb368a1c7fe05ebcc0b3d8c22653ca8a4700eec6518e", size = 431749, upload-time = "2026-03-31T19:19:12.731Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/32/3a47d8575a468c12d37d051c82e5bfc5d70cdd610f60864feed5060638b9/solace_ai_connector-3.3.10.tar.gz", hash = "sha256:1880a1e357e30c53fb4a41dc85548d32a78394e114ad87abf278065d5bb2ef0c", size = 432584, upload-time = "2026-04-16T16:14:12.512Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/13/46a63f434db13b142af5733b3aec9146e6f30e1d0f3db200469757ee5942/solace_ai_connector-3.3.9-py3-none-any.whl", hash = "sha256:3b40a48ba9971df65ae21907daf3f520501c03daab96ff4c4dfda8f040fa4662", size = 214496, upload-time = "2026-03-31T19:19:10.911Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/4b/582ba6894ffa8ff04153575b9f5a62588c968a6e201427234eea5cd0de6f/solace_ai_connector-3.3.10-py3-none-any.whl", hash = "sha256:b733d9196708c5b71d34c1c2411a9f61baf108e65550b524808b11b1c5eb0bb4", size = 214693, upload-time = "2026-04-16T16:14:10.426Z" },
 ]
 
 [[package]]
