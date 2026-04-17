@@ -48,6 +48,11 @@ class ModelConfigurationBaseRequest(CamelCaseModel):
         None,
         description="Model-specific parameters",
     )
+    max_input_tokens: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Context window size (max input tokens). Optional — used for the session context-usage indicator.",
+    )
     description: Optional[str] = Field(
         None,
         description="Description of this model configuration",

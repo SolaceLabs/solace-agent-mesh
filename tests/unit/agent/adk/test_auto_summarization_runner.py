@@ -995,14 +995,16 @@ class TestSendTruncationNotification:
             assert publish_args[0][1] == "agent/peer/responses"
 
 class TestCreateCompactionEventLlmArg:
-    """Regression test: LlmEventSummarizer must receive component.adk_agent, not .model."""
+    """Regression test: LlmEventSummarizer must receive the LiteLlm wrapper at component.adk_agent.model."""
 
     @pytest.mark.asyncio
-    async def test_summarizer_receives_adk_agent_not_model(self):
-        """Verify llm= is component.adk_agent (BaseLlm), not component.adk_agent.model (str)."""
+    async def test_summarizer_receives_adk_agent_model(self):
+        """Verify llm= is component.adk_agent.model (LiteLlm wrapper with .model str + .generate_content_async), not the agent itself."""
         component = Mock()
         component.adk_agent = Mock()
-        component.adk_agent.model = "gpt-4o"  # string — wrong type for llm=
+        # adk_agent.model is the LiteLlm wrapper — it has its own .model string and a generate_content_async method
+        component.adk_agent.model = Mock()
+        component.adk_agent.model.model = "gpt-4o"
         component.get_config = Mock(return_value="test-namespace")
         component.session_service = AsyncMock()
         component.session_service.append_event = AsyncMock(return_value=None)
@@ -1050,11 +1052,13 @@ class TestCreateCompactionEventLlmArg:
                 compaction_threshold=0.5, log_identifier="[Test]",
             )
 
-            # The critical assertion: llm must be the BaseLlm object, not its .model string
+            # The critical assertion: llm must be the LiteLlm wrapper (adk_agent.model),
+            # not the agent itself — LlmEventSummarizer calls both llm.model (str) and
+            # llm.generate_content_async, which the wrapper provides.
             mock_cls.assert_called_once()
             call_kwargs = mock_cls.call_args
-            assert call_kwargs[1]["llm"] is component.adk_agent
-            assert call_kwargs[1]["llm"] is not component.adk_agent.model
+            assert call_kwargs[1]["llm"] is component.adk_agent.model
+            assert call_kwargs[1]["llm"] is not component.adk_agent
 
 
 class TestCreateCompactionEvent:

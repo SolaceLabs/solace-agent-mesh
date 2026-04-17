@@ -4,7 +4,7 @@ Model configuration database model.
 Stores LLM model aliases and their settings (provider, api_base, model_auth_config, etc.)
 """
 
-from sqlalchemy import Column, String, Text, BigInteger, CheckConstraint
+from sqlalchemy import Column, String, Text, BigInteger, Integer, CheckConstraint
 
 from solace_agent_mesh.shared.database import SimpleJSON, OptimizedUUID
 from solace_agent_mesh.shared.database.id_generators import generate_uuidv7
@@ -49,6 +49,10 @@ class ModelConfiguration(Base):
     model_auth_type = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["MODEL_AUTH_TYPE_MAX_LENGTH"]), nullable=False, default="none")
     model_auth_config = Column(SimpleJSON, nullable=False, default=dict)
     model_params = Column(SimpleJSON, nullable=False, default=dict)
+    # Context window size (max input tokens). Optional — when unset, the
+    # context-usage indicator falls back to LiteLLM's registry, then hides
+    # if unknown.
+    max_input_tokens = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
     created_by = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["CREATED_BY_MAX_LENGTH"]), nullable=False)
     updated_by = Column(String(MODEL_CONFIGURATION_CONSTRAINTS["UPDATED_BY_MAX_LENGTH"]), nullable=False)
