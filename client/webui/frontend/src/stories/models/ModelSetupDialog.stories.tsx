@@ -8,7 +8,7 @@ import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
 
 const warningBannerHandlers = [
     http.get("*/api/v1/platform/models/status", () => {
-        return HttpResponse.json({ configured: false });
+        return HttpResponse.json({ data: { configured: false } });
     }),
 ];
 
