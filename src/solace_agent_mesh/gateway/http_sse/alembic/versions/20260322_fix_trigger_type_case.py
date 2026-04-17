@@ -1,6 +1,6 @@
 """Normalize scheduled_task_executions.trigger_type to enum-NAME casing
 
-Revision ID: 20260322_normalize_trigger_type_case
+Revision ID: 20260322_trigger_type_fix
 Revises: 20260321_execution_trigger_type
 Create Date: 2026-03-22 00:00:00.000000
 
@@ -20,7 +20,7 @@ from alembic import op
 from sqlalchemy import inspect, text
 
 
-revision: str = '20260322_normalize_trigger_type_case'
+revision: str = '20260322_trigger_type_fix'
 down_revision: Union[str, Sequence[str], None] = '20260321_execution_trigger_type'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

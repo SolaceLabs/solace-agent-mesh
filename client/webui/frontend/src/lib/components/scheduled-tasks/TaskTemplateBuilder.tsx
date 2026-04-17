@@ -236,11 +236,19 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (!config.scheduleExpression.trim()) {
             errors.scheduleExpression = "Schedule expression is required";
         } else if (config.scheduleType === "one_time") {
-            const scheduled = new Date(config.scheduleExpression);
-            if (isNaN(scheduled.getTime())) {
-                errors.scheduleExpression = "Invalid date and time";
-            } else if (scheduled.getTime() <= Date.now()) {
-                errors.scheduleExpression = "Scheduled time must be in the future";
+            // Backend enforces strict ISO 8601 (Python's datetime.fromisoformat).
+            // `new Date(...)` is too lenient in some browsers and would let
+            // garbage like "2026-04-16T15:21:00A" through to the server.
+            const iso8601Pattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/;
+            if (!iso8601Pattern.test(config.scheduleExpression.trim())) {
+                errors.scheduleExpression = "Invalid date & time — use format YYYY-MM-DDTHH:MM:SS";
+            } else {
+                const scheduled = new Date(config.scheduleExpression);
+                if (isNaN(scheduled.getTime())) {
+                    errors.scheduleExpression = "Invalid date & time";
+                } else if (scheduled.getTime() <= Date.now()) {
+                    errors.scheduleExpression = "Scheduled time must be in the future";
+                }
             }
         } else if (config.scheduleType === "interval") {
             const match = /^(\d+)([smhd])$/i.exec(config.scheduleExpression.trim());
@@ -380,7 +388,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 <div className="flex min-h-0 flex-1">
                     {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
                     <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
-                        <TaskBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} availableAgents={agents} />
+                        <TaskBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} availableAgents={agents} isEditing={isEditing} />
                     </div>
 
                     {/* Right Panel - Task Preview (only in AI mode) */}

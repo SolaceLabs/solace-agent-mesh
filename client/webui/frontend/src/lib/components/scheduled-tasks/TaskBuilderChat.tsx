@@ -50,9 +50,10 @@ interface TaskBuilderChatProps {
     onReadyToSave: (ready: boolean) => void;
     initialMessage?: string | null;
     availableAgents?: Array<{ name: string; displayName?: string; description?: string }>;
+    isEditing?: boolean;
 }
 
-export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, availableAgents = [] }) => {
+export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, availableAgents = [], isEditing = false }) => {
     const { addNotification } = useChatContext();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -100,7 +101,14 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         if (initRef.current || !greetingQuery.data) return;
         initRef.current = true;
 
-        const greetingMessage = greetingQuery.data.message;
+        // In edit mode the backend greeting ("Hi! I'll help you create a
+        // scheduled task...") doesn't fit — the user already has a task and
+        // is here to change it. Swap in a context-aware greeting that
+        // references the existing task's name if we have one.
+        const taskName = currentConfigRef.current?.name?.trim();
+        const greetingMessage = isEditing
+            ? `Hi! Let's refine${taskName ? ` the **${taskName}**` : " this"} task. Tell me what you'd like to change — for example the schedule, target agent, or the instructions. I can also help tweak the wording.`
+            : greetingQuery.data.message;
         setMessages([
             {
                 role: "assistant",
