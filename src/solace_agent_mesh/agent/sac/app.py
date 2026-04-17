@@ -547,6 +547,36 @@ class SamAgentAppConfig(SamConfigBase):
         return self
 
 
+def _ensure_artifact_management_tools(app_config_dict: Dict[str, Any], agent_name: str) -> None:
+    """Ensures artifact_management tools are present in the agent config.
+
+    Injects the artifact_management builtin-group into the raw config dict before
+    Pydantic validation if it is not already configured. This guarantees every agent
+    has artifact tools available regardless of what the YAML declares.
+    """
+    try:
+        tools = app_config_dict.get("tools") or []
+        configured_groups = {
+            t.get("group_name")
+            for t in tools
+            if isinstance(t, dict) and t.get("tool_type") == "builtin-group"
+        }
+        if "artifact_management" not in configured_groups:
+            app_config_dict["tools"] = [
+                {"tool_type": "builtin-group", "group_name": "artifact_management"}
+            ] + list(tools)
+            log.info(
+                "Agent '%s': auto-injected 'artifact_management' tool group (not found in YAML config).",
+                agent_name,
+            )
+    except Exception:
+        log.exception(
+            "Agent '%s': failed to inject 'artifact_management' tool group into config. "
+            "The agent may not have artifact tools available.",
+            agent_name,
+        )
+
+
 class SamAgentApp(SamAppBase):
     """
     Custom App class for SAM Agent Host that automatically generates
@@ -575,6 +605,8 @@ class SamAgentApp(SamAppBase):
                 valid_agent_name,
             )
             app_config_dict["agent_name"] = valid_agent_name
+
+        _ensure_artifact_management_tools(app_config_dict, agent_name)
 
         try:
             # Validate the raw dict, cleaning None values to allow defaults to apply
