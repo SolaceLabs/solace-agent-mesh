@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
-import { Button, EmptyState, Header } from "@/lib/components";
+import { Button, EmptyState, Header, PageLayout } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { WorkflowList } from "@/lib/components/workflows";
 import { ModelsView } from "@/lib/components/models";
@@ -70,7 +70,7 @@ export function AgentMeshPage() {
     ];
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title="Agent Mesh"
                 tabs={tabs}
@@ -101,6 +101,6 @@ export function AgentMeshPage() {
                     {activeTab === "models" && <ModelsView />}
                 </div>
             )}
-        </div>
+        </PageLayout>
     );
 }

@@ -27,7 +27,6 @@ function AppLayoutContent() {
     const [modelSetupDismissed, setModelSetupDismissed] = useLocalStorage("model-setup-dialog-dismissed", false);
 
     const { data: modelConfigStatus } = useModelConfigStatus();
-    const showModelWarning = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
     useEffect(() => {
         if (modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured && !modelSetupDismissed) {
@@ -139,8 +138,8 @@ function AppLayoutContent() {
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
-            <main className="h-full w-full flex-1 overflow-auto">
-                <ModelWarningBanner showWarning={!!showModelWarning} hasModelConfigWrite={hasModelConfigWrite} />
+            <main className="flex h-full w-full flex-1 flex-col">
+                <ModelWarningBanner />
                 <Outlet />
             </main>
             <ToastContainer />
