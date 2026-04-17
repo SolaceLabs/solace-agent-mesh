@@ -1,8 +1,84 @@
 import React from "react";
-import { X, Calendar, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause } from "lucide-react";
-import type { ScheduledTask } from "@/lib/types/scheduled-tasks";
+import { X, Calendar, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, ChevronRight } from "lucide-react";
+import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Badge } from "@/lib/components/ui";
+import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
+import { formatDuration } from "@/lib/utils/format";
 import { formatSchedule } from "./utils";
+
+const RECENT_RUNS_COUNT = 5;
+
+const executionStatusIcon = (status: TaskExecution["status"]): { Icon: React.ComponentType<{ className?: string }>; className: string; label: string } => {
+    switch (status) {
+        case "completed":
+            return { Icon: CheckCircle2, className: "text-(--success-wMain)", label: "Succeeded" };
+        case "failed":
+            return { Icon: XCircle, className: "text-(--error-wMain)", label: "Failed" };
+        case "timeout":
+            return { Icon: AlertCircle, className: "text-(--warning-wMain)", label: "Timed out" };
+        case "running":
+            return { Icon: Loader2, className: "animate-spin text-(--info-wMain)", label: "Running" };
+        case "pending":
+            return { Icon: Loader2, className: "animate-spin text-(--info-wMain)", label: "Pending" };
+        case "skipped":
+            return { Icon: AlertCircle, className: "text-(--secondary-text-wMain)", label: "Skipped" };
+        case "cancelled":
+            return { Icon: XCircle, className: "text-(--secondary-text-wMain)", label: "Cancelled" };
+        default:
+            return { Icon: AlertCircle, className: "text-(--secondary-text-wMain)", label: String(status) };
+    }
+};
+
+const RecentRuns: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskId, onViewAll }) => {
+    const { data, isLoading } = useTaskExecutions(taskId, 1, RECENT_RUNS_COUNT);
+    const executions = data?.executions ?? [];
+
+    return (
+        <div>
+            <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-(--secondary-text-wMain)">Recent Runs</h3>
+                {executions.length > 0 && (
+                    <button type="button" onClick={onViewAll} className="flex items-center gap-0.5 text-xs text-(--primary-wMain) hover:underline">
+                        View all
+                        <ChevronRight className="h-3 w-3" />
+                    </button>
+                )}
+            </div>
+
+            {isLoading ? (
+                <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading…
+                </div>
+            ) : executions.length === 0 ? (
+                <div className="text-xs text-(--secondary-text-wMain) italic">No runs yet.</div>
+            ) : (
+                <ul className="space-y-1">
+                    {executions.map(ex => {
+                        const { Icon, className, label } = executionStatusIcon(ex.status);
+                        const when = ex.completedAt ?? ex.startedAt ?? ex.scheduledFor;
+                        const duration = ex.durationMs ? formatDuration(ex.durationMs) : null;
+                        return (
+                            <li key={ex.id}>
+                                <button type="button" onClick={onViewAll} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-(--secondary-w10)" title={ex.errorMessage ?? label}>
+                                    <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${className}`} />
+                                    <span className="min-w-0 flex-1 truncate">
+                                        <span className="font-medium">{label}</span>
+                                        <span className="text-(--secondary-text-wMain)">
+                                            {" · "}
+                                            {new Date(when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                            {duration && ` · ${duration}`}
+                                        </span>
+                                    </span>
+                                </button>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </div>
+    );
+};
 
 interface TaskDetailSidePanelProps {
     task: ScheduledTask | null;
@@ -76,7 +152,7 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                                     {task.enabled ? (
                                         <>
                                             <Pause size={14} className="mr-2" />
-                                            Disable Task
+                                            Pause Task
                                         </>
                                     ) : (
                                         <>
@@ -137,6 +213,10 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                         <div className="rounded bg-(--secondary-w10) p-3 font-mono text-xs break-words whitespace-pre-wrap">{task.taskMessage[0]?.text || "No message"}</div>
                     </div>
                 )}
+
+                {/* Recent Runs — surfaces execution results without requiring
+                    a full navigation to the history page. */}
+                <RecentRuns taskId={task.id} onViewAll={handleViewExecutions} />
 
                 {/* Execution Stats */}
                 {(task.lastRunAt || task.nextRunAt) && (

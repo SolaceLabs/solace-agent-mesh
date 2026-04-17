@@ -38,6 +38,12 @@ class ExecutionStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class TriggerType(str, Enum):
+    """How an execution was triggered — preserved for audit/history."""
+    SCHEDULED = "scheduled"
+    MANUAL = "manual"
+
+
 class ScheduledTaskModel(Base):
     """SQLAlchemy model for scheduled task definitions."""
 
@@ -140,6 +146,15 @@ class ScheduledTaskExecutionModel(Base):
     result_summary = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0)
+
+    # How this execution was triggered (cron fire vs. manual "Run Now").
+    trigger_type = Column(
+        SQLEnum(TriggerType),
+        nullable=False,
+        default=TriggerType.SCHEDULED,
+        index=True,
+    )
+    triggered_by = Column(String, nullable=True)  # user_id for manual triggers
 
     # Artifacts & Notifications
     artifacts = Column(JSON, nullable=True)

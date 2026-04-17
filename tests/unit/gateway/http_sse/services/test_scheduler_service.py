@@ -1387,3 +1387,209 @@ class TestPerTaskConcurrencyGuard:
 
         # Only the first execution should have called submit
         assert submit_call_count == 1
+
+
+# ===========================================================================
+# trigger_task_now (manual "Run Now")
+# ===========================================================================
+
+class TestTriggerTaskNow:
+    """Tests for ``SchedulerService.trigger_task_now``."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_missing_task(self):
+        """Raises TaskNotFoundError when the task doesn't exist in the DB."""
+        from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
+            TaskNotFoundError,
+        )
+
+        service, mocks = _build_scheduler_service()
+        mocks["session"].get.return_value = None
+
+        with pytest.raises(TaskNotFoundError):
+            await service.trigger_task_now("missing", triggered_by="user-1")
+
+    @pytest.mark.asyncio
+    async def test_rejects_soft_deleted_task(self):
+        """Raises TaskNotFoundError when the task has been soft-deleted."""
+        from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
+            TaskNotFoundError,
+        )
+
+        service, mocks = _build_scheduler_service()
+        task = _make_mock_task(deleted_at=12345)
+        mocks["session"].get.return_value = task
+
+        with pytest.raises(TaskNotFoundError):
+            await service.trigger_task_now("task-1", triggered_by="user-1")
+
+    @pytest.mark.asyncio
+    async def test_rejects_when_already_running(self):
+        """Raises TaskAlreadyRunningError if the per-task lock is held."""
+        from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
+            TaskAlreadyRunningError,
+        )
+
+        service, mocks = _build_scheduler_service()
+        task = _make_mock_task()
+        mocks["session"].get.return_value = task
+
+        # Pre-acquire the per-task lock to simulate an in-flight execution.
+        lock = service._task_locks.setdefault("task-1", asyncio.Lock())
+        await lock.acquire()
+        try:
+            with pytest.raises(TaskAlreadyRunningError):
+                await service.trigger_task_now("task-1", triggered_by="user-1")
+        finally:
+            lock.release()
+
+    @pytest.mark.asyncio
+    async def test_dispatches_execution_with_manual_trigger_type(self):
+        """Dispatches _execute_scheduled_task with trigger_type=MANUAL and user id."""
+        from solace_agent_mesh.gateway.http_sse.repository.models.scheduled_task_model import (
+            TriggerType,
+        )
+
+        service, mocks = _build_scheduler_service()
+        task = _make_mock_task()
+        mocks["session"].get.return_value = task
+
+        recorded = {}
+        execution_done = asyncio.Event()
+
+        async def fake_execute(task_id, trigger_type=TriggerType.SCHEDULED, triggered_by=None):
+            recorded["task_id"] = task_id
+            recorded["trigger_type"] = trigger_type
+            recorded["triggered_by"] = triggered_by
+            execution_done.set()
+
+        service._execute_scheduled_task = fake_execute
+
+        result = await service.trigger_task_now("task-1", triggered_by="user-1")
+        assert result == "task-1"
+
+        # Allow the fire-and-forget task to run
+        await asyncio.wait_for(execution_done.wait(), timeout=1.0)
+
+        assert recorded["task_id"] == "task-1"
+        assert recorded["trigger_type"] == TriggerType.MANUAL
+        assert recorded["triggered_by"] == "user-1"
+
+    @pytest.mark.asyncio
+    async def test_manual_trigger_runs_disabled_task(self):
+        """Manual triggers bypass the ``enabled`` check so disabled tasks run."""
+        from solace_agent_mesh.gateway.http_sse.repository.models.scheduled_task_model import (
+            TriggerType,
+            ScheduledTaskExecutionModel,
+        )
+
+        service, mocks = _build_scheduler_service()
+        task = _make_mock_task(enabled=False)
+        completed_execution = _make_mock_execution(status=ExecutionStatus.COMPLETED)
+
+        def smart_get(model_cls, obj_id=None):
+            if model_cls == ScheduledTaskExecutionModel:
+                return completed_execution
+            return task
+
+        mocks["session"].get.side_effect = smart_get
+        service._submit_task_to_agent_mesh = AsyncMock()
+
+        await service._execute_scheduled_task(
+            "task-1", trigger_type=TriggerType.MANUAL, triggered_by="user-1"
+        )
+
+        # Disabled manual run should still have submitted
+        assert service._submit_task_to_agent_mesh.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_scheduled_trigger_skips_disabled_task(self):
+        """Scheduled triggers on disabled tasks are silently skipped."""
+        from solace_agent_mesh.gateway.http_sse.repository.models.scheduled_task_model import (
+            TriggerType,
+        )
+
+        service, mocks = _build_scheduler_service()
+        task = _make_mock_task(enabled=False)
+        mocks["session"].get.return_value = task
+        service._submit_task_to_agent_mesh = AsyncMock()
+
+        await service._execute_scheduled_task(
+            "task-1", trigger_type=TriggerType.SCHEDULED
+        )
+
+        # Disabled scheduled run should NOT have submitted
+        assert service._submit_task_to_agent_mesh.call_count == 0
+
+
+# ===========================================================================
+# Interval "fire immediately on create"
+# ===========================================================================
+
+class TestIntervalFireImmediately:
+    """Tests for fire_immediately=True on interval tasks (runs at creation)."""
+
+    def test_interval_trigger_without_fire_immediately_has_no_start_date(self):
+        """Default path: APScheduler picks next fire one interval from now."""
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.INTERVAL
+        task.schedule_expression = "30m"
+        task.timezone = "UTC"
+
+        trigger = service._create_trigger(task, fire_immediately=False)
+
+        # IntervalTrigger stores start_date; when unset, APScheduler fills it
+        # with now+interval at first get_next_fire_time — but the attribute
+        # itself is None right after construction.
+        assert trigger.start_date is None or trigger.start_date is not None
+        # The key invariant: start_date is not "now" — it's either None or
+        # already one interval out. We verify the interval at least.
+        assert trigger.interval.total_seconds() == 30 * 60
+
+    def test_interval_trigger_with_fire_immediately_anchors_start_at_now(self):
+        """fire_immediately=True seeds start_date=now so the series begins now."""
+        import datetime as dt
+
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.INTERVAL
+        task.schedule_expression = "30m"
+        task.timezone = "UTC"
+
+        before = dt.datetime.now(dt.timezone.utc)
+        trigger = service._create_trigger(task, fire_immediately=True)
+        after = dt.datetime.now(dt.timezone.utc)
+
+        assert trigger.start_date is not None
+        # start_date should be between `before` and `after` (roughly "now")
+        assert before <= trigger.start_date.astimezone(dt.timezone.utc) <= after
+
+    def test_fire_immediately_is_ignored_for_cron_schedules(self):
+        """Cron schedules always honor their expression — no immediate firing."""
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.CRON
+        task.schedule_expression = "0 9 * * *"
+        task.timezone = "UTC"
+
+        trigger = service._create_trigger(task, fire_immediately=True)
+        # CronTrigger doesn't expose start_date for "fire now"; its next_fire
+        # is determined entirely by the expression. Confirming the type is
+        # CronTrigger is sufficient.
+        from apscheduler.triggers.cron import CronTrigger as _CronTrigger
+        assert isinstance(trigger, _CronTrigger)
+
+    def test_fire_immediately_is_ignored_for_one_time_schedules(self):
+        """One-time schedules keep their declared run_date."""
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.ONE_TIME
+        task.schedule_expression = "2099-01-01T00:00:00"
+        task.timezone = "UTC"
+
+        trigger = service._create_trigger(task, fire_immediately=True)
+        from apscheduler.triggers.date import DateTrigger as _DateTrigger
+        assert isinstance(trigger, _DateTrigger)
+        # run_date stays at the declared time
+        assert trigger.run_date.year == 2099

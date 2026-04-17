@@ -46,6 +46,10 @@ export const disableTask = async (taskId: string): Promise<void> => {
     await api.webui.post(`/api/v1/scheduled-tasks/${taskId}/disable`);
 };
 
+export const runTaskNow = async (taskId: string): Promise<void> => {
+    await api.webui.post(`/api/v1/scheduled-tasks/${taskId}/run`);
+};
+
 export const fetchExecutions = async (taskId: string, pageNumber: number = 1, pageSize: number = 20): Promise<ExecutionListResponse> => {
     const params = new URLSearchParams({
         pageNumber: pageNumber.toString(),

@@ -29,6 +29,7 @@ from ...repository.models import (
     ScheduledTaskExecutionModel,
     ScheduledTaskModel,
     ScheduleType,
+    TriggerType,
 )
 from ...repository.models import SessionModel
 from ...repository.scheduled_task_repository import ScheduledTaskRepository
@@ -54,6 +55,14 @@ _SAFE_METADATA_KEYS = frozenset({
     "category",
     "source",
 })
+
+
+class TaskNotFoundError(Exception):
+    """Raised when a manual trigger targets a missing or deleted task."""
+
+
+class TaskAlreadyRunningError(Exception):
+    """Raised when a manual trigger is issued while an execution is in-flight."""
 
 
 class SchedulerService:
@@ -319,18 +328,27 @@ class SchedulerService:
                     exc_info=True,
                 )
 
-    async def schedule_task(self, task: ScheduledTaskModel):
-        """Schedule a single task in APScheduler."""
+    async def schedule_task(self, task: ScheduledTaskModel, fire_immediately: bool = False):
+        """Schedule a single task in APScheduler.
+
+        When ``fire_immediately`` is True and the task is an interval schedule,
+        the trigger's start anchor is set to ``now`` so the first fire happens
+        on the next scheduler tick instead of waiting a full interval. This is
+        used at task-creation time so users see immediate feedback on interval
+        schedules that don't have a specific start time. Reschedules
+        (edit/enable/server-restart) must pass ``False`` so tasks don't
+        spuriously fire every time they're reloaded.
+        """
         job_id = f"scheduled_task_{task.id}"
 
         log.info(
             "[SchedulerService:%s] Scheduling task '%s' "
-            "(ID: %s, Type: %s)",
-            self.instance_id, task.name, task.id, task.schedule_type,
+            "(ID: %s, Type: %s, fire_immediately=%s)",
+            self.instance_id, task.name, task.id, task.schedule_type, fire_immediately,
         )
 
         try:
-            trigger = self._create_trigger(task)
+            trigger = self._create_trigger(task, fire_immediately=fire_immediately)
 
             job = self.scheduler.add_job(
                 self._execute_scheduled_task,
@@ -384,8 +402,12 @@ class SchedulerService:
         # in long-running deployments where tasks are created/deleted.
         self._task_locks.pop(task_id, None)
 
-    def _create_trigger(self, task: ScheduledTaskModel):
-        """Create an APScheduler trigger based on task configuration."""
+    def _create_trigger(self, task: ScheduledTaskModel, fire_immediately: bool = False):
+        """Create an APScheduler trigger based on task configuration.
+
+        ``fire_immediately`` only applies to interval schedules and only makes
+        sense at task-creation time (see ``schedule_task``).
+        """
         if task.schedule_type == ScheduleType.CRON:
             if not croniter.is_valid(task.schedule_expression):
                 raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
@@ -393,7 +415,22 @@ class SchedulerService:
 
         elif task.schedule_type == ScheduleType.INTERVAL:
             interval_seconds = self._parse_interval(task.schedule_expression)
-            return IntervalTrigger(seconds=interval_seconds, timezone=task.timezone)
+            # APScheduler's default schedules the first fire one interval from
+            # now, which feels wrong for "every 30m" tasks the user just
+            # created — they'd wait 30m to see anything happen. Anchoring the
+            # series at `now` makes the first fire happen on the next tick.
+            start_date = None
+            if fire_immediately:
+                try:
+                    tz = pytz.timezone(task.timezone)
+                except Exception:
+                    tz = pytz.UTC
+                start_date = datetime.now(tz)
+            return IntervalTrigger(
+                seconds=interval_seconds,
+                timezone=task.timezone,
+                start_date=start_date,
+            )
 
         elif task.schedule_type == ScheduleType.ONE_TIME:
             run_date = datetime.fromisoformat(task.schedule_expression)
@@ -406,7 +443,12 @@ class SchedulerService:
         """Parse interval string to seconds (delegates to shared utility)."""
         return parse_interval_to_seconds(interval_str)
 
-    async def _execute_scheduled_task(self, task_id: str):
+    async def _execute_scheduled_task(
+        self,
+        task_id: str,
+        trigger_type: TriggerType = TriggerType.SCHEDULED,
+        triggered_by: Optional[str] = None,
+    ):
         """Execute a scheduled task by submitting it to the agent mesh.
 
         Retries are handled iteratively (not recursively) to avoid deep call
@@ -427,9 +469,45 @@ class SchedulerService:
             return
 
         async with task_lock:
-            await self._execute_scheduled_task_inner(task_id)
+            await self._execute_scheduled_task_inner(task_id, trigger_type, triggered_by)
 
-    async def _execute_scheduled_task_inner(self, task_id: str):
+    async def trigger_task_now(self, task_id: str, triggered_by: Optional[str] = None) -> str:
+        """Manually execute a task "Run Now".
+
+        Rejects with TaskAlreadyRunningError if an execution is already
+        in-flight for this task (per-task concurrency gate). Unlike scheduled
+        fires, manual triggers are allowed on disabled tasks so users can
+        verify a task before enabling it.
+
+        The actual execution runs in the background; this returns once the
+        trigger has been accepted.
+        """
+        with self.session_factory() as session:
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task or task.deleted_at:
+                raise TaskNotFoundError(task_id)
+
+        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
+        if task_lock.locked():
+            raise TaskAlreadyRunningError(task_id)
+
+        # Fire-and-forget — the scheduler owns the lifecycle. Swallow exceptions
+        # here so they don't surface as "Task was destroyed but it is pending".
+        asyncio.create_task(
+            self._execute_scheduled_task(
+                task_id,
+                trigger_type=TriggerType.MANUAL,
+                triggered_by=triggered_by,
+            )
+        )
+        return task_id
+
+    async def _execute_scheduled_task_inner(
+        self,
+        task_id: str,
+        trigger_type: TriggerType = TriggerType.SCHEDULED,
+        triggered_by: Optional[str] = None,
+    ):
         """Inner implementation of scheduled task execution (holds per-task lock)."""
         log.info(
             "[SchedulerService:%s] Executing scheduled task: %s",
@@ -484,6 +562,8 @@ class SchedulerService:
                                     scheduled_for=now_epoch_ms(),
                                     completed_at=now_epoch_ms(),
                                     error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
+                                    trigger_type=trigger_type,
+                                    triggered_by=triggered_by,
                                 )
                                 session.add(execution)
                                 session.commit()
@@ -491,7 +571,11 @@ class SchedulerService:
 
                     with self.session_factory() as session:
                         task = session.get(ScheduledTaskModel, task_id)
-                        if not task or not task.enabled or task.deleted_at:
+                        # Manual "Run Now" bypasses the enabled check so users
+                        # can test a task before enabling it. Deleted tasks are
+                        # always rejected.
+                        is_manual = trigger_type == TriggerType.MANUAL
+                        if not task or task.deleted_at or (not task.enabled and not is_manual):
                             log.warning("[SchedulerService:%s] Task %s not found, disabled, or deleted", self.instance_id, task_id)
                             return
 
@@ -504,10 +588,43 @@ class SchedulerService:
                             status=ExecutionStatus.PENDING,
                             scheduled_for=current_time,
                             retry_count=attempt,
+                            trigger_type=trigger_type,
+                            triggered_by=triggered_by,
                         )
                         session.add(execution)
                         task.last_run_at = current_time
                         session.commit()
+
+                    # Push an SSE event as soon as the PENDING row is committed
+                    # so the frontend execution history can render it immediately
+                    # — otherwise fast-completing runs jump from empty to
+                    # "completed" without ever showing pending/running.
+                    notification_user_id = (
+                        triggered_by
+                        or task_snapshot.get("user_id")
+                        or task_snapshot.get("created_by")
+                    )
+                    if self.notification_service.sse_manager and notification_user_id:
+                        try:
+                            await self.notification_service.sse_manager.send_user_notification(
+                                user_id=notification_user_id,
+                                event_type="execution_queued",
+                                event_data={
+                                    "execution_id": execution_id,
+                                    "task_id": task_id,
+                                    "task_name": task_snapshot.get("name"),
+                                    "trigger_type": (
+                                        trigger_type.value
+                                        if hasattr(trigger_type, "value")
+                                        else str(trigger_type)
+                                    ),
+                                },
+                            )
+                        except Exception as notify_err:
+                            log.warning(
+                                "[SchedulerService:%s] Failed to send execution_queued notification: %s",
+                                self.instance_id, notify_err,
+                            )
 
                     execution_task = asyncio.create_task(
                         self._submit_task_to_agent_mesh(task_id, execution_id, task_snapshot)
@@ -792,6 +909,7 @@ class SchedulerService:
                 }
             message_metadata["sessionBehavior"] = "RUN_BASED"
             message_metadata["returnArtifacts"] = True
+            message_metadata["agent_name"] = target_agent_name
 
             a2a_message = a2a.create_user_message(
                 parts=message_parts,

@@ -39,6 +39,43 @@ router = APIRouter()
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+def _enrich_scheduler_sessions_with_task_info(db: Session, session_responses: list[SessionResponse]) -> None:
+    """For sessions created by the scheduler, attach scheduled_task_id + name.
+
+    Scheduler-created sessions use ids of the form ``scheduled_<execution_id>``
+    (see SchedulerService._submit_task_to_agent_mesh). We extract the execution
+    id, batch-query the executions + tasks tables, and fill in the response
+    fields so the UI can link each card back to its originating schedule.
+
+    Single query regardless of how many sessions are in the page; no-op if
+    the page has no scheduler sessions.
+    """
+    scheduler_sessions = [s for s in session_responses if s.source == "scheduler" and s.id.startswith("scheduled_")]
+    if not scheduler_sessions:
+        return
+
+    execution_ids = [s.id[len("scheduled_"):] for s in scheduler_sessions]
+
+    from ..repository.models import ScheduledTaskExecutionModel, ScheduledTaskModel
+    rows = (
+        db.query(
+            ScheduledTaskExecutionModel.id,
+            ScheduledTaskExecutionModel.scheduled_task_id,
+            ScheduledTaskModel.name,
+        )
+        .join(ScheduledTaskModel, ScheduledTaskModel.id == ScheduledTaskExecutionModel.scheduled_task_id)
+        .filter(ScheduledTaskExecutionModel.id.in_(execution_ids))
+        .all()
+    )
+    by_execution = {row[0]: (row[1], row[2]) for row in rows}
+
+    for session in scheduler_sessions:
+        exec_id = session.id[len("scheduled_"):]
+        mapping = by_execution.get(exec_id)
+        if mapping:
+            session.scheduled_task_id, session.scheduled_task_name = mapping
+
+
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
@@ -97,6 +134,8 @@ async def get_all_sessions(
                 updated_time=session_domain.updated_time,
             )
             session_responses.append(session_response)
+
+        _enrich_scheduler_sessions_with_task_info(db, session_responses)
 
         return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
 

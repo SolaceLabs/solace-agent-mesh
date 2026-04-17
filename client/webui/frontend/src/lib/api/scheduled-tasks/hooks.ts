@@ -102,6 +102,20 @@ export function useDisableScheduledTask() {
     });
 }
 
+export function useRunScheduledTaskNow() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (taskId: string) => scheduledTaskService.runTaskNow(taskId),
+        // Proactively refresh execution history so the new run appears.
+        onSuccess: (_, taskId) => {
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.executions(taskId) });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+        },
+    });
+}
+
 export function useTaskExecutions(taskId: string, pageNumber: number = 1, pageSize: number = 20) {
     const queryClient = useQueryClient();
 

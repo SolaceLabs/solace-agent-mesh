@@ -18,12 +18,17 @@ import { useSSESubscription } from "@/lib/providers/SSEProvider";
 /**
  * Establishes a persistent SSE connection to `/api/v1/sse/notifications`.
  *
- * Listens for two event types:
- * - `session_created` — dispatched when a scheduled task completes and creates a chat session
- * - `execution_started` — dispatched when a scheduled task execution begins running
+ * Listens for:
+ * - `execution_queued` — dispatched immediately after a PENDING execution row
+ *   is inserted. Essential for fast-running tasks; without this the history
+ *   list would race the row creation and appear empty until completion.
+ * - `execution_started` — dispatched when an execution transitions to RUNNING.
+ * - `session_created` — dispatched when an execution creates a chat session
+ *   (usually at completion). Also triggers `"new-chat-session"` for the
+ *   Recent Chats sidebar.
  *
- * Both trigger `"scheduled-task-completed"` to refresh execution history.
- * `session_created` also triggers `"new-chat-session"` for the Recent Chats sidebar.
+ * All three trigger `"scheduled-task-completed"` so the execution history
+ * queries refetch.
  */
 export function useNotificationSSE(): void {
     const onSessionCreated = useCallback(() => {
@@ -33,8 +38,8 @@ export function useNotificationSSE(): void {
         window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
     }, []);
 
-    const onExecutionStarted = useCallback(() => {
-        // Refresh the execution history to show "running" status
+    const onExecutionActivity = useCallback(() => {
+        // Refresh the execution history so the new/updated row appears.
         window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
     }, []);
 
@@ -46,7 +51,13 @@ export function useNotificationSSE(): void {
 
     useSSESubscription({
         endpoint: "/api/v1/sse/notifications",
+        eventType: "execution_queued",
+        onMessage: onExecutionActivity,
+    });
+
+    useSSESubscription({
+        endpoint: "/api/v1/sse/notifications",
         eventType: "execution_started",
-        onMessage: onExecutionStarted,
+        onMessage: onExecutionActivity,
     });
 }

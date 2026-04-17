@@ -20,6 +20,11 @@ class SessionResponse(BaseTimestampResponse):
     project_name: str | None = Field(default=None, alias="projectName")
     source: str | None = Field(default="chat")
     has_running_background_task: bool = Field(default=False, alias="hasRunningBackgroundTask")
+    # When source="scheduler", the id of the scheduled task that spawned this
+    # session. Lets the UI link each scheduler-tab card back to its originating
+    # schedule definition.
+    scheduled_task_id: str | None = Field(default=None, alias="scheduledTaskId")
+    scheduled_task_name: str | None = Field(default=None, alias="scheduledTaskName")
     created_time: int = Field(alias="createdTime")
     updated_time: int | None = Field(default=None, alias="updatedTime")
 

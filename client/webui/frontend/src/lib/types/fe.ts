@@ -346,6 +346,11 @@ export interface Session {
     hasRunningBackgroundTask?: boolean;
     ownerDisplayName?: string | null;
     ownerEmail?: string | null;
+    // Populated server-side only for source="scheduler" — the id + name of the
+    // scheduled task that produced this session, used to deep-link each card
+    // back to its schedule definition.
+    scheduledTaskId?: string | null;
+    scheduledTaskName?: string | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

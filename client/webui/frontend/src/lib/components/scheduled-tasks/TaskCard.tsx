@@ -1,10 +1,73 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, Calendar, Clock, MoreHorizontal, Play, Pause, History } from "lucide-react";
+import { Pencil, Trash2, Calendar, Clock, MoreHorizontal, Play, Pause, History, Zap, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import type { ScheduledTask, TaskStatus } from "@/lib/types/scheduled-tasks";
+import type { ScheduledTask, TaskStatus, LastExecutionSummary } from "@/lib/types/scheduled-tasks";
+import { formatRelativeTime } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils/format";
 import { formatSchedule } from "./utils";
+
+const renderLastRun = (last: LastExecutionSummary, onView: () => void) => {
+    const whenEpoch = last.completedAt ?? last.startedAt ?? last.scheduledFor;
+    const when = new Date(whenEpoch).toISOString();
+    const duration = last.durationMs ? ` · ${formatDuration(last.durationMs)}` : "";
+    let Icon = CheckCircle2;
+    let iconClass = "text-(--success-wMain)";
+    let label = "Last run";
+
+    switch (last.status) {
+        case "completed":
+            Icon = CheckCircle2;
+            iconClass = "text-(--success-wMain)";
+            label = "Succeeded";
+            break;
+        case "failed":
+            Icon = XCircle;
+            iconClass = "text-(--error-wMain)";
+            label = "Failed";
+            break;
+        case "timeout":
+            Icon = AlertCircle;
+            iconClass = "text-(--warning-wMain)";
+            label = "Timed out";
+            break;
+        case "running":
+        case "pending":
+            Icon = Loader2;
+            iconClass = "animate-spin text-(--info-wMain)";
+            label = last.status === "running" ? "Running" : "Pending";
+            break;
+        case "skipped":
+            Icon = AlertCircle;
+            iconClass = "text-(--secondary-text-wMain)";
+            label = "Skipped";
+            break;
+        case "cancelled":
+            Icon = XCircle;
+            iconClass = "text-(--secondary-text-wMain)";
+            label = "Cancelled";
+            break;
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={e => {
+                e.stopPropagation();
+                onView();
+            }}
+            className="flex w-full items-center gap-1 truncate text-left text-xs text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)"
+            title={last.errorMessage ?? `${label} · ${formatRelativeTime(when)}${duration}`}
+        >
+            <Icon className={`h-3 w-3 flex-shrink-0 ${iconClass}`} />
+            <span className="truncate">
+                {label} {formatRelativeTime(when)}
+                {duration}
+            </span>
+        </button>
+    );
+};
 
 interface TaskCardProps {
     task: ScheduledTask;
@@ -14,9 +77,11 @@ interface TaskCardProps {
     onDelete: (taskId: string) => void;
     onToggleEnabled: (task: ScheduledTask) => void;
     onViewExecutions: (task: ScheduledTask) => void;
+    onRunNow?: (task: ScheduledTask) => void;
+    isRunNowPending?: boolean;
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, onTaskClick, onEdit, onDelete, onToggleEnabled, onViewExecutions }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, onTaskClick, onEdit, onDelete, onToggleEnabled, onViewExecutions, onRunNow, isRunNowPending = false }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     const handleEdit = (e: React.MouseEvent) => {
@@ -42,6 +107,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
         setDropdownOpen(false);
         onViewExecutions(task);
     };
+
+    const handleRunNow = (e: Event | React.MouseEvent) => {
+        (e as React.MouseEvent).stopPropagation?.();
+        setDropdownOpen(false);
+        onRunNow?.(task);
+    };
+
+    // One-time tasks are terminal after their run — rerunning doesn't fit the model.
+    // Config-sourced tasks are read-only, so manual Run Now would be surprising.
+    const canRunNow = !!onRunNow && task.scheduleType !== "one_time" && task.source !== "config";
 
     const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
         active: { label: "Active", className: "bg-(--success-w10) text-(--success-w100)" },
@@ -105,6 +180,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
+                                {canRunNow && (
+                                    <DropdownMenuItem onSelect={handleRunNow} disabled={isRunNowPending}>
+                                        <Zap size={14} className="mr-2" />
+                                        {isRunNowPending ? "Running…" : "Run Now"}
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={handleEdit}>
                                     <Pencil size={14} className="mr-2" />
                                     Edit Task
@@ -117,7 +198,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                                     {task.enabled ? (
                                         <>
                                             <Pause size={14} className="mr-2" />
-                                            Disable Task
+                                            Pause Task
                                         </>
                                     ) : (
                                         <>
@@ -141,7 +222,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                         )}
                         {task.source === "config" && <span className="inline-block rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-w100)">Config</span>}
                     </div>
-                    {task.description && <div className="mb-3 line-clamp-2 text-sm leading-5">{task.description}</div>}
+                    {task.description && (
+                        <div className="mb-2 line-clamp-1 text-sm leading-5" title={task.description}>
+                            {task.description}
+                        </div>
+                    )}
                     <div className="mt-auto space-y-1">
                         <div className="flex items-center gap-1 text-xs text-(--secondary-text-wMain)">
                             <Clock className="h-3 w-3" />
@@ -151,6 +236,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                             <Calendar className="h-3 w-3" />
                             <span>Next: {formatNextRun(task)}</span>
                         </div>
+                        {task.lastExecution && renderLastRun(task.lastExecution, () => onViewExecutions(task))}
                         <div className="text-xs text-(--secondary-text-wMain)">
                             <span className="truncate">
                                 {task.targetType === "workflow" ? "Workflow" : "Agent"}: {task.targetAgentName}

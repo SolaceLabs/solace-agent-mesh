@@ -138,4 +138,54 @@ describe("ScheduleBuilder", () => {
         // Should be called with a weekly cron targeting Monday (day 1)
         expect(onChange).toHaveBeenCalledWith("0 9 * * 1");
     });
+
+    it("reflects external value prop changes (edit flow loads existing task)", () => {
+        const onChange = vi.fn();
+        const { rerender } = renderBuilder({ value: "0 9 * * *", onChange });
+
+        // Initial: daily 9 AM
+        expect(screen.getByText("Every day at 09:00 AM")).toBeInTheDocument();
+
+        // Parent populates the real schedule after mount (weekly Monday at 2 PM)
+        rerender(<ScheduleBuilder value="0 14 * * 1" onChange={onChange} />);
+
+        expect(screen.getByText("Every Monday at 02:00 PM")).toBeInTheDocument();
+        const frequencySelect = screen.getAllByRole("combobox")[0];
+        expect(frequencySelect).toHaveValue("weekly");
+    });
+
+    it("falls back to custom mode for non-representable cron (preserves original)", () => {
+        // "0 0 1 1 *" = Jan 1 at midnight. The month field is not *, which
+        // the presets can't represent — previously the parser silently dropped it.
+        renderBuilder({ value: "0 0 1 1 *" });
+
+        const cronInput = screen.getByPlaceholderText("0 9 * * *");
+        expect(cronInput).toHaveValue("0 0 1 1 *");
+        const frequencySelect = screen.getAllByRole("combobox")[0];
+        expect(frequencySelect).toHaveValue("custom");
+    });
+
+    it("accepts complex cron grammar in custom mode (ranges, steps, lists)", () => {
+        renderBuilder();
+
+        const frequencySelect = screen.getAllByRole("combobox")[0];
+        fireEvent.change(frequencySelect, { target: { value: "custom" } });
+        const cronInput = screen.getByPlaceholderText("0 9 * * *");
+
+        // range with step: every 2 hours between 9-17
+        fireEvent.change(cronInput, { target: { value: "0 9-17/2 * * 1-5" } });
+        expect(screen.queryByText(/Invalid/)).not.toBeInTheDocument();
+
+        // list of ranges + singles on the weekday field
+        fireEvent.change(cronInput, { target: { value: "0 9 * * 1-3,5" } });
+        expect(screen.queryByText(/Invalid/)).not.toBeInTheDocument();
+
+        // mixed list: step + single
+        fireEvent.change(cronInput, { target: { value: "*/15,30 * * * *" } });
+        expect(screen.queryByText(/Invalid/)).not.toBeInTheDocument();
+
+        // Still rejects out-of-range values
+        fireEvent.change(cronInput, { target: { value: "0 25 * * *" } });
+        expect(screen.getByText(/Invalid hour field/)).toBeInTheDocument();
+    });
 });

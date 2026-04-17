@@ -40,6 +40,19 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
             });
         }
 
+        // Schedules sits at the top level directly below Projects.
+        if (schedulerEnabled) {
+            navItems.push({
+                id: "schedules",
+                label: "Schedules",
+                icon: Calendar,
+                route: "/schedules",
+                routeMatch: "/schedules",
+                tooltip: "Experimental Feature",
+                position: "top",
+            });
+        }
+
         // Build Assets section with children based on enabled features
         const assetsChildren: NavItemConfig[] = [];
 
@@ -61,17 +74,6 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                tooltip: "Experimental Feature",
-            });
-        }
-
-        if (schedulerEnabled) {
-            assetsChildren.push({
-                id: "schedules",
-                label: "Schedules",
-                icon: Calendar,
-                route: "/schedules",
-                routeMatch: "/schedules",
                 tooltip: "Experimental Feature",
             });
         }

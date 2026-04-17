@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
 import { Calendar, Clock, User, MessageSquare, CheckCircle2 } from "lucide-react";
+import { describeScheduleExpression } from "./utils";
 
 interface TaskConfig {
     name: string;
@@ -60,25 +61,10 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
         }
     };
 
-    const formatScheduleExpression = (type: string, expression: string) => {
-        if (!expression) return "Not set";
-
-        if (type === "cron") {
-            // Try to make cron more readable
-            const parts = expression.split(" ");
-            if (parts.length === 5) {
-                const [minute, hour, day, month, weekday] = parts;
-                if (minute === "0" && hour !== "*" && day === "*" && month === "*" && weekday === "*") {
-                    return `Daily at ${hour}:00`;
-                }
-                if (minute === "0" && hour === "*" && day === "*" && month === "*" && weekday === "*") {
-                    return "Every hour";
-                }
-            }
-        }
-
-        return expression;
-    };
+    // Show the schedule in plain English when we can translate it; keep the raw
+    // expression available as a tooltip so power users can still verify it.
+    const friendlyExpression = describeScheduleExpression(config.scheduleType, config.scheduleExpression);
+    const showRawAlongside = config.scheduleType === "cron" && config.scheduleExpression && friendlyExpression !== config.scheduleExpression;
 
     return (
         <div className="flex h-full flex-col">
@@ -139,9 +125,14 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                             <span className="text-xs text-(--secondary-text-wMain)">Type</span>
                             <span className="text-sm font-medium">{getScheduleTypeLabel(config.scheduleType)}</span>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-start justify-between gap-2">
                             <span className="text-xs text-(--secondary-text-wMain)">Expression</span>
-                            <span className="font-mono text-sm">{formatScheduleExpression(config.scheduleType, config.scheduleExpression)}</span>
+                            <div className="flex flex-col items-end text-right">
+                                <span className="text-sm" title={showRawAlongside ? config.scheduleExpression : undefined}>
+                                    {friendlyExpression}
+                                </span>
+                                {showRawAlongside && <span className="font-mono text-xs text-(--secondary-text-wMain)">{config.scheduleExpression}</span>}
+                            </div>
                         </div>
                         {config.timezone && (
                             <div className="flex items-center justify-between">
