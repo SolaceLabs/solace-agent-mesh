@@ -24,6 +24,7 @@ export const PromptsPage: React.FC = () => {
     const [showBuilder, setShowBuilder] = useState(false);
     const [showGenerateDialog, setShowGenerateDialog] = useState(false);
     const [initialMessage, setInitialMessage] = useState<string | null>(null);
+    const [prefillOnly, setPrefillOnly] = useState(false);
     const [editingGroup, setEditingGroup] = useState<PromptGroup | null>(null);
     const [builderInitialMode, setBuilderInitialMode] = useState<"manual" | "ai-assisted">("ai-assisted");
     const [builderKey, setBuilderKey] = useState(0); // Key to force fresh PromptTemplateBuilder instance
@@ -73,12 +74,19 @@ export const PromptsPage: React.FC = () => {
                 const mode = loaderData.mode === "ai-assisted" ? "ai-assisted" : "manual";
                 setBuilderInitialMode(mode);
 
-                // Check for pending task description from router state
-                if (mode === "ai-assisted" && location.state?.taskDescription) {
+                // Check for redirect context from sessionStorage first, then router state
+                const redirectContext = sessionStorage.getItem("sam_redirect_context");
+                if (mode === "ai-assisted" && redirectContext) {
+                    sessionStorage.removeItem("sam_redirect_context");
+                    setInitialMessage(redirectContext);
+                    setPrefillOnly(true);
+                } else if (mode === "ai-assisted" && location.state?.taskDescription) {
                     setInitialMessage(location.state.taskDescription);
+                    setPrefillOnly(false);
                 } else {
                     // Clear any previous initial message when starting fresh
                     setInitialMessage(null);
+                    setPrefillOnly(false);
                 }
 
                 // Increment key to force fresh PromptTemplateBuilder instance
@@ -312,6 +320,7 @@ export const PromptsPage: React.FC = () => {
                         navigate("/prompts");
                     }}
                     initialMessage={initialMessage}
+                    prefillOnly={prefillOnly}
                     editingGroup={editingGroup}
                     isEditing={!!editingGroup}
                     initialMode={builderInitialMode}

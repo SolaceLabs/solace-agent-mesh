@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
 
-import type { DataPart, FileAttachment, SendStreamingMessageSuccessResponse, JSONRPCErrorResponse, TaskStatusUpdateEvent, ArtifactPart, PartFE, MessageFE, RAGSearchResult, ProgressUpdate, ArtifactInfo, Part } from "@/lib/types";
+import type { DataPart, FileAttachment, SendStreamingMessageSuccessResponse, JSONRPCErrorResponse, TaskStatusUpdateEvent, ArtifactPart, PartFE, MessageFE, RAGSearchResult, ProgressUpdate, ArtifactInfo, Part, A2UISurface } from "@/lib/types";
 
 // Force uuid to use crypto.getRandomValues() fallback for non-secure (HTTP) contexts
 const v4 = () => uuidv4({});
@@ -84,6 +84,14 @@ interface ToolResultPayload {
     [key: string]: unknown;
 }
 
+interface UserInputRequestPayload {
+    type: "user_input_request";
+    request_id?: string;
+    expires_at?: string;
+    source?: string;
+    surface?: unknown;
+}
+
 interface ToolInvocationStartPayload {
     type: "tool_invocation_start";
 }
@@ -97,7 +105,8 @@ type ChatDataPartPayload =
     | DeepResearchProgressPayload
     | CompactionNotificationPayload
     | ToolResultPayload
-    | ToolInvocationStartPayload;
+    | ToolInvocationStartPayload
+    | UserInputRequestPayload;
 
 function asTypedPayload(data: unknown): ChatDataPartPayload | null {
     if (typeof data !== "object" || data === null || !("type" in data)) return null;
@@ -415,6 +424,30 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                             }
                             break;
                         }
+                        case "user_input_request": {
+                            const requestId = (data as UserInputRequestPayload).request_id;
+                            const surface = (data as UserInputRequestPayload).surface;
+                            if (requestId && surface) {
+                                const hilMessage: MessageFE = {
+                                    role: "agent",
+                                    taskId: currentTaskIdFromResult,
+                                    parts: [{ kind: "text", text: "" }],
+                                    userInputRequest: {
+                                        requestId: String(requestId),
+                                        expiresAt: typeof (data as UserInputRequestPayload).expires_at === "string" ? (data as UserInputRequestPayload).expires_at! : "",
+                                        source: (data as UserInputRequestPayload).source === "tool_approval" ? "tool_approval" : "ask_user_question",
+                                        surface: surface as A2UISurface,
+                                        taskId: currentTaskIdFromResult ?? "",
+                                        agentName: input.selectedAgentName ?? "",
+                                    },
+                                    isUser: false,
+                                    isComplete: false,
+                                    metadata: { messageId: `hil-${requestId}` },
+                                };
+                                messages = [...messages, hilMessage];
+                            }
+                            break;
+                        }
                         case "rag_info_update": {
                             if (flags.ragEnabled) {
                                 ragData = processRagInfoUpdate(data, ragData ?? input.ragData, currentTaskIdFromResult);
@@ -440,6 +473,12 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         case "tool_result": {
                             if (flags.ragEnabled) {
                                 ragData = processToolResultRag(data, ragData ?? input.ragData, currentTaskIdFromResult);
+                            }
+                            // Extract redirect data from tool results and inject as a
+                            // renderable DataPart so RedirectButton can find it.
+                            const resultData = (data as ToolResultPayload).result_data;
+                            if (resultData && (resultData as Record<string, unknown>).type === "redirect" && messageToProcess) {
+                                messageToProcess.parts.push({ kind: "data", data: resultData } as DataPart);
                             }
                             break;
                         }
@@ -498,7 +537,9 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             }
         }
 
-        // Mark last task message as complete
+        // Mark the last task message as complete, and also complete any earlier
+        // messages for this task that are still incomplete (e.g. a separate
+        // message created by appendProgressUpdate for the inline timeline).
         const taskMessageIndex = messages.findLastIndex(msg => !msg.isUser && msg.taskId === currentTaskIdFromResult);
         if (taskMessageIndex !== -1) {
             messages[taskMessageIndex] = {
@@ -506,7 +547,15 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                 isComplete: true,
                 metadata: { ...messages[taskMessageIndex].metadata, lastProcessedEventSequence: eventSequence },
             };
-        } else if (result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
+            // Also complete earlier incomplete messages for this task
+            for (let i = taskMessageIndex - 1; i >= 0; i--) {
+                const msg = messages[i];
+                if (!msg.isUser && msg.taskId === currentTaskIdFromResult && !msg.isComplete) {
+                    messages[i] = { ...msg, isComplete: true };
+                }
+            }
+        }
+        if (taskMessageIndex === -1 && result.kind === "task" && result.status?.state !== "failed" && result.status?.message?.parts) {
             const fallbackParts = (result.status.message.parts as PartFE[]).filter((p: PartFE) => p.kind === "text" || p.kind === "file");
             if (fallbackParts.length > 0) {
                 messages.push({
@@ -935,7 +984,7 @@ function applyContentToMessages(
 
     const isProgressUpdate = newContentParts.length === 1 && newContentParts[0].kind === "data" && (newContentParts[0] as DataPart).data && (newContentParts[0] as DataPart).data?.type === "deep_research_progress";
 
-    if (isProgressUpdate && lastMessage && !lastMessage.isUser && lastMessage.taskId === taskId) {
+    if (isProgressUpdate && lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === taskId) {
         messages[messages.length - 1] = {
             ...lastMessage,
             parts: newContentParts as PartFE[],
@@ -958,7 +1007,7 @@ function applyContentToMessages(
                 lastProcessedEventSequence: eventSequence,
             },
         });
-    } else if (lastMessage && !lastMessage.isUser && lastMessage.taskId === taskId && newContentParts.length > 0) {
+    } else if (lastMessage && !lastMessage.isUser && !lastMessage.userInputRequest && lastMessage.taskId === taskId && newContentParts.length > 0) {
         messages[messages.length - 1] = {
             ...lastMessage,
             parts: [...lastMessage.parts, ...(newContentParts as PartFE[])],

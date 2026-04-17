@@ -8,7 +8,7 @@ import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
-import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
+import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, SessionIcon, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -69,7 +69,7 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
 export const RecentChatsPage: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, handleNewSession, updateSessionName, openSessionDeleteModal, closeSessionDeleteModal, confirmSessionDelete, sessionToDelete, addNotification, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
@@ -133,7 +133,17 @@ export const RecentChatsPage: React.FC = () => {
     }, [editingSessionId]);
 
     const handleSessionClick = async (session: Session) => {
-        if (editingSessionId !== session.id) {
+        if (editingSessionId === session.id) return;
+        const route = (session.agentId && agentSessionRoutes?.[session.agentId]) || "/chat";
+        if (route !== "/chat") {
+            // Dispatch event for the host app to handle agent-specific routing
+            // (e.g., Builder sessions navigate to /builder)
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+        } else {
             await handleSwitchSession(session.id);
             navigate("/chat");
         }
@@ -254,16 +264,27 @@ export const RecentChatsPage: React.FC = () => {
         return sortedNames;
     }, [sessions]);
 
-    // Filter sessions by selected project
+    // Filter sessions by source (client-side fallback until backend supports ?source filtering)
+    // and then by selected project.
     const filteredSessions = useMemo(() => {
+        let result = sessions;
+
+        // Client-side source filter: scheduler tab shows only scheduler sessions,
+        // chat tab excludes them.
+        if (activeTab === "scheduler") {
+            result = result.filter(session => session.source === "scheduler");
+        } else {
+            result = result.filter(session => session.source !== "scheduler");
+        }
+
         if (selectedProject === "all") {
-            return sessions;
+            return result;
         }
         if (selectedProject === "(No Project)") {
-            return sessions.filter(session => !session.projectName);
+            return result.filter(session => !session.projectName);
         }
-        return sessions.filter(session => session.projectName === selectedProject);
-    }, [sessions, selectedProject]);
+        return result.filter(session => session.projectName === selectedProject);
+    }, [sessions, selectedProject, activeTab]);
 
     // Get the project ID for the selected project name (for search filtering)
     const selectedProjectId = useMemo(() => {
@@ -378,6 +399,7 @@ export const RecentChatsPage: React.FC = () => {
                                     <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
                                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                                             <div className="flex items-center gap-2">
+                                                <SessionIcon session={session} className="text-(--secondary-text-wMain)" />
                                                 <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
                                                 {session.hasRunningBackgroundTask && (
                                                     <Tooltip>
@@ -416,9 +438,11 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Empty States */}
-                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && selectedProject !== "all" && (
+                    <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />
+                )}
 
-                {sessions.length === 0 && !isFetchingNextPage && (
+                {filteredSessions.length === 0 && (sessions.length === 0 || selectedProject === "all") && !isFetchingNextPage && (
                     <EmptyState
                         variant="noImage"
                         title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}

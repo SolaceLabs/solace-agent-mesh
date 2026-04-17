@@ -1,0 +1,57 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  simpleFormatter:
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+
+  jsonFormatter:
+    "()": pythonjsonlogger.json.JsonFormatter
+    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(funcName)s %(pathname)s %(lineno)d %(module)s %(message)s"
+    timestamp: "timestamp"
+    rename_fields:
+      levelname: level
+      threadName: logger.thread_name
+      name: logger.name
+      funcName: code.funcName
+      pathname: code.filepath
+      lineno: code.lineno
+      module: code.module
+    static_fields:
+      service: ${SERVICE_NAME, solace_agent_mesh}
+
+handlers:
+  streamHandler:
+    class: logging.StreamHandler
+    formatter: jsonFormatter
+    stream: ext://sys.stdout
+
+  rotatingFileHandler:
+    class: logging.handlers.RotatingFileHandler
+    formatter: simpleFormatter
+    filename: sam.log
+    mode: a
+    maxBytes: 52428800
+    backupCount: 10
+
+loggers:
+  solace_ai_connector:
+    level: INFO
+    handlers: []
+
+  solace_agent_mesh:
+    level: INFO
+    handlers: []
+
+  sam_trace:
+    level: INFO
+    handlers: []
+
+  sam_mcp_server_gateway_adapter:
+    level: INFO
+    handlers: []
+root:
+  level: WARNING
+  handlers:
+    - streamHandler
+    - rotatingFileHandler

@@ -8,6 +8,7 @@ import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+import { SessionIcon } from "./SessionIcon";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -88,7 +89,7 @@ interface RecentChatsListProps {
 
 export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
@@ -109,10 +110,19 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
-        // Navigate to chat page first, then switch session
+    const handleSessionClick = async (session: Session) => {
+        const route = (session.agentId && agentSessionRoutes?.[session.agentId]) || "/chat";
+        if (route !== "/chat") {
+            // Dispatch event for the host app to handle agent-specific routing
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+            return;
+        }
         navigate("/chat");
-        await handleSwitchSession(clickedSessionId);
+        await handleSwitchSession(session.id);
     };
 
     if (isLoading && sessions.length === 0 && persistenceEnabled) {
@@ -139,7 +149,8 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                 return (
                     <Tooltip key={session.id}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                            <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                                <SessionIcon session={session} className="text-(--darkSurface-textMuted)" />
                                 <div className="min-w-0 flex-1">
                                     <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>

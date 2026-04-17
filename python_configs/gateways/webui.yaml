@@ -1,0 +1,274 @@
+# Solace AI Connector Configuration for A2A Web UI Backend
+
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: a2a_webui_app
+    app_base_path: .
+    app_module: solace_agent_mesh.gateway.http_sse.app
+
+    broker:
+      <<: *broker_connection
+      # Queue name is generated automatically by WebUIBackendApp based on namespace/gateway_id
+
+    app_config:
+      # --- Required ---
+      namespace: ${NAMESPACE}
+      session_secret_key: ${SESSION_SECRET_KEY}
+      model: *general_model
+
+      # --- Artifact Service (Required) ---
+      # s3 is the default artifact service defined in shared_config.yaml
+      artifact_service: *default_artifact_service
+
+      # --- Session Service (Required for persistent sessions) ---
+      # session_service:
+      #   type: "sql"
+      #   database_url: "postgresql://${webui_gateway_user}:${webui_gateway_password}@${POSTGRESQL_HOST}:${POSTGRESQL_PORT}/${webui_gateway_db_name}"
+      #   #database_url: ${WEBUI_GATEWAY_DATABASE_URL} # for local testing only
+      #   default_behavior: "PERSISTENT"
+
+      session_service:
+        type: "sql"
+        database_url: "sqlite:///data/webui_gateway.db"
+        default_behavior: "PERSISTENT"
+
+      # identity_service:
+      #   type: "bamboohr"
+      #   bamboohr_subdomain: "solace"
+      #   bamboohr_api_key: "${BAMBOO_HR_API_KEY}"
+      #   lookup_key: "id" # intital needs email the latter one needs email
+      #   cache_ttl_seconds: 3600
+
+      # --- Optional with Defaults ---
+      gateway_id: ${WEBUI_GATEWAY_ID} # Optional: Unique ID for this instance. If omitted, one will be generated.
+      fastapi_host: ${FASTAPI_HOST}
+      fastapi_port: ${FASTAPI_PORT}
+      cors_allowed_origins: # List of allowed origins for CORS
+        - "http://localhost:3000" # Example: Allow local React dev server
+        - "http://127.0.0.1:3000"
+        # Add other origins as needed, or use ["*"] for wide open (less secure)
+
+      # --- Embed Resolution Config ---
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION} # Enable late-stage resolution # TODO, create a flag option for this and keep it as env var
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000} # Max size for late-stage embeds
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned.
+            Format responses to the user in Markdown using appropriate formatting.
+
+      # --- Frontend Config Passthrough ---
+      frontend_welcome_message: >
+            How can I assist you today?
+      frontend_bot_name: Solace Agent Mesh
+      frontend_collect_feedback: true
+      
+      # Task logging requires SQL session storage. Either set session_service.type='sql' with a valid database_url, or disable task_logging.enabled
+      task_logging:
+        enabled: true
+        #enabled: false
+        log_status_updates: true
+        log_artifact_events: false # Set to true to log artifact creation events
+        log_file_parts: true
+        max_file_part_size_bytes: 10240
+        # Hybrid buffer reduces disk I/O by batching writes
+        # Helps prevent disk pressure / ephemeral storage exhaustion
+        hybrid_buffer:
+          enabled: true
+          flush_threshold: 10  # Flush to disk after 10 entries
+
+      # feedback_publishing:
+      #   enabled: true
+      #   topic: "${NAMESPACE}/sam/feedback/v1"
+      #   include_task_info: "stim" # Options: "none", "summary", "stim"
+      #   max_payload_size_bytes: 9000000 # 9MB default, safety margin below 10MB broker limit
+
+      # Auth-related (placeholders, functionality depends on backend implementation)
+      frontend_auth_login_url: ${FRONTEND_AUTH_LOGIN_URL, http://localhost:5001/api/v1/auth/login}
+      frontend_use_authorization: ${FRONTEND_USE_AUTHORIZATION, false}
+      frontend_redirect_url: ${FRONTEND_REDIRECT_URL, ""}
+
+      external_auth_callback_uri: ${EXTERNAL_AUTH_CALLBACK, http://localhost:8000/api/v1/auth/callback}
+      external_auth_service_url: ${EXTERNAL_AUTH_SERVICE_URL, http://localhost:8050}
+      external_auth_provider: ${EXTERNAL_AUTH_PROVIDER, azure}
+
+      sam_access_token:
+        enabled: ${SAM_ACCESS_TOKEN_ENABLED, false}  # Enable or disable self-managed access tokens
+        ttl_seconds: 3600
+
+      # trust_manager:
+      #   enabled: ${TRUST_MANAGER_ENABLED, false}  # Enable or disable the trust manager
+      #   card_publish_interval_seconds: 10  # Publish every 10 seconds for testing
+      #   card_expiration_days: 7  # 1 week for development
+      #   verification_mode: "permissive"  # Log warnings, don't fail during initial testing
+      #   clock_skew_tolerance_seconds: 300  # 5 minutes tolerance
+      #   enable_time_validation: true
+      #   # JWT Configuration (Phase 2)
+      #   jwt_default_ttl_seconds: 3600  # 1 hour default JWT lifetime
+      #   jwt_max_ttl_seconds: 86400     # 24 hours maximum JWT lifetime
+
+      
+      # --- Frontend Feature Enablement ---
+      # Migrated flags (mentions, auto_title_generation, project_sharing, project_indexing)
+      # are now controlled via SAM_FEATURE_* environment variables.
+      frontend_feature_enablement:
+        background_tasks: ${BACKGROUND_TASKS_ENABLED, true}  # Enable background task toggle in UI
+        binaryArtifactPreview: ${BINARY_ARTIFACT_PREVIEW_ENABLED, true}  # Enable Office document preview (requires LibreOffice installed)
+        artifactsPage: ${ARTIFACTS_PAGE_ENABLED, true}
+        newNavigation: ${NEW_NAVIGATION_ENABLED, true} 
+        projectIndexing: ${PROJECT_INDEXING_ENABLED, true}
+        chatSharing: ${CHAT_SHARING_ENABLED, true}
+      project_indexing:
+        enabled: ${PROJECT_INDEXING_ENABLED, true}
+      # --- Background Tasks Configuration ---
+      background_tasks:
+        default_timeout_ms: ${BACKGROUND_TASKS_TIMEOUT_MS, 3600000}  # 1 hour default timeout
+
+      # --- Scheduler Service (Task Scheduling) ---
+      scheduler_service:
+        enabled: ${SCHEDULER_ENABLED, true}
+        max_concurrent_executions: ${SCHEDULER_MAX_CONCURRENT, 50}
+        default_timeout_seconds: ${SCHEDULER_TIMEOUT_SECONDS, 3600}
+
+      # --- Data Retention Configuration ---
+      # Automatic cleanup of old data (tasks, feedback, SSE events)
+      data_retention:
+        enabled: true
+        # Granular cleanup control - enable/disable specific cleanup types
+        cleanup_tasks: ${DATA_RETENTION_CLEANUP_TASKS, false}
+        cleanup_feedback: ${DATA_RETENTION_CLEANUP_FEEDBACK, false}
+        cleanup_sse_events: ${DATA_RETENTION_CLEANUP_SSE_EVENTS, true}
+        # Retention periods
+        task_retention_days: ${DATA_RETENTION_TASK_DAYS, 90}
+        feedback_retention_days: ${DATA_RETENTION_FEEDBACK_DAYS, 90}
+        sse_event_retention_days: ${DATA_RETENTION_SSE_EVENT_DAYS, 30}  # SSE event buffer retention
+        # Cleanup scheduling
+        cleanup_interval_hours: ${DATA_RETENTION_CLEANUP_INTERVAL_HOURS, 24}
+        batch_size: ${DATA_RETENTION_BATCH_SIZE, 1000}
+
+      # --- Speech Configuration (STT/TTS) ---
+      speech:
+        # stt:
+        #   provider: openai
+        #   url: "https://api.openai.com/v1/audio/transcriptions"
+        #   api_key: "${OPENAI_API_KEY}"
+        #   model: "whisper-1"
+        stt:
+          provider: azure
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            language: en-US
+        
+        # Text-to-Speech Configuration
+        tts:
+          provider: ${TTS_PROVIDER, gemini}  # "gemini", "azure", or "polly" (can be overridden by UI)
+
+          # polly:
+          #   aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+          #   aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          #   region: ${AWS_POLLY_REGION}
+          #   engine: neural  # or 'standard'
+          #   default_voice: Joanna
+          
+          # Azure Neural Voices Configuration (voices field defines the subset voices shown in the UI TTS settins)
+          azure:
+            api_key: "${AZURE_SPEECH_KEY}"
+            region: "${AZURE_SPEECH_REGION}"
+            default_voice: "en-US-Andrew:DragonHDLatestNeural"
+            voices:
+              # DragonHD Latest Neural Voices (Highest Quality)
+              - "en-US-Ava:DragonHDLatestNeural"
+              - "en-US-Ava3:DragonHDLatestNeural"
+              - "en-US-Adam:DragonHDLatestNeural"
+              - "en-US-Alloy:DragonHDLatestNeural"
+              - "en-US-Andrew:DragonHDLatestNeural"
+              - "en-US-Andrew2:DragonHDLatestNeural"
+              - "en-US-Andrew3:DragonHDLatestNeural"
+              - "en-US-Aria:DragonHDLatestNeural"
+              - "en-US-Brian:DragonHDLatestNeural"
+              - "en-US-Davis:DragonHDLatestNeural"
+              - "en-US-Emma:DragonHDLatestNeural"
+              - "en-US-Emma2:DragonHDLatestNeural"
+              - "en-US-Jenny:DragonHDLatestNeural"
+              - "en-US-MultiTalker-Ava-Andrew:DragonHDLatestNeural"
+              - "en-US-Nova:DragonHDLatestNeural"
+              - "en-US-Phoebe:DragonHDLatestNeural"
+              - "en-US-Serena:DragonHDLatestNeural"
+              - "en-US-Steffan:DragonHDLatestNeural"
+              # Standard Neural Voices
+              - "en-US-JennyNeural"
+              - "en-US-GuyNeural"
+              - "en-US-AriaNeural"
+              - "en-US-DavisNeural"
+              - "en-US-JaneNeural"
+              - "en-US-JasonNeural"
+              - "en-US-NancyNeural"
+              - "en-US-TonyNeural"
+              - "en-GB-LibbyNeural"
+              - "en-GB-RyanNeural"
+              - "en-GB-SoniaNeural"
+              - "en-AU-NatashaNeural"
+              - "en-AU-WilliamNeural"
+          
+          # Google Gemini Configuration (voices field defines the subset voices shown in the UI TTS settins)
+          gemini:
+            api_key: "${GEMINI_API_KEY}"
+            model: "gemini-2.5-flash-preview-tts"
+            default_voice: "Kore"
+            language: "en-US"
+            voices:
+              - "Kore"
+              - "Puck"
+              - "Zephyr"
+              - "Charon"
+              - "Fenrir"
+              - "Leda"
+              - "Aoede"
+              - "Callirhoe"
+              - "Umbriel"
+              - "Enceladus"
+              - "Iapetus"
+              - "Erinome"
+              - "Algieba"
+              - "Despina"
+              - "Algenib"
+              - "Achernar"
+              - "Schedar"
+              - "Gacrux"
+              - "Pulcherrima"
+              - "Achird"
+              - "Zubenelgenubi"
+              - "Vindemiatrix"
+              - "Sadachbia"
+              - "Sadaltager"
+              - "Sulafat"
+              - "Autonoe"
+              - "Laomedeia"
+              - "Orus"
+              - "Rasalgethi"
+              - "Alnilam"
+        
+        # Frontend Speech Tab Default Settings (optional)
+        speechTab:
+          advancedMode: false
+          speechToText:
+            speechToText: true
+            engineSTT: "external"  # Use external for better quality
+            languageSTT: "en-US"
+          textToSpeech:
+            textToSpeech: true
+            engineTTS: "external"  # Use external for better quality
+            voice: "en-US-Andrew:DragonHDLatestNeural"  # Azure HD voice (matches TTS provider)
+            playbackRate: 1.0
+            cacheTTS: true

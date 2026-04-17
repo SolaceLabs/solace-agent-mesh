@@ -31,7 +31,9 @@ import type {
     StoredTaskData,
     RAGSearchResult,
     ArtifactInfo,
+    BuilderCreationState,
 } from "@/lib/types";
+import { INITIAL_BUILDER_CREATION_STATE } from "@/lib/types";
 
 // Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
 // This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
@@ -46,9 +48,15 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // ============ Hooks ============
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const { configWelcomeMessage: rawWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
+
+    // In onboard mode, override the welcome message with a friendlier intro.
+    const isOnboardMode = window.location.hash?.includes("mode=onboard");
+    const configWelcomeMessage = isOnboardMode
+        ? "Hey there! I'm SAM — the **S**olace **A**gent **M**esh.\n\nI'm an AI-powered platform that lets you build, connect, and orchestrate intelligent agents. Ask me anything — what I can do, how I work, how to set up agents, or what use cases I'm built for. I'm here to help you get started!"
+        : rawWelcomeMessage;
     const { activeProject, setActiveProject, projects } = useProjectContext();
     const { registerTaskEarly } = useTaskContext();
     const { ErrorDialog, setError } = useErrorDialog();
@@ -210,7 +218,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         downloadAndResolveArtifact,
     } = useArtifactOperations({
         sessionId,
-        artifacts,
+        artifacts: allArtifacts,
         setArtifacts,
         artifactsRefetch,
         addNotification,
@@ -619,14 +627,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
 
+    // Builder Mode
+    const [builderMode, setBuilderMode] = useState<boolean>(false);
+    const [builderCreationState, setBuilderCreationState] = useState<BuilderCreationState>(INITIAL_BUILDER_CREATION_STATE);
+
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
     const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
     const [isLoadingSession, setIsLoadingSession] = useState<boolean>(false);
 
-    const openSidePanelTab = useCallback((tab: "files" | "activity" | "rag") => {
+    const openSidePanelTab = useCallback((tab: string) => {
         setIsSidePanelCollapsed(false);
-        setActiveSidePanelTab(tab);
+        setActiveSidePanelTab(tab as "files" | "rag" | "activity");
 
         if (typeof window !== "undefined") {
             window.dispatchEvent(
@@ -1832,11 +1844,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Priority order for agent selection:
+            // 0. In onboard mode, prefer the agent with a welcome config (the intro agent)
             // 1. URL parameter agent (?agent=AgentName)
             // 2. Project's default agent (if in project context)
             // 3. OrchestratorAgent (fallback)
             // 4. First available agent
             let selectedAgent = agents[0];
+
+            // In onboard mode, select the Manager agent (the dedicated intro agent)
+            const hashParams = new URLSearchParams(window.location.hash?.replace(/^#\/?/, "").split("?")[1] || "");
+            const isOnboard = hashParams.get("mode") === "onboard";
+            if (isOnboard) {
+                const managerAgent = agents.find(agent => agent.name === "Manager");
+                if (managerAgent) {
+                    selectedAgent = managerAgent;
+                }
+            }
 
             // Check URL parameter first
             const urlParams = new URLSearchParams(window.location.search);
@@ -1853,8 +1876,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 }
             }
 
-            // If no URL agent found, follow existing priority order
-            if (!urlAgent) {
+            // If no URL agent found and not already set by onboard mode, follow existing priority order
+            if (!urlAgent && !isOnboard) {
                 if (activeProject?.defaultAgentId) {
                     const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
                     if (projectDefaultAgent) {
@@ -1871,7 +1894,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName(selectedAgent.name);
 
-            const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
+            const displayedText = selectedAgent.welcome?.welcome_message || configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
             setMessages([
                 {
                     parts: [{ kind: "text", text: displayedText }],
@@ -2056,6 +2079,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         pendingPrompt,
         startNewChatWithPrompt,
         clearPendingPrompt,
+
+        /** Builder Mode */
+        builderMode,
+        setBuilderMode,
+        builderCreationState,
+        setBuilderCreationState,
+        inputAreaLeftSlot: undefined,
 
         /** Background Task Monitoring */
         backgroundTasks,

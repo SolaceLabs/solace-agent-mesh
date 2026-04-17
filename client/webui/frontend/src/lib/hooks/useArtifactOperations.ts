@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
 import { createFileSizeErrorMessage, blobToBase64, getErrorMessage } from "@/lib/utils";
 import type { ArtifactInfo, FileAttachment } from "@/lib/types";
@@ -57,6 +57,12 @@ const getFileAttachment = (artifactInfos: ArtifactInfo[], filename: string, mime
  * Handles upload, download, delete (single and batch), and modal state
  */
 export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, artifactsRefetch, addNotification, setError, previewArtifact, closePreview }: UseArtifactOperationsOptions): UseArtifactOperationsReturn => {
+    // Ref for artifacts so downloadAndResolveArtifact doesn't depend on the
+    // artifacts array reference (which changes on every streaming chunk when
+    // allArtifacts is passed). This keeps the callback reference stable.
+    const artifactsRef = useRef(artifacts);
+    artifactsRef.current = artifacts;
+
     // Delete Modal State
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [artifactToDelete, setArtifactToDelete] = useState<ArtifactInfo | null>(null);
@@ -66,8 +72,22 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
     const [isArtifactEditMode, setIsArtifactEditMode] = useState(false);
     const [selectedArtifactFilenames, setSelectedArtifactFilenames] = useState<Set<string>>(new Set());
 
-    // Track in-flight artifact downloads to prevent duplicates
-    const artifactDownloadInProgressRef = useRef<Set<string>>(new Set());
+    // Track in-flight artifact downloads to deduplicate concurrent requests.
+    // Instead of returning null for duplicates, subsequent callers wait for
+    // the in-progress download to complete and receive the same result.
+    const artifactDownloadInProgressRef = useRef<Map<string, Promise<FileAttachment | null>>>(new Map());
+
+    // Track the current sessionId so async callbacks can detect stale sessions
+    const sessionIdRef = useRef(sessionId);
+    useEffect(() => {
+        sessionIdRef.current = sessionId;
+    }, [sessionId]);
+
+    // Clear in-flight downloads on session change so stale promises from the
+    // previous session don't block new downloads for the same filenames.
+    useEffect(() => {
+        artifactDownloadInProgressRef.current.clear();
+    }, [sessionId]);
 
     /**
      * Upload an artifact file to the backend
@@ -215,62 +235,77 @@ export const useArtifactOperations = ({ sessionId, artifacts, setArtifacts, arti
      */
     const downloadAndResolveArtifact = useCallback(
         async (filename: string): Promise<FileAttachment | null> => {
-            // Prevent duplicate downloads for the same file
-            if (artifactDownloadInProgressRef.current.has(filename)) {
-                console.log(`[useArtifactOperations] Skipping duplicate download for ${filename} - already in progress`);
-                return null;
+            // If a download for this file is already in progress, wait for it
+            // instead of returning null — all callers get the same result.
+            const existing = artifactDownloadInProgressRef.current.get(filename);
+            if (existing) {
+                return existing;
             }
 
-            // Mark this file as being downloaded
-            artifactDownloadInProgressRef.current.add(filename);
+            // Create the download promise and store it for deduplication
+            // Capture sessionId at download start to detect stale results
+            const downloadSessionId = sessionId;
+            const downloadPromise = (async () => {
+                try {
+                    // Find the artifact in state (use ref to avoid stale closure)
+                    const artifact = artifactsRef.current.find(art => art.filename === filename);
+                    if (!artifact) {
+                        console.error(`Artifact ${filename} not found in state`);
+                        return null;
+                    }
 
-            try {
-                // Find the artifact in state
-                const artifact = artifacts.find(art => art.filename === filename);
-                if (!artifact) {
-                    console.error(`Artifact ${filename} not found in state`);
+                    // Fetch the latest version with embeds resolved
+                    const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
+                    if (!availableVersions || availableVersions.length === 0) {
+                        // No versions yet — common during session switches when old artifacts
+                        // are briefly referenced with the new session context. Return silently.
+                        return null;
+                    }
+
+                    const latestVersion = Math.max(...availableVersions);
+                    const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
+                    if (!contentResponse.ok) {
+                        throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
+                    }
+
+                    const blob = await contentResponse.blob();
+                    const base64Content = await blobToBase64(blob);
+                    const fileData = getFileAttachment(artifactsRef.current, filename, artifact.mime_type || "application/octet-stream", base64Content);
+
+                    // Clear the accumulated content and flags after successful download.
+                    // Keep accumulated content for SAM config artifacts (e.g. build manifests)
+                    // — they render via BuildPlanCard which needs the content to persist.
+                    // Guard against stale session: if sessionId changed while the download
+                    // was in flight, don't apply results from the old session.
+                    setArtifacts(prevArtifacts => {
+                        if (downloadSessionId !== sessionIdRef.current) return prevArtifacts;
+                        return prevArtifacts.map(art =>
+                            art.filename === filename
+                                ? {
+                                      ...art,
+                                      accumulatedContent: undefined,
+                                      needsEmbedResolution: false,
+                                  }
+                                : art
+                        );
+                    });
+
+                    return fileData;
+                } catch (error) {
+                    setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
                     return null;
+                } finally {
+                    // Remove from in-progress map when done
+                    artifactDownloadInProgressRef.current.delete(filename);
                 }
+            })();
 
-                // Fetch the latest version with embeds resolved
-                const availableVersions: number[] = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions`);
-                if (!availableVersions || availableVersions.length === 0) {
-                    throw new Error("No versions available");
-                }
-
-                const latestVersion = Math.max(...availableVersions);
-                const contentResponse = await api.webui.get(`/api/v1/artifacts/${sessionId}/${encodeURIComponent(filename)}/versions/${latestVersion}`, { fullResponse: true });
-                if (!contentResponse.ok) {
-                    throw new Error(`Failed to fetch artifact content: ${contentResponse.statusText}`);
-                }
-
-                const blob = await contentResponse.blob();
-                const base64Content = await blobToBase64(blob);
-                const fileData = getFileAttachment(artifacts, filename, artifact.mime_type || "application/octet-stream", base64Content);
-
-                // Clear the accumulated content and flags after successful download
-                setArtifacts(prevArtifacts => {
-                    return prevArtifacts.map(art =>
-                        art.filename === filename
-                            ? {
-                                  ...art,
-                                  accumulatedContent: undefined,
-                                  needsEmbedResolution: false,
-                              }
-                            : art
-                    );
-                });
-
-                return fileData;
-            } catch (error) {
-                setError({ title: "File Download Failed", error: getErrorMessage(error, `Failed to download ${filename}.`) });
-                return null;
-            } finally {
-                // Remove from in-progress set immediately when done
-                artifactDownloadInProgressRef.current.delete(filename);
-            }
+            artifactDownloadInProgressRef.current.set(filename, downloadPromise);
+            return downloadPromise;
         },
-        [sessionId, artifacts, setArtifacts, setError]
+        // artifactsRef used instead of artifacts to keep callback reference stable
+
+        [sessionId, setArtifacts, setError]
     );
 
     return {

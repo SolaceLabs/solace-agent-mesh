@@ -1,4 +1,5 @@
 export * from "./ArtifactBar";
+export * from "./BuildPlanCard";
 export * from "./ArtifactCard";
 export * from "./ArtifactDeleteAllDialog";
 export * from "./ArtifactDeleteDialog";

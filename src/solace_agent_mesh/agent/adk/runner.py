@@ -1448,6 +1448,23 @@ def _propagate_cancellation_to_peers(
                 )
 
 
+def _log_future_exception(
+    future: "asyncio.Future",
+    component: "SamAgentComponent",
+    logical_task_id: str,
+):
+    """Log exceptions from fire-and-forget futures so they are not silently swallowed."""
+    exc = future.exception()
+    if exc:
+        log.error(
+            "%s SI finalization failed for task %s: %s",
+            component.log_identifier,
+            logical_task_id,
+            exc,
+            exc_info=exc,
+        )
+
+
 def _schedule_finalization(
     component: "SamAgentComponent",
     task_context: "TaskExecutionContext",
@@ -1485,11 +1502,14 @@ def _schedule_finalization(
             )
             loop = component.get_async_loop()
             if loop and loop.is_running():
-                asyncio.run_coroutine_threadsafe(
+                future = asyncio.run_coroutine_threadsafe(
                     component.structured_invocation_handler.finalize_deferred_structured_invocation(
                         task_context, a2a_context, exception_to_finalize_with
                     ),
                     loop,
+                )
+                future.add_done_callback(
+                    lambda f, _lid=logical_task_id: _log_future_exception(f, component, _lid)
                 )
             else:
                 log.error(
@@ -1511,11 +1531,14 @@ def _schedule_finalization(
                 component.log_identifier,
                 logical_task_id,
             )
-            asyncio.run_coroutine_threadsafe(
+            future = asyncio.run_coroutine_threadsafe(
                 component.finalize_task_with_cleanup(
                     a2a_context, is_paused, exception_to_finalize_with
                 ),
                 loop,
+            )
+            future.add_done_callback(
+                lambda f, _lid=logical_task_id: _log_future_exception(f, component, _lid)
             )
         else:
             log.error(
@@ -1674,14 +1697,50 @@ async def run_adk_async_task_thread_wrapper(
         )
 
     if not skip_finalization:
-        _schedule_finalization(
-            component=component,
-            task_context=task_context,
-            a2a_context=a2a_context,
-            logical_task_id=logical_task_id,
-            is_paused=is_paused,
-            exception_to_finalize_with=exception_to_finalize_with,
-        )
+        # Check if this is a retrigger for a structured invocation task.
+        # If so, run deferred SI finalization instead of normal finalization.
+        if task_context and task_context.get_flag("structured_invocation"):
+            if not is_paused or exception_to_finalize_with:
+                log.info(
+                    "%s Structured invocation task %s completed (paused=%s, exception=%s). "
+                    "Scheduling deferred SI finalization.",
+                    component.log_identifier,
+                    logical_task_id,
+                    is_paused,
+                    type(exception_to_finalize_with).__name__ if exception_to_finalize_with else "None",
+                )
+                loop = component.get_async_loop()
+                if loop and loop.is_running():
+                    future = asyncio.run_coroutine_threadsafe(
+                        component.structured_invocation_handler.finalize_deferred_structured_invocation(
+                            task_context, a2a_context, exception_to_finalize_with
+                        ),
+                        loop,
+                    )
+                    future.add_done_callback(
+                        lambda f, _lid=logical_task_id: _log_future_exception(f, component, _lid)
+                    )
+                else:
+                    log.error(
+                        "%s Async loop not available. Cannot schedule SI finalization for task %s.",
+                        component.log_identifier,
+                        logical_task_id,
+                    )
+            else:
+                log.info(
+                    "%s Structured invocation task %s still paused after retrigger. Waiting for more peer responses.",
+                    component.log_identifier,
+                    logical_task_id,
+                )
+        else:
+            _schedule_finalization(
+                component=component,
+                task_context=task_context,
+                a2a_context=a2a_context,
+                logical_task_id=logical_task_id,
+                is_paused=is_paused,
+                exception_to_finalize_with=exception_to_finalize_with,
+            )
     else:
         log.debug(
             "%s Skipping automatic finalization for task %s (skip_finalization=True).",

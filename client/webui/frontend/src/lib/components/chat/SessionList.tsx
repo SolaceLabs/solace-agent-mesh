@@ -10,7 +10,7 @@ import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Project, Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
-import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, sessionRowStyles } from "@/lib/components/chat";
+import { MoveSessionDialog, ProjectBadge, SessionSearch, SessionActionMenu, SessionIcon, sessionRowStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -88,7 +88,7 @@ interface SessionListProps {
 
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
-    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
+    const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId, agentSessionRoutes } = useChatContext();
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const schedulerEnabled = configFeatureEnablement?.scheduler ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
@@ -268,10 +268,18 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
         }
     }, [editingSessionId]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
-        if (editingSessionId !== clickedSessionId) {
-            await handleSwitchSession(clickedSessionId);
+    const handleSessionClick = async (session: Session) => {
+        if (editingSessionId === session.id) return;
+        const route = session.agentId && agentSessionRoutes?.[session.agentId];
+        if (route) {
+            window.dispatchEvent(
+                new CustomEvent("agent-session-navigate", {
+                    detail: { sessionId: session.id, route, agentId: session.agentId },
+                })
+            );
+            return;
         }
+        await handleSwitchSession(session.id);
     };
 
     const handleEditClick = (session: Session) => {
@@ -558,10 +566,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                             className="min-w-0 flex-1 bg-transparent focus:outline-none"
                                         />
                                     ) : (
-                                        <button onClick={() => handleSessionClick(session.id)} className="min-w-0 flex-1 cursor-pointer text-left">
+                                        <button onClick={() => handleSessionClick(session)} className="min-w-0 flex-1 cursor-pointer text-left">
                                             <div className="flex items-center gap-2">
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
+                                                        <SessionIcon session={session} className="text-muted-foreground" />
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} />
                                                         {session.hasRunningBackgroundTask && (
                                                             <Tooltip>

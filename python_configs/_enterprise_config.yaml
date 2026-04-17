@@ -1,0 +1,41 @@
+
+# --- Enterprise Authorization Configuration ---
+# This section is used by EnterpriseConfigResolverImpl via initialize_enterprise_features.
+authorization_service:
+  type: "default_rbac"
+  # Paths are typically relative to the project root where the connector is run.
+  role_to_scope_definitions_path: "configs/auth/role-to-scope-definitions.yaml"
+  user_to_role_provider: "ms_graph"
+  user_to_role_assignments_path: "configs/auth/service-account-roles.yaml"
+  
+  # If you need to use development-specific auth files for this initializer:
+  # role_to_scope_definitions_path: "config/auth/dev-role-to-scope-definitions.yaml"
+  # user_to_role_assignments_path: "config/auth/dev-user-to-role-assignments.yaml"
+
+  ms_graph_config:
+    ms_graph_tenant_id: ${MS_GRAPH_TENANT_ID}
+    ms_graph_client_id: ${MS_GRAPH_CLIENT_ID}
+    ms_graph_client_secret: ${MS_GRAPH_CLIENT_SECRET}
+
+# --- Other Enterprise-Specific Configurations ---
+# Add any other configuration sections that your src.init.initialize_enterprise_features
+# function or the services it initializes might require from the app_config.
+# For example, if you have a licensing service initialized in src.init.py:
+# licensing_service:
+#   license_key_path: "config/enterprise_license.key"
+#   validation_server: "https://licensing.example.com/validate"
+#
+# Another example, if init.py sets up a custom metrics service:
+# enterprise_metrics:
+#   endpoint: "http://metrics-collector.internal:9090"
+#   default_namespace: "enterprise_connector"
+
+# It's important that this 'component_config' structure matches what
+# initialize_enterprise_features() expects to find in its 'app_config' argument.
+# Refer to src/init.py and src/middleware/config_resolver_impl.py
+# (specifically how EnterpriseConfigResolverImpl._auth_service_config_cache is used)
+# to ensure all necessary fields are provided here.
+# For instance, the namespace and gateway_id from the original gateway_example.yaml
+# might be needed if your init logic uses them.
+namespace: ${NAMESPACE} # A unique namespace for this initialization process
+gateway_id: ${WEBUI_GATEWAY_ID} # A unique ID for this initializer instance

@@ -42,6 +42,8 @@ export interface LayoutNode {
         caseNumber?: number; // The case number (1-indexed) for condition pills
         // Original workflow config for detail panel
         originalConfig?: WorkflowNodeConfig;
+        /** Optional service icons for agent nodes (e.g. connector brand icons from builder) */
+        icons?: Array<{ name: string; url?: string }>;
     };
     // Layout properties
     x: number;
@@ -151,6 +153,22 @@ export const NODE_SELECTED_CLASS = "!border-(--accent-n2-wMain)";
 export const NODE_SELECTED_CLASS_COMPACT = "!border-(--accent-n2-wMain)";
 
 /**
+ * Data payload for ReactFlow custom workflow nodes
+ */
+export interface WorkflowFlowNodeData extends Record<string, unknown> {
+    layoutNode: LayoutNode;
+    onNodeClick?: (node: LayoutNode) => void;
+    onExpand?: (nodeId: string) => void;
+    onCollapse?: (nodeId: string) => void;
+    onHighlightNodes?: (nodeIds: string[]) => void;
+    selectedNodeId?: string | null;
+    highlightedNodeIds?: Set<string>;
+    knownNodeIds?: Set<string>;
+    currentWorkflowName?: string;
+    parentPath?: string[];
+}
+
+/**
  * Layout constants for consistent sizing
  */
 export const LAYOUT_CONSTANTS = {
@@ -175,7 +193,7 @@ export const LAYOUT_CONSTANTS = {
         LOOP_CONDITION_ROW: 28, // Extra height for loop condition/max iterations row
     },
     SPACING: {
-        VERTICAL: 60,
+        VERTICAL: 80,
         VERTICAL_BRANCH: 100, // Extra spacing when there are condition pills (switch branches)
         HORIZONTAL: 32,
         CONTAINER_PADDING: 24, // Padding inside container nodes (Map/Loop)

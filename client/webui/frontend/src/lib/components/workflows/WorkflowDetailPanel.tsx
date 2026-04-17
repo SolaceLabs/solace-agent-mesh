@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Workflow, FileJson, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Workflow, FileJson, X, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 
 import type { AgentCardInfo } from "@/lib/types";
 import { getWorkflowConfig, getWorkflowNodeCount } from "@/lib/utils/agentUtils";
@@ -12,9 +12,11 @@ interface WorkflowDetailPanelProps {
     onClose: () => void;
     /** Whether to show the "Open Workflow" button (default: true) */
     showOpenButton?: boolean;
+    /** Callback to edit the workflow in the builder */
+    onEditInBuilder?: (workflow: AgentCardInfo) => void;
 }
 
-export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose, showOpenButton = true }: WorkflowDetailPanelProps) => {
+export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose, showOpenButton = true, onEditInBuilder }: WorkflowDetailPanelProps) => {
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [showExpandButton, setShowExpandButton] = useState(false);
     const [activeTab, setActiveTab] = useState<"input" | "output">("input");
@@ -101,11 +103,21 @@ export const WorkflowDetailPanel = ({ workflow, config: providedConfig, onClose,
                                 <div className="flex items-center gap-1 text-sm">{nodeCount > 0 ? nodeCount : "N/A"}</div>
                             </div>
                         </div>
-                        {/* Open Workflow button inside details box */}
-                        {showOpenButton && (
-                            <Button variant="outline" size="sm" onClick={handleOpenWorkflow} className="mt-2 w-full">
-                                Open Workflow
-                            </Button>
+                        {/* Action buttons inside details box */}
+                        {(showOpenButton || onEditInBuilder) && (
+                            <div className="mt-2 flex gap-2">
+                                {showOpenButton && (
+                                    <Button variant="outline" size="sm" onClick={handleOpenWorkflow} className="flex-1">
+                                        Open Workflow
+                                    </Button>
+                                )}
+                                {onEditInBuilder && (
+                                    <Button variant="outline" size="sm" onClick={() => onEditInBuilder(workflow)} className="flex-1">
+                                        <Sparkles className="h-3.5 w-3.5" />
+                                        Edit
+                                    </Button>
+                                )}
+                            </div>
                         )}
                     </div>
 

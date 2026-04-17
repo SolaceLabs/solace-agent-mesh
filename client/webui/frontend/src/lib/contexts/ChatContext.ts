@@ -1,6 +1,16 @@
 import React, { createContext, type FormEvent } from "react";
+import type { ReactNode } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, BuilderCreationState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+
+/** Custom side panel tab injected by extensions (e.g., enterprise builder) */
+export interface CustomSidePanelTab {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    content: ReactNode;
+    badge?: string;
+}
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -48,7 +58,9 @@ export interface ChatState {
     expandedDocumentFilename: string | null;
     // Side Panel Control State
     isSidePanelCollapsed: boolean;
-    activeSidePanelTab: "files" | "activity" | "rag";
+    activeSidePanelTab: string;
+    /** Custom tabs injected by extensions (e.g., enterprise builder tab) */
+    customSidePanelTabs?: CustomSidePanelTab[];
     // Delete Modal State
     isDeleteModalOpen: boolean;
     artifactToDelete: ArtifactInfo | null;
@@ -65,6 +77,17 @@ export interface ChatState {
     submittedFeedback: Record<string, { type: "up" | "down"; text: string }>;
     // Pending prompt for starting new chat
     pendingPrompt: PendingPromptData | null;
+    // Builder Mode
+    /** Whether the chat is in builder mode (hides agent selector, auto-selects builder agent) */
+    builderMode: boolean;
+    /** Builder creation progress state — tracks component-level progress during building */
+    builderCreationState: BuilderCreationState;
+    /** Optional ReactNode rendered in the input area's left button bar (used for builder mode toggle) */
+    inputAreaLeftSlot?: React.ReactNode;
+    /** Agent IDs whose sessions should be hidden from the session list (e.g., ["Builder"]) */
+    sessionListExcludeAgentIds?: string[];
+    /** Maps agent IDs to route paths for session navigation (e.g., { Builder: "/builder" }) */
+    agentSessionRoutes?: Record<string, string>;
     // Background Task Monitoring State
     backgroundTasks: BackgroundTaskState[];
     backgroundNotifications: BackgroundTaskNotification[];
@@ -122,6 +145,11 @@ export interface ChatActions {
     handleFeedbackSubmit: (taskId: string, feedbackType: "up" | "down", feedbackText: string) => Promise<void>;
 
     displayError: ({ title, error }: { title: string; error: string }) => void;
+
+    /** Builder Mode Actions */
+    setBuilderMode: React.Dispatch<React.SetStateAction<boolean>>;
+    /** Update builder creation state */
+    setBuilderCreationState: React.Dispatch<React.SetStateAction<BuilderCreationState>>;
 
     /** Background Task Monitoring Actions */
     isTaskRunningInBackground: (taskId: string) => boolean;

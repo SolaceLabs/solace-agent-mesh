@@ -49,6 +49,8 @@ function pdfWorkerLibPlugin(): Plugin {
     };
 }
 
+const isWatch = process.argv.includes("--watch");
+
 export default defineConfig({
     plugins: [react(), tailwindcss(), pdfWorkerLibPlugin()],
     build: {
@@ -81,6 +83,7 @@ export default defineConfig({
                 "@tanstack/react-query",
                 "@tanstack/react-table",
                 "@xyflow/react",
+                "@xyflow/react/dist/style.css",
                 "class-variance-authority",
                 "clsx",
                 "dompurify",
@@ -106,8 +109,8 @@ export default defineConfig({
         },
         // Generate sourcemaps
         sourcemap: true,
-        // Minify the output
-        minify: true,
+        // Skip minification in watch mode for faster rebuilds
+        minify: isWatch ? false : true,
     },
     resolve: {
         alias: {
