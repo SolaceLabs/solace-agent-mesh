@@ -1253,6 +1253,15 @@ class LiteLlm(BaseLlm):
             override_copy = copy.deepcopy(override_config)
             override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
             override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
+            # Strip keys that are handled during primary model init and are
+            # not valid litellm completion kwargs.
+            for key in ("cache_strategy", "thinking", "type",
+                        "oauth_token_url", "oauth_client_id",
+                        "oauth_client_secret", "oauth_scope",
+                        "oauth_ca_cert", "oauth_audience",
+                        "oauth_max_retries",
+                        "oauth_token_refresh_buffer_seconds"):
+                override_copy.pop(key, None)
             logger.info(
                 "Applying per-request model override: model=%s (default was %s)",
                 override_copy.get("model", "unspecified"),
