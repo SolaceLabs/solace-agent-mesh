@@ -12,9 +12,10 @@ Integration tests use a real in-memory SQLite database with autoflush=False
 visible to subsequent queries within the same transaction.
 """
 
-import os
+from contextlib import contextmanager
+
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from solace_agent_mesh.services.platform.services.model_configuration_seeder import (
@@ -25,6 +26,35 @@ from solace_agent_mesh.services.platform.services.model_configuration_seeder imp
 )
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.database.base import Base
+
+_SEEDER_GETENV = "solace_agent_mesh.services.platform.services.model_configuration_seeder.os.getenv"
+
+# Simulated env vars for seeder tests. Tests can use this directly or pick a subset.
+_SEEDER_ENV = {
+    "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+    "LLM_SERVICE_PLANNING_MODEL_NAME": "gpt-4",
+    "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+    "LLM_SERVICE_API_KEY": "sk-test",
+    "IMAGE_MODEL_NAME": "dall-e-3",
+    "IMAGE_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+    "IMAGE_SERVICE_API_KEY": "sk-image",
+    "LLM_REPORT_MODEL_NAME": "gpt-4",
+}
+
+
+@contextmanager
+def mock_seeder_env(env_vars=None):
+    """Mock os.getenv in the seeder module to return values from env_vars dict.
+
+    If env_vars is None or empty, all getenv calls return "" (simulating no env vars set).
+    """
+    if env_vars:
+        side_effect = lambda key, default="": env_vars.get(key, default)
+        with patch(_SEEDER_GETENV, side_effect=side_effect):
+            yield
+    else:
+        with patch(_SEEDER_GETENV, return_value=""):
+            yield
 
 
 class TestInferProvider:
@@ -237,58 +267,33 @@ class TestSeedFromEnvVars:
         mock_db = Mock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        # Set env vars for multiple models (some complete, some partial)
-        os.environ["LLM_SERVICE_PLANNING_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["LLM_SERVICE_API_KEY"] = "sk-planning-key"
-
-        os.environ["LLM_SERVICE_GENERAL_MODEL_NAME"] = "gpt-3.5-turbo"
-        os.environ["IMAGE_MODEL_NAME"] = "dall-e-3"
-        os.environ["IMAGE_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["IMAGE_SERVICE_API_KEY"] = "sk-image-key"
-
-        os.environ["LLM_REPORT_MODEL_NAME"] = "gpt-4-turbo"
-
-        try:
+        with mock_seeder_env(_SEEDER_ENV):
             seeded = _seed_from_env_vars(mock_db)
 
-            # Should seed 4 models (planning, general, image_gen, report_gen)
-            assert seeded == {"planning", "general", "image_gen", "report_gen"}
-            assert mock_db.add.call_count == 4
+        # Should seed 4 models (planning, general, image_gen, report_gen)
+        assert seeded == {"planning", "general", "image_gen", "report_gen"}
+        assert mock_db.add.call_count == 4
 
-            added_models = [call[0][0] for call in mock_db.add.call_args_list]
+        added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
-            # Verify models were seeded with correct data
-            planning = next(m for m in added_models if m.alias == "planning")
-            assert planning.model_name == "gpt-4"
-            assert planning.model_auth_type == "apikey"
-            assert planning.model_auth_config["api_key"] == "sk-planning-key"
-            assert planning.description  # Verify description is set (not null/empty)
+        # Verify models were seeded with correct data
+        planning = next(m for m in added_models if m.alias == "planning")
+        assert planning.model_name == _SEEDER_ENV["LLM_SERVICE_PLANNING_MODEL_NAME"]
+        assert planning.model_auth_type == "apikey"
+        assert planning.model_auth_config["api_key"] == _SEEDER_ENV["LLM_SERVICE_API_KEY"]
+        assert planning.description  # Verify description is set (not null/empty)
 
-            general = next(m for m in added_models if m.alias == "general")
-            assert general.model_name == "gpt-3.5-turbo"
-            assert general.description  # Verify description is set (not null/empty)
+        general = next(m for m in added_models if m.alias == "general")
+        assert general.model_name == _SEEDER_ENV["LLM_SERVICE_GENERAL_MODEL_NAME"]
+        assert general.description  # Verify description is set (not null/empty)
 
-            image = next(m for m in added_models if m.alias == "image_gen")
-            assert image.model_name == "dall-e-3"
-            assert image.description  # Verify description is set (not null/empty)
+        image = next(m for m in added_models if m.alias == "image_gen")
+        assert image.model_name == _SEEDER_ENV["IMAGE_MODEL_NAME"]
+        assert image.description  # Verify description is set (not null/empty)
 
-            report = next(m for m in added_models if m.alias == "report_gen")
-            assert report.model_name == "gpt-4-turbo"
-            assert report.description  # Verify description is set (not null/empty)
-        finally:
-            # Clean up env vars
-            for key in [
-                "LLM_SERVICE_PLANNING_MODEL_NAME",
-                "LLM_SERVICE_ENDPOINT",
-                "LLM_SERVICE_API_KEY",
-                "LLM_SERVICE_GENERAL_MODEL_NAME",
-                "IMAGE_MODEL_NAME",
-                "IMAGE_SERVICE_ENDPOINT",
-                "IMAGE_SERVICE_API_KEY",
-                "LLM_REPORT_MODEL_NAME",
-            ]:
-                os.environ.pop(key, None)
+        report = next(m for m in added_models if m.alias == "report_gen")
+        assert report.model_name == _SEEDER_ENV["LLM_REPORT_MODEL_NAME"]
+        assert report.description  # Verify description is set (not null/empty)
 
 
 @pytest.fixture
@@ -317,71 +322,58 @@ class TestSeedIntegration:
         records added by _seed_from_env_vars in the same transaction, causing duplicate
         alias inserts and IntegrityError on commit.
         """
-        os.environ["LLM_SERVICE_GENERAL_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_PLANNING_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["LLM_SERVICE_API_KEY"] = "sk-test"
-
-        try:
+        with mock_seeder_env({
+            "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_PLANNING_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+            "LLM_SERVICE_API_KEY": "sk-test",
+        }):
             count = seed_model_configurations(db_session, models_config=None)
-            db_session.commit()
+        db_session.commit()
 
-            # general and planning seeded from env vars (not duplicated by _ensure_default_aliases)
-            assert count == 2
+        # general and planning seeded from env vars (not duplicated by _ensure_default_aliases)
+        assert count == 2
 
-            models = db_session.query(ModelConfiguration).all()
-            aliases = [m.alias for m in models]
-            assert aliases.count("general") == 1
-            assert aliases.count("planning") == 1
+        models = db_session.query(ModelConfiguration).all()
+        aliases = [m.alias for m in models]
+        assert aliases.count("general") == 1
+        assert aliases.count("planning") == 1
 
-            # Verify they have real data, not placeholder values
-            general = db_session.query(ModelConfiguration).filter(
-                ModelConfiguration.alias == "general"
-            ).first()
-            assert general.model_name == "gpt-4"
-            assert general.provider == "openai"
-        finally:
-            for key in [
-                "LLM_SERVICE_GENERAL_MODEL_NAME",
-                "LLM_SERVICE_PLANNING_MODEL_NAME",
-                "LLM_SERVICE_ENDPOINT",
-                "LLM_SERVICE_API_KEY",
-            ]:
-                os.environ.pop(key, None)
+        # Verify they have real data, not placeholder values
+        general = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "general"
+        ).first()
+        assert general.model_name == "gpt-4"
+        assert general.provider == "openai"
 
     def test_env_vars_partial_seed_creates_placeholder_for_missing(self, db_session):
         """When only general is set via env vars, planning gets a placeholder."""
-        os.environ["LLM_SERVICE_GENERAL_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["LLM_SERVICE_API_KEY"] = "sk-test"
-
-        try:
+        with mock_seeder_env({
+            "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+            "LLM_SERVICE_API_KEY": "sk-test",
+        }):
             count = seed_model_configurations(db_session, models_config=None)
-            db_session.commit()
+        db_session.commit()
 
-            # general from env + planning placeholder
-            assert count == 2
+        # general from env + planning placeholder
+        assert count == 2
 
-            general = db_session.query(ModelConfiguration).filter(
-                ModelConfiguration.alias == "general"
-            ).first()
-            assert general.model_name == "gpt-4"
+        general = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "general"
+        ).first()
+        assert general.model_name == "gpt-4"
 
-            planning = db_session.query(ModelConfiguration).filter(
-                ModelConfiguration.alias == "planning"
-            ).first()
-            assert planning.model_name == "undefined"  # PLACEHOLDER_VALUE
-        finally:
-            for key in [
-                "LLM_SERVICE_GENERAL_MODEL_NAME",
-                "LLM_SERVICE_ENDPOINT",
-                "LLM_SERVICE_API_KEY",
-            ]:
-                os.environ.pop(key, None)
+        planning = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "planning"
+        ).first()
+        assert planning.model_name == "undefined"  # PLACEHOLDER_VALUE
 
     def test_no_env_vars_creates_placeholders(self, db_session):
         """With no env vars and no config, both general and planning get placeholders."""
-        count = seed_model_configurations(db_session, models_config=None)
+        # Mock os.getenv in the seeder module so host env vars don't interfere
+        with mock_seeder_env():
+            count = seed_model_configurations(db_session, models_config=None)
         db_session.commit()
 
         assert count == 2
@@ -454,32 +446,11 @@ class TestSeedIntegration:
 
     def test_all_four_env_vars_seeded(self, db_session):
         """All four env var mappings seed correctly without conflicts."""
-        os.environ["LLM_SERVICE_GENERAL_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_PLANNING_MODEL_NAME"] = "gpt-4-turbo"
-        os.environ["LLM_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["LLM_SERVICE_API_KEY"] = "sk-test"
-        os.environ["IMAGE_MODEL_NAME"] = "dall-e-3"
-        os.environ["IMAGE_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["IMAGE_SERVICE_API_KEY"] = "sk-image"
-        os.environ["LLM_REPORT_MODEL_NAME"] = "gpt-4"
-
-        try:
+        with mock_seeder_env(_SEEDER_ENV):
             count = seed_model_configurations(db_session, models_config=None)
-            db_session.commit()
+        db_session.commit()
 
-            assert count == 4
+        assert count == 4
 
-            aliases = {m.alias for m in db_session.query(ModelConfiguration).all()}
-            assert aliases == {"general", "planning", "image_gen", "report_gen"}
-        finally:
-            for key in [
-                "LLM_SERVICE_GENERAL_MODEL_NAME",
-                "LLM_SERVICE_PLANNING_MODEL_NAME",
-                "LLM_SERVICE_ENDPOINT",
-                "LLM_SERVICE_API_KEY",
-                "IMAGE_MODEL_NAME",
-                "IMAGE_SERVICE_ENDPOINT",
-                "IMAGE_SERVICE_API_KEY",
-                "LLM_REPORT_MODEL_NAME",
-            ]:
-                os.environ.pop(key, None)
+        aliases = {m.alias for m in db_session.query(ModelConfiguration).all()}
+        assert aliases == {"general", "planning", "image_gen", "report_gen"}
