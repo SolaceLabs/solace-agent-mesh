@@ -364,6 +364,7 @@ class ModelConfigService:
             model_auth_type=auth_type,
             model_auth_config=auth_config,
             model_params=request.model_params or {},
+            max_input_tokens=request.max_input_tokens,
             description=request.description,
             created_by=created_by,
             updated_by=created_by,
@@ -448,6 +449,10 @@ class ModelConfigService:
                 db_config.model_auth_type = final_config["type"]
         if request.model_params is not None:
             db_config.model_params = request.model_params
+        if request.max_input_tokens is not None:
+            # Treat 0/negative as "clear" since schema forbids them; but the DTO
+            # rejects <1 already, so any provided value is a real setter.
+            db_config.max_input_tokens = request.max_input_tokens
         if request.description is not None:
             db_config.description = request.description
 
@@ -517,6 +522,7 @@ class ModelConfigService:
             auth_type=db_model.model_auth_type,
             auth_config=redacted_auth_config or {},
             model_params=db_model.model_params or {},
+            max_input_tokens=db_model.max_input_tokens,
             description=db_model.description,
             created_by=db_model.created_by,
             updated_by=db_model.updated_by,
@@ -554,6 +560,12 @@ class ModelConfigService:
         # Merge model params
         if db_model.model_params:
             config.update(db_model.model_params)
+        # Attach admin-configured context-window size so the LiteLlm wrapper can
+        # stamp it on every task's token record. Enables the context-usage
+        # indicator to honour the admin value without the gateway querying this
+        # DB directly (preserves service-boundary isolation).
+        if db_model.max_input_tokens:
+            config["max_input_tokens"] = db_model.max_input_tokens
         return config
 
     async def test_connection(self, db: Session, request: ModelConfigurationTestRequest) -> Tuple[bool, str]:

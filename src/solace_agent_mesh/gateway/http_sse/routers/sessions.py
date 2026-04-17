@@ -1212,18 +1212,53 @@ class CompactSessionResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-def _get_model_context_limit(model_name: str) -> Optional[int]:
-    """Get model context window limit using LiteLLM.
+def _lookup_configured_context_limit(db: Session, model_name: str) -> Optional[int]:
+    """Resolve the admin-configured context window for a model name.
 
-    Returns the max_input_tokens for the model if LiteLLM has reliable info,
-    or None if the model is unknown / the limit cannot be determined.
-    Previously this fell back to a hard-coded 200 000 which could be wrong
-    for models whose actual limit differs.  Returning None lets the frontend
-    hide the context-usage indicator instead of showing misleading data.
-
-    Tries the full model name first, then strips the LiteLLM provider prefix
-    (e.g. "openai/gpt-4o" → "gpt-4o") as a fallback.
+    Matches against `model_configurations.model_name` first (the raw string the
+    agent reports in `token_usage_details.by_model`), then `alias`. Returns the
+    configured `max_input_tokens` if set, otherwise None.
     """
+    try:
+        from ....services.platform.models.model_configuration import ModelConfiguration
+    except Exception:
+        return None
+    try:
+        row = (
+            db.query(ModelConfiguration.max_input_tokens)
+            .filter(ModelConfiguration.model_name == model_name)
+            .first()
+        )
+        if row and row[0]:
+            return row[0]
+        row = (
+            db.query(ModelConfiguration.max_input_tokens)
+            .filter(ModelConfiguration.alias == model_name)
+            .first()
+        )
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        log.debug("ModelConfiguration lookup failed for %s: %s", model_name, e)
+    return None
+
+
+def _get_model_context_limit(model_name: str, db: Optional[Session] = None) -> Optional[int]:
+    """Get model context window limit.
+
+    Resolution order:
+      1. Admin-configured value in `model_configurations.max_input_tokens`
+         (matched by `model_name` then `alias`), when a DB session is provided.
+      2. LiteLLM's registry — try the full name, then strip any provider prefix
+         (e.g. "openai/gpt-4o" → "gpt-4o").
+      3. None — lets the frontend hide the indicator rather than show a wrong
+         denominator.
+    """
+    if db is not None:
+        configured = _lookup_configured_context_limit(db, model_name)
+        if configured:
+            return configured
+
     from litellm import get_model_info
 
     def _try_lookup(name: str) -> Optional[int]:
@@ -1233,13 +1268,10 @@ def _get_model_context_limit(model_name: str) -> Optional[int]:
         except Exception:
             return None
 
-    # First try the full model name (works for most standard names)
     result = _try_lookup(model_name)
     if result is not None:
         return result
 
-    # If the name contains a provider prefix (e.g. "openai/gpt-4o"),
-    # strip it and retry with just the model portion.
     if "/" in model_name:
         bare_name = model_name.rsplit("/", 1)[-1]
         result = _try_lookup(bare_name)
@@ -1290,7 +1322,7 @@ async def get_session_context_usage(
         completion_tokens = 0
         cached_tokens = 0
 
-        from ..repository.models import ChatTaskModel, TaskModel
+        from ..repository.models import ChatTaskModel, TaskEventModel, TaskModel
         from sqlalchemy import desc
 
         chat_task_count = (
@@ -1312,6 +1344,38 @@ async def get_session_context_usage(
             .all()
         )
 
+        # Filter tasks to the session's current agent — ADK sessions are keyed by
+        # (app_name, user_id, session_id), so switching agents mid-session starts a
+        # fresh context window. Tokens accumulated under the previous agent must not
+        # leak into the new agent's indicator.
+        current_agent = gateway_session.agent_id
+        if current_agent and completed_tasks:
+            task_ids = [t.id for t in completed_tasks]
+            request_events = (
+                db.query(TaskEventModel)
+                .filter(
+                    TaskEventModel.task_id.in_(task_ids),
+                    TaskEventModel.direction == "request",
+                )
+                .order_by(TaskEventModel.task_id, TaskEventModel.created_time.asc())
+                .all()
+            )
+            first_request_by_task: dict[str, TaskEventModel] = {}
+            for ev in request_events:
+                first_request_by_task.setdefault(ev.task_id, ev)
+
+            def _task_agent(task_id: str) -> Optional[str]:
+                ev = first_request_by_task.get(task_id)
+                if not ev or not ev.payload:
+                    return None
+                try:
+                    metadata = ev.payload.get("params", {}).get("message", {}).get("metadata", {})
+                    return metadata.get("workflow_name") or metadata.get("agent_name")
+                except AttributeError:
+                    return None
+
+            completed_tasks = [t for t in completed_tasks if _task_agent(t.id) == current_agent]
+
         current_tokens = 0
 
         if completed_tasks:
@@ -1324,7 +1388,17 @@ async def get_session_context_usage(
             completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
             cached_tokens = latest.total_cached_input_tokens or 0
 
-        max_input_tokens = _get_model_context_limit(effective_model)
+            # Prefer the model actually used by the latest task over the gateway's
+            # own model config — the agent may run a different model than the
+            # gateway (and different agents in the same session may differ).
+            # Query-param `model` still wins (explicit caller override).
+            if not model:
+                by_model = (latest.token_usage_details or {}).get("by_model") or {}
+                if by_model:
+                    dominant = max(by_model.items(), key=lambda kv: kv[1].get("input_tokens", 0))
+                    effective_model = dominant[0]
+
+        max_input_tokens = _get_model_context_limit(effective_model, db=db)
         usage_pct = (
             min(100.0, round((current_tokens / max_input_tokens) * 100, 1))
             if max_input_tokens and current_tokens > 0

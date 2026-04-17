@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare, ListChecks } from "lucide-react";
+import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
 import { getSessionContextUsage, compactSession } from "@/lib/api/sessions";
-import type { ContextUsage } from "@/lib/types";
+import type { ContextUsage, MessageFE } from "@/lib/types";
 import { useChatContext } from "@/lib/hooks";
 
 interface ContextUsageIndicatorProps {
@@ -48,7 +48,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const compactingRef = useRef(false);
-    const { selectedAgentName, isResponding } = useChatContext();
+    const { selectedAgentName, isResponding, setMessages } = useChatContext();
 
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
@@ -169,6 +169,33 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             // Auto-expand the panel so the user sees the success/summary message
             setIsExpanded(true);
 
+            // Inject a compaction-notification message into the chat so the user
+            // sees the same AccordionCard (title + description + expandable
+            // summary) that auto-compaction produces. is_background=false uses
+            // the "Your conversation was summarized" copy variant.
+            if (result.summary) {
+                const id = `manual-compaction-${Date.now()}`;
+                const compactionMessage: MessageFE = {
+                    taskId: id,
+                    createdTime: Date.now(),
+                    role: "agent",
+                    isUser: false,
+                    isComplete: true,
+                    metadata: { messageId: id },
+                    parts: [
+                        {
+                            kind: "data",
+                            data: {
+                                type: "compaction_notification",
+                                summary: result.summary,
+                                is_background: false,
+                            },
+                        },
+                    ],
+                };
+                setMessages(prev => [...prev, compactionMessage]);
+            }
+
             // Immediately update the usage state with compaction response data.
             // The backend context-usage endpoint reads from the tasks table, but
             // compaction is a session-level operation that doesn't create a new
@@ -237,21 +264,41 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
 
                         <div className="space-y-2 text-xs">
                             <div className="flex items-center justify-between border-t pt-2">
-                                <span className="text-muted-foreground">Tokens</span>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="text-muted-foreground">Session total</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Cumulative tokens sent and received across this agent's tasks in the session</TooltipContent>
+                                </Tooltip>
                                 <div className="flex items-center gap-3 font-mono text-xs">
-                                    <span className="flex items-center gap-1" title="Sent (prompt tokens)">
-                                        <ArrowUp className="text-muted-foreground h-3 w-3" />
-                                        {formatTokenCount(usage.promptTokens)}
-                                    </span>
-                                    <span className="flex items-center gap-1" title="Received (completion tokens)">
-                                        <ArrowDown className="text-muted-foreground h-3 w-3" />
-                                        {formatTokenCount(usage.completionTokens)}
-                                    </span>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="flex items-center gap-1">
+                                                <ArrowUp className="text-muted-foreground h-3 w-3" />
+                                                {formatTokenCount(usage.promptTokens)}
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Total sent (prompt tokens)</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <span className="flex items-center gap-1">
+                                                <ArrowDown className="text-muted-foreground h-3 w-3" />
+                                                {formatTokenCount(usage.completionTokens)}
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Total received (completion tokens)</TooltipContent>
+                                    </Tooltip>
                                 </div>
                             </div>
-                            <div className="flex justify-between">
-                                <span className="text-muted-foreground">Model:</span>
-                                <span className="font-mono font-semibold">{formatModelName(usage.model)}</span>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-muted-foreground shrink-0">Model:</span>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="min-w-0 truncate font-mono font-semibold">{formatModelName(usage.model)}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs break-all">{usage.model}</TooltipContent>
+                                </Tooltip>
                             </div>
                             <div className="flex items-center justify-between border-t pt-2">
                                 <span className="text-muted-foreground flex items-center gap-1">
@@ -259,13 +306,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     Messages
                                 </span>
                                 <span className="font-mono">{usage.totalMessages}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground flex items-center gap-1">
-                                    <ListChecks className="h-3 w-3" />
-                                    Tasks
-                                </span>
-                                <span className="font-mono">{usage.totalTasks}</span>
                             </div>
                         </div>
 
@@ -325,16 +365,20 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
                                 {(shouldShowCompressButton || isCompacting) && (
-                                    <div
-                                        className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
-                                        title={isCompacting ? "Compacting..." : "Compact conversation"}
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            if (!isCompacting) handleCompress();
-                                        }}
-                                    >
-                                        {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
-                                    </div>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <div
+                                                className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    if (!isCompacting) handleCompress();
+                                                }}
+                                            >
+                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">{isCompacting ? "Compacting..." : "Compact conversation"}</TooltipContent>
+                                    </Tooltip>
                                 )}
                             </div>
                         </div>

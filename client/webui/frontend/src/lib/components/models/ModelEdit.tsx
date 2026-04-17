@@ -286,6 +286,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
             setValue("modelName", modelName);
             setValue("apiBase", modelToEdit.apiBase || "");
+            setValue("maxInputTokens", modelToEdit.maxInputTokens != null ? String(modelToEdit.maxInputTokens) : "");
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
 
@@ -454,6 +455,29 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                         {/* Description - Always Visible */}
                         <FormFieldLayoutItem label="Description" required error={errors.description as { message?: string }} helpText="Describe types of tasks this model is suitable or not suitable for.">
                             <Textarea {...register("description", { required: "Description is required" })} rows={4} maxLength={1001} aria-invalid={!!errors.description} />
+                        </FormFieldLayoutItem>
+
+                        {/* Max input tokens (context window) — optional.
+                            Drives the chat context-usage indicator; leave blank to fall back to LiteLLM's registry. */}
+                        <FormFieldLayoutItem
+                            label="Context Window (max input tokens)"
+                            error={errors.maxInputTokens as { message?: string }}
+                            helpText="Optional. Used by the chat context-usage indicator when the model is not recognized automatically."
+                        >
+                            <Input
+                                type="number"
+                                min={1}
+                                placeholder="e.g. 200000"
+                                {...register("maxInputTokens", {
+                                    validate: value => {
+                                        if (value == null || value === "") return true;
+                                        const n = Number(value);
+                                        if (!Number.isFinite(n) || n < 1) return "Must be a positive integer";
+                                        return true;
+                                    },
+                                })}
+                                aria-invalid={!!errors.maxInputTokens}
+                            />
                         </FormFieldLayoutItem>
 
                         {/* Provider Dropdown - Always Visible */}
