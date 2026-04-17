@@ -117,11 +117,13 @@ class ModelConfigReceiverComponent(ComponentBase):
                         log_id_prefix,
                     )
                     self.model_provider.remove_litellm_model()
-            else:
-                # Response for a different model_id — one-shot alias resolution
-                self.model_provider.complete_pending_resolve(
-                    topic_model_id, model_config
-                )
+
+            # Complete any pending per-request resolve futures for this alias.
+            # This runs for ALL aliases, including the agent's own model_id,
+            # so that resolve() works when overriding with the agent's default.
+            self.model_provider.complete_pending_resolve(
+                topic_model_id, model_config
+            )
 
             message.call_acknowledgements()
 
