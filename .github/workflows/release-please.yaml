@@ -1,0 +1,72 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: write
+  statuses: write
+  actions: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      release_sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Run release-please (release only)
+        id: release
+        uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0
+        with:
+          token: ${{ secrets.SAM_RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  post-process-release:
+    name: Build and Attach Release Assets
+    needs: create-release
+    if: ${{ needs.create-release.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/release-post-process.yml
+    with:
+      release_tag: ${{ needs.create-release.outputs.tag_name }}
+    secrets: inherit
+
+  trigger-publish:
+    name: Trigger Publish Workflow
+    needs: [create-release, post-process-release]
+    if: ${{ needs.create-release.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch publish workflow and wait
+        id: publish
+        uses: SolaceDev/solace-public-workflows/workflow-dispatch-and-wait@main
+        with:
+          workflow: publish.yaml
+          repo: ${{ github.repository }}
+          ref: main
+          token: ${{ secrets.SAM_RELEASE_PLEASE_TOKEN }}
+          wait-for-completion: "true"
+          wait-for-completion-timeout: "2h"
+          wait-for-completion-interval: "1m"
+          display-workflow-run-url: "true"
+          workflow-logs: "output"
+          inputs: >-
+            {"version":"${{ needs.create-release.outputs.version }}","skip_docker_push":false,"push_latest":true}
+
+      - name: Verify publish workflow succeeded
+        env:
+          PUBLISH_CONCLUSION: ${{ steps.publish.outputs.workflow-conclusion }}
+        run: |
+          if [[ "$PUBLISH_CONCLUSION" != "success" ]]; then
+            echo "::error::Publish workflow finished with conclusion: ${PUBLISH_CONCLUSION}"
+            exit 1
+          fi

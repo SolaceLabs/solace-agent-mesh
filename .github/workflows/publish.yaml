@@ -1,0 +1,228 @@
+name: Release to PyPI and DockerHub
+run-name: "${{ format('Publish `{0}` to PyPI and DockerHub', inputs.version) }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (or tag) to publish."
+        required: true
+        type: string
+      skip_docker_push:
+        description: "Skip DockerHub promotion."
+        required: false
+        type: boolean
+        default: false
+      push_latest:
+        description: "Also publish Docker image as latest."
+        required: false
+        type: boolean
+        default: true
+      skip_security_checks:
+        description: "Skip failed security checks and continue (requires admin permission)."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  packages: read
+  checks: write
+  statuses: write
+  actions: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  resolve-release:
+    name: Resolve Release Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      release_url: ${{ steps.resolve.outputs.release_url }}
+      version: ${{ steps.resolve.outputs.version }}
+      commit_sha: ${{ steps.resolve.outputs.commit_sha }}
+      short_sha: ${{ steps.resolve.outputs.short_sha }}
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+    steps:
+      - name: Checkout repository metadata
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve release tag and commit
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          CLEAN_VERSION="${INPUT_VERSION#v}"
+          RELEASE_TAG=""
+          RELEASE_URL=""
+          RELEASE_JSON="$(mktemp)"
+
+          for candidate in "$INPUT_VERSION" "$CLEAN_VERSION" "v$CLEAN_VERSION"; do
+            if gh release view "$candidate" --repo "$REPOSITORY" --json tagName,url > "$RELEASE_JSON" 2>/dev/null; then
+              RELEASE_TAG="$(jq -r '.tagName' "$RELEASE_JSON")"
+              RELEASE_URL="$(jq -r '.url' "$RELEASE_JSON")"
+              break
+            fi
+          done
+
+          if [[ -z "$RELEASE_TAG" ]]; then
+            echo "Unable to find release for input '$INPUT_VERSION'." >&2
+            exit 1
+          fi
+
+          COMMIT_SHA="$(git rev-list -n 1 "$RELEASE_TAG")"
+          if [[ -z "$COMMIT_SHA" ]]; then
+            echo "Unable to resolve commit SHA for release tag '$RELEASE_TAG'." >&2
+            exit 1
+          fi
+
+          SHORT_SHA="${COMMIT_SHA:0:10}"
+          VERSION_NO_PREFIX="${RELEASE_TAG#v}"
+          IMAGE_TAG="${VERSION_NO_PREFIX}-${SHORT_SHA}"
+
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_NO_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+  release-readiness:
+    name: Release Readiness Check (Check-Only)
+    needs: resolve-release
+    uses: ./.github/workflows/release-readiness-check.yaml
+    with:
+      commit_sha: ${{ needs.resolve-release.outputs.commit_sha }}
+      version: ${{ needs.resolve-release.outputs.version }}
+      image_tag: ${{ needs.resolve-release.outputs.image_tag }}
+      check_only: true
+      check_sonarqube_hotspots: true
+      skip_security_checks: ${{ inputs.skip_security_checks }}
+    secrets: inherit
+
+  pypi-publish:
+    name: Publish to PyPI
+    needs: [resolve-release, release-readiness]
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-artifacts
+          gh release download "$RELEASE_TAG" \
+            --repo "$REPOSITORY" \
+            --pattern "*.whl" \
+            --pattern "*.tar.gz" \
+            --dir release-artifacts \
+            --clobber
+
+          shopt -s nullglob
+          files=(release-artifacts/*.whl release-artifacts/*.tar.gz)
+          if (( ${#files[@]} == 0 )); then
+            echo "No Python artifacts found in release '$RELEASE_TAG'." >&2
+            exit 1
+          fi
+
+      - name: Publish artifacts to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1
+        with:
+          packages-dir: release-artifacts/
+          verbose: true
+
+      - name: Add PyPI summary
+        run: |
+          echo "## PyPI Publication Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${{ needs.resolve-release.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release tag: \`${{ needs.resolve-release.outputs.release_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release URL: ${{ needs.resolve-release.outputs.release_url }}" >> "$GITHUB_STEP_SUMMARY"
+
+  promote-dockerhub:
+    name: Promote ECR Image to DockerHub
+    needs: [resolve-release, release-readiness]
+    if: ${{ !fromJSON(inputs.skip_docker_push) }}
+    environment: pypi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Install skopeo
+        run: |
+          echo "📦 Installing skopeo..."
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Promote release image
+        env:
+          SOURCE_REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+          VERSION: ${{ needs.resolve-release.outputs.version }}
+          SHORT_SHA: ${{ needs.resolve-release.outputs.short_sha }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          set -euo pipefail
+
+          SOURCE_IMAGE="${SOURCE_REGISTRY}/solace-agent-mesh:${VERSION}"
+          TARGET_IMAGE="solace/solace-agent-mesh"
+
+          echo "======================================"
+          echo "Copying multi-arch manifest to DockerHub tags using skopeo"
+          echo "======================================"
+          echo "Source: $ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG"
+          echo "Target DockerHub tags: $TARGET_IMAGE:$VERSION and $TARGET_IMAGE:latest"
+
+          # Copy multi-arch manifest with versioned RC tag (copies all architectures)
+          echo "📦 Copying multi-arch manifest with versioned RC tag: $RC_TAG"
+          skopeo copy --all \
+            "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG" \
+            "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$RC_TAG" \
+            --additional-tag="$TARGET_IMAGE:latest"
+          echo "✅ Copied multi-arch manifest to: $RC_TAG"
+
+          echo ""
+          echo "======================================"
+          echo "✅ Successfully promoted $SOURCE_TAG to multi-arch RC tags: $RC_TAG and rc"
+          echo "======================================"
+
+      - name: Add Docker summary
+        env:
+          VERSION: ${{ needs.resolve-release.outputs.version }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          echo "## DockerHub Promotion Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Published tag: \`solace/solace-agent-mesh:${VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUSH_LATEST" == "true" ]]; then
+            echo "- Published tag: \`solace/solace-agent-mesh:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
