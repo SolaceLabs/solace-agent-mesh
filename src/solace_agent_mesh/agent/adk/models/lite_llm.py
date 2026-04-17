@@ -431,7 +431,7 @@ def _get_content(
     return content_objects
 
 
-def _calculate_content_tokens(
+def calculate_content_tokens(
     content: types.Content,
     model: str = "gpt-4o"
 ) -> int:
@@ -516,6 +516,10 @@ def _calculate_content_tokens(
         video_tokens
     )
     return total
+
+
+# Backward-compatible alias for existing internal callers
+_calculate_content_tokens = calculate_content_tokens
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:
@@ -1013,6 +1017,11 @@ class LiteLlm(BaseLlm):
     _thinking_config: Optional[Dict[str, Any]] = PrivateAttr(default=None) # Thinking/reasoning token config
     _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
     _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
+    # Explicit context-window size, typically sourced from the admin model-config
+    # UI via the bootstrap payload. Agents stamp this on every task record so the
+    # gateway's context-usage indicator can honour admin settings without reading
+    # the platform DB directly.
+    _max_input_tokens: Optional[int] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -1032,7 +1041,7 @@ class LiteLlm(BaseLlm):
         # BaseLlm does not set extra="allow", so unknown fields cause validation errors.
         # These keys are handled by configure_model() instead.
         _non_pydantic_keys = [
-            "thinking", "cache_strategy",
+            "thinking", "cache_strategy", "max_input_tokens",
             "oauth_client_id", "oauth_client_secret", "oauth_token_url",
             "oauth_scope", "oauth_audience",
         ]
@@ -1147,6 +1156,15 @@ class LiteLlm(BaseLlm):
             copied_model_config.setdefault("num_retries", 3)
             copied_model_config.setdefault("timeout", 120)
         
+        # Extract admin-configured context window (optional). Store separately
+        # so it survives across reconfigures; not forwarded to LiteLLM as a
+        # completion kwarg.
+        configured_max_input = copied_model_config.pop("max_input_tokens", None)
+        try:
+            self._max_input_tokens = int(configured_max_input) if configured_max_input else None
+        except (TypeError, ValueError):
+            self._max_input_tokens = None
+
         cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
         copied_model_config.pop("cache_strategy", None)
         if cache_strategy not in VALID_CACHE_STRATEGIES:
@@ -1177,6 +1195,41 @@ class LiteLlm(BaseLlm):
     
         self._model_config = copied_model_config
         self._set_status("ready")
+
+    def get_max_input_tokens(self) -> Optional[int]:
+        """Resolve this model's context window (max input tokens).
+
+        Order:
+          1. Admin-configured value from the model-config UI (bootstrap payload).
+          2. LiteLLM's built-in registry for well-known models.
+          3. None — caller should treat as unknown.
+
+        The result is typically stamped on per-task token records so the
+        gateway can render the context-usage indicator without cross-service DB
+        access.
+        """
+        if self._max_input_tokens:
+            return self._max_input_tokens
+        try:
+            import litellm
+            info = litellm.get_model_info(self.model)
+            value = info.get("max_input_tokens") if isinstance(info, dict) else None
+            if value:
+                return int(value)
+        except Exception:
+            pass
+        # Strip provider prefix (e.g. "openai/gpt-4o" → "gpt-4o") as a last try.
+        if self.model and "/" in self.model:
+            bare = self.model.rsplit("/", 1)[-1]
+            try:
+                import litellm
+                info = litellm.get_model_info(bare)
+                value = info.get("max_input_tokens") if isinstance(info, dict) else None
+                if value:
+                    return int(value)
+            except Exception:
+                pass
+        return None
 
     def unconfigure_model(self):
         """Reset status to 'none' for hot-reload teardown.

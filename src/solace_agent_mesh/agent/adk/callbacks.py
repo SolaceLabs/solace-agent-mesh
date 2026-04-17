@@ -2502,12 +2502,37 @@ def solace_llm_response_callback(
                 task_context = host_component.active_tasks.get(logical_task_id)
 
             if task_context:
+                # Resolve context-window for this model: admin UI value wins,
+                # LiteLLM registry is fallback, else None. The result is
+                # persisted on the task record so the gateway's indicator can
+                # render without cross-service lookups.
+                max_input_tokens: Optional[int] = None
+                try:
+                    agent_model = getattr(getattr(host_component, "adk_agent", None), "model", None)
+                    if agent_model is not None and hasattr(agent_model, "get_max_input_tokens"):
+                        max_input_tokens = agent_model.get_max_input_tokens()
+                    component_model_cfg = host_component.get_config("model", None)
+                    stored_max = getattr(agent_model, "_max_input_tokens", "<n/a>")
+                    cfg_keys = list(component_model_cfg.keys()) if isinstance(component_model_cfg, dict) else type(component_model_cfg).__name__
+                    log.info(
+                        "%s Resolved max_input_tokens=%s for model=%s (agent_model_type=%s, stored=%s, cfg_keys=%s, cfg_max=%s)",
+                        log_identifier,
+                        max_input_tokens,
+                        model_name,
+                        type(agent_model).__name__ if agent_model else "None",
+                        stored_max,
+                        cfg_keys,
+                        (component_model_cfg or {}).get("max_input_tokens") if isinstance(component_model_cfg, dict) else None,
+                    )
+                except Exception as e:
+                    log.warning("%s Could not resolve max_input_tokens: %s", log_identifier, e)
                 task_context.record_token_usage(
                     input_tokens=usage.prompt_token_count,
                     output_tokens=usage.candidates_token_count,
                     model=model_name,
                     source="agent",
                     cached_input_tokens=cached_tokens,
+                    max_input_tokens=max_input_tokens,
                 )
                 log.debug(
                     "%s Recorded token usage: input=%d, output=%d, cached=%d, model=%s",

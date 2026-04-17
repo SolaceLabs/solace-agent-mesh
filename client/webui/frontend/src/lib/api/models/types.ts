@@ -11,6 +11,7 @@ export interface ModelConfig {
     authType: string | null;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
+    maxInputTokens: number | null;
     description: string | null;
     createdBy: string;
     updatedBy: string;
