@@ -187,6 +187,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             sessionOwnerEmail: null,
             currentTaskId: null,
             selectedAgentName: "",
+            singleAgentMode: false,
             notifications: [],
             isCancelling: false,
             latestStatusText,
@@ -262,6 +263,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             handleCancel: () => {},
             addNotification: () => {},
             setSelectedAgentName: () => {},
+            setSingleAgentMode: () => {},
             uploadArtifactFile: async () => null,
 
             // Side Panel Control Actions

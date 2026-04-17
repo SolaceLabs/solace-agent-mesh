@@ -27,6 +27,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     agents: transformedMockAgents,
     agentNameDisplayNameMap,
     selectedAgentName: transformedMockAgents[0]?.name || "",
+    singleAgentMode: false,
 
     // Collaborative session state
     isCollaborativeSession: false,
@@ -88,6 +89,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     handleCancel: async () => {},
     addNotification: () => {},
     setSelectedAgentName: () => {},
+    setSingleAgentMode: () => {},
     uploadArtifactFile: async () => null,
     setActiveSidePanelTab: () => {},
     openSidePanelTab: () => {},
