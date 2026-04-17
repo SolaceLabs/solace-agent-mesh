@@ -56,7 +56,8 @@ const RecentRuns: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskI
                 <ul className="space-y-1">
                     {executions.map(ex => {
                         const { Icon, className, label } = executionStatusIcon(ex.status);
-                        const when = ex.completedAt ?? ex.startedAt ?? ex.scheduledFor;
+                        const whenRaw = ex.completedAt ?? ex.startedAt ?? ex.scheduledFor;
+                        const when = whenRaw < 10000000000 ? whenRaw * 1000 : whenRaw;
                         const duration = ex.durationMs ? formatDuration(ex.durationMs) : null;
                         return (
                             <li key={ex.id}>
@@ -66,7 +67,7 @@ const RecentRuns: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskI
                                         <span className="font-medium">{label}</span>
                                         <span className="text-(--secondary-text-wMain)">
                                             {" · "}
-                                            {new Date(when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                            {new Date(when).toLocaleString()}
                                             {duration && ` · ${duration}`}
                                         </span>
                                     </span>

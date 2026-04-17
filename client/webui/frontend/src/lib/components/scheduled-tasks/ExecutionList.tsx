@@ -21,13 +21,7 @@ const getStatusBadge = (status: string) => {
         timeout: { bg: "bg-(--color-warning-w20)", text: "text-(--color-warning-wMain)", label: "Timeout" },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-    const inProgress = IN_PROGRESS_STATUSES.has(status);
-    return (
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>
-            {inProgress && <Loader2 className="size-3 animate-spin" aria-label="in progress" />}
-            {config.label}
-        </span>
-    );
+    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
 };
 
 export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, selectedExecution, onSelect, isLoading }) => {
@@ -64,7 +58,9 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="text-xs text-(--secondary-text-wMain)">{execution.durationMs ? formatDuration(execution.durationMs) : "-"}</span>
+                                        <span className="flex items-center text-xs text-(--secondary-text-wMain)">
+                                            {IN_PROGRESS_STATUSES.has(execution.status) ? <Loader2 className="size-3 animate-spin text-(--brand-wMain)" aria-label="in progress" /> : execution.durationMs ? formatDuration(execution.durationMs) : "-"}
+                                        </span>
                                     </div>
                                     <span className="block text-xs text-(--secondary-text-wMain)">{execution.startedAt ? formatEpochTimestamp(execution.startedAt) : "Pending"}</span>
                                 </button>

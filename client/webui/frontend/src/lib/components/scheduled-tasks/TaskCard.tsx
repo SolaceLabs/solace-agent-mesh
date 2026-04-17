@@ -1,71 +1,46 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, Calendar, CalendarClock, Clock, MoreHorizontal, Play, Pause, History, Zap, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
+import { Bot, Pencil, Trash2, Calendar, CalendarClock, Clock, MoreHorizontal, Play, Pause, History, Zap, Loader2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { ScheduledTask, TaskStatus, LastExecutionSummary } from "@/lib/types/scheduled-tasks";
-import { formatRelativeTime } from "@/lib/utils";
-import { formatDuration } from "@/lib/utils/format";
+import { formatDuration, formatRelativeTime } from "@/lib/utils/format";
 import { formatSchedule } from "./utils";
 
-const renderLastRun = (last: LastExecutionSummary, onView: () => void) => {
-    const whenEpoch = last.completedAt ?? last.startedAt ?? last.scheduledFor;
-    const when = new Date(whenEpoch).toISOString();
-    const duration = last.durationMs ? ` · ${formatDuration(last.durationMs)}` : "";
-    let Icon = CheckCircle2;
-    let iconClass = "text-(--success-wMain)";
-    let label = "Last run";
-
+const lastRunLabel = (last: LastExecutionSummary): string => {
     switch (last.status) {
         case "completed":
-            Icon = CheckCircle2;
-            iconClass = "text-(--success-wMain)";
-            label = "Succeeded";
-            break;
+            return "Succeeded";
         case "failed":
-            Icon = XCircle;
-            iconClass = "text-(--error-wMain)";
-            label = "Failed";
-            break;
+            return "Failed";
         case "timeout":
-            Icon = AlertCircle;
-            iconClass = "text-(--warning-wMain)";
-            label = "Timed out";
-            break;
-        case "running":
-        case "pending":
-            Icon = Loader2;
-            iconClass = "animate-spin text-(--info-wMain)";
-            label = last.status === "running" ? "Running" : "Pending";
-            break;
+            return "Timed out";
         case "skipped":
-            Icon = AlertCircle;
-            iconClass = "text-(--secondary-text-wMain)";
-            label = "Skipped";
-            break;
+            return "Skipped";
         case "cancelled":
-            Icon = XCircle;
-            iconClass = "text-(--secondary-text-wMain)";
-            label = "Cancelled";
-            break;
+            return "Cancelled";
+        case "running":
+            return "Running";
+        case "pending":
+            return "Pending";
+        default:
+            return "Last run";
     }
+};
+
+const renderLastRun = (last: LastExecutionSummary) => {
+    const whenEpoch = last.completedAt ?? last.startedAt ?? last.scheduledFor;
+    const whenTs = whenEpoch < 10000000000 ? whenEpoch * 1000 : whenEpoch;
+    const whenIso = new Date(whenTs).toISOString();
+    const relative = formatRelativeTime(whenIso);
+    const absolute = new Date(whenTs).toLocaleString();
+    const duration = last.durationMs ? ` · ${formatDuration(last.durationMs)}` : "";
+    const label = lastRunLabel(last);
 
     return (
-        <button
-            type="button"
-            onClick={e => {
-                e.stopPropagation();
-                onView();
-            }}
-            className="flex w-full items-center gap-1 truncate text-left text-xs text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)"
-            title={last.errorMessage ?? `${label} · ${formatRelativeTime(when)}${duration}`}
-        >
-            <Icon className={`h-3 w-3 flex-shrink-0 ${iconClass}`} />
-            <span className="truncate">
-                {label} {formatRelativeTime(when)}
-                {duration}
-            </span>
-        </button>
+        <span className="truncate text-xs text-(--secondary-text-wMain)" title={last.errorMessage ?? `${label} · ${absolute}${duration}`}>
+            {label} {relative}
+        </span>
     );
 };
 
@@ -118,11 +93,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
     // Config-sourced tasks are read-only, so manual Run Now would be surprising.
     const canRunNow = !!onRunNow && task.scheduleType !== "one_time" && task.source !== "config";
 
-    const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
-        active: { label: "Active", className: "bg-(--success-w10) text-(--success-w100)" },
-        paused: { label: "Paused", className: "bg-(--warning-w10) text-(--warning-w100)" },
-        error: { label: "Error", className: "bg-(--error-w10) text-(--error-w100)" },
+    const statusDotConfig: Record<TaskStatus, { label: string; dotClass: string }> = {
+        active: { label: "Active", dotClass: "bg-(--success-wMain)" },
+        paused: { label: "Paused", dotClass: "bg-(--warning-wMain)" },
+        error: { label: "Error", dotClass: "bg-(--error-wMain)" },
     };
+
+    const isRunning = !!task.lastExecution && (task.lastExecution.status === "running" || task.lastExecution.status === "pending");
 
     const formatNextRun = (task: ScheduledTask): string => {
         if (task.status === "paused") return "Paused";
@@ -215,31 +192,44 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                     </div>
                 </div>
                 <div className="flex flex-grow flex-col overflow-hidden px-4">
-                    <div className="mb-2 flex items-center gap-2">
-                        {task.status && (
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusConfig[task.status]?.className ?? "bg-(--secondary-w10) text-(--secondary-text-wMain)"}`}>{statusConfig[task.status]?.label ?? task.status}</span>
-                        )}
-                        {task.source === "config" && <span className="inline-block rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-w100)">Config</span>}
-                    </div>
+                    {task.source === "config" && (
+                        <div className="mb-2 flex items-center gap-2">
+                            <span className="inline-block rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-w100)">Config</span>
+                        </div>
+                    )}
                     {task.description && (
                         <div className="mb-2 line-clamp-1 text-sm leading-5" title={task.description}>
                             {task.description}
                         </div>
                     )}
                     <div className="mt-auto space-y-1">
-                        <div className="flex items-center gap-1 text-xs text-(--secondary-text-wMain)">
+                        <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
                             <Clock className="h-3 w-3" />
                             <span className="truncate">{formatSchedule(task)}</span>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-(--secondary-text-wMain)">
+                        <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
                             <Calendar className="h-3 w-3" />
-                            <span>Next: {formatNextRun(task)}</span>
+                            <span className="truncate">{formatNextRun(task)}</span>
                         </div>
-                        {task.lastExecution && renderLastRun(task.lastExecution, () => onViewExecutions(task))}
-                        <div className="text-xs text-(--secondary-text-wMain)">
-                            <span className="truncate">
-                                {task.targetType === "workflow" ? "Workflow" : "Agent"}: {task.targetAgentName}
-                            </span>
+                        <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
+                            <Bot className="h-3 w-3" />
+                            <span className="truncate">{task.targetAgentName}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-2 text-xs">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                                {isRunning ? (
+                                    <>
+                                        <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-(--brand-wMain)" />
+                                        <span className="truncate font-medium text-(--primary-text-wMain)">Running</span>
+                                    </>
+                                ) : task.status ? (
+                                    <>
+                                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${statusDotConfig[task.status]?.dotClass ?? "bg-(--secondary-wMain)"}`} />
+                                        <span className="truncate font-medium text-(--primary-text-wMain)">{statusDotConfig[task.status]?.label ?? task.status}</span>
+                                    </>
+                                ) : null}
+                            </div>
+                            {task.lastExecution && !isRunning && renderLastRun(task.lastExecution)}
                         </div>
                     </div>
                 </div>

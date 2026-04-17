@@ -65,35 +65,33 @@ describe("TaskCard", () => {
         expect(screen.getByText("Generate a daily summary report")).toBeInTheDocument();
     });
 
-    it("shows correct status badge - active (green class)", () => {
+    it("shows correct status indicator - active (green dot)", () => {
         renderTaskCard({ status: "active" });
-        const badge = screen.getByText("Active");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("success");
+        const label = screen.getByText("Active");
+        expect(label).toBeInTheDocument();
+        const dot = label.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("success");
     });
 
-    it("shows correct status badge - paused (yellow/warning class)", () => {
+    it("shows correct status indicator - paused (warning dot)", () => {
         renderTaskCard({ status: "paused" });
-        const badge = screen.getByText("Paused");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("warning");
+        const label = screen.getByText("Paused");
+        expect(label).toBeInTheDocument();
+        const dot = label.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("warning");
     });
 
-    it("shows correct status badge - error (red class)", () => {
+    it("shows correct status indicator - error (red dot)", () => {
         renderTaskCard({ status: "error" });
-        const badge = screen.getByText("Error");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("error");
+        const label = screen.getByText("Error");
+        expect(label).toBeInTheDocument();
+        const dot = label.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("error");
     });
 
     it("shows schedule description from formatSchedule", () => {
         renderTaskCard();
         expect(screen.getByText("Daily at 09:00")).toBeInTheDocument();
-    });
-
-    it("shows target agent name", () => {
-        renderTaskCard({ targetAgentName: "my-special-agent" });
-        expect(screen.getByText(/my-special-agent/)).toBeInTheDocument();
     });
 
     it("shows 'Config' badge when source is 'config'", () => {
@@ -192,16 +190,6 @@ describe("TaskCard", () => {
         renderTaskCard({}, { isSelected: false });
         const selectedCard = document.querySelector("[aria-selected='true']");
         expect(selectedCard).not.toBeInTheDocument();
-    });
-
-    it("shows Agent prefix for agent target type", () => {
-        renderTaskCard({ targetType: "agent", targetAgentName: "test-agent" });
-        expect(screen.getByText(/Agent: test-agent/)).toBeInTheDocument();
-    });
-
-    it("shows Workflow prefix for workflow target type", () => {
-        renderTaskCard({ targetType: "workflow", targetAgentName: "test-workflow" });
-        expect(screen.getByText(/Workflow: test-workflow/)).toBeInTheDocument();
     });
 
     describe("Run Now menu item", () => {

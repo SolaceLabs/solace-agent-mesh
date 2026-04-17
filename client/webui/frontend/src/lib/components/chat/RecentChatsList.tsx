@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { MessageCircle, CalendarClock } from "lucide-react";
@@ -8,6 +8,27 @@ import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+
+const SEEN_STORAGE_KEY = "sam.recentChats.seen";
+
+type SeenMap = Record<string, string>;
+
+const readSeenMap = (): SeenMap => {
+    try {
+        const raw = localStorage.getItem(SEEN_STORAGE_KEY);
+        return raw ? (JSON.parse(raw) as SeenMap) : {};
+    } catch {
+        return {};
+    }
+};
+
+const writeSeenMap = (map: SeenMap) => {
+    try {
+        localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(map));
+    } catch {
+        // ignore quota / serialization errors
+    }
+};
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -93,6 +114,42 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
 
+    const [seenMap, setSeenMap] = useState<SeenMap>(() => readSeenMap());
+
+    // Baseline unknown sessions on first sighting so we don't flag pre-existing updates.
+    useEffect(() => {
+        if (sessions.length === 0) return;
+        let changed = false;
+        const next = { ...seenMap };
+        for (const s of sessions) {
+            if (!next[s.id]) {
+                next[s.id] = s.updatedTime;
+                changed = true;
+            }
+        }
+        if (changed) {
+            setSeenMap(next);
+            writeSeenMap(next);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessions]);
+
+    const markSeen = useCallback((session: Session) => {
+        setSeenMap(prev => {
+            if (prev[session.id] === session.updatedTime) return prev;
+            const next = { ...prev, [session.id]: session.updatedTime };
+            writeSeenMap(next);
+            return next;
+        });
+    }, []);
+
+    // Mark the active session as seen whenever its updatedTime advances.
+    useEffect(() => {
+        if (!sessionId) return;
+        const active = sessions.find(s => s.id === sessionId);
+        if (active) markSeen(active);
+    }, [sessionId, sessions, markSeen]);
+
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
 
@@ -109,10 +166,11 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
+    const handleSessionClick = async (clickedSession: Session) => {
+        markSeen(clickedSession);
         // Navigate to chat page first, then switch session
         navigate("/chat");
-        await handleSwitchSession(clickedSessionId);
+        await handleSwitchSession(clickedSession.id);
     };
 
     if (isLoading && sessions.length === 0 && persistenceEnabled) {

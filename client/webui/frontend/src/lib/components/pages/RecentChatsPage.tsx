@@ -423,7 +423,10 @@ export const RecentChatsPage: React.FC = () => {
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <button
+                                                                type="button"
+                                                                onPointerDown={e => e.stopPropagation()}
                                                                 onClick={e => {
+                                                                    e.preventDefault();
                                                                     e.stopPropagation();
                                                                     navigate(`/schedules?taskId=${session.scheduledTaskId}`);
                                                                 }}
