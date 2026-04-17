@@ -33,7 +33,7 @@ import { ModelDeleteDialog } from "./ModelDeleteDialog";
 import { getProviderDisplayName, getDisplayModelName, getDisplayAliasName, DEFAULT_MODEL_ALIASES, isModelConfigured } from "./common";
 
 const MODELS_STORAGE_KEY = "sam-models-onboarding-dismissed";
-const MODELS_HEADER = "Your Models Are Now Accessible to Your Team";
+const MODELS_HEADER = "Your Models Are Now Accessible to Your Team.";
 const MODELS_DESCRIPTION =
     "Existing models from your local backend configuration have been imported here and are now accessible for anyone in your organization. Going forward, changes you make in this UI will take precedence over your shared config file.";
 const MODELS_LEARN_MORE_TEXT = "Learn about managing models";
@@ -41,7 +41,7 @@ const MODELS_URL = "https://solacelabs.github.io/solace-agent-mesh/docs/document
 
 const EMPTY_STATE_TITLE = "Match AI Models to Your Team's Workflows";
 const EMPTY_STATE_DESCRIPTION =
-    "Different models specialize in different use cases. Organize your models by use case and assign to agents based on what the agent needs. Start with our suggested names or create your own. The 'General' model is required but you can customize everything else to fit your workflow.";
+    "Different models specialize in different use cases. Organize your models by use case and assign to agents based on what the agent needs. Start with our suggested names or create your own. The 'General' and 'Planning' models are defaults required by the system but you can customize everything else to fit your workflow.";
 
 export const ModelsView: React.FC = () => {
     const navigate = useNavigate();
