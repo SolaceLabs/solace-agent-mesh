@@ -39,7 +39,7 @@ dependencies = [
     "plotly==6.3.0",
     "kaleido==0.2.1",
     "PyYAML==6.0.2",
-    "python-multipart==0.0.22",
+    "python-multipart==0.0.26",
     "wheel==0.46.2",
     "jaraco.context==6.1.0",
     "protobuf==6.33.5",
@@ -73,10 +73,10 @@ dependencies = [
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
-    "cryptography==46.0.6",  # [CVE-2026-34073] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
+    "cryptography==46.0.7",  # [CVE-2026-39892] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.2.0",  # [CVE-2026-25990, CVE-2026-40192] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
-    "pypdf==6.9.2",  # [CVE-2026-27888, CVE-2026-27628, CVE-2025-62708, CVE-2025-62707, CVE-2026-33699, CVE-2026-33123, CVE-2026-31826, CVE-2026-27024, CVE-2026-27025, CVE-2026-27026, CVE-2026-28351, CVE-2026-28804, CVE-2026-22690, CVE-2026-22691, CVE-2026-24688, CVE-2025-66019] Security fix: multiple vulnerabilities resolved in 6.9.2
+    "pypdf==6.10.2",  # [CVE-2026-40260, GHSA-jj6c-8h6c-hppx] Security fix: multiple vulnerabilities resolved in 6.10.2
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "google-cloud-storage==3.9.0",
@@ -135,7 +135,7 @@ dependencies = [
     "asyncpg",
     "bm25s==0.2.14",
     "pymysql>=1.1.0",  # Required for MySQL testcontainers
-    "pypdf==6.9.2",
+    "pypdf==6.10.2",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
     "sam-test-infrastructure @ {root:uri}/tests/sam-test-infrastructure"
