@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pencil, Trash2, Calendar, Clock, MoreHorizontal, Play, Pause, History, Zap, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
+import { Pencil, Trash2, Calendar, CalendarClock, Clock, MoreHorizontal, Play, Pause, History, Zap, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
@@ -127,6 +127,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
     const formatNextRun = (task: ScheduledTask): string => {
         if (task.status === "paused") return "Paused";
 
+        if (task.lastExecution && (task.lastExecution.status === "running" || task.lastExecution.status === "pending")) {
+            return "Running now";
+        }
+
         if (!task.nextRunAt) {
             // One-time tasks clear nextRunAt after completion
             if (task.scheduleType === "one_time" && task.lastRunAt) return "Completed";
@@ -143,12 +147,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
             return `In ${Math.floor(diff / 86400000)} days`;
         }
 
-        // nextRunAt is in the past — task likely ran or is running
-        if (task.lastRunAt && task.lastRunAt >= task.nextRunAt - 60000) {
-            return "Ran recently";
-        }
-
-        return "Overdue";
+        return "Due now";
     };
 
     return (
@@ -156,7 +155,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <Calendar className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <CalendarClock className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={task.name}>
                                 {task.name}

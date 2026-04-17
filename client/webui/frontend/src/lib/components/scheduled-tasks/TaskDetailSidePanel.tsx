@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Calendar, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, ChevronRight } from "lucide-react";
+import { X, Calendar, CalendarClock, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, ChevronRight } from "lucide-react";
 import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Badge } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
@@ -122,7 +122,7 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
             <div className="border-b p-4">
                 <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <Calendar className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
+                        <CalendarClock className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
                         <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                                 <h2 className="cursor-default truncate text-lg font-semibold">{task.name}</h2>

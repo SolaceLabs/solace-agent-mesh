@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate } from "react-router-dom";
-import { Loader2, Check, X, Plus, MessageCircle, CalendarClock, Calendar } from "lucide-react";
+import { Loader2, Check, X, Plus, MessageCircle, CalendarClock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
@@ -372,7 +372,7 @@ export const RecentChatsPage: React.FC = () => {
                     {filteredSessions.length > 0 && (
                         <div className="flex flex-col gap-2">
                             {filteredSessions.map(session => (
-                                <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
+                                <div key={session.id} className={sessionCardStyles({ active: false })}>
                                     {editingSessionId === session.id ? (
                                         <div className="flex items-center gap-2">
                                             <input
@@ -401,7 +401,7 @@ export const RecentChatsPage: React.FC = () => {
                                         <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
                                             <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                 <div className="flex items-center gap-2">
-                                                    <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
+                                                    <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={false} />
                                                     {session.hasRunningBackgroundTask && (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
@@ -429,7 +429,7 @@ export const RecentChatsPage: React.FC = () => {
                                                                 }}
                                                                 className="flex items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
                                                             >
-                                                                <Calendar size={12} />
+                                                                <CalendarClock size={12} />
                                                                 <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
                                                             </button>
                                                         </TooltipTrigger>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, CalendarClock } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
@@ -140,6 +140,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                     <Tooltip key={session.id}>
                         <TooltipTrigger asChild>
                             <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                                {session.source === "scheduler" ? <CalendarClock className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
                                 <div className="min-w-0 flex-1">
                                     <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>

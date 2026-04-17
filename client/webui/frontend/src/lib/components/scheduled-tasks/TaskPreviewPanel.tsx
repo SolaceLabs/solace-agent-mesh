@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
-import { Calendar, Clock, User, MessageSquare, CheckCircle2 } from "lucide-react";
+import { CalendarClock, Clock, User, MessageSquare, CheckCircle2 } from "lucide-react";
 import { describeScheduleExpression } from "./utils";
 
 interface TaskConfig {
@@ -112,7 +112,7 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                 {/* Schedule */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-(--secondary-text-wMain)" />
+                        <CalendarClock className="h-4 w-4 text-(--secondary-text-wMain)" />
                         <label className="text-sm font-medium text-(--secondary-text-wMain)">Schedule</label>
                         {(isFieldHighlighted("scheduleType") || isFieldHighlighted("scheduleExpression")) && (
                             <Badge variant="default" className="bg-(--primary-wMain) text-xs text-(--primary-text-w10)">
