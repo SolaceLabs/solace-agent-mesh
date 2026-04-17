@@ -5,10 +5,15 @@ Manages Server-Sent Event (SSE) connections for streaming task updates.
 import logging
 import asyncio
 import threading
+import time
 from typing import Dict, List, Any, Callable, Optional
 import json
 import datetime
 import math
+
+from sqlalchemy import text
+
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from .sse_event_buffer import SSEEventBuffer
 from .persistent_sse_event_buffer import PersistentSSEEventBuffer
@@ -37,6 +42,10 @@ class SSEManager:
     ):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
         self._event_buffer = event_buffer
+        # session_id → monotonic seconds of last updated_time touch. Used to
+        # throttle DB writes when a task streams many events back-to-back.
+        self._session_touch_cache: Dict[str, float] = {}
+        self._session_touch_cooldown_s: float = 1.0
         # Use a single threading lock for cross-event-loop synchronization
         self._lock = threading.Lock()
         self.log_identifier = "[SSEManager]"
@@ -301,6 +310,41 @@ class SSEManager:
             session_id,
         )
 
+    def _touch_session_updated_time(self, session_id: str) -> None:
+        """Bump ``sessions.updated_time`` so the UI can surface an
+        unseen-updates dot while the user isn't actively viewing the
+        session. Without this, ``updated_time`` only advances via
+        client-initiated ``save_task`` — which never fires if the user
+        isn't on that session — so background work completes silently.
+
+        Throttled per-session by ``_session_touch_cooldown_s`` to avoid
+        hammering the DB during chatty tasks.
+        """
+        if not self._session_factory or not session_id:
+            return
+        now_mono = time.monotonic()
+        last = self._session_touch_cache.get(session_id, 0.0)
+        if now_mono - last < self._session_touch_cooldown_s:
+            return
+        self._session_touch_cache[session_id] = now_mono
+        try:
+            db = self._session_factory()
+            try:
+                db.execute(
+                    text("UPDATE sessions SET updated_time = :t WHERE id = :sid"),
+                    {"t": now_epoch_ms(), "sid": session_id},
+                )
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            log.warning(
+                "%s Failed to touch updated_time for session %s: %s",
+                self.log_identifier,
+                session_id,
+                e,
+            )
+
     def get_persistent_buffer(self) -> PersistentSSEEventBuffer:
         """Get the persistent buffer instance."""
         return self._persistent_buffer
@@ -358,6 +402,12 @@ class SSEManager:
                     is_registered,
                     buffered,
                 )
+                # Mirror the buffered activity onto the session row so the
+                # Recent Chats sidebar can show an unseen-updates dot even
+                # when the user isn't currently viewing the session.
+                session_id = task_metadata.get("session_id") if isinstance(task_metadata, dict) else None
+                if session_id:
+                    self._touch_session_updated_time(session_id)
             elif is_registered:
                 # Fallback for registered tasks without metadata in cache
                 # This shouldn't happen in normal flow but provides safety

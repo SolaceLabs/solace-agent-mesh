@@ -4,10 +4,10 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { Loader2, Check, X, Plus, MessageCircle, CalendarClock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
+import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
+import { formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
@@ -154,10 +154,15 @@ export const RecentChatsPage: React.FC = () => {
         }
     }, [editingSessionId]);
 
+    const markViewedMutation = useMarkSessionViewed();
+
     const handleSessionClick = async (session: Session) => {
         if (editingSessionId !== session.id) {
             await handleSwitchSession(session.id);
             navigate("/chat");
+            // Mark after switch so SSE replay / save_task bumps to updated_time
+            // settle first — otherwise last_viewed_at races behind updated_time.
+            markViewedMutation.mutate(session.id);
         }
     };
 
@@ -402,6 +407,7 @@ export const RecentChatsPage: React.FC = () => {
                                             <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={false} />
+                                                    {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-[#0591D3]" />}
                                                     {session.hasRunningBackgroundTask && (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>

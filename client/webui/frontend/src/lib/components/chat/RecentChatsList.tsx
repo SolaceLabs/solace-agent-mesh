@@ -1,34 +1,14 @@
-import { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
 import { MessageCircle, CalendarClock } from "lucide-react";
 
-import { useRecentSessions } from "@/lib/api/sessions";
+import { useMarkSessionViewed, useRecentSessions } from "@/lib/api/sessions";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
-
-const SEEN_STORAGE_KEY = "sam.recentChats.seen";
-
-type SeenMap = Record<string, string>;
-
-const readSeenMap = (): SeenMap => {
-    try {
-        const raw = localStorage.getItem(SEEN_STORAGE_KEY);
-        return raw ? (JSON.parse(raw) as SeenMap) : {};
-    } catch {
-        return {};
-    }
-};
-
-const writeSeenMap = (map: SeenMap) => {
-    try {
-        localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify(map));
-    } catch {
-        // ignore quota / serialization errors
-    }
-};
+import { hasUnseenUpdates } from "@/lib/utils";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -113,42 +93,18 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     const { persistenceEnabled } = useConfigContext();
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
+    const markViewedMutation = useMarkSessionViewed();
 
-    const [seenMap, setSeenMap] = useState<SeenMap>(() => readSeenMap());
-
-    // Baseline unknown sessions on first sighting so we don't flag pre-existing updates.
-    useEffect(() => {
-        if (sessions.length === 0) return;
-        let changed = false;
-        const next = { ...seenMap };
-        for (const s of sessions) {
-            if (!next[s.id]) {
-                next[s.id] = s.updatedTime;
-                changed = true;
-            }
-        }
-        if (changed) {
-            setSeenMap(next);
-            writeSeenMap(next);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sessions]);
-
-    const markSeen = useCallback((session: Session) => {
-        setSeenMap(prev => {
-            if (prev[session.id] === session.updatedTime) return prev;
-            const next = { ...prev, [session.id]: session.updatedTime };
-            writeSeenMap(next);
-            return next;
-        });
-    }, []);
-
-    // Mark the active session as seen whenever its updatedTime advances.
+    // Mark the active session as viewed whenever it's selected or its updatedTime advances.
     useEffect(() => {
         if (!sessionId) return;
         const active = sessions.find(s => s.id === sessionId);
-        if (active) markSeen(active);
-    }, [sessionId, sessions, markSeen]);
+        if (!active) return;
+        if (!hasUnseenUpdates(active)) return;
+        markViewedMutation.mutate(active.id);
+        // Only depend on id + updatedTime to avoid re-firing on unrelated re-renders.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId, sessions.find(s => s.id === sessionId)?.updatedTime]);
 
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
@@ -167,10 +123,13 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     }, [currentTaskId, taskMapVersion]);
 
     const handleSessionClick = async (clickedSession: Session) => {
-        markSeen(clickedSession);
         // Navigate to chat page first, then switch session
         navigate("/chat");
         await handleSwitchSession(clickedSession.id);
+        // Mark viewed AFTER switch completes — switching can trigger SSE
+        // replay / save_task calls that advance the session's updated_time
+        // by a few ms, so writing last_viewed_at first would leave us behind.
+        markViewedMutation.mutate(clickedSession.id);
     };
 
     if (isLoading && sessions.length === 0 && persistenceEnabled) {
@@ -194,14 +153,17 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         <div className="flex flex-col">
             {sessions.slice(0, maxItems).map(session => {
                 const displayName = session.name?.trim() || "New Chat";
+                const isActive = session.id === sessionId;
+                const hasUnseen = !isActive && hasUnseenUpdates(session);
                 return (
                     <Tooltip key={session.id}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                            <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: isActive })}>
                                 {session.source === "scheduler" ? <CalendarClock className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
                                 <div className="min-w-0 flex-1">
-                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
+                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={isActive} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>
+                                {hasUnseen && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-[#0591D3]" />}
                             </button>
                         </TooltipTrigger>
                         <TooltipContent side="top">{displayName}</TooltipContent>

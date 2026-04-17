@@ -12,6 +12,14 @@ interface ExecutionListProps {
 
 const IN_PROGRESS_STATUSES = new Set(["pending", "running"]);
 
+const STATUS_LABELS: Record<string, string> = {
+    completed: "Completed",
+    failed: "Failed",
+    pending: "Pending",
+    running: "Running",
+    timeout: "Timeout",
+};
+
 const getStatusBadge = (status: string) => {
     const statusConfig = {
         completed: { bg: "bg-(--color-success-w20)", text: "text-(--color-success-wMain)", label: "Completed" },
@@ -47,8 +55,8 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
                                     className={`w-full rounded p-3 text-left transition-colors ${isSelected ? "border border-(--primary-w20) bg-(--primary-w10)" : "hover:bg-(--secondary-w20)"}`}
                                 >
                                     <div className="mb-2 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-1">
-                                            {getStatusBadge(execution.status)}
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{STATUS_LABELS[execution.status] ?? execution.status}</span>
                                             {execution.triggerType === "manual" && (
                                                 <span
                                                     className="rounded-full bg-(--color-info-w20) px-2 py-0.5 text-xs text-(--color-info-wMain)"

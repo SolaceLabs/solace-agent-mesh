@@ -27,6 +27,7 @@ class SessionResponse(BaseTimestampResponse):
     scheduled_task_name: str | None = Field(default=None, alias="scheduledTaskName")
     created_time: int = Field(alias="createdTime")
     updated_time: int | None = Field(default=None, alias="updatedTime")
+    last_viewed_at: int | None = Field(default=None, alias="lastViewedAt")
 
 
 class SessionListResponse(BaseModel):

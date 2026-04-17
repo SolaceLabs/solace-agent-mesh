@@ -18,15 +18,9 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
             queryClient.invalidateQueries({ queryKey: sessionKeys.recent(maxItems) });
         };
 
-        window.addEventListener("new-chat-session", handleSessionEvent);
-        window.addEventListener("session-updated", handleSessionEvent);
-        window.addEventListener("session-title-updated", handleSessionEvent);
-
-        return () => {
-            window.removeEventListener("new-chat-session", handleSessionEvent);
-            window.removeEventListener("session-updated", handleSessionEvent);
-            window.removeEventListener("session-title-updated", handleSessionEvent);
-        };
+        const events = ["new-chat-session", "session-updated", "session-title-updated", "background-task-completed"];
+        events.forEach(e => window.addEventListener(e, handleSessionEvent));
+        return () => events.forEach(e => window.removeEventListener(e, handleSessionEvent));
     }, [maxItems, queryClient]);
 
     return useQuery({
@@ -56,6 +50,35 @@ export function useInfiniteSessions(pageSize: number = 20, source?: string) {
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,
         refetchOnMount: "always",
+    });
+}
+
+/**
+ * Mark a session as viewed — clears the "unseen updates" indicator.
+ * Optimistically patches `lastViewedAt` into cached session lists so the dot
+ * disappears immediately.
+ */
+export function useMarkSessionViewed() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (sessionId: string) => sessionService.markSessionViewed(sessionId),
+        onSuccess: ({ lastViewedAt }, sessionId) => {
+            const patch = (session: { id: string; lastViewedAt?: number | null }) => (session.id === sessionId ? { ...session, lastViewedAt } : session);
+
+            // Recent sessions cache (sidebar).
+            queryClient.setQueriesData<{ id: string; lastViewedAt?: number | null }[]>({ queryKey: sessionKeys.lists() }, data => {
+                if (!data) return data;
+                if (Array.isArray(data)) return data.map(patch);
+                const paged = data as unknown as { pages?: { data: { id: string; lastViewedAt?: number | null }[] }[] };
+                if (paged?.pages) {
+                    return {
+                        ...paged,
+                        pages: paged.pages.map(p => ({ ...p, data: p.data.map(patch) })),
+                    } as unknown as { id: string; lastViewedAt?: number | null }[];
+                }
+                return data;
+            });
+        },
     });
 }
 

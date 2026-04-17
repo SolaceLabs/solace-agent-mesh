@@ -351,6 +351,9 @@ export interface Session {
     // back to its schedule definition.
     scheduledTaskId?: string | null;
     scheduledTaskName?: string | null;
+    // Epoch-ms when the user last opened this session. Drives the "unseen
+    // updates" dot in the sidebar; null/undefined means never viewed.
+    lastViewedAt?: number | null;
 }
 
 // RAG (Retrieval-Augmented Generation) Types

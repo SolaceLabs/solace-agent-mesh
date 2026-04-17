@@ -132,6 +132,7 @@ async def get_all_sessions(
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
+                last_viewed_at=session_domain.last_viewed_at,
             )
             session_responses.append(session_response)
 
@@ -188,6 +189,7 @@ async def search_sessions(
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
+                last_viewed_at=session_domain.last_viewed_at,
             )
             session_responses.append(session_response)
 
@@ -801,6 +803,50 @@ async def get_session_unconsumed_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check unconsumed events",
+        ) from e
+
+
+@router.post("/sessions/{session_id}/viewed", status_code=status.HTTP_200_OK)
+async def mark_session_viewed(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """Record that the user has viewed this session.
+
+    Sets ``last_viewed_at`` to the server's current epoch-ms without touching
+    ``updated_time``. Used by the UI to clear the "unseen updates" dot.
+    """
+    user_id = user.get("id")
+
+    if not session_id or session_id.strip() == "" or session_id in ["null", "undefined"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+        )
+
+    try:
+        viewed_at = session_service.mark_session_viewed(
+            db=db, session_id=session_id, user_id=user_id
+        )
+        if viewed_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+        return {"lastViewedAt": viewed_at}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error(
+            "Error marking session %s viewed for user %s: %s", session_id, user_id, e
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to mark session viewed",
         ) from e
 
 
