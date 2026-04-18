@@ -3,16 +3,17 @@
  *
  * The backend pushes events such as `session_created` when a scheduled task
  * execution creates a new chat session.  This hook listens for those events
- * and dispatches the corresponding window events so the session list hooks
- * (`useRecentSessions`, `useInfiniteSessions`) invalidate their caches
- * immediately — no polling required.
+ * and invalidates the relevant React Query caches directly so the session and
+ * scheduled-task lists refetch immediately — no polling, no CustomEvent bus.
  *
  * Uses the shared SSEProvider for connection management, which handles
  * auth token injection, automatic reconnection with fresh tokens, and
  * exponential backoff.
  */
 import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { scheduledTaskKeys } from "@/lib/api/scheduled-tasks/keys";
 import { useSSESubscription } from "@/lib/providers/SSEProvider";
 
 /**
@@ -27,21 +28,24 @@ import { useSSESubscription } from "@/lib/providers/SSEProvider";
  *   (usually at completion). Also triggers `"new-chat-session"` for the
  *   Recent Chats sidebar.
  *
- * All three trigger `"scheduled-task-completed"` so the execution history
- * queries refetch.
+ * All three invalidate scheduled-task query caches so execution history and
+ * task lists refetch.
  */
 export function useNotificationSSE(): void {
-    const onSessionCreated = useCallback(() => {
-        // Refresh the Recent Chats sidebar
-        window.dispatchEvent(new CustomEvent("new-chat-session"));
-        // Refresh the execution history list on the scheduled tasks page
-        window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
-    }, []);
+    const queryClient = useQueryClient();
 
-    const onExecutionActivity = useCallback(() => {
-        // Refresh the execution history so the new/updated row appears.
-        window.dispatchEvent(new CustomEvent("scheduled-task-completed"));
-    }, []);
+    const invalidateScheduledTasks = useCallback(() => {
+        // Invalidate all scheduled-task caches (lists, details, executions,
+        // recent-executions) so any mounted consumer refetches.
+        queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.all });
+    }, [queryClient]);
+
+    const onSessionCreated = useCallback(() => {
+        // Refresh the Recent Chats sidebar (still event-driven; session hooks
+        // listen for this from multiple sources including ChatProvider).
+        window.dispatchEvent(new CustomEvent("new-chat-session"));
+        invalidateScheduledTasks();
+    }, [invalidateScheduledTasks]);
 
     useSSESubscription({
         endpoint: "/api/v1/sse/notifications",
@@ -52,12 +56,12 @@ export function useNotificationSSE(): void {
     useSSESubscription({
         endpoint: "/api/v1/sse/notifications",
         eventType: "execution_queued",
-        onMessage: onExecutionActivity,
+        onMessage: invalidateScheduledTasks,
     });
 
     useSSESubscription({
         endpoint: "/api/v1/sse/notifications",
         eventType: "execution_started",
-        onMessage: onExecutionActivity,
+        onMessage: invalidateScheduledTasks,
     });
 }

@@ -65,7 +65,9 @@ export function useMarkSessionViewed() {
         onSuccess: ({ lastViewedAt }, sessionId) => {
             const patch = (session: { id: string; lastViewedAt?: number | null }) => (session.id === sessionId ? { ...session, lastViewedAt } : session);
 
-            // Recent sessions cache (sidebar).
+            // Patch any cached list/infinite variants. `sessionKeys.lists()` is a
+            // prefix of `sessionKeys.recent(...)` and the infinite list key, so
+            // setQueriesData's partial-match filter covers both shapes.
             queryClient.setQueriesData<{ id: string; lastViewedAt?: number | null }[]>({ queryKey: sessionKeys.lists() }, data => {
                 if (!data) return data;
                 if (Array.isArray(data)) return data.map(patch);

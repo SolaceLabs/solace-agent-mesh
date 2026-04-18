@@ -5,6 +5,7 @@ import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import type { ScheduledTask, TaskStatus, LastExecutionSummary } from "@/lib/types/scheduled-tasks";
 import { formatDuration, formatRelativeTime } from "@/lib/utils/format";
+import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
 
 const lastRunLabel = (last: LastExecutionSummary): string => {
@@ -29,8 +30,7 @@ const lastRunLabel = (last: LastExecutionSummary): string => {
 };
 
 const renderLastRun = (last: LastExecutionSummary) => {
-    const whenEpoch = last.completedAt ?? last.startedAt ?? last.scheduledFor;
-    const whenTs = whenEpoch < 10000000000 ? whenEpoch * 1000 : whenEpoch;
+    const whenTs = toEpochMs(last.completedAt ?? last.startedAt ?? last.scheduledFor);
     const whenIso = new Date(whenTs).toISOString();
     const relative = formatRelativeTime(whenIso);
     const absolute = new Date(whenTs).toLocaleString();

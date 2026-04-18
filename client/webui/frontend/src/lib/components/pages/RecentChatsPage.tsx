@@ -407,7 +407,7 @@ export const RecentChatsPage: React.FC = () => {
                                             <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                 <div className="flex items-center gap-2">
                                                     <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={false} />
-                                                    {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-[#0591D3]" />}
+                                                    {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
                                                     {session.hasRunningBackgroundTask && (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
@@ -434,9 +434,9 @@ export const RecentChatsPage: React.FC = () => {
                                                                 onClick={e => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
-                                                                    navigate(`/schedules?taskId=${session.scheduledTaskId}`);
+                                                                    navigate(`/scheduled-tasks?taskId=${session.scheduledTaskId}`);
                                                                 }}
-                                                                className="flex items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
+                                                                className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
                                                             >
                                                                 <CalendarClock size={12} />
                                                                 <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>

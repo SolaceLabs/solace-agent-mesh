@@ -4,6 +4,7 @@ import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Badge } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
 import { formatDuration } from "@/lib/utils/format";
+import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
 
 const RECENT_RUNS_COUNT = 5;
@@ -56,8 +57,7 @@ const RecentRuns: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskI
                 <ul className="space-y-1">
                     {executions.map(ex => {
                         const { Icon, className, label } = executionStatusIcon(ex.status);
-                        const whenRaw = ex.completedAt ?? ex.startedAt ?? ex.scheduledFor;
-                        const when = whenRaw < 10000000000 ? whenRaw * 1000 : whenRaw;
+                        const when = toEpochMs(ex.completedAt ?? ex.startedAt ?? ex.scheduledFor);
                         const duration = ex.durationMs ? formatDuration(ex.durationMs) : null;
                         return (
                             <li key={ex.id}>

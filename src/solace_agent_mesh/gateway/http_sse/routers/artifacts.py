@@ -174,6 +174,36 @@ def _resolve_execution_context(session_id: str) -> tuple[str | None, dict[str, i
     return stable_id, artifact_info
 
 
+def _user_owns_execution_session(session_id: str, user_id: str) -> bool:
+    """Return True if ``user_id`` owns the scheduled task behind ``session_id``.
+
+    Used to gate artifact access for per-execution scheduled sessions so a
+    user who obtains another user's execution/session id cannot fetch their
+    artifacts.
+    """
+    execution = _get_execution_from_db(session_id, "_user_owns_execution_session")
+    if not execution:
+        return False
+
+    try:
+        from ..repository.scheduled_task_repository import ScheduledTaskRepository
+        from ..dependencies import SessionLocal
+
+        if SessionLocal is None:
+            return False
+
+        repo = ScheduledTaskRepository()
+        with SessionLocal() as db:
+            task = repo.find_by_id(db, execution.scheduled_task_id)
+    except Exception as e:
+        log.warning("[_user_owns_execution_session] lookup failed for %s: %s", session_id, e)
+        return False
+
+    if not task:
+        return False
+    return task.created_by == user_id
+
+
 def _resolve_storage_context(
     session_id: str,
     project_id: str | None,
@@ -206,6 +236,18 @@ def _resolve_storage_context(
         # A single DB lookup returns both the storage session and artifact info.
         stable_session, artifact_info = _resolve_execution_context(session_id)
         if stable_session:
+            # Ownership check: ensure the requesting user owns the scheduled
+            # task that produced these artifacts. Return 404 (not 403) to avoid
+            # confirming existence to unauthorized users.
+            if not _user_owns_execution_session(session_id, user_id):
+                log.warning(
+                    "%s User %s not authorized for scheduled session %s",
+                    log_prefix, user_id, session_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Session not found or access denied.",
+                )
             log.info(
                 "%s Resolved scheduled storage session: %s -> %s",
                 log_prefix, session_id, stable_session,

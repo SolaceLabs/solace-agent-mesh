@@ -46,8 +46,8 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 id: "schedules",
                 label: "Schedules",
                 icon: CalendarClock,
-                route: "/schedules",
-                routeMatch: "/schedules",
+                route: "/scheduled-tasks",
+                routeMatch: "/scheduled-tasks",
                 tooltip: "Experimental Feature",
                 position: "top",
             });
@@ -116,7 +116,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
-        if (path.startsWith("/schedules")) return "schedules";
+        if (path.startsWith("/scheduled-tasks")) return "schedules";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

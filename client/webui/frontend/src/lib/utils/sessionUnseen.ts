@@ -1,11 +1,15 @@
 import type { Session } from "@/lib/types";
 
-/** Coerce any of {null, epoch-ms number, epoch-ms digit-string, ISO-8601 string} to epoch-ms. */
-const toEpochMs = (v: string | number | null | undefined): number => {
+/**
+ * Coerce any of {null, epoch-ms/epoch-s number, digit-string, ISO-8601 string}
+ * to epoch-ms. Numeric values smaller than ~year-2286 in ms (i.e. typical
+ * epoch-seconds) are multiplied by 1000.
+ */
+export const toEpochMs = (v: string | number | null | undefined): number => {
     if (v == null) return Number.NaN;
-    if (typeof v === "number") return v;
+    if (typeof v === "number") return v < 10000000000 ? v * 1000 : v;
     const n = Number(v);
-    if (Number.isFinite(n)) return n;
+    if (Number.isFinite(n)) return n < 10000000000 ? n * 1000 : n;
     const parsed = Date.parse(v);
     return Number.isFinite(parsed) ? parsed : Number.NaN;
 };

@@ -8,7 +8,7 @@ import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
-import { hasUnseenUpdates } from "@/lib/utils";
+import { hasUnseenUpdates, toEpochMs } from "@/lib/utils";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -96,15 +96,33 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     const markViewedMutation = useMarkSessionViewed();
 
     // Mark the active session as viewed whenever it's selected or its updatedTime advances.
+    // SSE can bump `updated_time` per streamed chunk (~1s), so gate with a ref to only
+    // fire when the viewed timestamp is actually behind the latest update we've acted on.
+    const lastMarkedViewedRef = useRef<Map<string, number>>(new Map());
     useEffect(() => {
         if (!sessionId) return;
         const active = sessions.find(s => s.id === sessionId);
         if (!active) return;
         if (!hasUnseenUpdates(active)) return;
+        const updatedMs = toEpochMs(active.updatedTime);
+        if (!Number.isFinite(updatedMs)) return;
+        const lastMarked = lastMarkedViewedRef.current.get(active.id) ?? 0;
+        if (lastMarked >= updatedMs) return;
+        lastMarkedViewedRef.current.set(active.id, updatedMs);
         markViewedMutation.mutate(active.id);
         // Only depend on id + updatedTime to avoid re-firing on unrelated re-renders.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId, sessions.find(s => s.id === sessionId)?.updatedTime]);
+
+    const prevSessionRef = useRef<string | null>(sessionId);
+    useEffect(() => {
+        const prev = prevSessionRef.current;
+        if (prev && prev !== sessionId) {
+            markViewedMutation.mutate(prev);
+        }
+        prevSessionRef.current = sessionId;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId]);
 
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
@@ -163,7 +181,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                                 <div className="min-w-0 flex-1">
                                     <SessionName session={session} respondingSessionId={respondingSessionId} isActive={isActive} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                 </div>
-                                {hasUnseen && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-[#0591D3]" />}
+                                {hasUnseen && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
                             </button>
                         </TooltipTrigger>
                         <TooltipContent side="top">{displayName}</TooltipContent>

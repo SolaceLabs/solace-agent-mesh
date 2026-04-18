@@ -156,7 +156,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         with MonitorLatency(DBMonitor.query(self.table_name)):
             stmt = text(
                 "UPDATE sessions "
-                "SET last_viewed_at = MAX(COALESCE(updated_time, 0), :viewed_at) "
+                "SET last_viewed_at = CASE "
+                "  WHEN COALESCE(updated_time, 0) > :viewed_at THEN COALESCE(updated_time, 0) "
+                "  ELSE :viewed_at "
+                "END "
                 "WHERE id = :sid AND user_id = :uid AND deleted_at IS NULL"
             )
             result = db_session.execute(
