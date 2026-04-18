@@ -94,6 +94,14 @@ export const Default: Story = {
 
         expect(generalBadge).toBeInTheDocument();
         expect(planningBadge).toBeInTheDocument();
+
+        // Verify "Add Model" button appears on the Models tab and navigates when clicked
+        const addModelButton = canvas.getByRole("button", { name: /Add Model/i });
+        expect(addModelButton).toBeInTheDocument();
+        await userEvent.click(addModelButton);
+
+        // After clicking, navigation to /models/new/edit unmounts the models table
+        expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
     },
 };
 

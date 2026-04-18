@@ -475,8 +475,14 @@ class TestDefaultModelPlaceholders:
 
         db = platform_db_session_factory()
         try:
-            # Seed with no config (empty table)
-            count = seed_model_configurations(db, models_config=None)
+            # Mock os.getenv in the seeder module so host env vars don't
+            # cause _seed_from_env_vars to create real records instead of placeholders
+            with patch(
+                "solace_agent_mesh.services.platform.services.model_configuration_seeder.os.getenv",
+                return_value="",
+            ):
+                # Seed with no config (empty table)
+                count = seed_model_configurations(db, models_config=None)
             db.commit()
 
             # Both defaults should exist

@@ -3489,6 +3489,98 @@ class SamAgentComponent(SamComponentBase):
                 exc_info=e,
             )
 
+    async def _get_toolset_manifest_entries(self, toolset, toolset_type_name):
+        """Retrieve manifest entries from an MCPToolset or OpenAPIToolset."""
+        no_description = "No description available."
+        try:
+            log.debug(
+                "%s Retrieving tools from %s for Agent %s...",
+                self.log_identifier,
+                toolset_type_name,
+                self.agent_name,
+            )
+            tools = await toolset.get_tools()
+        except Exception as e:
+            log.error(
+                "%s Error retrieving tools from %s for Agent Card %s: %s",
+                self.log_identifier,
+                toolset_type_name,
+                self.agent_name,
+                e,
+            )
+            return []
+        toolset_scopes = getattr(toolset, "required_scopes", [])
+        return [
+            {
+                "id": t.name,
+                "name": t.name,
+                "description": t.description or no_description,
+                "required_scopes": toolset_scopes,
+            }
+            for t in tools
+        ]
+
+    def _get_single_tool_manifest_entry(self, tool):
+        """Build a manifest entry for a single non-toolset tool, or return None."""
+        no_description = "No description available."
+        # For DynamicTool subclasses, use tool_name/tool_description properties
+        # (the inherited 'name'/'description' attrs may still be placeholders)
+        if hasattr(tool, "tool_name"):
+            tool_name = tool.tool_name
+            tool_description = tool.tool_description
+        else:
+            tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
+            tool_description = getattr(
+                tool, "description", getattr(tool, "__doc__", None)
+            )
+        if tool_name is None:
+            return None
+        return {
+            "id": tool_name,
+            "name": tool_name,
+            "description": tool_description or no_description,
+            "required_scopes": self.tool_scopes_map.get(tool_name, []),
+        }
+
+    def _signal_async_init_future(self, *, success, error=None):
+        """Signal the main thread with the result of async initialization."""
+        if not self._async_init_future or self._async_init_future.done():
+            log.warning(
+                "%s _perform_async_init: _async_init_future is None or already done before signaling.",
+                self.log_identifier,
+            )
+            return
+        if success:
+            log.info(
+                "%s _perform_async_init: Signaling success to main thread.",
+                self.log_identifier,
+            )
+            self._async_loop.call_soon_threadsafe(
+                self._async_init_future.set_result, True
+            )
+        else:
+            log.error(
+                "%s _perform_async_init: Signaling failure to main thread.",
+                self.log_identifier,
+            )
+            self._async_loop.call_soon_threadsafe(
+                self._async_init_future.set_exception, error
+            )
+
+    async def _build_tool_manifest(self, loaded_tools):
+        """Build the agent card tool manifest from loaded tools."""
+        tool_manifest = []
+        for tool in loaded_tools:
+            if isinstance(tool, (MCPToolset, OpenAPIToolset)):
+                toolset_type_name = type(tool).__name__
+                entries = await self._get_toolset_manifest_entries(tool, toolset_type_name)
+                tool_manifest.extend(entries)
+            else:
+                entry = self._get_single_tool_manifest_entry(tool)
+                if entry:
+                    tool_manifest.append(entry)
+        return tool_manifest
+
     async def _perform_async_init(self):
         """Coroutine executed on the dedicated loop to perform async initialization."""
         try:
@@ -3512,80 +3604,7 @@ class SamAgentComponent(SamComponentBase):
             self.runner = initialize_adk_runner(self)
 
             log.info("%s Populating agent card tool manifest...", self.log_identifier)
-            tool_manifest = []
-            for tool in loaded_tools:
-                if isinstance(tool, MCPToolset):
-                    try:
-                        log.debug(
-                            "%s Retrieving tools from MCPToolset for Agent %s...",
-                            self.log_identifier,
-                            self.agent_name,
-                        )
-                        mcp_tools = await tool.get_tools()
-                    except Exception as e:
-                        log.error(
-                            "%s Error retrieving tools from MCPToolset for Agent Card %s: %s",
-                            self.log_identifier,
-                            self.agent_name,
-                            e,
-                        )
-                        continue
-                    # Get scopes from the toolset (config-level scopes apply to all MCP tools)
-                    toolset_scopes = getattr(tool, "required_scopes", [])
-                    for mcp_tool in mcp_tools:
-                        tool_manifest.append(
-                            {
-                                "id": mcp_tool.name,
-                                "name": mcp_tool.name,
-                                "description": mcp_tool.description
-                                or "No description available.",
-                                "required_scopes": toolset_scopes,
-                            }
-                        )
-                elif isinstance(tool, OpenAPIToolset):
-                    try:
-                        log.debug(
-                            "%s Retrieving tools from OpenAPIToolset for Agent %s...",
-                            self.log_identifier,
-                            self.agent_name,
-                        )
-                        openapi_tools = await tool.get_tools()
-                    except Exception as e:
-                        log.error(
-                            "%s Error retrieving tools from OpenAPIToolset for Agent Card %s: %s",
-                            self.log_identifier,
-                            self.agent_name,
-                            e,
-                        )
-                        continue
-                    # Get scopes from the toolset (config-level scopes apply to all OpenAPI tools)
-                    toolset_scopes = getattr(tool, "required_scopes", [])
-                    for openapi_tool in openapi_tools:
-                        tool_manifest.append(
-                            {
-                                "id": openapi_tool.name,
-                                "name": openapi_tool.name,
-                                "description": openapi_tool.description
-                                or "No description available.",
-                                "required_scopes": toolset_scopes,
-                            }
-                        )
-                else:
-                    tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
-                    if tool_name is not None:
-                        tool_manifest.append(
-                            {
-                                "id": tool_name,
-                                "name": tool_name,
-                                "description": getattr(
-                                    tool, "description", getattr(tool, "__doc__", None)
-                                )
-                                or "No description available.",
-                                "required_scopes": self.tool_scopes_map.get(tool_name, []),
-                            }
-                        )
-
-            self.agent_card_tool_manifest = tool_manifest
+            self.agent_card_tool_manifest = await self._build_tool_manifest(loaded_tools)
             log.info(
                 "%s Agent card tool manifest populated with %d tools.",
                 self.log_identifier,
@@ -3596,38 +3615,14 @@ class SamAgentComponent(SamComponentBase):
                 "%s Async initialization steps complete in dedicated thread.",
                 self.log_identifier,
             )
-            if self._async_init_future and not self._async_init_future.done():
-                log.info(
-                    "%s _perform_async_init: Signaling success to main thread.",
-                    self.log_identifier,
-                )
-                self._async_loop.call_soon_threadsafe(
-                    self._async_init_future.set_result, True
-                )
-            else:
-                log.warning(
-                    "%s _perform_async_init: _async_init_future is None or already done before signaling success.",
-                    self.log_identifier,
-                )
+            self._signal_async_init_future(success=True)
         except Exception as e:
             log.exception(
                 "%s _perform_async_init: Error during async initialization in dedicated thread: %s",
                 self.log_identifier,
                 e,
             )
-            if self._async_init_future and not self._async_init_future.done():
-                log.error(
-                    "%s _perform_async_init: Signaling failure to main thread.",
-                    self.log_identifier,
-                )
-                self._async_loop.call_soon_threadsafe(
-                    self._async_init_future.set_exception, e
-                )
-            else:
-                log.warning(
-                    "%s _perform_async_init: _async_init_future is None or already done before signaling failure.",
-                    self.log_identifier,
-                )
+            self._signal_async_init_future(success=False, error=e)
             raise e
 
     def cleanup(self):
@@ -4130,29 +4125,6 @@ class SamAgentComponent(SamComponentBase):
             )
             raise e
 
-    def _on_model_status_change(self, old_status: str, new_status: str):
-        """Callback invoked by LiteLlm on any status transition.
-
-        Handles starting/stopping agent card publishing based on model readiness.
-        """
-        if not self._lazy_model_mode:
-            return  # No action needed if not in lazy model mode
-        
-        log.info(
-            "%s Model status changed: %s -> %s",
-            self.log_identifier,
-            old_status,
-            new_status,
-        )
-        if new_status == "ready":
-            self._publish_agent_card()
-        elif new_status == "none" and old_status == "ready":
-            self.cancel_timer(self._card_publish_timer_id)
-            log.info(
-                "%s Agent card publishing stopped (model unconfigured).",
-                self.log_identifier,
-            )
-
     async def _async_setup_and_run(self) -> None:
         """
         Main async logic for the agent component.
@@ -4165,8 +4137,7 @@ class SamAgentComponent(SamComponentBase):
             # Perform agent-specific async initialization
             await self._perform_async_init()
 
-            if not self._lazy_model_mode:
-                self._publish_agent_card()
+            self._publish_agent_card()
 
         except Exception as e:
             log.exception(

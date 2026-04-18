@@ -324,10 +324,10 @@ export const EditModelWithAdvancedParams: Story = {
         const editTexts = await canvas.findAllByText("Edit anthropic-model");
         expect(editTexts.length).toBeGreaterThanOrEqual(1);
 
-        // Open Advanced Settings
+        // Open Advanced Settings (Accordion trigger has data-state="closed" by default)
         const advancedSummary = await canvas.findByText("Advanced Settings");
-        const detailsElement = advancedSummary.closest("details");
-        expect(detailsElement).not.toHaveAttribute("open");
+        const accordionTrigger = advancedSummary.closest("button");
+        expect(accordionTrigger).toHaveAttribute("data-state", "closed");
 
         await userEvent.click(advancedSummary);
 
@@ -341,6 +341,22 @@ export const EditModelWithAdvancedParams: Story = {
         // Verify values are populated from model
         expect(temperatureInput.value).toBe("0.1");
         expect(maxTokensInput.value).toBe("4096");
+
+        // Verify Custom Parameters section is visible
+        await expect(await canvas.findByText("Custom Parameters")).toBeInTheDocument();
+
+        // Click "New Pair" to add a custom parameter row
+        const newPairButton = await canvas.findByRole("button", { name: /New Pair/i });
+        expect(newPairButton).not.toBeDisabled();
+        await userEvent.click(newPairButton);
+
+        // Fill in the key but leave value empty to exercise validation error paths
+        const keyInput = await canvas.findByLabelText("Key 1");
+        await userEvent.type(keyInput, "my_param");
+
+        // Click "Save" to trigger form submission which exercises the custom params validation
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
     },
 };
 
