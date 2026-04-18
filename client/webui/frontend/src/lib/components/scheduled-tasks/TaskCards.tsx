@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { X, Filter } from "lucide-react";
 
 import type { ScheduledTask } from "@/lib/types/scheduled-tasks";
@@ -18,13 +19,34 @@ interface TaskCardsProps {
     onDelete: (taskId: string) => void;
     onToggleEnabled: (task: ScheduledTask) => void;
     onViewExecutions: (task: ScheduledTask) => void;
+    onRunNow?: (task: ScheduledTask) => void;
+    runNowPendingTaskId?: string | null;
 }
 
-export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onAIAssisted, onEdit, onDelete, onToggleEnabled, onViewExecutions }) => {
+export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onAIAssisted, onEdit, onDelete, onToggleEnabled, onViewExecutions, onRunNow, runNowPendingTaskId }) => {
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
     const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+    // Deep-link support: /schedules?taskId=<id> selects and scrolls to that
+    // task (used by the session-card badge in /recent-chats). We consume the
+    // param once and strip it so a browser-back doesn't re-trigger selection.
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const deeplinkTaskId = searchParams.get("taskId");
+        if (!deeplinkTaskId) return;
+        if (tasks.some(t => t.id === deeplinkTaskId)) {
+            setSelectedTaskId(deeplinkTaskId);
+            // Defer scroll until the card is rendered
+            requestAnimationFrame(() => {
+                document.querySelector(`[data-task-id="${deeplinkTaskId}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+            const next = new URLSearchParams(searchParams);
+            next.delete("taskId");
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams, tasks]);
 
     const selectedTask = useMemo(() => tasks.find(t => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId]);
 
@@ -172,16 +194,19 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
 
                                     {/* Existing Task Cards */}
                                     {filteredTasks.map(task => (
-                                        <TaskCard
-                                            key={task.id}
-                                            task={task}
-                                            isSelected={selectedTask?.id === task.id}
-                                            onTaskClick={() => handleTaskClick(task)}
-                                            onEdit={onEdit}
-                                            onDelete={onDelete}
-                                            onToggleEnabled={onToggleEnabled}
-                                            onViewExecutions={onViewExecutions}
-                                        />
+                                        <div key={task.id} data-task-id={task.id}>
+                                            <TaskCard
+                                                task={task}
+                                                isSelected={selectedTask?.id === task.id}
+                                                onTaskClick={() => handleTaskClick(task)}
+                                                onEdit={onEdit}
+                                                onDelete={onDelete}
+                                                onToggleEnabled={onToggleEnabled}
+                                                onViewExecutions={onViewExecutions}
+                                                onRunNow={onRunNow}
+                                                isRunNowPending={runNowPendingTaskId === task.id}
+                                            />
+                                        </div>
                                     ))}
                                 </div>
                             </div>

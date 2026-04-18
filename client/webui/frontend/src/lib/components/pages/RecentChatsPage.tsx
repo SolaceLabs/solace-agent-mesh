@@ -4,10 +4,10 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { Loader2, Check, X, Plus, MessageCircle, CalendarClock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
+import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
+import { formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
@@ -56,11 +56,33 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return "none";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
+    // Only show the hover tooltip when the rendered title is actually truncated
+    // — otherwise it just covers text the user can already read.
+    const titleRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+    useEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const observer = new ResizeObserver(check);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [animatedName]);
+
+    const titleNode = (
+        <span ref={titleRef} className={sessionTitleStyles({ active: isSelected, animation: animationVariant })}>
+            {animatedName}
+        </span>
+    );
+
+    if (!isTruncated) {
+        return titleNode;
+    }
+
     return (
         <Tooltip>
-            <TooltipTrigger asChild>
-                <span className={sessionTitleStyles({ active: isSelected, animation: animationVariant })}>{animatedName}</span>
-            </TooltipTrigger>
+            <TooltipTrigger asChild>{titleNode}</TooltipTrigger>
             <TooltipContent className="max-w-[480px]">{animatedName}</TooltipContent>
         </Tooltip>
     );
@@ -132,10 +154,15 @@ export const RecentChatsPage: React.FC = () => {
         }
     }, [editingSessionId]);
 
+    const markViewedMutation = useMarkSessionViewed();
+
     const handleSessionClick = async (session: Session) => {
         if (editingSessionId !== session.id) {
             await handleSwitchSession(session.id);
             navigate("/chat");
+            // Mark after switch so SSE replay / save_task bumps to updated_time
+            // settle first — otherwise last_viewed_at races behind updated_time.
+            markViewedMutation.mutate(session.id);
         }
     };
 
@@ -295,158 +322,181 @@ export const RecentChatsPage: React.FC = () => {
                 ]}
             />
 
-            <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
-                {/* Tabs and Search/Filter Bar */}
-                <div className="flex flex-col gap-4">
-                    {/* Tabs: Chats / Scheduled Tasks */}
-                    {configFeatureEnablement?.scheduler && (
-                        <div className="flex justify-center">
-                            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
-                                <TabsList className="bg-transparent p-0">
-                                    <TabsTrigger value="chat" className="rounded-none rounded-l-md px-6">
-                                        <MessageCircle className="h-4 w-4 shrink-0" />
-                                        Chats
-                                    </TabsTrigger>
-                                    <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0 px-6">
-                                        <CalendarClock className="h-4 w-4 shrink-0" />
-                                        Scheduled Tasks
-                                    </TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
-
-                    {/* Search and Filter Bar - only show when there are sessions */}
-                    {sessions.length > 0 && (
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1">
-                                <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
+            <div className="flex flex-1 flex-col overflow-y-auto px-8 py-6">
+                <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+                    {/* Tabs and Search/Filter Bar */}
+                    <div className="flex flex-col gap-4">
+                        {/* Tabs: Chats / Scheduled Tasks */}
+                        {configFeatureEnablement?.scheduler && (
+                            <div className="flex justify-center">
+                                <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                                    <TabsList className="bg-transparent p-0">
+                                        <TabsTrigger value="chat" className="rounded-none rounded-l-md px-6">
+                                            <MessageCircle className="h-4 w-4 shrink-0" />
+                                            Chats
+                                        </TabsTrigger>
+                                        <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0 px-6">
+                                            <CalendarClock className="h-4 w-4 shrink-0" />
+                                            Scheduled Tasks
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
                             </div>
+                        )}
 
-                            {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
-                                <div className="flex items-center gap-2">
-                                    <label className="text-sm font-medium">Project:</label>
-                                    <Select value={selectedProject} onValueChange={setSelectedProject}>
-                                        <SelectTrigger className="w-[200px] rounded-md">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Chats</SelectItem>
-                                            {projectNames.map(projectName => (
-                                                <SelectItem key={projectName} value={projectName}>
-                                                    {projectName}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                        {/* Search and Filter Bar - only show when there are sessions */}
+                        {sessions.length > 0 && (
+                            <div className="flex items-center gap-4">
+                                <div className="flex-1">
+                                    <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </div>
 
-                {/* Sessions Grid */}
-                {filteredSessions.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                        {filteredSessions.map(session => (
-                            <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
-                                {editingSessionId === session.id ? (
+                                {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            ref={inputRef}
-                                            type="text"
-                                            value={editingSessionName}
-                                            onChange={e => setEditingSessionName(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === "Enter") {
-                                                    e.preventDefault();
-                                                    handleRename();
-                                                }
-                                            }}
-                                            className="min-w-0 flex-1 bg-transparent focus:outline-none"
-                                        />
-                                        <div className="flex flex-shrink-0 items-center gap-1">
-                                            <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
-                                                <Check size={16} />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => setEditingSessionId(null)} className="h-8 w-8 p-0">
-                                                <X size={16} />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
-                                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                            <div className="flex items-center gap-2">
-                                                <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
-                                                {session.hasRunningBackgroundTask && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-(--primary-wMain)" />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>Background task running</TooltipContent>
-                                                    </Tooltip>
-                                                )}
-                                            </div>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <div className="w-fit cursor-default text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</div>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="bottom">{formatTimestamp(session.updatedTime)}</TooltipContent>
-                                            </Tooltip>
-                                        </div>
-                                        <div className="flex flex-shrink-0 items-center gap-2">
-                                            {session.projectName && <ProjectBadge text={session.projectName} />}
-                                            <SessionActionMenu
-                                                session={session}
-                                                onRename={handleEditClick}
-                                                onRenameWithAI={handleRenameWithAI}
-                                                onMove={handleMoveClick}
-                                                onDelete={handleDeleteClick}
-                                                onGoToProject={handleGoToProject}
-                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
-                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
-                                            />
-                                        </div>
+                                        <label className="text-sm font-medium">Project:</label>
+                                        <Select value={selectedProject} onValueChange={setSelectedProject}>
+                                            <SelectTrigger className="w-[200px] rounded-md">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Chats</SelectItem>
+                                                {projectNames.map(projectName => (
+                                                    <SelectItem key={projectName} value={projectName}>
+                                                        {projectName}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 )}
                             </div>
-                        ))}
+                        )}
                     </div>
-                )}
 
-                {/* Empty States */}
-                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+                    {/* Sessions Grid */}
+                    {filteredSessions.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            {filteredSessions.map(session => (
+                                <div key={session.id} className={sessionCardStyles({ active: false })}>
+                                    {editingSessionId === session.id ? (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                ref={inputRef}
+                                                type="text"
+                                                value={editingSessionName}
+                                                onChange={e => setEditingSessionName(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        handleRename();
+                                                    }
+                                                }}
+                                                className="min-w-0 flex-1 bg-transparent focus:outline-none"
+                                            />
+                                            <div className="flex flex-shrink-0 items-center gap-1">
+                                                <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
+                                                    <Check size={16} />
+                                                </Button>
+                                                <Button variant="ghost" size="sm" onClick={() => setEditingSessionId(null)} className="h-8 w-8 p-0">
+                                                    <X size={16} />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={false} />
+                                                    {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
+                                                    {session.hasRunningBackgroundTask && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-(--primary-wMain)" />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Background task running</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="w-fit cursor-default text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="bottom">{formatTimestamp(session.updatedTime)}</TooltipContent>
+                                                </Tooltip>
+                                            </div>
+                                            <div className="flex flex-shrink-0 items-center gap-2">
+                                                {session.scheduledTaskId && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button
+                                                                type="button"
+                                                                onPointerDown={e => e.stopPropagation()}
+                                                                onClick={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    navigate(`/scheduled-tasks?taskId=${session.scheduledTaskId}`);
+                                                                }}
+                                                                className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
+                                                            >
+                                                                <CalendarClock size={12} />
+                                                                <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>View originating schedule</TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                                {session.projectName && <ProjectBadge text={session.projectName} />}
+                                                <SessionActionMenu
+                                                    session={session}
+                                                    onRename={handleEditClick}
+                                                    onRenameWithAI={handleRenameWithAI}
+                                                    onMove={handleMoveClick}
+                                                    onDelete={handleDeleteClick}
+                                                    onGoToProject={handleGoToProject}
+                                                    onShare={chatSharingEnabled ? handleShareClick : undefined}
+                                                    isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
-                {sessions.length === 0 && !isFetchingNextPage && (
-                    <EmptyState
-                        variant="noImage"
-                        title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}
-                        subtitle={activeTab === "scheduler" ? "Sessions from scheduled tasks will appear here" : "Start a new chat to create your first session"}
-                        buttons={
-                            activeTab === "chat"
-                                ? [
-                                      {
-                                          icon: <Plus size={16} />,
-                                          text: "New Chat",
-                                          variant: "default" as const,
-                                          onClick: () => {
-                                              navigate("/chat");
-                                              handleNewSession();
+                    {/* Empty States */}
+                    {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+
+                    {sessions.length === 0 && !isFetchingNextPage && (
+                        <EmptyState
+                            variant="noImage"
+                            title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}
+                            subtitle={activeTab === "scheduler" ? "Sessions from scheduled tasks will appear here" : "Start a new chat to create your first session"}
+                            buttons={
+                                activeTab === "chat"
+                                    ? [
+                                          {
+                                              icon: <Plus size={16} />,
+                                              text: "New Chat",
+                                              variant: "default" as const,
+                                              onClick: () => {
+                                                  navigate("/chat");
+                                                  handleNewSession();
+                                              },
                                           },
-                                      },
-                                  ]
-                                : []
-                        }
-                    />
-                )}
+                                      ]
+                                    : []
+                            }
+                        />
+                    )}
 
-                {/* Infinite Scroll Loader */}
-                {hasNextPage && (
-                    <div ref={loadMoreRef} className="flex justify-center py-4">
-                        {isFetchingNextPage && <Spinner size="small" variant="muted" />}
-                    </div>
-                )}
+                    {/* Infinite Scroll Loader */}
+                    {hasNextPage && (
+                        <div ref={loadMoreRef} className="flex justify-center py-4">
+                            {isFetchingNextPage && <Spinner size="small" variant="muted" />}
+                        </div>
+                    )}
+                </div>
             </div>
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             {sessionToShare && (

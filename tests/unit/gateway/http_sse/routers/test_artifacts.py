@@ -2806,7 +2806,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ):
             response = await get_latest_artifact(
                 session_id="session1",
@@ -2835,7 +2835,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ):
             response = await get_latest_artifact(
                 session_id="session1",
@@ -2865,7 +2865,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ):
             response = await get_latest_artifact(
                 session_id="session1",
@@ -2894,7 +2894,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts.resolve_embeds_recursively_in_string",
             new_callable=AsyncMock,
@@ -2929,7 +2929,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ), patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts.resolve_embeds_recursively_in_string",
             new_callable=AsyncMock,
@@ -2968,7 +2968,7 @@ class TestGetLatestArtifactMaxBytes:
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.routers.artifacts._resolve_storage_context",
-            return_value=("user1", "session1", "session"),
+            return_value=("user1", "session1", "session", None),
         ):
             response = await get_latest_artifact(
                 session_id="session1",

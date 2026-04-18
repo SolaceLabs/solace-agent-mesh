@@ -39,6 +39,43 @@ router = APIRouter()
 SESSION_NOT_FOUND_MSG = "Session not found."
 
 
+def _enrich_scheduler_sessions_with_task_info(db: Session, session_responses: list[SessionResponse]) -> None:
+    """For sessions created by the scheduler, attach scheduled_task_id + name.
+
+    Scheduler-created sessions use ids of the form ``scheduled_<execution_id>``
+    (see SchedulerService._submit_task_to_agent_mesh). We extract the execution
+    id, batch-query the executions + tasks tables, and fill in the response
+    fields so the UI can link each card back to its originating schedule.
+
+    Single query regardless of how many sessions are in the page; no-op if
+    the page has no scheduler sessions.
+    """
+    scheduler_sessions = [s for s in session_responses if s.source == "scheduler" and s.id.startswith("scheduled_")]
+    if not scheduler_sessions:
+        return
+
+    execution_ids = [s.id[len("scheduled_"):] for s in scheduler_sessions]
+
+    from ..repository.models import ScheduledTaskExecutionModel, ScheduledTaskModel
+    rows = (
+        db.query(
+            ScheduledTaskExecutionModel.id,
+            ScheduledTaskExecutionModel.scheduled_task_id,
+            ScheduledTaskModel.name,
+        )
+        .join(ScheduledTaskModel, ScheduledTaskModel.id == ScheduledTaskExecutionModel.scheduled_task_id)
+        .filter(ScheduledTaskExecutionModel.id.in_(execution_ids))
+        .all()
+    )
+    by_execution = {row[0]: (row[1], row[2]) for row in rows}
+
+    for session in scheduler_sessions:
+        exec_id = session.id[len("scheduled_"):]
+        mapping = by_execution.get(exec_id)
+        if mapping:
+            session.scheduled_task_id, session.scheduled_task_name = mapping
+
+
 @router.get("/sessions", response_model=PaginatedResponse[SessionResponse])
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
@@ -95,8 +132,11 @@ async def get_all_sessions(
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
+                last_viewed_at=session_domain.last_viewed_at,
             )
             session_responses.append(session_response)
+
+        _enrich_scheduler_sessions_with_task_info(db, session_responses)
 
         return PaginatedResponse(data=session_responses, meta=paginated_response.meta)
 
@@ -149,6 +189,7 @@ async def search_sessions(
                 has_running_background_task=session_domain.has_running_background_task,
                 created_time=session_domain.created_time,
                 updated_time=session_domain.updated_time,
+                last_viewed_at=session_domain.last_viewed_at,
             )
             session_responses.append(session_response)
 
@@ -762,6 +803,50 @@ async def get_session_unconsumed_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check unconsumed events",
+        ) from e
+
+
+@router.post("/sessions/{session_id}/viewed", status_code=status.HTTP_200_OK)
+async def mark_session_viewed(
+    session_id: str,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+):
+    """Record that the user has viewed this session.
+
+    Sets ``last_viewed_at`` to the server's current epoch-ms without touching
+    ``updated_time``. Used by the UI to clear the "unseen updates" dot.
+    """
+    user_id = user.get("id")
+
+    if not session_id or session_id.strip() == "" or session_id in ["null", "undefined"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+        )
+
+    try:
+        viewed_at = session_service.mark_session_viewed(
+            db=db, session_id=session_id, user_id=user_id
+        )
+        if viewed_at is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND_MSG
+            )
+        return {"lastViewedAt": viewed_at}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    except Exception as e:
+        log.error(
+            "Error marking session %s viewed for user %s: %s", session_id, user_id, e
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to mark session viewed",
         ) from e
 
 

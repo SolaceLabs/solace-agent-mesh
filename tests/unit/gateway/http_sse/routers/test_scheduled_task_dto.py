@@ -122,6 +122,8 @@ class TestExecutionResponseFromOrm:
         obj.result_summary = overrides.get("result_summary", None)
         obj.error_message = overrides.get("error_message", None)
         obj.retry_count = overrides.get("retry_count", 0)
+        obj.trigger_type = overrides.get("trigger_type", "scheduled")
+        obj.triggered_by = overrides.get("triggered_by", None)
         obj.artifacts = overrides.get("artifacts", None)
         obj.notifications_sent = overrides.get("notifications_sent", None)
         return obj
@@ -171,3 +173,51 @@ class TestSchedulePreviewRequest:
                 timezone="Invalid/Zone",
             )
         assert "timezone" in str(exc_info.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# TestNameAndDescriptionStripping
+# ---------------------------------------------------------------------------
+
+
+class TestNameAndDescriptionStripping:
+    """Tests that name/description trim whitespace so visual duplicates can't exist."""
+
+    def test_create_strips_trailing_spaces_on_name(self):
+        req = CreateScheduledTaskRequest(**_valid_create_kwargs(name="Daily report "))
+        assert req.name == "Daily report"
+
+    def test_create_strips_leading_and_trailing_spaces_on_name(self):
+        req = CreateScheduledTaskRequest(**_valid_create_kwargs(name="  Daily report  "))
+        assert req.name == "Daily report"
+
+    def test_create_strips_surrounding_tabs_and_newlines(self):
+        req = CreateScheduledTaskRequest(**_valid_create_kwargs(name="\tDaily report\n"))
+        assert req.name == "Daily report"
+
+    def test_create_preserves_interior_whitespace(self):
+        req = CreateScheduledTaskRequest(**_valid_create_kwargs(name="  My  Daily  Report  "))
+        assert req.name == "My  Daily  Report"
+
+    def test_create_strips_description(self):
+        req = CreateScheduledTaskRequest(**_valid_create_kwargs(description="  a summary  "))
+        assert req.description == "a summary"
+
+    def test_create_rejects_whitespace_only_name(self):
+        """A name of only whitespace strips to "" and must fail min_length=1."""
+        with pytest.raises(ValidationError):
+            CreateScheduledTaskRequest(**_valid_create_kwargs(name="   "))
+
+    def test_update_strips_name_when_provided(self):
+        from solace_agent_mesh.gateway.http_sse.routers.dto.scheduled_task_dto import (
+            UpdateScheduledTaskRequest,
+        )
+        req = UpdateScheduledTaskRequest(name="Renamed ")
+        assert req.name == "Renamed"
+
+    def test_update_leaves_name_untouched_when_omitted(self):
+        from solace_agent_mesh.gateway.http_sse.routers.dto.scheduled_task_dto import (
+            UpdateScheduledTaskRequest,
+        )
+        req = UpdateScheduledTaskRequest()
+        assert req.name is None
