@@ -44,7 +44,7 @@ def upgrade() -> None:
                     )
                 )
             if 'triggered_by' not in existing:
-                batch_op.add_column(sa.Column('triggered_by', sa.String(), nullable=True))
+                batch_op.add_column(sa.Column('triggered_by', sa.String(length=255), nullable=True))
         # Index creation outside batch to avoid batch-mode quirks
         existing_indexes = {idx['name'] for idx in inspector.get_indexes('scheduled_task_executions')}
         if 'ix_scheduled_task_executions_trigger_type' not in existing_indexes:
@@ -74,7 +74,7 @@ def upgrade() -> None:
         if 'triggered_by' not in existing:
             op.add_column(
                 'scheduled_task_executions',
-                sa.Column('triggered_by', sa.String(), nullable=True),
+                sa.Column('triggered_by', sa.String(length=255), nullable=True),
             )
 
 
