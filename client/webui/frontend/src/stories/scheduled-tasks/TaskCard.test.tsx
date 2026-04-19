@@ -75,9 +75,10 @@ describe("TaskCard", () => {
 
     it("shows correct status indicator - paused (warning dot)", () => {
         renderTaskCard({ status: "paused" });
-        const label = screen.getByText("Paused");
+        const labels = screen.getAllByText("Paused");
+        const label = labels.find(el => el.className.includes("font-medium"));
         expect(label).toBeInTheDocument();
-        const dot = label.previousElementSibling as HTMLElement | null;
+        const dot = label!.previousElementSibling as HTMLElement | null;
         expect(dot?.className).toContain("warning");
     });
 
