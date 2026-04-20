@@ -3,6 +3,8 @@ title: Plugins
 sidebar_position: 270
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 Plugins provide a mechanism to extend the functionality of Agent Mesh in a modular, shareable, and reusable way. The current plugin ecosystem includes agents, gateways, and specialized integrations.
 
 :::tip[In one sentence]
@@ -16,6 +18,8 @@ Plugins are packaged as Python modules that can be installed using various packa
 - **Custom Plugins**: Custom integrations such as HR providers.
 
 All plugin interactions (create, build, add) are managed through the Agent Mesh CLI.
+
+<NetworkAccessRequiredSomeFeatures />
 
 :::info
 Run `sam plugin --help` to see the list of available commands for plugins.

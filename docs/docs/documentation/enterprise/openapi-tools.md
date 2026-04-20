@@ -3,6 +3,8 @@ title: OpenAPI Tools
 sidebar_position: 16
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 This guide walks you through configuring OpenAPI-based tools for Agent Mesh Enterprise. You will learn how to integrate REST APIs into your agents using OpenAPI specifications, enabling them to interact with any OpenAPI-compliant service.
 
 ## Table of Contents
@@ -42,6 +44,8 @@ Agent Mesh Enterprise's OpenAPI tool integration supports:
 - **Tool filtering**: Include or exclude specific API operations using allow/deny lists
 - **Authentication**: API key, HTTP (bearer token and basic auth), OAuth2/OIDC, and service account authentication
 - **Automatic name conversion**: Handles camelCase operation IDs correctly
+
+<NetworkAccessRequiredSingleFeature />
 
 ## Understanding OpenAPI Tools
 
