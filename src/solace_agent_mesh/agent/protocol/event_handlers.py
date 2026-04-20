@@ -2904,6 +2904,8 @@ async def handle_compact_session(
         summary: str = "",
         remaining_events: int = 0,
         remaining_tokens: int = 0,
+        compaction_prompt_tokens: int = 0,
+        compaction_completion_tokens: int = 0,
         error_message: str | None = None,
     ):
         """Publish a session.compact_response SAM event."""
@@ -2916,6 +2918,8 @@ async def handle_compact_session(
             summary=summary,
             remaining_events=remaining_events,
             remaining_tokens=remaining_tokens,
+            compaction_prompt_tokens=compaction_prompt_tokens,
+            compaction_completion_tokens=compaction_completion_tokens,
             error_message=error_message,
         )
         # Use the same publish path as the agent's A2A messages
@@ -2945,7 +2949,7 @@ async def handle_compact_session(
                 return
 
             # 3. Call create_compaction_event
-            events_compacted, summary = await create_compaction_event(
+            events_compacted, summary, compaction_prompt_tokens, compaction_completion_tokens = await create_compaction_event(
                 component=component,
                 session=adk_session,
                 compaction_threshold=compaction_percentage,
@@ -2998,6 +3002,8 @@ async def handle_compact_session(
                 summary=summary[:500] if len(summary) > 500 else summary,
                 remaining_events=remaining_events,
                 remaining_tokens=remaining_tokens,
+                compaction_prompt_tokens=compaction_prompt_tokens,
+                compaction_completion_tokens=compaction_completion_tokens,
             )
 
     except Exception as e:

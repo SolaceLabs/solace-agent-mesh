@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
+import { ConfirmationDialog } from "@/lib/components/common";
 import { getSessionContextUsage, compactSession } from "@/lib/api/sessions";
 import type { ContextUsage, MessageFE } from "@/lib/types";
 import { useChatContext } from "@/lib/hooks";
@@ -46,20 +47,19 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const [isCompacting, setIsCompacting] = useState(false);
     const [compactError, setCompactError] = useState<string | null>(null);
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
+    const [showCompactConfirm, setShowCompactConfirm] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const compactingRef = useRef(false);
     const { selectedAgentName, isResponding, setMessages } = useChatContext();
 
     const fetchUsage = useCallback(async () => {
         if (!sessionId) return;
-        // Skip fetching if a compaction just completed — the optimistic update
-        // from handleCompress already reflects the correct post-compaction state
-        // and the backend won't have updated task-level data yet.
+        // Skip if a compaction is actively in flight — handleCompress will
+        // trigger a fresh fetch itself once the backend has committed the
+        // post-compaction rows.
         if (compactingRef.current) return;
         try {
             const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
-            // Double-check the flag again after the async call in case compaction
-            // completed while the request was in flight.
             if (compactingRef.current) return data;
             setUsage(data);
             return data;
@@ -67,7 +67,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             if (process.env.NODE_ENV === "development") {
                 console.warn("ContextUsageIndicator: failed to fetch usage", err);
             }
-            // On error, reset usage so we don't show stale data from a previous agent
             setUsage(null);
             return null;
         }
@@ -157,6 +156,11 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     // Show compress button when 15+ messages OR 2%+ token usage
     const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 2, [messageCount, pct]);
 
+    const requestCompress = () => {
+        if (isCompacting || compactingRef.current) return;
+        setShowCompactConfirm(true);
+    };
+
     const handleCompress = async () => {
         if (compactingRef.current) return;
         compactingRef.current = true;
@@ -196,45 +200,17 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                 setMessages(prev => [...prev, compactionMessage]);
             }
 
-            // Immediately update the usage state with compaction response data.
-            // The backend context-usage endpoint reads from the tasks table, but
-            // compaction is a session-level operation that doesn't create a new
-            // task, so fetchUsage() alone would return stale values until the
-            // next user message.  We optimistically patch the local state with
-            // the token/event counts returned by the compact endpoint.
-            if (usage && result.remainingTokens > 0) {
-                setUsage(prev =>
-                    prev
-                        ? {
-                              ...prev,
-                              currentContextTokens: result.remainingTokens,
-                              // promptTokens: keep prev.promptTokens (cumulative, unchanged by compaction)
-                              // completionTokens: keep prev.completionTokens (cumulative, unchanged by compaction)
-                              totalEvents: result.remainingEvents,
-                              usagePercentage: prev.maxInputTokens != null && prev.maxInputTokens > 0 ? Math.round((result.remainingTokens / prev.maxInputTokens) * 100) : 0,
-                              hasCompaction: true,
-                          }
-                        : prev
-                );
-            }
-
-            // Do NOT call fetchUsage() here — the backend context-usage endpoint
-            // still returns pre-compaction data (stale) because compaction doesn't
-            // create a new task.  Calling fetchUsage() would immediately overwrite
-            // the optimistic setUsage() above with stale values.  The next user
-            // message will trigger a fresh fetch via the messageCount effect.
+            // Backend now persists a synthetic compaction-cost task row with the
+            // summarizer's own token usage, so fetchUsage() returns authoritative
+            // post-compaction values (remaining context + rolled-up cumulatives).
+            compactingRef.current = false;
+            await fetchUsage();
             onCompacted?.();
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
         } finally {
             setIsCompacting(false);
-            // Release the compacting guard AFTER React has had a chance to commit
-            // the optimistic state update.  Without this delay, effects triggered
-            // by onCompacted (e.g. messageCount change → fetchUsage) could still
-            // slip through and overwrite the optimistic value.
-            setTimeout(() => {
-                compactingRef.current = false;
-            }, 2000);
+            compactingRef.current = false;
         }
     };
 
@@ -329,7 +305,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                 )}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="outline" size="sm" className="w-full" onClick={handleCompress} disabled={isCompacting}>
+                                        <Button variant="outline" size="sm" className="w-full" onClick={requestCompress} disabled={isCompacting}>
                                             {isCompacting ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
@@ -371,10 +347,10 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                                 className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
                                                 onClick={e => {
                                                     e.stopPropagation();
-                                                    if (!isCompacting) handleCompress();
+                                                    if (!isCompacting) requestCompress();
                                                 }}
                                             >
-                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CompressionIcon className="h-4 w-4" />}
+                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin text-(--primary-wMain)" /> : <CompressionIcon className="h-4 w-4" />}
                                             </div>
                                         </TooltipTrigger>
                                         <TooltipContent side="top">{isCompacting ? "Compacting..." : "Compact conversation"}</TooltipContent>
@@ -389,6 +365,16 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                     </TooltipContent>
                 </Tooltip>
             </div>
+
+            <ConfirmationDialog
+                open={showCompactConfirm}
+                onOpenChange={setShowCompactConfirm}
+                title="Compact conversation?"
+                description="Older messages will be summarized so the agent has more room for new context. Your chat history stays visible here, but on the next turn the agent will work from the summary instead of the full original messages. This cannot be undone."
+                actionLabels={{ confirm: "Compact", cancel: "Cancel" }}
+                isLoading={isCompacting}
+                onConfirm={handleCompress}
+            />
         </div>
     );
 }

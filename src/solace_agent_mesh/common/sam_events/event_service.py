@@ -102,6 +102,8 @@ class SessionCompactResponseEvent(SamEvent):
         summary: str = "",
         remaining_events: int = 0,
         remaining_tokens: int = 0,
+        compaction_prompt_tokens: int = 0,
+        compaction_completion_tokens: int = 0,
         error_message: str | None = None,
     ) -> "SessionCompactResponseEvent":
         """Create a session compact response event."""
@@ -112,6 +114,8 @@ class SessionCompactResponseEvent(SamEvent):
             "summary": summary,
             "remaining_events": remaining_events,
             "remaining_tokens": remaining_tokens,
+            "compaction_prompt_tokens": compaction_prompt_tokens,
+            "compaction_completion_tokens": compaction_completion_tokens,
             "error_message": error_message,
         }
         return super().create("session.compact_response", source_component, namespace, data)

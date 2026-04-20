@@ -1334,9 +1334,16 @@ async def get_session_context_usage(
         from ..repository.models import ChatTaskModel, TaskEventModel, TaskModel
         from sqlalchemy import desc
 
+        # Exclude manual-compaction rows — they're system notifications (the
+        # accordion), not user/agent exchanges, and would skew the task and
+        # message counts shown in the chat panel.
         chat_task_count = (
             db.query(ChatTaskModel)
-            .filter(ChatTaskModel.session_id == session_id, ChatTaskModel.user_id == user_id)
+            .filter(
+                ChatTaskModel.session_id == session_id,
+                ChatTaskModel.user_id == user_id,
+                ~ChatTaskModel.id.like("manual-compaction-%"),
+            )
             .count()
         )
         total_tasks = chat_task_count
@@ -1383,7 +1390,14 @@ async def get_session_context_usage(
                 except AttributeError:
                     return None
 
-            completed_tasks = [t for t in completed_tasks if _task_agent(t.id) == current_agent]
+            # Compaction-cost rows are synthetic (no task events, no agent
+            # metadata) and belong to the session, not a specific agent — keep
+            # them so their token usage contributes to the cumulative totals.
+            completed_tasks = [
+                t
+                for t in completed_tasks
+                if t.id.startswith("compaction-cost-") or _task_agent(t.id) == current_agent
+            ]
 
         current_tokens = 0
 
@@ -1555,6 +1569,74 @@ async def compact_session(
         if latest_task and result.get("remaining_tokens") is not None:
             latest_task.total_input_tokens = result["remaining_tokens"]
             db.commit()
+
+        # Roll the summarizer's own LLM token usage into the session's cumulative
+        # prompt/completion counters (shown in the chat panel) without distorting
+        # `currentContextTokens` (the progress bar reads the LATEST task's
+        # total_input_tokens, which we just set above to `remaining_tokens`).
+        # We insert a synthetic task row with an earlier start_time so it
+        # contributes to sum() but never becomes "latest".
+        comp_in = int(result.get("compaction_prompt_tokens") or 0)
+        comp_out = int(result.get("compaction_completion_tokens") or 0)
+        if (comp_in or comp_out) and latest_task is not None:
+            try:
+                synthetic_task = TaskModel(
+                    id=f"compaction-cost-{correlation_id}",
+                    user_id=user_id,
+                    session_id=session_id,
+                    start_time=(latest_task.start_time or 0) - 1,
+                    end_time=(latest_task.start_time or 0) - 1,
+                    status="completed",
+                    total_input_tokens=comp_in,
+                    total_output_tokens=comp_out,
+                )
+                db.add(synthetic_task)
+                db.commit()
+            except Exception as synth_err:
+                db.rollback()
+                log.warning(
+                    "Failed to persist compaction token usage for session %s: %s",
+                    session_id,
+                    synth_err,
+                )
+
+        # Persist a compaction_notification chat task so the accordion renders on
+        # session reload, matching the auto-compaction path (which persists via
+        # the A2A task-event pipeline). Manual compaction runs outside any task
+        # context, so we synthesize a chat task directly here.
+        summary = result.get("summary") or ""
+        if summary:
+            try:
+                message_id = f"manual-compaction-{correlation_id}"
+                bubble = {
+                    "id": message_id,
+                    "type": "agent",
+                    "text": "",
+                    "parts": [
+                        {
+                            "kind": "data",
+                            "data": {
+                                "type": "compaction_notification",
+                                "summary": summary,
+                                "is_background": False,
+                            },
+                        }
+                    ],
+                }
+                session_service.save_task(
+                    db=db,
+                    task_id=message_id,
+                    session_id=session_id,
+                    user_id=user_id,
+                    user_message=None,
+                    message_bubbles=json.dumps([bubble]),
+                )
+            except Exception as save_err:
+                log.warning(
+                    "Failed to persist manual compaction notification for session %s: %s",
+                    session_id,
+                    save_err,
+                )
 
         return CompactSessionResponse(
             eventsCompacted=result.get("events_compacted", 0),

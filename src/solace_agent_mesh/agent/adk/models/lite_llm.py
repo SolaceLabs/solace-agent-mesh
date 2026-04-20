@@ -1022,6 +1022,11 @@ class LiteLlm(BaseLlm):
     # gateway's context-usage indicator can honour admin settings without reading
     # the platform DB directly.
     _max_input_tokens: Optional[int] = PrivateAttr(default=None)
+    # Tokens from the most recent completion. Lets callers that sit outside ADK's
+    # usage_metadata propagation (e.g. the session compactor, which loses usage
+    # on the returned Event) read the last call's spend. Written on every
+    # completion; callers read and clear via `pop_last_usage()`.
+    _last_usage: Optional[Dict[str, int]] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -1195,6 +1200,18 @@ class LiteLlm(BaseLlm):
     
         self._model_config = copied_model_config
         self._set_status("ready")
+
+    def pop_last_usage(self) -> Optional[Dict[str, int]]:
+        """Return and clear the most recent completion's token usage.
+
+        Intended for out-of-band callers (e.g. session compaction) that cannot
+        read usage_metadata from ADK's returned Event. Returns a dict with
+        `prompt_tokens` and `completion_tokens`, or None if no call has run
+        since the last pop.
+        """
+        usage = self._last_usage
+        self._last_usage = None
+        return usage
 
     def get_max_input_tokens(self) -> Optional[int]:
         """Resolve this model's context window (max input tokens).
@@ -1459,6 +1476,10 @@ class LiteLlm(BaseLlm):
                                 chunk.prompt_tokens,
                                 chunk.completion_tokens
                             )
+                            self._last_usage = {
+                                "prompt_tokens": int(chunk.prompt_tokens or 0),
+                                "completion_tokens": int(chunk.completion_tokens or 0),
+                            }
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1573,6 +1594,10 @@ class LiteLlm(BaseLlm):
                         prompt_tokens,
                         completion_tokens
                     )
+                    self._last_usage = {
+                        "prompt_tokens": int(prompt_tokens or 0),
+                        "completion_tokens": int(completion_tokens or 0),
+                    }
 
             yield _model_response_to_generate_content_response(response)
 
@@ -1587,6 +1612,13 @@ class LiteLlm(BaseLlm):
             prompt_tokens: Number of input tokens
             completion_tokens: Number of output tokens
         """
+        # Stamp the last-call usage side channel here (in addition to the
+        # streaming/non-streaming sites) so any call path that ends up here
+        # exposes its tokens via pop_last_usage().
+        self._last_usage = {
+            "prompt_tokens": int(prompt_tokens or 0),
+            "completion_tokens": int(completion_tokens or 0),
+        }
         try:
             # Read observability context (set by ObservabilityContext at entry points)
             component_name = ObservabilityContext._component_name_var.get() or "none"
