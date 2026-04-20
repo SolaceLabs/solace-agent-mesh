@@ -3,9 +3,13 @@ title: Gateways
 sidebar_position: 10
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Gateways
 
 Gateways connect your Agent Mesh deployment to external systems, enabling agents to receive requests from and send responses to platforms like Slack, Microsoft Teams, and Solace Event Mesh brokers. You configure each gateway with connection details and routing rules for a specific integration target.
+
+<NetworkAccessRequiredSomeFeatures />
 
 ## Gateway Types
 
@@ -21,7 +25,7 @@ Slack gateways integrate Agent Mesh with Slack workspaces, enabling users to int
 
 ### Microsoft Teams Gateway
 
-Microsoft Teams gateways connect Agent Mesh with Microsoft Teams, allowing users to interact with agents through Teams channels and chats. This gateway requires Docker deployment and Azure AD configuration. Teams gateway documentation will be available when the feature is released.
+Microsoft Teams gateways connect Agent Mesh with Microsoft Teams, allowing users to interact with agents through Teams channels and chats. The gateway uses the Microsoft Bot Framework and requires Azure Bot Service registration and a publicly accessible endpoint. For detailed information about creating and configuring Teams gateways, see [Teams Gateway](teams-gateway.md).
 
 ### REST Gateway
 

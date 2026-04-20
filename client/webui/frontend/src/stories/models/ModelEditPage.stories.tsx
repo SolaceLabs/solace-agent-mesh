@@ -61,13 +61,15 @@ const editModelHandlers = [
             ],
         });
     }),
-    http.put("*/api/v1/platform/models/:id", async ({ request }) => {
+    http.patch("*/api/v1/platform/models/:id", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
-            ...anthropicModelConfig,
-            ...body,
-            updatedBy: "test-user",
-            updatedTime: Date.now(),
+            data: {
+                ...anthropicModelConfig,
+                ...body,
+                updatedBy: "test-user",
+                updatedTime: Date.now(),
+            },
         });
     }),
 ];
@@ -281,7 +283,7 @@ export const EditModelLoading: Story = {
 
 /**
  * Story: Attempting to edit a model that doesn't exist
- * Shows the not found error state
+ * Shows the fetch error state with the actual error message
  */
 export const EditModelNotFound: Story = {
     parameters: {
@@ -294,8 +296,8 @@ export const EditModelNotFound: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
-        // Verify error state is shown
-        await expect(await canvas.findByText("Model Not Found")).toBeInTheDocument();
+        // Verify error state is shown with actual error message
+        await expect(await canvas.findByText(/Error loading model:/)).toBeInTheDocument();
 
         // Verify the Go To Models button is present
         const goToButton = await canvas.findByRole("button", { name: /Go To Models/i });
@@ -322,10 +324,10 @@ export const EditModelWithAdvancedParams: Story = {
         const editTexts = await canvas.findAllByText("Edit anthropic-model");
         expect(editTexts.length).toBeGreaterThanOrEqual(1);
 
-        // Open Advanced Settings
+        // Open Advanced Settings (Accordion trigger has data-state="closed" by default)
         const advancedSummary = await canvas.findByText("Advanced Settings");
-        const detailsElement = advancedSummary.closest("details");
-        expect(detailsElement).not.toHaveAttribute("open");
+        const accordionTrigger = advancedSummary.closest("button");
+        expect(accordionTrigger).toHaveAttribute("data-state", "closed");
 
         await userEvent.click(advancedSummary);
 
@@ -339,6 +341,22 @@ export const EditModelWithAdvancedParams: Story = {
         // Verify values are populated from model
         expect(temperatureInput.value).toBe("0.1");
         expect(maxTokensInput.value).toBe("4096");
+
+        // Verify Custom Parameters section is visible
+        await expect(await canvas.findByText("Custom Parameters")).toBeInTheDocument();
+
+        // Click "New Pair" to add a custom parameter row
+        const newPairButton = await canvas.findByRole("button", { name: /New Pair/i });
+        expect(newPairButton).not.toBeDisabled();
+        await userEvent.click(newPairButton);
+
+        // Fill in the key but leave value empty to exercise validation error paths
+        const keyInput = await canvas.findByLabelText("Key 1");
+        await userEvent.type(keyInput, "my_param");
+
+        // Click "Save" to trigger form submission which exercises the custom params validation
+        const saveButton = await canvas.findByRole("button", { name: /Save/i });
+        await userEvent.click(saveButton);
     },
 };
 

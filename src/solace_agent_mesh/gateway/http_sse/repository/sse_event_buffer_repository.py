@@ -11,6 +11,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DBSession
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
 from .models.sse_event_buffer_model import SSEEventBufferModel
 from .models.task_model import TaskModel
@@ -72,11 +73,12 @@ class SSEEventBufferRepository:
         
         for attempt in range(MAX_SEQUENCE_RETRIES):
             try:
-                # Get next sequence number for this task
-                max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
-                    .filter(SSEEventBufferModel.task_id == task_id)\
-                    .scalar() or 0
-                
+                with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+                    # Get next sequence number for this task
+                    max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
+                        .filter(SSEEventBufferModel.task_id == task_id)\
+                        .scalar() or 0
+
                 # Create buffer entry
                 buffer_entry = SSEEventBufferModel(
                     task_id=task_id,
@@ -89,14 +91,16 @@ class SSEEventBufferRepository:
                     consumed=False,
                 )
                 db.add(buffer_entry)
-                
-                # Mark task as having buffered events
-                task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
-                if task and not task.events_buffered:
-                    task.events_buffered = True
-                
-                db.flush()  # Flush to get the ID and trigger constraint check
-                
+
+                with MonitorLatency(DBMonitor.query("tasks")):
+                    # Mark task as having buffered events
+                    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+                    if task and not task.events_buffered:
+                        task.events_buffered = True
+
+                with MonitorLatency(DBMonitor.insert("sse_event_buffer")):
+                    db.flush()  # Flush to get the ID and trigger constraint check
+
                 log.debug(
                     "%s Buffered event for task %s: sequence=%d, type=%s",
                     self.log_identifier,
@@ -104,7 +108,6 @@ class SSEEventBufferRepository:
                     buffer_entry.event_sequence,
                     event_type,
                 )
-                
                 return buffer_entry
                 
             except IntegrityError as e:
@@ -170,17 +173,19 @@ class SSEEventBufferRepository:
         
         for attempt in range(MAX_SEQUENCE_RETRIES):
             try:
-                # Get task with optional row lock for databases that support it
-                task_query = db.query(TaskModel).filter(TaskModel.id == task_id)
-                if supports_row_locking:
-                    task_query = task_query.with_for_update()
-                task = task_query.first()
-                
-                # Get max sequence (safe due to row lock on PostgreSQL, or DB-level lock on SQLite)
-                max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
-                    .filter(SSEEventBufferModel.task_id == task_id)\
-                    .scalar() or 0
-                
+                with MonitorLatency(DBMonitor.query("tasks")):
+                    # Get task with optional row lock for databases that support it
+                    task_query = db.query(TaskModel).filter(TaskModel.id == task_id)
+                    if supports_row_locking:
+                        task_query = task_query.with_for_update()
+                    task = task_query.first()
+
+                with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+                    # Get max sequence (safe due to row lock on PostgreSQL, or DB-level lock on SQLite)
+                    max_seq = db.query(func.max(SSEEventBufferModel.event_sequence))\
+                        .filter(SSEEventBufferModel.task_id == task_id)\
+                        .scalar() or 0
+
                 # Build list of model instances with sequential sequence numbers
                 buffer_entries = []
                 for i, (event_type, event_data, timestamp, session_id, user_id) in enumerate(events):
@@ -194,16 +199,17 @@ class SSEEventBufferRepository:
                         created_at=timestamp,
                         consumed=False,
                     ))
-                
-                # Bulk insert all events
-                db.bulk_save_objects(buffer_entries)
-                
-                # Mark task as having buffered events (task already fetched above)
-                if task and not task.events_buffered:
-                    task.events_buffered = True
-                
-                db.flush()
-                
+
+                with MonitorLatency(DBMonitor.insert("sse_event_buffer")):
+                    # Bulk insert all events
+                    db.bulk_save_objects(buffer_entries)
+
+                    # Mark task as having buffered events (task already fetched above)
+                    if task and not task.events_buffered:
+                        task.events_buffered = True
+
+                    db.flush()
+
                 log.debug(
                     "%s Batch buffered %d events for task %s (sequences %d-%d)",
                     self.log_identifier,
@@ -212,7 +218,6 @@ class SSEEventBufferRepository:
                     max_seq + 1,
                     max_seq + len(events),
                 )
-                
                 return len(events)
                 
             except IntegrityError as e:
@@ -262,15 +267,16 @@ class SSEEventBufferRepository:
         Returns:
             List of event dictionaries with type, data, and sequence
         """
-        query = db.query(SSEEventBufferModel)\
-            .filter(SSEEventBufferModel.task_id == task_id)
-        
-        if mark_consumed:
-            query = query.filter(SSEEventBufferModel.consumed.is_(False))
-            query = query.with_for_update()
-        
-        events = query.order_by(SSEEventBufferModel.event_sequence).all()
-        
+        with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+            query = db.query(SSEEventBufferModel)\
+                .filter(SSEEventBufferModel.task_id == task_id)
+
+            if mark_consumed:
+                query = query.filter(SSEEventBufferModel.consumed.is_(False))
+                query = query.with_for_update()
+
+            events = query.order_by(SSEEventBufferModel.event_sequence).all()
+
         event_data = [
             {
                 "type": event.event_type,
@@ -279,29 +285,30 @@ class SSEEventBufferRepository:
             }
             for event in events
         ]
-        
+
         if mark_consumed and events:
-            # Mark events as consumed
-            consumed_at = now_epoch_ms()
-            db.query(SSEEventBufferModel)\
-                .filter(SSEEventBufferModel.task_id == task_id)\
-                .update({
-                    "consumed": True,
-                    "consumed_at": consumed_at,
-                })
-            
+            with MonitorLatency(DBMonitor.update("sse_event_buffer")):
+                # Mark events as consumed
+                consumed_at = now_epoch_ms()
+                db.query(SSEEventBufferModel)\
+                    .filter(SSEEventBufferModel.task_id == task_id)\
+                    .update({
+                        "consumed": True,
+                        "consumed_at": consumed_at,
+                    })
+
             # Mark task as consumed
-            task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
-            if task:
-                task.events_consumed = True
-            
+            with MonitorLatency(DBMonitor.query("tasks")):
+                task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+                if task:
+                    task.events_consumed = True
+
             log.info(
                 "%s Marked %d events as consumed for task %s",
                 self.log_identifier,
                 len(events),
                 task_id,
             )
-        
         return event_data
 
     def get_unconsumed_events_for_session(
@@ -323,22 +330,24 @@ class SSEEventBufferRepository:
         Returns:
             List of SSEEventBufferModel instances
         """
-        query = db.query(SSEEventBufferModel)\
-            .filter(SSEEventBufferModel.session_id == session_id)\
-            .filter(SSEEventBufferModel.consumed.is_(False))
-        
-        if task_id:
-            query = query.filter(SSEEventBufferModel.task_id == task_id)
-        
-        events = query.order_by(SSEEventBufferModel.event_sequence).all()
-        
+        with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+            query = db.query(SSEEventBufferModel)\
+                .filter(SSEEventBufferModel.session_id == session_id)\
+                .filter(SSEEventBufferModel.consumed.is_(False))
+
+            if task_id:
+                query = query.filter(SSEEventBufferModel.task_id == task_id)
+
+            events = query.order_by(SSEEventBufferModel.event_sequence).all()
+
         if mark_consumed and events:
-            # Mark events as consumed
-            consumed_at = now_epoch_ms()
-            for event in events:
-                event.consumed = True
-                event.consumed_at = consumed_at
-            
+            with MonitorLatency(DBMonitor.update("sse_event_buffer")):
+                # Mark events as consumed
+                consumed_at = now_epoch_ms()
+                for event in events:
+                    event.consumed = True
+                    event.consumed_at = consumed_at
+
             log.info(
                 "%s Marked %d events as consumed for session %s (task=%s)",
                 self.log_identifier,
@@ -346,7 +355,7 @@ class SSEEventBufferRepository:
                 session_id,
                 task_id,
             )
-        
+
         return events
 
     def has_unconsumed_events(
@@ -364,13 +373,15 @@ class SSEEventBufferRepository:
         Returns:
             True if there are unconsumed events, False otherwise
         """
-        count = db.query(func.count(SSEEventBufferModel.id))\
-            .filter(SSEEventBufferModel.task_id == task_id)\
-            .filter(SSEEventBufferModel.consumed.is_(False))\
-            .scalar()
-        
+        with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+            count = db.query(func.count(SSEEventBufferModel.id))\
+                .filter(SSEEventBufferModel.task_id == task_id)\
+                .filter(SSEEventBufferModel.consumed.is_(False))\
+                .scalar()
+
         return count > 0
 
+    @MonitorLatency(DBMonitor.query("sse_event_buffer"))
     def get_event_count(
         self,
         db: DBSession,
@@ -390,6 +401,7 @@ class SSEEventBufferRepository:
             .filter(SSEEventBufferModel.task_id == task_id)\
             .scalar() or 0
 
+    @MonitorLatency(DBMonitor.delete("sse_event_buffer"))
     def cleanup_consumed_events(
         self,
         db: DBSession,
@@ -397,11 +409,11 @@ class SSEEventBufferRepository:
     ) -> int:
         """
         Clean up consumed events older than the specified time.
-        
+
         Args:
             db: Database session
             older_than_ms: Delete events consumed before this epoch time (ms)
-            
+
         Returns:
             Number of events deleted
         """
@@ -409,7 +421,7 @@ class SSEEventBufferRepository:
             .filter(SSEEventBufferModel.consumed.is_(True))\
             .filter(SSEEventBufferModel.consumed_at < older_than_ms)\
             .delete()
-        
+
         if deleted > 0:
             log.info(
                 "%s Cleaned up %d consumed events older than %d",
@@ -420,6 +432,7 @@ class SSEEventBufferRepository:
         
         return deleted
 
+    @MonitorLatency(DBMonitor.delete("sse_event_buffer"))
     def delete_events_for_task(
         self,
         db: DBSession,
@@ -427,18 +440,17 @@ class SSEEventBufferRepository:
     ) -> int:
         """
         Delete all buffered events for a task.
-        
+
         Args:
             db: Database session
             task_id: The task ID
-            
+
         Returns:
             Number of events deleted
         """
         deleted = db.query(SSEEventBufferModel)\
             .filter(SSEEventBufferModel.task_id == task_id)\
             .delete()
-        
         if deleted > 0:
             log.debug(
                 "%s Deleted %d events for task %s",
@@ -473,24 +485,26 @@ class SSEEventBufferRepository:
         total_deleted = 0
         
         while True:
-            # Delete in batches to avoid long-running transactions
             # Get IDs of events to delete
-            events_to_delete = db.query(SSEEventBufferModel.id)\
-                .filter(SSEEventBufferModel.created_at < older_than_ms)\
-                .limit(batch_size)\
-                .all()
-            
+            with MonitorLatency(DBMonitor.query("sse_event_buffer")):
+                events_to_delete = db.query(SSEEventBufferModel.id)\
+                    .filter(SSEEventBufferModel.created_at < older_than_ms)\
+                    .limit(batch_size)\
+                    .all()
+
             if not events_to_delete:
                 break
-            
+
             event_ids = [e.id for e in events_to_delete]
-            deleted = db.query(SSEEventBufferModel)\
-                .filter(SSEEventBufferModel.id.in_(event_ids))\
-                .delete(synchronize_session=False)
-            
-            db.commit()
+
+            with MonitorLatency(DBMonitor.delete("sse_event_buffer")):
+                deleted = db.query(SSEEventBufferModel)\
+                    .filter(SSEEventBufferModel.id.in_(event_ids))\
+                    .delete(synchronize_session=False)
+                db.commit()
+
             total_deleted += deleted
-            
+
             log.debug(
                 "%s Deleted batch of %d old SSE events (total so far: %d)",
                 self.log_identifier,

@@ -52,38 +52,29 @@ export default function AIProviderSetup({
   const [previousProvider, setPreviousProvider] = useState<string | null>(null);
 
   useEffect(() => {
-    const updates: Record<string, string | boolean | number> = {};
-
-    if (!llm_provider) {
-      updates.llm_provider = "openai";
-    }
-
-    if (Object.keys(updates).length > 0) {
-      updateData(updates);
-    }
-  }, [data, updateData]);
-
-  useEffect(() => {
-    if (llm_provider) {
+    if (previousProvider !== null && previousProvider !== (llm_provider || "")) {
       const updates: Record<string, string | boolean | number> = {};
+      updates.llm_model_name = "";
 
-      if (previousProvider !== null && previousProvider !== llm_provider) {
-        updates.llm_model_name = "";
-
-        if (llm_provider !== "openai_compatible" && llm_provider !== "aws_bedrock") {
-          const endpointUrl = PROVIDER_ENDPOINTS[llm_provider as keyof typeof PROVIDER_ENDPOINTS] || "";
-          updates.llm_endpoint_url = endpointUrl;
-        } else {
-          updates.llm_endpoint_url = "";
-        }
-
-        if (Object.keys(updates).length > 0) {
-          updateData(updates);
-        }
+      if (!llm_provider) {
+        // Clearing provider — reset all LLM fields
+        updates.llm_endpoint_url = "";
+        updates.llm_api_key = "";
+        updates.aws_model_id = "";
+        updates.aws_access_key = "";
+        updates.aws_secret_access_key = "";
+        updates.aws_session_token = "";
+      } else if (llm_provider !== "openai_compatible" && llm_provider !== "aws_bedrock") {
+        const endpointUrl = PROVIDER_ENDPOINTS[llm_provider as keyof typeof PROVIDER_ENDPOINTS] || "";
+        updates.llm_endpoint_url = endpointUrl;
+      } else {
+        updates.llm_endpoint_url = "";
       }
 
-      setPreviousProvider(llm_provider);
+      updateData(updates);
     }
+
+    setPreviousProvider(llm_provider || "");
   }, [llm_provider, previousProvider, updateData]);
 
   useEffect(() => {
@@ -126,13 +117,14 @@ export default function AIProviderSetup({
     const newErrors: Record<string, string> = {};
     let isValid = true;
 
+    // If no provider selected, skip validation entirely (step is optional)
     if (!llm_provider) {
-      newErrors.llm_provider = "LLM provider is required";
-      isValid = false;
+      setErrors(newErrors);
+      return true;
     }
 
     if (llm_provider === "openai_compatible" && !llm_endpoint_url) {
-      newErrors.llm_endpoint_url = `LLM endpoint is required for OpenAI compatible endpoint}`;
+      newErrors.llm_endpoint_url = `LLM endpoint is required for OpenAI compatible endpoint`;
       isValid = false;
     }
 
@@ -219,8 +211,8 @@ export default function AIProviderSetup({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      // Skip LLM connection test for AWS Bedrock
-      if (llm_provider === "aws_bedrock") {
+      // Skip LLM connection test if no provider selected or AWS Bedrock
+      if (!llm_provider || llm_provider === "aws_bedrock") {
         onNext();
       } else {
         testLLMConfig();
@@ -232,9 +224,10 @@ export default function AIProviderSetup({
     <form onSubmit={handleSubmit}>
       <div className="space-y-6">
         <InfoBox className="mb-4">
-          Configure your AI service provider for language models. To use a LLM
-          provider not in the dropdown choose "OpenAI Compatible Provider" and
-          enter your base URL, API key and model name.
+          Configure your AI service provider for language models. This step is
+          optional — you can skip it and configure your AI provider later. To
+          use a LLM provider not in the dropdown choose "OpenAI Compatible
+          Provider" and enter your base URL, API key and model name.
         </InfoBox>
 
         <div className="border-b border-gray-200 pb-4 mb-4">
@@ -246,7 +239,6 @@ export default function AIProviderSetup({
             label="LLM Provider"
             htmlFor="llm_provider"
             error={errors.llm_provider}
-            required
           >
             <Select
               id="llm_provider"
@@ -274,7 +266,7 @@ export default function AIProviderSetup({
             </FormField>
           )}
 
-          {llm_provider !== "aws_bedrock" && (
+          {llm_provider && llm_provider !== "aws_bedrock" && (
             <FormField
               label="LLM API Key"
               htmlFor="llm_api_key"
@@ -377,7 +369,7 @@ export default function AIProviderSetup({
             </>
           )}
 
-          {llm_provider === "azure" && (
+          {llm_provider && llm_provider === "azure" && (
             <WarningBox className="mb-4">
               <strong>Important:</strong> For Azure, in the "LLM Model Name"
               field, enter your <strong>deployment name</strong> (not the
@@ -395,7 +387,7 @@ export default function AIProviderSetup({
               .
             </WarningBox>
           )}
-          {llm_provider !== "aws_bedrock" && (
+          {llm_provider && llm_provider !== "aws_bedrock" && (
             <FormField
               label="LLM Model Name"
               htmlFor="llm_model_name"
@@ -427,6 +419,7 @@ export default function AIProviderSetup({
           onClick={onPrevious}
           disabled={(data as {setupPath?: string}).setupPath === "quick"}
           variant="outline"
+          type="button"
         >
           Previous
         </Button>

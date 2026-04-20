@@ -406,3 +406,85 @@ class TestModelListServiceMissingApiBase:
                 auth_config={"api_key": "key"},
             )
         assert "Unsupported provider" in str(exc_info.value)
+
+
+class TestModelListServiceTrailingSlash:
+    """Tests that trailing slashes on api_base don't produce double-slash URLs."""
+
+    def setup_method(self):
+        self.service = ModelListService()
+
+    def _mock_http_client(self, response_json):
+        """Create a mocked httpx.Client context manager returning the given JSON."""
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_response = MagicMock()
+        mock_response.json.return_value = response_json
+        mock_response.status_code = 200
+        mock_client.get.return_value = mock_response
+        return mock_client
+
+    def test_openai_trailing_slash_stripped(self):
+        """OpenAI api_base with trailing slash should not produce double-slash URL."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = self._mock_http_client({"data": [{"id": "gpt-4"}]})
+            mock_cls.return_value = mock_client
+
+            self.service.get_models_by_provider_with_config(
+                provider="openai",
+                api_base="https://api.openai.com/v1/",
+                auth_type="apikey",
+                auth_config={"api_key": "sk-test"},
+            )
+
+            url = mock_client.get.call_args[0][0]
+            assert url == "https://api.openai.com/v1/models"
+
+    def test_custom_trailing_slash_stripped(self):
+        """Custom provider api_base with trailing slash should not produce double-slash URL."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = self._mock_http_client({"data": [{"id": "model-1"}]})
+            mock_cls.return_value = mock_client
+
+            self.service.get_models_by_provider_with_config(
+                provider="custom",
+                api_base="https://custom.example.com/",
+                auth_type="apikey",
+                auth_config={"api_key": "sk-test"},
+            )
+
+            url = mock_client.get.call_args[0][0]
+            assert url == "https://custom.example.com/models"
+
+    def test_anthropic_trailing_slash_stripped(self):
+        """Anthropic api_base with trailing slash should not produce double-slash URL."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = self._mock_http_client({"data": [{"id": "claude-3", "type": "model"}]})
+            mock_cls.return_value = mock_client
+
+            self.service.get_models_by_provider_with_config(
+                provider="anthropic",
+                api_base="https://api.anthropic.com/",
+                auth_type="apikey",
+                auth_config={"api_key": "sk-test"},
+            )
+
+            url = mock_client.get.call_args[0][0]
+            assert url == "https://api.anthropic.com/v1/models"
+
+    def test_ollama_trailing_slash_stripped(self):
+        """Ollama api_base with trailing slash should not produce double-slash URL."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = self._mock_http_client({"models": [{"name": "llama2"}]})
+            mock_cls.return_value = mock_client
+
+            self.service.get_models_by_provider_with_config(
+                provider="ollama",
+                api_base="http://localhost:11434/",
+                auth_type="none",
+                auth_config={},
+            )
+
+            url = mock_client.get.call_args[0][0]
+            assert url == "http://localhost:11434/api/tags"

@@ -4,10 +4,11 @@ import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
 import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, PageValue, Metadata } from "@/lib/components/common";
+import { PageLayout } from "@/lib/components/layout";
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
-import { PROVIDER_DISPLAY_NAMES, AUTH_TYPE_LABELS, getDisplayModelName } from "./common";
+import { AUTH_TYPE_LABELS, getDisplayModelName, getProviderDisplayName } from "./common";
 import { ModelProviderIcon } from "./ModelProviderIcon";
 import { ModelDeleteDialog } from "./ModelDeleteDialog";
 
@@ -68,7 +69,7 @@ export const ModelDetailsPage = () => {
     const title = modelToView ? modelToView.alias : "N/A";
 
     return (
-        <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
+        <PageLayout className="min-w-4xl">
             <Header title={title} breadcrumbs={[{ label: "Models", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
 
             {modelConfigsLoading ? (
@@ -90,7 +91,7 @@ export const ModelDetailsPage = () => {
                             <PageLabel>Model Provider</PageLabel>
                             <PageValue className="flex items-center gap-2">
                                 <ModelProviderIcon provider={modelToView.provider} size="xs" />
-                                <span>{PROVIDER_DISPLAY_NAMES[modelToView.provider] || modelToView.provider}</span>
+                                {getProviderDisplayName(modelToView.provider) ?? <span className="text-(--secondary-text-wMain) italic">Not configured</span>}
                             </PageValue>
                         </PageLabelWithValue>
                     </PageSection>
@@ -99,7 +100,7 @@ export const ModelDetailsPage = () => {
                         <div className="pt-6 font-semibold">Model Connection Details</div>
                         <PageLabelWithValue>
                             <PageLabel>Model Name</PageLabel>
-                            <PageValue>{getDisplayModelName(modelToView.modelName)}</PageValue>
+                            <PageValue>{getDisplayModelName(modelToView.modelName) || <span className="text-(--secondary-text-wMain) italic">Not configured</span>}</PageValue>
                         </PageLabelWithValue>
 
                         {modelToView.apiBase && (
@@ -159,6 +160,6 @@ export const ModelDetailsPage = () => {
                     Close
                 </Button>
             </Footer>
-        </div>
+        </PageLayout>
     );
 };

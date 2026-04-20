@@ -22,6 +22,8 @@ apps:
       agent_name: "ResearchAgent"
       display_name: "Research Agent"
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are a research assistant that combines quick web search with comprehensive deep research capabilities.

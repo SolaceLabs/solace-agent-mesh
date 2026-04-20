@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import yaml
+from cachetools import TTLCache
 from a2a.types import (
     CancelTaskRequest,
     SendMessageRequest,
@@ -69,7 +70,108 @@ log = logging.getLogger(__name__)
 # Cache for fork metadata lookups so the DB is only queried once per session
 _fork_metadata_cache: dict[str, dict | None] = {}
 
+# Cache for scheduler conversation history so the DB is only queried once per session.
+# Bounded to 256 entries with a 5-minute TTL to prevent unbounded memory growth.
+_scheduler_history_cache: TTLCache = TTLCache(maxsize=256, ttl=300)
+
 SESSION_NOT_FOUND_MSG = "Session not found."
+
+
+MAX_SCHEDULER_HISTORY_ENTRIES = 50
+
+
+def _load_scheduler_conversation_history(
+    session_id: str, session_local_factory, user_id: str, log_prefix: str
+) -> list | None:
+    """Load conversation history from ChatTask records for a scheduled-task session.
+
+    When a user clicks "Go to Chat" from a scheduled task execution, the
+    original ADK session (RUN_BASED) has been deleted.  Instead of trying to
+    find a persistent ADK session, we reconstruct the conversation from the
+    ChatTask ``message_bubbles`` stored in the database and pass it as
+    metadata so the agent can inject it into a fresh ADK session.
+
+    Returns a list of ``{"role": "user"|"assistant", "content": "..."}``
+    dicts, or *None* when the session is not a scheduler session or the
+    lookup fails / yields no history.
+
+    Results are cached in ``_scheduler_history_cache`` to avoid repeated DB
+    queries for the same session.
+    """
+    if not session_id or not session_id.startswith("scheduled_") or session_local_factory is None:
+        return None
+
+    # Include user_id in the cache key for defense-in-depth.  Scheduled
+    # session IDs already contain a UUID so collisions across users are
+    # extremely unlikely, but keying on both values prevents any
+    # theoretical cross-user cache hit.
+    cache_key = f"{session_id}:{user_id}"
+
+    # Return cached result if available
+    if cache_key in _scheduler_history_cache:
+        return _scheduler_history_cache[cache_key]
+
+    try:
+        db_sched = session_local_factory()
+        try:
+            task_repo = ChatTaskRepository()
+            tasks = task_repo.find_by_session(db_sched, session_id, user_id)
+            if not tasks:
+                log.debug(
+                    "%sNo ChatTask records found for scheduler session %s",
+                    log_prefix, session_id,
+                )
+                _scheduler_history_cache[cache_key] = None
+                return None
+
+            history: list[dict[str, str]] = []
+            for task in tasks:
+                try:
+                    bubbles = json.loads(task.message_bubbles) if isinstance(
+                        task.message_bubbles, str
+                    ) else task.message_bubbles
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+                for bubble in bubbles:
+                    if not isinstance(bubble, dict):
+                        continue
+                    bubble_type = bubble.get("type", "")
+                    text = bubble.get("text", "")
+                    if not text:
+                        continue
+                    if bubble_type == "user":
+                        history.append({"role": "user", "content": text})
+                    elif bubble_type == "agent":
+                        history.append({"role": "assistant", "content": text})
+
+            if history:
+                # Cap to the last N entries to avoid OOM / broker payload
+                # limit violations when history is injected as metadata.
+                history = history[-MAX_SCHEDULER_HISTORY_ENTRIES:]
+                log.info(
+                    "%sLoaded %d conversation history entries from ChatTask records for scheduler session %s",
+                    log_prefix, len(history), session_id,
+                )
+                _scheduler_history_cache[cache_key] = history
+                return history
+            else:
+                log.debug(
+                    "%sNo extractable conversation history in ChatTask records for scheduler session %s",
+                    log_prefix, session_id,
+                )
+                _scheduler_history_cache[cache_key] = None
+                return None
+        finally:
+            db_sched.close()
+    except Exception as e:
+        log.warning(
+            "%sFailed to load scheduler conversation history for %s: %s",
+            log_prefix, session_id, e,
+            exc_info=True,
+        )
+        _scheduler_history_cache[cache_key] = None
+    return None
 
 
 # Background Task Status Models and Endpoints
@@ -711,6 +813,15 @@ async def _submit_task(
                 additional_metadata["backgroundExecutionEnabled"] = msg_metadata.get("backgroundExecutionEnabled")
             if msg_metadata.get("maxExecutionTimeMs"):
                 additional_metadata["maxExecutionTimeMs"] = msg_metadata.get("maxExecutionTimeMs")
+
+        # For scheduled task sessions, reconstruct conversation history from
+        # ChatTask records so the agent can inject it into a fresh ADK session.
+        # The original RUN_BASED ADK session is deleted after execution, so we
+        # pass the history as metadata instead of trying to find a persistent
+        # ADK session.
+        scheduler_history = _load_scheduler_conversation_history(session_id, SessionLocal, client_id, log_prefix)
+        if scheduler_history:
+            additional_metadata["schedulerConversationHistory"] = scheduler_history
 
         # For forked sessions: pass fork metadata so the agent can clone the ADK session
         # on first message. The forked session uses its OWN session_id (true isolation).

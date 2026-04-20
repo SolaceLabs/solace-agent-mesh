@@ -20,9 +20,11 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
     ModelConfigurationUpdateRequest,
     ModelConfigurationTestRequest,
 )
+from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE, DEFAULT_MODEL_ALIASES
 from solace_agent_mesh.shared.utils.secret_redactor import redact_auth_config
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.exceptions.exceptions import (
+    BusinessRuleViolationError,
     EntityAlreadyExistsError,
     EntityNotFoundError,
     ValidationErrorBuilder,
@@ -142,6 +144,28 @@ class ModelConfigService:
         """
         db_configs = self.repository.get_all(db)
         return [self._to_response(config) for config in db_configs]
+
+    def are_default_models_configured(self, db: Session) -> bool:
+        """
+        Check whether the 'general' and 'planning' default model aliases are configured.
+
+        A model is considered configured when its provider is set to a real value
+        (not the placeholder sentinel). Both aliases must be configured for this
+        to return True.
+
+        Args:
+            db: SQLAlchemy database session
+
+        Returns:
+            True if both 'general' and 'planning' have non-placeholder providers
+        """
+        alias_map = {c.alias: c for c in self.repository.get_all(db)}
+
+        for alias in DEFAULT_MODEL_ALIASES:
+            config = alias_map.get(alias)
+            if not config or not config.provider or config.provider == PLACEHOLDER_VALUE:
+                return False
+        return True
 
     def get_by_alias(self, db: Session, alias: str, raw=False) -> ModelConfigurationResponse:
         """
@@ -438,6 +462,8 @@ class ModelConfigService:
         """
         Delete a model configuration by ID.
 
+        Default model aliases (general, planning) cannot be deleted.
+
         Args:
             db: SQLAlchemy database session
             model_id: Model UUID to delete
@@ -449,6 +475,13 @@ class ModelConfigService:
 
         if not db_config:
             raise EntityNotFoundError("ModelConfiguration", model_id)
+
+        if db_config.alias in DEFAULT_MODEL_ALIASES:
+            raise BusinessRuleViolationError(
+                rule="CANNOT_DELETE_DEFAULT_MODEL",
+                message=f"Cannot delete default model '{db_config.alias}'. "
+                "Default models can be reconfigured but not removed.",
+            )
 
         self.repository.delete(db, db_config)
 
@@ -471,11 +504,15 @@ class ModelConfigService:
         # Redact secrets from auth config based on auth type
         redacted_auth_config = redact_auth_config(db_model.model_auth_config)
 
+        # Strip placeholder sentinel values — return None so clients receive null
+        provider = db_model.provider if db_model.provider != PLACEHOLDER_VALUE else None
+        model_name = db_model.model_name if db_model.model_name != PLACEHOLDER_VALUE else None
+
         return ModelConfigurationResponse(
             id=db_model.id,
             alias=db_model.alias,
-            provider=db_model.provider,
-            model_name=db_model.model_name,
+            provider=provider,
+            model_name=model_name,
             api_base=db_model.api_base,
             auth_type=db_model.model_auth_type,
             auth_config=redacted_auth_config or {},
@@ -501,7 +538,9 @@ class ModelConfigService:
         Returns:
             Dict with keys: model, api_base (optional), auth credentials, model params
         """
-        config = {"model": _resolve_litellm_model_name(db_model.provider, db_model.model_name)}
+        provider = db_model.provider if db_model.provider != PLACEHOLDER_VALUE else None
+        model_name = db_model.model_name if db_model.model_name != PLACEHOLDER_VALUE else None
+        config = {"model": _resolve_litellm_model_name(provider, model_name)}
         if db_model.api_base:
             config["api_base"] = db_model.api_base
         # Merge auth credentials (unredacted)
@@ -612,11 +651,12 @@ class ModelConfigService:
             # sends: system instruction, tools with schemas, and a user message.
             # This catches models that pass a bare "Say OK" test but fail under
             # real orchestrator usage (e.g. can't handle tools or system prompts).
-            # Temperature must be in GenerateContentConfig (not just model_config)
-            # because _get_completion_inputs requires it to be present.
-            # Use the user's value from model_params if set, otherwise default.
+            # Only include temperature if the user explicitly set one.
+            # Many models have restrictions on temperature values (e.g. GPT-5
+            # only supports temperature=1), so we let the provider use its own
+            # default rather than imposing 0.1.
             model_params = request.model_params or {}
-            temperature = model_params.get("temperature", 0.1)
+            temperature = model_params.get("temperature")
 
             llm_request = LlmRequest(
                 contents=[
@@ -655,8 +695,8 @@ class ModelConfigService:
                             ]
                         )
                     ],
-                    temperature=temperature,
-                    max_output_tokens=50,
+                    **({"temperature": temperature} if temperature is not None else {}),
+                    max_output_tokens=256,
                 ),
             )
 

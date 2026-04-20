@@ -58,6 +58,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DataValidator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You validate incoming data for analysis.
@@ -114,6 +116,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DataNormalizer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You normalize data for statistical analysis.
@@ -168,6 +172,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "StatisticsCalculator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You calculate statistical measures from normalized data.
@@ -225,6 +231,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "InsightExtractor"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You extract business insights from statistical analysis.
@@ -286,6 +294,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ReportFormatter"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You format insights into a structured report.
@@ -343,6 +353,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "SummaryGenerator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You create executive summaries of analysis pipelines.

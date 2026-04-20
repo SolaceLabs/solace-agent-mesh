@@ -3,8 +3,8 @@ import type { ThemePalette, ThemeDefinition } from "./themePalette";
 export const solace: ThemePalette = {
     brand: {
         wMain: "#00C895",
-        w30: "#B3EFDF",
         wMain30: "#00C8954d",
+        w30: "#B3EFDF",
         w10: "#E6FAF4",
         w60: "#66DEBF",
         w100: "#00AD93",
@@ -153,25 +153,26 @@ export const solace: ThemePalette = {
         wMain: "#033A6F",
         w90: "#022E59",
         w100: "#022343",
-        w20: "#CDD8E2",
-        w10: "#E6EBF1",
+        w20: "#C5D8EA",
+        w10: "#E9EFF6",
     },
 
     darkSurface: {
-        bg: "#03223B", // background-wMain
-        bgHover: "#021B2F", // background-w100
-        bgActive: "#021B2F", // background-w100
-        text: "#CCCCCC", // primiary-text-w10
-        textMuted: "#B1B9C0", // secondary-text-w50
-        brandMain: "#00C895", // brand-wMain
-        brandAccent: "#66DEBF", // brand-w60
-        border: "#536574", // secondary-w70
+        bg: "#03223B", // light - background-wMain
+        bgHover: "#021B2F", // light - background-w100
+        bgActive: "#021B2F", // light - background-w100
+        text: "#f5f5f5", // dark primary-text-wMain
+        textMuted: "#acbac2", // dark secondary-text-wMain
+        brandMain: "#00C895", // dark brand-wMain
+        brandAccent: "#00ad93", // dark brand-w60
+        border: "#536574", // light secondary-w70
+        buttonText: "#0892ce", // dark primary-wMain
+        buttonTextHover: "#33b8e0", // dark primary-w90
     },
 
-    temporary: {
-        primary: {
-            wMain: "#015B82",
-        },
+    lightSurface: {
+        bg: "#CFD3D9", // light secondary-w40
+        bgActive: "#F3F4F6", // light secondary-w10
     },
 };
 

@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { within, expect } from "storybook/test";
+import { within, expect, userEvent } from "storybook/test";
 import { http, HttpResponse, delay } from "msw";
 
 import { AgentMeshPage } from "@/lib/components/pages";
-import { mockModelConfigs } from "../data/models";
+import { mockModelConfigs, mockModelConfigsWithUnconfiguredDefaults } from "../data/models";
 import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
 import { InvalidateModelCacheDecorator } from "../decorators/InvalidateModelCacheDecorator";
 
@@ -80,6 +80,28 @@ export const Default: Story = {
 
         // Verify pagination controls don't show (only 8 models fit on one page)
         expect(canvas.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
+
+        // Verify default badges are rendered for General and Planning models
+        const defaultBadges = await canvas.findAllByText("Default");
+        expect(defaultBadges.length).toBe(2);
+
+        // Verify the badges are in the correct rows (General and Planning)
+        const generalRow = canvas.getByRole("row", { name: /General/i });
+        const planningRow = canvas.getByRole("row", { name: /Planning/i });
+
+        const generalBadge = within(generalRow).getByText("Default");
+        const planningBadge = within(planningRow).getByText("Default");
+
+        expect(generalBadge).toBeInTheDocument();
+        expect(planningBadge).toBeInTheDocument();
+
+        // Verify "Add Model" button appears on the Models tab and navigates when clicked
+        const addModelButton = canvas.getByRole("button", { name: /Add Model/i });
+        expect(addModelButton).toBeInTheDocument();
+        await userEvent.click(addModelButton);
+
+        // After clicking, navigation to /models/new/edit unmounts the models table
+        expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
     },
 };
 
@@ -128,6 +150,47 @@ export const Error: Story = {
     },
 };
 
+export const Sorting: Story = {
+    parameters: {
+        msw: { handlers: successHandlers },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Wait for table to render
+        await canvas.findByText("Aws");
+
+        // Default sort: Name A→Z (sorted by alias field).
+        // Mock data aliases: aws, azure, custom_model, general, gemini, image_gen, local, planning, vertex
+        const rows = canvas.getAllByRole("row");
+        // rows[0] = header row; rows[1] = first data row
+        expect(within(rows[1]).getByText("Aws")).toBeInTheDocument();
+        expect(within(rows.at(-1)!).getByText("Vertex")).toBeInTheDocument();
+
+        // Verify all three column headers have sort buttons
+        expect(canvas.getByRole("button", { name: "Name" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model" })).toBeInTheDocument();
+        expect(canvas.getByRole("button", { name: "Model Provider" })).toBeInTheDocument();
+
+        // Click Name header to toggle to Z→A
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
+
+        // After toggle: first data row should be "Vertex"
+        await canvas.findByText("Vertex");
+        const rowsDesc = canvas.getAllByRole("row");
+        expect(within(rowsDesc[1]).getByText("Vertex")).toBeInTheDocument();
+        expect(within(rowsDesc.at(-1)!).getByText("Aws")).toBeInTheDocument();
+
+        // Click Name header again to restore A→Z
+        await userEvent.click(canvas.getByRole("button", { name: "Name" }));
+        await canvas.findByText("Aws");
+        const rowsAsc = canvas.getAllByRole("row");
+        expect(within(rowsAsc[1]).getByText("Aws")).toBeInTheDocument();
+    },
+};
+
 export const WithPagination: Story = {
     parameters: {
         msw: {
@@ -170,5 +233,43 @@ export const WithPagination: Story = {
         // Verify pagination controls ARE visible (45 models exceed one page)
         const paginationNav = canvas.getByRole("navigation", { name: /pagination/i });
         expect(paginationNav).toBeInTheDocument();
+    },
+};
+
+export const UnconfiguredDefaults: Story = {
+    parameters: {
+        msw: {
+            handlers: [
+                http.get("*/api/v1/platform/models", () => {
+                    return HttpResponse.json({ data: mockModelConfigsWithUnconfiguredDefaults, total: mockModelConfigsWithUnconfiguredDefaults.length });
+                }),
+            ],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const modelsTab = await canvas.findByRole("tab", { name: /Models/i });
+        modelsTab.click();
+
+        // Verify default models render with their display names
+        await canvas.findByText("General");
+        await canvas.findByText("Planning");
+
+        // Verify "Default" badges appear for both default models
+        const badges = canvas.getAllByText("Default");
+        expect(badges.length).toBeGreaterThanOrEqual(2);
+
+        // Verify "Not configured" text appears for unconfigured models (provider + model columns)
+        const notConfiguredTexts = canvas.getAllByText("Not configured");
+        expect(notConfiguredTexts.length).toBeGreaterThanOrEqual(2);
+
+        // Verify warning icons are present for unconfigured defaults
+        // The AlertTriangle icons have a tooltip; verify they exist via their SVG role
+        const warningIcons = canvasElement.querySelectorAll(".text-\\(--warning-wMain\\)");
+        expect(warningIcons.length).toBe(2);
+
+        // Verify the configured model (image_gen) does NOT show "Not configured"
+        expect(canvas.getByText("Image Gen")).toBeInTheDocument();
+        expect(canvas.getByText("dall-e-3")).toBeInTheDocument();
     },
 };

@@ -12,7 +12,7 @@ import { TaskExecutionHistoryPage } from "./TaskExecutionHistoryPage";
 import { TaskTemplateBuilder } from "@/lib/components/scheduled-tasks/TaskTemplateBuilder";
 import { GenerateTaskDialog } from "@/lib/components/scheduled-tasks/GenerateTaskDialog";
 import { TaskCards } from "@/lib/components/scheduled-tasks/TaskCards";
-import { Header, EmptyState, ConfirmationDialog } from "@/lib/components";
+import { Header, EmptyState, ConfirmationDialog, PageLayout } from "@/lib/components";
 import { LifecycleBadge } from "@/lib/components/ui";
 
 export function ScheduledTasksPage() {
@@ -113,11 +113,25 @@ export function ScheduledTasksPage() {
 
     // Show execution history as full page
     if (viewingTaskHistory) {
-        return <TaskExecutionHistoryPage task={viewingTaskHistory} onBack={() => setViewingTaskHistory(null)} onEdit={handleEditTask} onDelete={handleDeleteFromHistory} />;
+        return (
+            <>
+                <TaskExecutionHistoryPage task={viewingTaskHistory} onBack={() => setViewingTaskHistory(null)} onEdit={handleEditTask} onDelete={handleDeleteFromHistory} />
+                <ConfirmationDialog
+                    open={!!deleteConfirm}
+                    title="Delete Scheduled Task"
+                    description={`Are you sure you want to delete "${deleteConfirm?.taskName}"?`}
+                    onOpenChange={open => {
+                        if (!open) setDeleteConfirm(null);
+                    }}
+                    onConfirm={handleConfirmDelete}
+                    actionLabels={{ confirm: "Delete", cancel: "Cancel" }}
+                />
+            </>
+        );
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title={
                     <>
@@ -173,6 +187,6 @@ export function ScheduledTasksPage() {
                 onConfirm={handleConfirmDelete}
                 actionLabels={{ confirm: "Delete", cancel: "Cancel" }}
             />
-        </div>
+        </PageLayout>
     );
 }

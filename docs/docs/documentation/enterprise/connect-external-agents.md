@@ -3,11 +3,15 @@ title: Connect External Agents
 sidebar_position: 9
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 # Connect External Agents
 
 The Connect External Agent feature allows you to integrate external A2A (Agent-to-Agent) protocol agents into your Agent Mesh deployment through a guided wizard interface. External agents run on separate infrastructure and communicate over HTTPS, but once connected, they appear and behave like native agents within your mesh.
 
 This feature provides a user-friendly alternative to manually configuring YAML proxy files. The wizard guides you through providing agent location details, configuring authentication, and reviewing the final configuration before connecting the agent.
+
+<NetworkAccessRequiredSingleFeature />
 
 ## How External Agent Connections Work
 

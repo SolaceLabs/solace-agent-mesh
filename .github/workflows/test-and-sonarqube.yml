@@ -3,6 +3,11 @@ name: Test and SonarQube Analysis
 on:
   workflow_call:
     inputs:
+      git_ref:
+        type: string
+        required: false
+        default: "main"
+        description: "Git reference to test against"
       min-python-version:
         type: string
         required: false
@@ -23,6 +28,17 @@ on:
         required: false
         default: "client/webui/frontend"
         description: "Path to the UI frontend directory"
+
+      run_sonarqube_analysis:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether to run SonarQube analysis"
+      run_quality_gate:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether to run SonarQube quality gate"
     secrets:
       SONAR_TOKEN:
         description: "SonarQube token"
@@ -48,6 +64,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -79,6 +96,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -101,9 +119,38 @@ jobs:
         run: hatch -v env create hatch-test.py${{ matrix.python-version }}
 
       - name: Run Tests with Hatch
-        continue-on-error: true
         run: |
-          hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --cov --cov-report=xml:coverage.xml --cov-report=term --junitxml=junit-${{ matrix.python-version }}.xml
+          set +e  # Don't exit on error - we want to generate coverage even if tests fail
+
+          # Run tests in parallel with unbuffered output
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.1 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-non-integration.xml &
+          PID1=$!
+
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.2 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/integration/ --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-integration.xml &
+          PID2=$!
+
+          # Wait and capture exit codes
+          wait $PID1
+          EXIT1=$?
+          wait $PID2
+          EXIT2=$?
+
+          # Always generate coverage and junit reports (even if tests failed)
+          echo "📊 Generating coverage reports..."
+          hatch -v run hatch-test.py${{ matrix.python-version }}:coverage combine || echo "⚠️ Coverage combine failed"
+          hatch -v run hatch-test.py${{ matrix.python-version }}:coverage xml -o coverage.xml || echo "⚠️ Coverage XML generation failed"
+          hatch -v run hatch-test.py${{ matrix.python-version }}:coverage report --show-missing || echo "⚠️ Coverage report failed"
+
+          # Create combined JUnit XML (expected by upload step)
+          cat junit-non-integration.xml junit-integration.xml > junit-${{ matrix.python-version }}.xml || echo "⚠️ JUnit XML merge failed"
+
+          # Report test results and fail if either test suite failed
+          if [ $EXIT1 -ne 0 ] || [ $EXIT2 -ne 0 ]; then
+            echo "❌ Tests failed: non-integration=$EXIT1, integration=$EXIT2"
+            exit 1
+          else
+            echo "✅ All tests passed"
+          fi
 
       - name: Upload Test Results
         uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5.6.2
@@ -115,6 +162,7 @@ jobs:
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() # Upload artifacts even if tests failed
         with:
           name: python-coverage-${{ matrix.python-version }}
           path: |
@@ -136,6 +184,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -201,7 +250,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-
+          ref: ${{ inputs.git_ref || github.sha }}
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -267,7 +316,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-
+          ref: ${{ inputs.git_ref || github.sha }}
       - name: Download Python Coverage Artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -308,12 +357,13 @@ jobs:
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        if: ${{ fromJSON(inputs.run_sonarqube_analysis) }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: SonarQube Quality Gate
-        if: github.event_name == 'pull_request'
+        if: ${{ fromJSON(inputs.run_quality_gate) }}
         id: sonarqube-quality-gate-check
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:

@@ -465,6 +465,213 @@ class TestModelConfigurationAPI:
         assert "could not find" in data["detail"].lower()
 
 
+class TestDefaultModelPlaceholders:
+    """Tests for placeholder default model seeding and lifecycle."""
+
+    def test_seed_creates_placeholder_defaults(self, platform_db_session_factory, enable_model_config_feature_flag):
+        """Seeding into an empty table creates placeholder records for general and planning."""
+        from solace_agent_mesh.services.platform.services import seed_model_configurations
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            # Mock os.getenv in the seeder module so host env vars don't
+            # cause _seed_from_env_vars to create real records instead of placeholders
+            with patch(
+                "solace_agent_mesh.services.platform.services.model_configuration_seeder.os.getenv",
+                return_value="",
+            ):
+                # Seed with no config (empty table)
+                count = seed_model_configurations(db, models_config=None)
+            db.commit()
+
+            # Both defaults should exist
+            assert count >= 2
+            general = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "general").first()
+            planning = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "planning").first()
+
+            assert general is not None
+            assert planning is not None
+
+            # Should have placeholder values
+            assert general.provider == PLACEHOLDER_VALUE
+            assert general.model_name == PLACEHOLDER_VALUE
+            assert general.model_auth_type == "none"
+            assert general.created_by == "system"
+
+            assert planning.provider == PLACEHOLDER_VALUE
+            assert planning.model_name == PLACEHOLDER_VALUE
+        finally:
+            db.close()
+
+    def test_seed_does_not_overwrite_existing_defaults(self, platform_db_session_factory, enable_model_config_feature_flag):
+        """Seeding when defaults already exist with real values does not overwrite them."""
+        from solace_agent_mesh.services.platform.services import seed_model_configurations
+
+        db = platform_db_session_factory()
+        try:
+            # Pre-create a real general model
+            general = ModelConfiguration(
+                id=str(uuid.uuid4()),
+                alias="general",
+                provider="openai",
+                model_name="gpt-4",
+                api_base="https://api.openai.com/v1",
+                model_auth_type="apikey",
+                model_auth_config={"type": "apikey", "api_key": "sk-real"},
+                model_params={},
+                description="Pre-existing general model",
+                created_by="admin",
+                updated_by="admin",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(general)
+            db.commit()
+
+            # Seed — should not overwrite general, should create planning placeholder
+            seed_model_configurations(db, models_config=None)
+            db.commit()
+
+            db.expire_all()
+            existing_general = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "general").first()
+            assert existing_general.provider == "openai"  # Not overwritten
+            assert existing_general.model_name == "gpt-4"
+
+            existing_planning = db.query(ModelConfiguration).filter(ModelConfiguration.alias == "planning").first()
+            assert existing_planning is not None  # Created as placeholder
+        finally:
+            db.close()
+
+    def test_placeholder_stripped_to_null_in_api_response(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Placeholder provider and model_name are returned as null in API responses."""
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            model_id = str(uuid.uuid4())
+            model_config = ModelConfiguration(
+                id=model_id,
+                alias="test-placeholder",
+                provider=PLACEHOLDER_VALUE,
+                model_name=PLACEHOLDER_VALUE,
+                api_base=None,
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                description="Placeholder model",
+                created_by="system",
+                updated_by="system",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get(f"/api/v1/platform/models/{model_id}")
+            assert response.status_code == 200
+
+            data = response.json()["data"]
+            assert data["provider"] is None
+            assert data["modelName"] is None
+            # Sentinel value should not leak through
+            assert PLACEHOLDER_VALUE not in response.text
+        finally:
+            db.close()
+
+    def test_status_endpoint_returns_false_for_placeholders(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Status endpoint returns configured=false when defaults have placeholder values."""
+        from solace_agent_mesh.services.platform.constants import PLACEHOLDER_VALUE
+
+        db = platform_db_session_factory()
+        try:
+            for alias in ["general", "planning"]:
+                model_config = ModelConfiguration(
+                    id=str(uuid.uuid4()),
+                    alias=alias,
+                    provider=PLACEHOLDER_VALUE,
+                    model_name=PLACEHOLDER_VALUE,
+                    api_base=None,
+                    model_auth_type="none",
+                    model_auth_config={"type": "none"},
+                    model_params={},
+                    created_by="system",
+                    updated_by="system",
+                    created_time=now_epoch_ms(),
+                    updated_time=now_epoch_ms(),
+                )
+                db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get("/api/v1/platform/models/status")
+            assert response.status_code == 200
+            assert response.json()["data"]["configured"] is False
+        finally:
+            db.close()
+
+    def test_status_endpoint_returns_true_when_configured(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Status endpoint returns configured=true when both defaults have real providers."""
+        db = platform_db_session_factory()
+        try:
+            for alias in ["general", "planning"]:
+                model_config = ModelConfiguration(
+                    id=str(uuid.uuid4()),
+                    alias=alias,
+                    provider="openai",
+                    model_name="gpt-4",
+                    api_base=None,
+                    model_auth_type="apikey",
+                    model_auth_config={"type": "apikey", "api_key": "sk-key"},
+                    model_params={},
+                    created_by="admin",
+                    updated_by="admin",
+                    created_time=now_epoch_ms(),
+                    updated_time=now_epoch_ms(),
+                )
+                db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.get("/api/v1/platform/models/status")
+            assert response.status_code == 200
+            assert response.json()["data"]["configured"] is True
+        finally:
+            db.close()
+
+    def test_delete_default_model_returns_error(self, platform_api_client, platform_db_session_factory, enable_model_config_feature_flag):
+        """Deleting a default model (general/planning) returns an error."""
+        db = platform_db_session_factory()
+        try:
+            model_id = str(uuid.uuid4())
+            model_config = ModelConfiguration(
+                id=model_id,
+                alias="general",
+                provider="openai",
+                model_name="gpt-4",
+                api_base=None,
+                model_auth_type="none",
+                model_auth_config={"type": "none"},
+                model_params={},
+                created_by="system",
+                updated_by="system",
+                created_time=now_epoch_ms(),
+                updated_time=now_epoch_ms(),
+            )
+            db.add(model_config)
+            db.commit()
+
+            response = platform_api_client.delete(f"/api/v1/platform/models/{model_id}")
+
+            assert response.status_code == 422
+            assert "cannot delete" in response.json()["detail"].lower()
+
+            # Verify model still exists
+            db.expire_all()
+            still_exists = db.query(ModelConfiguration).filter(ModelConfiguration.id == model_id).first()
+            assert still_exists is not None
+        finally:
+            db.close()
+
+
 class TestSupportedModelsAPI:
     """Tests for /api/v1/platform/providers/{provider}/models endpoints."""
 

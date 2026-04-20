@@ -3,6 +3,7 @@ Service for generating chat session titles using LLM.
 """
 import asyncio
 import logging
+import re
 from typing import Optional
 from google.adk.models import BaseLlm
 from ....agent.adk.models.lite_llm import LiteLlm
@@ -133,6 +134,7 @@ class TitleGenerationService:
 
         # Use a clear prompt that generates specific, meaningful titles
         prompt = f'''Generate a concise, specific title (under {TITLE_CHAR_LIMIT} characters) for this conversation.
+Output ONLY plain text. Do NOT use any markdown formatting such as bold (**), italic (*), headings (#), or backticks.
 Avoid generic titles like "New Chat" or "Conversation".
 Focus on the main topic or question.
 
@@ -175,6 +177,9 @@ Title:'''
             # Remove quotes if present
             title = title.strip('"\'')
 
+            # Strip any markdown formatting the LLM may have included
+            title = self._strip_markdown(title)
+
             # Ensure title is not empty
             if not title or len(title.strip()) == 0:
                 log.warning("[_call_litellm] LiteLLM returned empty title, using fallback")
@@ -186,6 +191,25 @@ Title:'''
         except Exception as e:
             log.error(f"[_call_litellm] Error generating title via LiteLLM: {e}", exc_info=True)
             return self._fallback_title(user_message)
+
+    def _strip_markdown(self, text: str) -> str:
+        """Strip common markdown formatting from text.
+
+        Removes bold (**text** / __text__), italic (*text* / _text_),
+        heading markers (# ), inline code (`text`), and strikethrough (~~text~~).
+        """
+        if not text:
+            return text
+        # Remove bold/italic markers: **text** or __text__
+        text = re.sub(r'\*{1,3}(.*?)\*{1,3}', r'\1', text)
+        text = re.sub(r'_{1,3}(.*?)_{1,3}', r'\1', text)
+        # Remove strikethrough: ~~text~~
+        text = re.sub(r'~~(.*?)~~', r'\1', text)
+        # Remove inline code: `text`
+        text = re.sub(r'`(.*?)`', r'\1', text)
+        # Remove heading markers at the start: # , ## , ### , etc.
+        text = re.sub(r'^#{1,6}\s+', '', text)
+        return text.strip()
 
     def _truncate_text(self, text: str, max_length: int) -> str:
         """Truncate text to max length."""

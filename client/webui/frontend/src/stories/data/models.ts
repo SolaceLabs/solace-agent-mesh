@@ -143,6 +143,58 @@ export const mockModelConfigs: ModelConfig[] = [
 ];
 
 // ============================================================================
+// Mock data: Default models with unconfigured placeholders
+// ============================================================================
+
+export const mockModelConfigsWithUnconfiguredDefaults: ModelConfig[] = [
+    {
+        id: "1",
+        alias: "general",
+        provider: null,
+        modelName: null,
+        apiBase: null,
+        authType: "none",
+        authConfig: { type: "none" },
+        modelParams: {},
+        description: "Default model configuration created by the system",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        updatedTime: Date.now(),
+    },
+    {
+        id: "2",
+        alias: "planning",
+        provider: null,
+        modelName: null,
+        apiBase: null,
+        authType: "none",
+        authConfig: { type: "none" },
+        modelParams: {},
+        description: "Default model configuration created by the system",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        updatedTime: Date.now(),
+    },
+    {
+        id: "3",
+        alias: "image_gen",
+        provider: "openai",
+        modelName: "dall-e-3",
+        apiBase: "https://api.openai.com",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
+        modelParams: {},
+        description: "Image generation model",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        updatedTime: Date.now(),
+    },
+];
+
+// ============================================================================
 // Individual Model Configurations (for specific story use cases)
 // ============================================================================
 

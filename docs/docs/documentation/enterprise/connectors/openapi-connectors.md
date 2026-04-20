@@ -3,6 +3,8 @@ title: OpenAPI Connectors
 sidebar_position: 3
 ---
 
+import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
+
 OpenAPI connectors allow agents to interact with REST APIs that use OpenAPI specifications.
 
 ## Overview
@@ -20,6 +22,8 @@ The connector reads the OpenAPI specification to determine:
 The connector converts API operations into tools that agents invoke. It derives all request details from the specification, including HTTP methods, headers like `Content-Type`, required parameters, and expected response structures. You cannot modify these settings in Agent Builder. To change how the connector constructs requests, you must update the OpenAPI specification file itself.
 
 The connector supports OpenAPI 3.0+ specifications in JSON or YAML format and provides flexible authentication options to accommodate different API security models.
+
+<NetworkAccessRequiredSingleFeature />
 
 ## Prerequisites
 

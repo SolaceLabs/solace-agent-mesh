@@ -196,3 +196,64 @@ class TestTitleGenerationService:
         llm_request = mock_llm.generate_content_async.call_args[0][0]
         assert len(llm_request.contents) == 1
         assert llm_request.contents[0].role == "user"
+
+    def test_strip_markdown_bold(self):
+        """Test stripping bold markdown (**text**)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("**bold title**") == "bold title"
+        assert service._strip_markdown("__bold title__") == "bold title"
+
+    def test_strip_markdown_italic(self):
+        """Test stripping italic markdown (*text*)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("*italic title*") == "italic title"
+        assert service._strip_markdown("_italic title_") == "italic title"
+
+    def test_strip_markdown_bold_italic(self):
+        """Test stripping bold+italic markdown (***text***)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("***bold italic***") == "bold italic"
+        assert service._strip_markdown("___bold italic___") == "bold italic"
+
+    def test_strip_markdown_headings(self):
+        """Test stripping heading markers (# text)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("# Heading Title") == "Heading Title"
+        assert service._strip_markdown("## Heading Title") == "Heading Title"
+        assert service._strip_markdown("### Heading Title") == "Heading Title"
+
+    def test_strip_markdown_inline_code(self):
+        """Test stripping inline code backticks (`text`)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("`code title`") == "code title"
+
+    def test_strip_markdown_strikethrough(self):
+        """Test stripping strikethrough (~~text~~)."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("~~strikethrough~~") == "strikethrough"
+
+    def test_strip_markdown_plain_text_unchanged(self):
+        """Test that plain text is returned unchanged."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("Plain Title") == "Plain Title"
+
+    def test_strip_markdown_empty_and_none(self):
+        """Test that empty/None input is handled."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("") == ""
+        assert service._strip_markdown(None) is None
+
+    def test_strip_markdown_mixed(self):
+        """Test stripping mixed markdown formatting."""
+        service = _create_service_with_mock_llm()
+        assert service._strip_markdown("**Bold** and *italic*") == "Bold and italic"
+
+    @pytest.mark.asyncio
+    async def test_call_litellm_strips_markdown(self):
+        """Test that markdown formatting is stripped from LLM-generated titles."""
+        mock_resp = _mock_llm_response("**Bold Title**")
+        service = _create_service_with_mock_llm(llm_return=mock_resp)
+
+        result = await service._call_litellm("Hello", "Hi")
+
+        assert result == "Bold Title"
