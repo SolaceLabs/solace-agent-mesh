@@ -812,7 +812,7 @@ async def load_adk_tools(
     loaded_tool_names: Set[str] = set()
     cleanup_hooks: List[Callable] = []
     tool_scopes_map: Dict[str, List[str]] = {}
-    tools_config = list(component.get_config("tools", []))
+    tools_config = component.get_config("tools", [])
 
     from pydantic import TypeAdapter, ValidationError
 
