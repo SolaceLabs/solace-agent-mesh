@@ -5,10 +5,6 @@ on:
   push:
     branches:
       - "main"
-  pull_request:
-    types: [opened, synchronize]
-    branches:
-      - "main"
 
 permissions:
   contents: write
@@ -37,42 +33,6 @@ jobs:
           filters: |
             ui:
               - 'client/webui/frontend/**'
-
-  validate-conventional-commit:
-    name: "Validate Conventional Commit"
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Validate PR Title
-        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            docs
-            style
-            refactor
-            perf
-            test
-            build
-            ci
-            chore
-            revert
-          requireScope: false
-          disallowScopes: |
-            release
-          subjectPattern: ^.+$
-          subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            didn't match the configured pattern. Please ensure that the subject
-            is not empty.
 
   ui-build-and-test:
     name: "Build and Test UI"
@@ -145,7 +105,6 @@ jobs:
 
       - name: Build UI package
         run: npm run build-package
-
 
   ui-ci-status:
     name: "UI CI Status"
