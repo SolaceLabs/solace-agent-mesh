@@ -178,7 +178,7 @@ jobs:
     steps:
       - name: Dispatch RC workflow and wait
         id: run-rc
-        uses: SolaceDev/solace-public-workflows/workflow-dispatch-and-wait@workflow-dispatch
+        uses: SolaceDev/solace-public-workflows/workflow-dispatch-and-wait@main
         with:
           workflow: rc-workflow.yaml
           repo: SolaceDev/rc-sam-community
