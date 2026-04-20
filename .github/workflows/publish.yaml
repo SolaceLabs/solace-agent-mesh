@@ -203,7 +203,7 @@ jobs:
           echo "Target DockerHub tags: $TARGET_IMAGE:$VERSION and $TARGET_IMAGE:latest"
 
           # Copy multi-arch manifest with versioned RC tag (copies all architectures)
-          echo "📦 Copying multi-arch manifest with versioned RC tag: $RC_TAG"
+          echo "📦 Copying multi-arch manifest with versioned DockerHub tag: $VERSION"
           skopeo copy --all \
             "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG" \
             "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$RC_TAG" \

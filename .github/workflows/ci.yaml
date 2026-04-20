@@ -36,6 +36,56 @@ jobs:
           echo "is_push_to_main=$IS_PUSH_TO_MAIN" >> "$GITHUB_OUTPUT"
           echo "is_regular_pr=$IS_REGULAR_PR" >> "$GITHUB_OUTPUT"
           echo "is_release_please_pr=$IS_RELEASE_PLEASE_PR" >> "$GITHUB_OUTPUT"
+  pr-size-check:
+    name: PR Size Check
+    needs: detect-context
+    if: ${{ github.event_name == 'pull_request'}}
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Validate PR Size
+        uses: SolaceDev/solace-public-workflows/.github/actions/pr-size-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-lines: 1500
+  validate-conventional-commit:
+    name: "Validate Conventional Commit"
+    needs: detect-context
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request'}}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR Title
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          disallowScopes: |
+            release
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            is not empty.
 
   fossa_pr_scan:
     name: FOSSA PR Scan
