@@ -199,21 +199,23 @@ jobs:
           echo "======================================"
           echo "Copying multi-arch manifest to DockerHub tags using skopeo"
           echo "======================================"
-          echo "Source: $ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG"
+          echo "Source: $SOURCE_IMAGE"
           echo "Target DockerHub tags: $TARGET_IMAGE:$VERSION and $TARGET_IMAGE:latest"
 
-          # Copy multi-arch manifest with versioned RC tag (copies all architectures)
+          # Copy multi-arch manifest with versioned DockerHub tag (copies all architectures)
           echo "📦 Copying multi-arch manifest with versioned DockerHub tag: $VERSION"
           skopeo copy --all \
-            "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$SOURCE_TAG" \
-            "docker://$ECR_REGISTRY/$ECR_REPOSITORY:$RC_TAG" \
-            --additional-tag="$TARGET_IMAGE:latest"
-          echo "✅ Copied multi-arch manifest to: $RC_TAG"
+            "docker://$SOURCE_IMAGE" \
+            "docker://$TARGET_IMAGE:$VERSION"
+          echo "✅ Copied multi-arch manifest to: $TARGET_IMAGE:$VERSION"
 
-          echo ""
-          echo "======================================"
-          echo "✅ Successfully promoted $SOURCE_TAG to multi-arch RC tags: $RC_TAG and rc"
-          echo "======================================"
+          if [[ "$PUSH_LATEST" == "true" ]]; then
+            echo "📦 Copying multi-arch manifest with latest DockerHub tag"
+            skopeo copy --all \
+              "docker://$SOURCE_IMAGE" \
+              "docker://$TARGET_IMAGE:latest"
+            echo "✅ Copied multi-arch manifest to: $TARGET_IMAGE:latest"
+          fi
 
       - name: Add Docker summary
         env:

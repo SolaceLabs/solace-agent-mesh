@@ -1,5 +1,5 @@
 name: Release Readiness Check
-
+run-name: "Release Readiness Check for `${{ inputs.version }}`"
 on:
   workflow_call:
     inputs:

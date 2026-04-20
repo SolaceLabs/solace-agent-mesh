@@ -17,6 +17,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    environment: release-please
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -44,6 +45,7 @@ jobs:
     name: Trigger Publish Workflow
     needs: [create-release, post-process-release]
     if: ${{ needs.create-release.outputs.release_created == 'true' }}
+    environment: release-please
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch publish workflow and wait

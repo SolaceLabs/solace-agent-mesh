@@ -6,6 +6,7 @@
   "separate-pull-requests": false,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "extra-label": "skip_jira_status_check",
   "changelog-sections": [
     {
       "type": "feat",
