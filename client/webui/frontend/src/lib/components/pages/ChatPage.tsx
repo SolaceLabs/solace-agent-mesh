@@ -529,7 +529,10 @@ export function ChatPage() {
     return (
         <PageLayout className="relative">
             {!useNewNav && (
-                <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+                <div
+                    inert={isSessionSidePanelCollapsed}
+                    className={`absolute top-0 left-0 z-20 h-screen transition-[transform,visibility] duration-300 ${isSessionSidePanelCollapsed ? "invisible -translate-x-full delay-300" : "visible translate-x-0"}`}
+                >
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
