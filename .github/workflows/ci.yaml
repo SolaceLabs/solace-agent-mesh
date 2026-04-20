@@ -94,6 +94,7 @@ jobs:
     uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
     permissions:
       contents: read
+      packages: read
       pull-requests: write
       id-token: write
       actions: read
