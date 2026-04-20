@@ -538,6 +538,112 @@ class TestCompactSession:
             assert "publish" in exc_info.value.detail.lower()
 
 
+class TestCompactSessionPersistence:
+    """Tests that happy-path compaction persists the synthetic TaskModel
+    row and the compaction_notification chat task that the indicator relies on
+    after refresh."""
+
+    @pytest.fixture
+    def mock_session_service(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_component(self):
+        comp = MagicMock()
+        comp.gateway_id = "test-gateway"
+        comp._compaction_futures = {}
+        comp.sam_events = MagicMock()
+        comp.sam_events.publish_session_compact_request = MagicMock(return_value=True)
+        return comp
+
+    def _make_resolved_future(self, result_data):
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        future.set_result(result_data)
+        return future
+
+    @pytest.mark.asyncio
+    async def test_persists_synthetic_cost_task_and_notification(
+        self, mock_session_service, mock_component
+    ):
+        mock_session = MagicMock()
+        mock_session.agent_id = "test-agent"
+        mock_session_service.get_session_details.return_value = mock_session
+
+        response_data = {
+            "success": True,
+            "events_compacted": 3,
+            "summary": "Prior turns condensed.",
+            "remaining_events": 1,
+            "remaining_tokens": 1234,
+            "compaction_prompt_tokens": 500,
+            "compaction_completion_tokens": 60,
+        }
+        mock_component.register_compaction_future = MagicMock(
+            return_value=self._make_resolved_future(response_data)
+        )
+
+        # Mock DB: query for latest TaskModel returns a row whose start_time
+        # is in the past so the synthetic row uses wall-clock time instead.
+        latest = MagicMock()
+        latest.start_time = 1000  # far older than now()
+        query_mock = MagicMock()
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.first.return_value = latest
+        mock_db = MagicMock()
+        mock_db.query.return_value = query_mock
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                compact_session,
+                CompactSessionRequest,
+            )
+
+            result = await compact_session(
+                session_id="sess-1",
+                request=CompactSessionRequest(),
+                agent_name=None,
+                db=mock_db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                component=mock_component,
+            )
+
+        # Synthetic compaction-cost TaskModel was added + committed
+        assert mock_db.add.call_count == 1
+        added = mock_db.add.call_args.args[0]
+        assert added.id.startswith("compaction-cost-")
+        assert added.session_id == "sess-1"
+        assert added.user_id == "user-1"
+        assert added.total_input_tokens == 500
+        assert added.total_output_tokens == 60
+        assert added.token_usage_details == {
+            "post_compaction_remaining_tokens": 1234
+        }
+        # Synthetic start_time must be strictly greater than the latest row
+        # AND at least current wall-clock ms so the context-usage reader
+        # (order_by desc(start_time)) picks it up as the most recent row.
+        assert added.start_time > latest.start_time
+        mock_db.commit.assert_called()
+
+        # compaction_notification chat task was persisted
+        mock_session_service.save_task.assert_called_once()
+        save_kwargs = mock_session_service.save_task.call_args.kwargs
+        assert save_kwargs["session_id"] == "sess-1"
+        assert save_kwargs["task_id"].startswith("manual-compaction-")
+        bubbles_json = save_kwargs["message_bubbles"]
+        import json as _json
+        bubbles = _json.loads(bubbles_json)
+        assert bubbles[0]["parts"][0]["data"]["type"] == "compaction_notification"
+        assert bubbles[0]["parts"][0]["data"]["summary"] == "Prior turns condensed."
+
+        assert result.summary == "Prior turns condensed."
+
+
 class TestContextUsageModelResolution:
     """Tests for model resolution in get_session_context_usage."""
 

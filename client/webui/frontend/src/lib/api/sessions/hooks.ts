@@ -3,6 +3,8 @@ import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tansta
 
 import { sessionKeys } from "./keys";
 import * as sessionService from "./service";
+import { getSessionContextUsage, compactSession } from "./context-usage";
+import type { CompactSessionRequest, CompactSessionResponse, ContextUsage } from "@/lib/types";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 
 /**
@@ -91,6 +93,44 @@ export function useRenameSessionWithAI() {
     return useMutation({
         mutationFn: async (sessionId: string) => {
             return sessionService.getSessionChatTasks(sessionId);
+        },
+    });
+}
+
+/**
+ * Hook to fetch context window usage for a session. Returns null data silently
+ * on fetch failure so the indicator can hide rather than surface an error.
+ */
+export function useSessionContextUsage(sessionId: string | undefined, agentName?: string) {
+    return useQuery<ContextUsage | null>({
+        queryKey: sessionId ? sessionKeys.contextUsage(sessionId, agentName) : ["sessions", "context-usage", "disabled"],
+        queryFn: async () => {
+            if (!sessionId) return null;
+            try {
+                return await getSessionContextUsage(sessionId, undefined, agentName);
+            } catch (err) {
+                if (process.env.NODE_ENV === "development") {
+                    console.warn("useSessionContextUsage: failed to fetch usage", err);
+                }
+                return null;
+            }
+        },
+        enabled: !!sessionId,
+    });
+}
+
+/**
+ * Mutation to manually compact a session. Invalidates the session's chat tasks
+ * (so the backend-persisted compaction_notification task renders) and context
+ * usage (so the post-compaction drop is reflected).
+ */
+export function useCompactSession(sessionId: string) {
+    const queryClient = useQueryClient();
+    return useMutation<CompactSessionResponse, Error, CompactSessionRequest | undefined>({
+        mutationFn: (request?: CompactSessionRequest) => compactSession(sessionId, request),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: sessionKeys.chatTasks(sessionId) });
+            queryClient.invalidateQueries({ queryKey: [...sessionKeys.detail(sessionId), "context-usage"] });
         },
     });
 }

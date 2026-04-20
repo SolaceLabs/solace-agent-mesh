@@ -155,7 +155,9 @@ def get_sac_component() -> "WebUIBackendComponent":
 # Sentinel object to distinguish "not yet initialized" from "initialized to None".
 _ADK_SESSION_SERVICE_UNSET = object()
 _adk_session_service = _ADK_SESSION_SERVICE_UNSET
-_adk_session_service_lock: asyncio.Lock | None = None
+# Initialized at module import time (NOT lazily) so two concurrent first
+# callers cannot each create their own lock and defeat the singleton.
+_adk_session_service_lock: asyncio.Lock = asyncio.Lock()
 _adk_init_last_failure: float = 0.0
 _ADK_INIT_RETRY_COOLDOWN = 30.0  # seconds between retry attempts
 
@@ -179,10 +181,8 @@ async def get_adk_session_service(
     Returns ``None`` when no ``adk_session_service`` is configured, which causes
     token-counting endpoints to return empty/zero results gracefully.
     """
-    global _adk_session_service, _adk_init_last_failure, _adk_session_service_lock
+    global _adk_session_service, _adk_init_last_failure
     if _adk_session_service is _ADK_SESSION_SERVICE_UNSET:
-        if _adk_session_service_lock is None:
-            _adk_session_service_lock = asyncio.Lock()
         async with _adk_session_service_lock:
             # Cooldown check inside the lock to prevent concurrent bypass
             if _adk_init_last_failure and (_time.monotonic() - _adk_init_last_failure) < _ADK_INIT_RETRY_COOLDOWN:

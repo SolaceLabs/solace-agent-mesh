@@ -1,11 +1,18 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
 import { ConfirmationDialog } from "@/lib/components/common";
-import { getSessionContextUsage, compactSession } from "@/lib/api/sessions";
-import type { ContextUsage, MessageFE } from "@/lib/types";
+import { useSessionContextUsage, useCompactSession, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext } from "@/lib/hooks";
+
+// Thresholds that surface the "Summarize Conversation" button and toolbar icon.
+// Either condition is enough — early in the session (high message count, low
+// tokens) we still want to offer compaction; mid-session with few messages but
+// lots of context we also want to offer it.
+const COMPACT_BUTTON_MIN_MESSAGES = 20;
+const COMPACT_BUTTON_MIN_USAGE_PCT = 20;
 
 interface ContextUsageIndicatorProps {
     sessionId: string;
@@ -43,90 +50,84 @@ const CompressionIcon = ({ className }: { className?: string }) => (
 
 export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0 }: ContextUsageIndicatorProps) {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [usage, setUsage] = useState<ContextUsage | null>(null);
-    const [isCompacting, setIsCompacting] = useState(false);
     const [compactError, setCompactError] = useState<string | null>(null);
     const [compactSuccess, setCompactSuccess] = useState<string | null>(null);
     const [showCompactConfirm, setShowCompactConfirm] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const compactingRef = useRef(false);
-    const { selectedAgentName, isResponding, setMessages } = useChatContext();
+    const { selectedAgentName, isResponding } = useChatContext();
+    const queryClient = useQueryClient();
 
-    const fetchUsage = useCallback(async () => {
-        if (!sessionId) return;
-        // Skip if a compaction is actively in flight — handleCompress will
-        // trigger a fresh fetch itself once the backend has committed the
-        // post-compaction rows.
-        if (compactingRef.current) return;
-        try {
-            const data = await getSessionContextUsage(sessionId, undefined, selectedAgentName || undefined);
-            if (compactingRef.current) return data;
-            setUsage(data);
-            return data;
-        } catch (err) {
-            if (process.env.NODE_ENV === "development") {
-                console.warn("ContextUsageIndicator: failed to fetch usage", err);
-            }
-            setUsage(null);
-            return null;
-        }
-    }, [sessionId, selectedAgentName]);
+    const { data: usage, refetch: refetchUsage } = useSessionContextUsage(sessionId, selectedAgentName || undefined);
+    const compactMutation = useCompactSession(sessionId);
+    const isCompacting = compactMutation.isPending;
 
-    // Reset usage immediately when agent changes so stale data isn't shown
+    // Refetch on mount and whenever a new message arrives (messageCount changes).
     useEffect(() => {
-        setUsage(null);
-    }, [selectedAgentName]);
-
-    // Fetch on mount and whenever a new message arrives (messageCount changes).
-    useEffect(() => {
-        fetchUsage();
-    }, [fetchUsage, messageCount]);
+        if (sessionId) refetchUsage();
+    }, [sessionId, messageCount, refetchUsage]);
 
     // When the AI finishes responding (isResponding: true → false), poll until
-    // the backend reflects the new task's token usage.  The TaskLoggerService
+    // the backend reflects the new task's token usage. The TaskLoggerService
     // writes total_input_tokens asynchronously after the task completes, so the
-    // first fetch may still return stale data.  We retry up to 4 times with
+    // first fetch may still return stale data. We retry up to 4 times with
     // increasing delays (500ms, 1s, 2s, 4s) and stop as soon as totalTasks
-    // increases (meaning the new task's data is available).
+    // increases. Capture the baseline task count only on the false→true
+    // transition so mid-stream refetches don't inflate it.
     const prevRespondingRef = useRef(false);
-    const prevTaskCountRef = useRef(0);
+    const baselineTaskCountRef = useRef(0);
     useEffect(() => {
-        if (usage) prevTaskCountRef.current = usage.totalTasks;
-    }, [usage]);
-
-    useEffect(() => {
+        if (isResponding && !prevRespondingRef.current) {
+            baselineTaskCountRef.current = usage?.totalTasks ?? 0;
+        }
         if (prevRespondingRef.current && !isResponding) {
-            const expectedTasks = prevTaskCountRef.current + 1;
+            const expectedTasks = baselineTaskCountRef.current + 1;
             let attempt = 0;
             let cancelled = false;
 
             const poll = async () => {
-                if (cancelled || attempt >= 4) return;
-                const delay = 500 * Math.pow(2, attempt); // 500, 1000, 2000, 4000
-                attempt++;
-                await new Promise(r => setTimeout(r, delay));
-                if (cancelled) return;
-                const data = await fetchUsage();
-                if (!cancelled && data && data.totalTasks < expectedTasks && attempt < 4) {
-                    poll(); // data not yet available, retry
+                while (!cancelled && attempt < 4) {
+                    const delay = 500 * Math.pow(2, attempt); // 500, 1000, 2000, 4000
+                    attempt++;
+                    await new Promise(r => setTimeout(r, delay));
+                    if (cancelled) return;
+                    const result = await refetchUsage();
+                    if (result.data && result.data.totalTasks >= expectedTasks) return;
                 }
             };
             poll();
+            prevRespondingRef.current = isResponding;
             return () => {
                 cancelled = true;
             };
         }
         prevRespondingRef.current = isResponding;
-    }, [isResponding, fetchUsage]);
+        // Intentionally exclude usage?.totalTasks: it's mutated by the poll's
+        // own refetchUsage() calls. Including it would re-run the effect on
+        // every intermediate refetch, trip the cleanup (cancelled = true),
+        // and abort the poll before the new task's token data arrives. The
+        // loop reads the latest count via result.data.totalTasks directly.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isResponding, refetchUsage]);
 
-    // Click outside to collapse — also clear stale success/error banners
+    // Click outside to collapse. Only collapse — do NOT clear banners here:
+    // ConfirmationDialog is portaled (outside containerRef), so clicking its
+    // "Compact" button looks like an outside click and would wipe the banner
+    // before handleCompress finishes. Banners are instead cleared on the
+    // explicit dismiss buttons and at the start of each compaction attempt.
+    // We also ignore mousedowns that originate inside any portal-rendered
+    // dialog content to avoid collapsing the panel when the user interacts
+    // with the confirmation dialog.
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setIsExpanded(false);
-                setCompactSuccess(null);
-                setCompactError(null);
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (containerRef.current && containerRef.current.contains(target)) return;
+            // Ignore clicks inside any Radix/portaled dialog so the panel
+            // stays expanded while the confirmation flow runs.
+            if (target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]')) {
+                return;
             }
+            setIsExpanded(false);
         };
         if (isExpanded) {
             document.addEventListener("mousedown", handleClickOutside);
@@ -154,63 +155,32 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const formattedLimit = usage?.maxInputTokens ? formatTokenCount(usage.maxInputTokens) : null;
 
     // Show compress button when 15+ messages OR 2%+ token usage
-    const shouldShowCompressButton = useMemo(() => messageCount >= 15 || pct >= 2, [messageCount, pct]);
+    const shouldShowCompressButton = useMemo(() => messageCount >= COMPACT_BUTTON_MIN_MESSAGES || pct >= COMPACT_BUTTON_MIN_USAGE_PCT, [messageCount, pct]);
 
     const requestCompress = () => {
-        if (isCompacting || compactingRef.current) return;
+        if (isCompacting) return;
         setShowCompactConfirm(true);
     };
 
     const handleCompress = async () => {
-        if (compactingRef.current) return;
-        compactingRef.current = true;
-        setIsCompacting(true);
+        if (isCompacting) return;
         setCompactError(null);
         setCompactSuccess(null);
         try {
-            const result = await compactSession(sessionId);
+            const result = await compactMutation.mutateAsync(undefined);
             setCompactSuccess(`Compacted ${result.eventsCompacted} events. ${result.remainingTokens > 0 ? `${formatTokenCount(result.remainingTokens)} tokens remaining.` : ""}`);
             // Auto-expand the panel so the user sees the success/summary message
             setIsExpanded(true);
 
-            // Inject a compaction-notification message into the chat so the user
-            // sees the same AccordionCard (title + description + expandable
-            // summary) that auto-compaction produces. is_background=false uses
-            // the "Your conversation was summarized" copy variant.
-            if (result.summary) {
-                const id = `manual-compaction-${Date.now()}`;
-                const compactionMessage: MessageFE = {
-                    taskId: id,
-                    createdTime: Date.now(),
-                    role: "agent",
-                    isUser: false,
-                    isComplete: true,
-                    metadata: { messageId: id },
-                    parts: [
-                        {
-                            kind: "data",
-                            data: {
-                                type: "compaction_notification",
-                                summary: result.summary,
-                                is_background: false,
-                            },
-                        },
-                    ],
-                };
-                setMessages(prev => [...prev, compactionMessage]);
-            }
-
-            // Backend now persists a synthetic compaction-cost task row with the
-            // summarizer's own token usage, so fetchUsage() returns authoritative
-            // post-compaction values (remaining context + rolled-up cumulatives).
-            compactingRef.current = false;
-            await fetchUsage();
+            // Backend persists both the compaction_notification chat task and
+            // a synthetic compaction-cost task row. The mutation's onSuccess
+            // invalidates chat-tasks + context-usage queries so the normal
+            // pipeline renders the notification and the indicator reflects the
+            // post-compaction drop — no frontend message injection needed.
+            await queryClient.invalidateQueries({ queryKey: sessionKeys.chatTasks(sessionId) });
             onCompacted?.();
         } catch (err) {
             setCompactError(err instanceof Error ? err.message : "Failed to compact session");
-        } finally {
-            setIsCompacting(false);
-            compactingRef.current = false;
         }
     };
 

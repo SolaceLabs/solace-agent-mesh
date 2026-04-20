@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 import uuid
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -1292,7 +1293,11 @@ def _get_model_context_limit(
     return None
 
 
-@router.get("/sessions/{session_id}/context-usage", response_model=ContextUsageResponse)
+@router.get(
+    "/sessions/{session_id}/context-usage",
+    response_model=ContextUsageResponse,
+    response_model_by_alias=True,
+)
 async def get_session_context_usage(
     session_id: str,
     model: Optional[str] = None,
@@ -1403,27 +1408,47 @@ async def get_session_context_usage(
 
         if completed_tasks:
             latest = completed_tasks[0]
-            # currentContextTokens = latest task's input (current context window for progress bar)
-            current_tokens = latest.total_input_tokens
             # promptTokens = cumulative input across ALL completed tasks
             prompt_tokens = sum(t.total_input_tokens or 0 for t in completed_tasks)
             # completionTokens = cumulative output across ALL completed tasks
             completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
-            cached_tokens = latest.total_cached_input_tokens or 0
+
+            # If the most recent row is a synthetic compaction-cost row, the
+            # authoritative post-compaction context size is stored in its
+            # ``token_usage_details.post_compaction_remaining_tokens``. Model
+            # / cached-tokens metadata comes from the latest REAL task to
+            # avoid reading stubbed fields on the synthetic row.
+            real_latest = next(
+                (t for t in completed_tasks if not (t.id or "").startswith("compaction-cost-")),
+                latest,
+            )
+            if (latest.id or "").startswith("compaction-cost-"):
+                details = latest.token_usage_details or {}
+                current_tokens = int(details.get("post_compaction_remaining_tokens") or 0)
+            else:
+                # currentContextTokens = latest task's input
+                current_tokens = latest.total_input_tokens or 0
+
+            cached_tokens = real_latest.total_cached_input_tokens or 0
 
             # Prefer the model actually used by the latest task over the gateway's
             # own model config — the agent may run a different model than the
             # gateway (and different agents in the same session may differ).
             # Query-param `model` still wins (explicit caller override).
             if not model:
-                by_model = (latest.token_usage_details or {}).get("by_model") or {}
-                if by_model:
-                    dominant = max(by_model.items(), key=lambda kv: kv[1].get("input_tokens", 0))
+                by_model = (real_latest.token_usage_details or {}).get("by_model") or {}
+                valid_entries = [kv for kv in by_model.items() if isinstance(kv[1], dict)]
+                if valid_entries:
+                    dominant = max(valid_entries, key=lambda kv: kv[1].get("input_tokens", 0))
                     effective_model = dominant[0]
 
         stamped_limit: Optional[int] = None
         if completed_tasks:
-            by_model = (completed_tasks[0].token_usage_details or {}).get("by_model") or {}
+            real_latest_for_limit = next(
+                (t for t in completed_tasks if not (t.id or "").startswith("compaction-cost-")),
+                completed_tasks[0],
+            )
+            by_model = (real_latest_for_limit.token_usage_details or {}).get("by_model") or {}
             entry = by_model.get(effective_model)
             if isinstance(entry, dict):
                 raw = entry.get("max_input_tokens")
@@ -1464,7 +1489,203 @@ async def get_session_context_usage(
         )
 
 
-@router.post("/sessions/{session_id}/compact", response_model=CompactSessionResponse)
+async def _publish_and_await_compaction(
+    component,
+    session_id: str,
+    user_id: str,
+    app_name: str,
+    compaction_percentage: float,
+) -> dict:
+    """Publish a session.compact_request and await the matching response.
+
+    Returns the raw ``result`` dict on success. Raises ``HTTPException`` on
+    publish failure or timeout. Always cleans up the correlation entry on
+    failure paths.
+    """
+    correlation_id = uuid.uuid4().hex
+    future = component.register_compaction_future(
+        correlation_id, expected_agent_id=app_name
+    )
+
+    published = component.sam_events.publish_session_compact_request(
+        session_id=session_id,
+        user_id=user_id,
+        agent_id=app_name,
+        gateway_id=component.gateway_id,
+        correlation_id=correlation_id,
+        compaction_percentage=compaction_percentage,
+    )
+    if not published:
+        component._compaction_futures.pop(correlation_id, None)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to publish compaction request.",
+        )
+
+    try:
+        result = await asyncio.wait_for(future, timeout=60.0)
+    except asyncio.TimeoutError:
+        component._compaction_futures.pop(correlation_id, None)
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Compaction request timed out. The agent may be unavailable.",
+        )
+
+    result["_correlation_id"] = correlation_id
+    return result
+
+
+def _map_compaction_error(session_id: str, result: dict) -> None:
+    """Translate an unsuccessful compaction ``result`` into an HTTPException.
+
+    The agent's raw ``error_message`` is logged for diagnostics but never
+    returned to the client — we map it to a canned user-facing message to
+    avoid leaking internal details.
+    """
+    error_msg = result.get("error_message", "Compaction failed")
+    log.info("Compaction unsuccessful for session %s: %s", session_id, error_msg)
+    lowered = error_msg.lower() if isinstance(error_msg, str) else ""
+    if "not enough" in lowered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not enough conversation history to compact yet.",
+        )
+    if "not found" in lowered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session has no conversation history to compact.",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Failed to compact session",
+    )
+
+
+def _persist_compaction_cost_task(
+    db: Session,
+    session_id: str,
+    user_id: str,
+    correlation_id: str,
+    result: dict,
+) -> None:
+    """Persist a synthetic ``compaction-cost-*`` TaskModel row.
+
+    Rolls the summarizer's own LLM token usage into the session's cumulative
+    prompt/completion counters AND records the post-compaction context window
+    size on the synthetic row (under ``token_usage_details``), never by
+    overwriting the real task's historical ``total_input_tokens`` (which
+    analytics/billing depend on). The reader derives ``currentContextTokens``
+    from this synthetic row when it is the most recent row in the session.
+    """
+    from ..repository.models import TaskModel
+    from sqlalchemy import desc
+
+    comp_in = int(result.get("compaction_prompt_tokens") or 0)
+    comp_out = int(result.get("compaction_completion_tokens") or 0)
+    remaining_tokens = result.get("remaining_tokens")
+    if not (comp_in or comp_out or remaining_tokens is not None):
+        return
+
+    latest_task = (
+        db.query(TaskModel)
+        .filter(
+            TaskModel.session_id == session_id,
+            TaskModel.user_id == user_id,
+            TaskModel.total_input_tokens.isnot(None),
+        )
+        .order_by(desc(TaskModel.start_time))
+        .first()
+    )
+    if latest_task is None:
+        return
+
+    try:
+        details: dict = {}
+        if remaining_tokens is not None:
+            details["post_compaction_remaining_tokens"] = int(remaining_tokens)
+        # Place the synthetic row just AFTER the latest real task so the
+        # reader picks it up as "latest" for context-size purposes (sum()
+        # over input tokens still includes compaction cost).
+        synthetic_start = max(
+            (latest_task.start_time or 0) + 1,
+            int(time.time() * 1000),
+        )
+        synthetic_task = TaskModel(
+            id=f"compaction-cost-{correlation_id}",
+            user_id=user_id,
+            session_id=session_id,
+            start_time=synthetic_start,
+            end_time=synthetic_start,
+            status="completed",
+            total_input_tokens=comp_in,
+            total_output_tokens=comp_out,
+            token_usage_details=details or None,
+        )
+        db.add(synthetic_task)
+        db.commit()
+    except Exception as synth_err:
+        db.rollback()
+        log.warning(
+            "Failed to persist compaction token usage for session %s: %s",
+            session_id,
+            synth_err,
+        )
+
+
+def _persist_compaction_notification(
+    session_service: SessionService,
+    db: Session,
+    session_id: str,
+    user_id: str,
+    correlation_id: str,
+    summary: str,
+) -> None:
+    """Persist a compaction_notification chat task for session reload.
+
+    Matches the auto-compaction path (which persists via the A2A task-event
+    pipeline). Manual compaction runs outside any task context, so we
+    synthesize a chat task directly here.
+    """
+    if not summary:
+        return
+    try:
+        message_id = f"manual-compaction-{correlation_id}"
+        bubble = {
+            "id": message_id,
+            "type": "agent",
+            "text": "",
+            "parts": [
+                {
+                    "kind": "data",
+                    "data": {
+                        "type": "compaction_notification",
+                        "summary": summary,
+                        "is_background": False,
+                    },
+                }
+            ],
+        }
+        session_service.save_task(
+            db=db,
+            task_id=message_id,
+            session_id=session_id,
+            user_id=user_id,
+            user_message=None,
+            message_bubbles=json.dumps([bubble]),
+        )
+    except Exception as save_err:
+        log.warning(
+            "Failed to persist manual compaction notification for session %s: %s",
+            session_id,
+            save_err,
+        )
+
+
+@router.post(
+    "/sessions/{session_id}/compact",
+    response_model=CompactSessionResponse,
+    response_model_by_alias=True,
+)
 async def compact_session(
     session_id: str,
     request: CompactSessionRequest = Body(default=CompactSessionRequest()),
@@ -1485,7 +1706,6 @@ async def compact_session(
     user_id = user.get("id")
 
     try:
-        # 1. Validate session exists and belongs to user
         gateway_session = session_service.get_session_details(db, session_id, user_id)
         if not gateway_session:
             raise HTTPException(
@@ -1499,144 +1719,23 @@ async def compact_session(
                 detail="No agent associated with this session. Provide agent_name parameter.",
             )
 
-        # 2. Generate correlation ID
-        correlation_id = uuid.uuid4().hex
-
-        # 3. Register the correlation ID with the component to get a Future
-        future = component.register_compaction_future(correlation_id)
-
-        # 4. Publish session.compact_request SAM event
-        published = component.sam_events.publish_session_compact_request(
-            session_id=session_id,
-            user_id=user_id,
-            agent_id=app_name,
-            gateway_id=component.gateway_id,
-            correlation_id=correlation_id,
-            compaction_percentage=request.compaction_percentage,
+        result = await _publish_and_await_compaction(
+            component, session_id, user_id, app_name, request.compaction_percentage
         )
+        correlation_id = result.pop("_correlation_id")
 
-        if not published:
-            component._compaction_futures.pop(correlation_id, None)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to publish compaction request.",
-            )
-
-        # 5. Wait for the response with timeout
-        try:
-            result = await asyncio.wait_for(future, timeout=60.0)
-        except asyncio.TimeoutError:
-            component._compaction_futures.pop(correlation_id, None)
-            raise HTTPException(
-                status_code=status.HTTP_408_REQUEST_TIMEOUT,
-                detail="Compaction request timed out. The agent may be unavailable.",
-            )
-
-        # 6. Process the response
         if not result.get("success"):
-            error_msg = result.get("error_message", "Compaction failed")
-            # Determine appropriate status code based on error
-            if "not enough" in error_msg.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_msg,
-                )
-            elif "not found" in error_msg.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_msg,
-                )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to compact session",
-                )
+            _map_compaction_error(session_id, result)
 
-        # Persist the post-compaction context window size so it survives page refresh
-        from ..repository.models import TaskModel
-        from sqlalchemy import desc
-
-        latest_task = (
-            db.query(TaskModel)
-            .filter(
-                TaskModel.session_id == session_id,
-                TaskModel.user_id == user_id,
-                TaskModel.total_input_tokens.isnot(None),
-            )
-            .order_by(desc(TaskModel.start_time))
-            .first()
+        _persist_compaction_cost_task(db, session_id, user_id, correlation_id, result)
+        _persist_compaction_notification(
+            session_service,
+            db,
+            session_id,
+            user_id,
+            correlation_id,
+            result.get("summary") or "",
         )
-        if latest_task and result.get("remaining_tokens") is not None:
-            latest_task.total_input_tokens = result["remaining_tokens"]
-            db.commit()
-
-        # Roll the summarizer's own LLM token usage into the session's cumulative
-        # prompt/completion counters (shown in the chat panel) without distorting
-        # `currentContextTokens` (the progress bar reads the LATEST task's
-        # total_input_tokens, which we just set above to `remaining_tokens`).
-        # We insert a synthetic task row with an earlier start_time so it
-        # contributes to sum() but never becomes "latest".
-        comp_in = int(result.get("compaction_prompt_tokens") or 0)
-        comp_out = int(result.get("compaction_completion_tokens") or 0)
-        if (comp_in or comp_out) and latest_task is not None:
-            try:
-                synthetic_task = TaskModel(
-                    id=f"compaction-cost-{correlation_id}",
-                    user_id=user_id,
-                    session_id=session_id,
-                    start_time=(latest_task.start_time or 0) - 1,
-                    end_time=(latest_task.start_time or 0) - 1,
-                    status="completed",
-                    total_input_tokens=comp_in,
-                    total_output_tokens=comp_out,
-                )
-                db.add(synthetic_task)
-                db.commit()
-            except Exception as synth_err:
-                db.rollback()
-                log.warning(
-                    "Failed to persist compaction token usage for session %s: %s",
-                    session_id,
-                    synth_err,
-                )
-
-        # Persist a compaction_notification chat task so the accordion renders on
-        # session reload, matching the auto-compaction path (which persists via
-        # the A2A task-event pipeline). Manual compaction runs outside any task
-        # context, so we synthesize a chat task directly here.
-        summary = result.get("summary") or ""
-        if summary:
-            try:
-                message_id = f"manual-compaction-{correlation_id}"
-                bubble = {
-                    "id": message_id,
-                    "type": "agent",
-                    "text": "",
-                    "parts": [
-                        {
-                            "kind": "data",
-                            "data": {
-                                "type": "compaction_notification",
-                                "summary": summary,
-                                "is_background": False,
-                            },
-                        }
-                    ],
-                }
-                session_service.save_task(
-                    db=db,
-                    task_id=message_id,
-                    session_id=session_id,
-                    user_id=user_id,
-                    user_message=None,
-                    message_bubbles=json.dumps([bubble]),
-                )
-            except Exception as save_err:
-                log.warning(
-                    "Failed to persist manual compaction notification for session %s: %s",
-                    session_id,
-                    save_err,
-                )
 
         return CompactSessionResponse(
             eventsCompacted=result.get("events_compacted", 0),

@@ -2792,12 +2792,41 @@ def handle_sam_event(component, message, topic):
             user_id = data.get("user_id")
             agent_id = data.get("agent_id")
             correlation_id = data.get("correlation_id")
-            compaction_percentage = data.get("compaction_percentage", 0.25)
+            raw_pct = data.get("compaction_percentage", 0.25)
+            gateway_id = data.get("gateway_id")
+            source_component = payload.get("source_component")
 
             if not all([session_id, user_id, agent_id, correlation_id]):
                 log.warning("Missing required fields in session.compact_request event")
                 message.call_acknowledgements()
                 return
+
+            # Only accept requests that declare a gateway origin. The envelope's
+            # source_component must match the gateway naming convention
+            # (``<name>_gateway``) used by SamEventService, so arbitrary
+            # components cannot trigger compaction by publishing the topic.
+            if (
+                not gateway_id
+                or not isinstance(source_component, str)
+                or not source_component.endswith("_gateway")
+            ):
+                log.warning(
+                    "Rejecting session.compact_request from untrusted source: "
+                    "gateway_id=%r source_component=%r",
+                    gateway_id,
+                    source_component,
+                )
+                message.call_acknowledgements()
+                return
+
+            # Clamp to the same range the HTTP endpoint's Pydantic model
+            # enforces, so an event bypassing the gateway cannot request
+            # degenerate or pathological compaction ratios.
+            try:
+                compaction_percentage = float(raw_pct)
+            except (TypeError, ValueError):
+                compaction_percentage = 0.25
+            compaction_percentage = max(0.1, min(0.9, compaction_percentage))
 
             current_agent = component.get_config("agent_name")
 

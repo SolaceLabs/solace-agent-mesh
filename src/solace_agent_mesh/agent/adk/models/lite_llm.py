@@ -1213,13 +1213,33 @@ class LiteLlm(BaseLlm):
         self._last_usage = None
         return usage
 
+    @staticmethod
+    def _lookup_litellm_max_input(name: str) -> Optional[int]:
+        """Return ``max_input_tokens`` from LiteLLM's registry for ``name``.
+
+        Any lookup failure is logged at debug — LiteLLM raises for unknown
+        models, which is an expected fallthrough in the registry-based
+        resolution chain and not noteworthy at info/warning.
+        """
+        try:
+            import litellm
+            info = litellm.get_model_info(name)
+            value = info.get("max_input_tokens") if isinstance(info, dict) else None
+            if value:
+                return int(value)
+        except Exception as e:
+            logger.debug("litellm.get_model_info(%s) failed: %s", name, e)
+        return None
+
     def get_max_input_tokens(self) -> Optional[int]:
         """Resolve this model's context window (max input tokens).
 
         Order:
           1. Admin-configured value from the model-config UI (bootstrap payload).
           2. LiteLLM's built-in registry for well-known models.
-          3. None — caller should treat as unknown.
+          3. Same registry lookup with the provider prefix stripped
+             (e.g. ``openai/gpt-4o`` → ``gpt-4o``).
+          4. None — caller should treat as unknown.
 
         The result is typically stamped on per-task token records so the
         gateway can render the context-usage indicator without cross-service DB
@@ -1227,25 +1247,14 @@ class LiteLlm(BaseLlm):
         """
         if self._max_input_tokens:
             return self._max_input_tokens
-        try:
-            import litellm
-            info = litellm.get_model_info(self.model)
-            value = info.get("max_input_tokens") if isinstance(info, dict) else None
-            if value:
-                return int(value)
-        except Exception:
-            pass
-        # Strip provider prefix (e.g. "openai/gpt-4o" → "gpt-4o") as a last try.
+        value = self._lookup_litellm_max_input(self.model)
+        if value is not None:
+            return value
         if self.model and "/" in self.model:
             bare = self.model.rsplit("/", 1)[-1]
-            try:
-                import litellm
-                info = litellm.get_model_info(bare)
-                value = info.get("max_input_tokens") if isinstance(info, dict) else None
-                if value:
-                    return int(value)
-            except Exception:
-                pass
+            value = self._lookup_litellm_max_input(bare)
+            if value is not None:
+                return value
         return None
 
     def unconfigure_model(self):

@@ -10,7 +10,7 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 import uvicorn
 from fastapi import FastAPI, UploadFile
@@ -33,6 +33,13 @@ from .services.task_logger_service import TaskLoggerService
 from .sse_event_buffer import SSEEventBuffer
 
 log = logging.getLogger(__name__)
+
+
+class _CompactionFutureEntry(TypedDict):
+    """Pending session-compaction correlation entry."""
+
+    future: asyncio.Future
+    expected_agent_id: str | None
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -276,9 +283,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._scheduler_result_queue: queue.Queue = queue.Queue(maxsize=100)
         self._scheduler_result_processor_task: asyncio.Task | None = None
 
-        # Compaction correlation map: correlation_id -> asyncio.Future
-        # Used to correlate session.compact_request with session.compact_response
-        self._compaction_futures: dict[str, asyncio.Future] = {}
+        # Compaction correlation map: correlation_id -> pending entry
+        # binding the awaitable Future to the agent we expect the response
+        # from (prevents attacker-controlled injection via guessed ids).
+        self._compaction_futures: dict[str, _CompactionFutureEntry] = {}
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -1034,7 +1042,8 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         and payload_dict.get("event_type") == "session.compact_response"
                     ):
                         event_data = payload_dict.get("data", {})
-                        self.resolve_compaction_future(event_data)
+                        source_component = payload_dict.get("source_component")
+                        self.resolve_compaction_future(event_data, source_component)
                         continue
 
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
@@ -2488,31 +2497,51 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
         }
 
-    def register_compaction_future(self, correlation_id: str) -> asyncio.Future:
+    def register_compaction_future(
+        self,
+        correlation_id: str,
+        expected_agent_id: str | None = None,
+    ) -> asyncio.Future:
         """Register a correlation ID and return a Future that will be resolved
         when the corresponding session.compact_response event arrives.
 
         Args:
             correlation_id: Unique ID to correlate request with response.
+            expected_agent_id: The agent the compaction request was sent to.
+                The Future will only be resolved by a response whose
+                ``source_component`` / ``agent_id`` matches this value, so a
+                rogue component cannot inject attacker-controlled data into
+                chat history by guessing the correlation id.
 
         Returns:
             asyncio.Future that will contain the response data dict.
         """
         loop = self.fastapi_event_loop or asyncio.get_event_loop()
         future = loop.create_future()
-        self._compaction_futures[correlation_id] = future
+        self._compaction_futures[correlation_id] = {
+            "future": future,
+            "expected_agent_id": expected_agent_id,
+        }
         log.debug(
-            "%s Registered compaction future for correlation_id=%s",
+            "%s Registered compaction future for correlation_id=%s (agent=%s)",
             self.log_identifier,
             correlation_id,
+            expected_agent_id,
         )
         return future
 
-    def resolve_compaction_future(self, event_data: dict) -> None:
+    def resolve_compaction_future(
+        self, event_data: dict, source_component: str | None = None
+    ) -> None:
         """Resolve a pending compaction Future when a compact_response arrives.
+
+        The event is only accepted if its declared source matches the
+        ``expected_agent_id`` bound at registration. Mismatches are dropped.
 
         Args:
             event_data: The ``data`` dict from the session.compact_response event.
+            source_component: The ``source_component`` from the envelope of the
+                session.compact_response event (typically ``"<agent>_agent"``).
         """
         correlation_id = event_data.get("correlation_id")
         if not correlation_id:
@@ -2521,17 +2550,47 @@ class WebUIBackendComponent(BaseGatewayComponent):
             )
             return
 
-        future = self._compaction_futures.pop(correlation_id, None)
-        if future and not future.done():
-            future.set_result(event_data)
-            log.info(
-                "%s Resolved compaction future for correlation_id=%s",
+        entry = self._compaction_futures.get(correlation_id)
+        if not entry:
+            log.debug(
+                "%s No pending future for correlation_id=%s (may have timed out)",
                 self.log_identifier,
                 correlation_id,
             )
-        else:
-            log.debug(
-                "%s No pending future for correlation_id=%s (may have timed out)",
+            return
+
+        expected_agent_id = entry["expected_agent_id"]
+
+        if expected_agent_id is not None:
+            # Only trust the envelope's source_component — the payload's
+            # ``agent_id`` is attacker-controlled and would defeat the guard.
+            source_matches = (
+                source_component == expected_agent_id
+                or source_component == f"{expected_agent_id}_agent"
+            )
+            if not source_matches:
+                log.warning(
+                    "%s Rejecting compact_response for correlation_id=%s: "
+                    "source %r does not match expected %r",
+                    self.log_identifier,
+                    correlation_id,
+                    source_component,
+                    expected_agent_id,
+                )
+                # Leave the pending entry in place so the legitimate response
+                # can still resolve the future; the caller's 60s timeout
+                # handles the case where no legitimate response arrives.
+                return
+
+        # Source verified — now pop and resolve.
+        entry = self._compaction_futures.pop(correlation_id, None)
+        if not entry:
+            return
+        future = entry["future"]
+        if not future.done():
+            future.set_result(event_data)
+            log.info(
+                "%s Resolved compaction future for correlation_id=%s",
                 self.log_identifier,
                 correlation_id,
             )
