@@ -462,7 +462,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                         <FormFieldLayoutItem
                             label="Context Window (max input tokens)"
                             error={errors.maxInputTokens as { message?: string }}
-                            helpText="Optional. Used by the chat context-usage indicator when the model is not recognized automatically."
+                            helpText="Optional. Overrides the agent's config and any built-in model info used by the chat context-usage indicator."
                         >
                             <Input
                                 type="number"
