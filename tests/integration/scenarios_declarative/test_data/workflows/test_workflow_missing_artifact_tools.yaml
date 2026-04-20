@@ -32,8 +32,15 @@ gateway_input:
 
 llm_interactions:
   # Turn 1: TestPeerAgentNoArtifacts receives the task.
-  # Even though artifact_management is not in its YAML, load_artifact must be present
-  # because the runtime auto-injected the group.
+  # Even though artifact_management is not in its YAML, every tool in the group
+  # must be present because the runtime auto-injected it. Using assert_tools_exact
+  # to guard against partial-injection regressions (category rename, group membership
+  # change, etc.) — asserting just one tool would let such a regression slip through.
+  #
+  # Expected tool set:
+  #   - _continue_generation, _notify_artifact_save        (always-present system tools)
+  #   - 7 artifact_management tools                        (auto-injected by this PR)
+  #   - create_chart_from_plotly_config                    (from data_analysis group declared in YAML)
   - static_response:
       choices:
         - message:
@@ -43,7 +50,17 @@ llm_interactions:
               {"summary": "This is a summary of the input text."}
               »»»
     expected_request:
-      tools_present: ["load_artifact"]
+      assert_tools_exact:
+        - "_continue_generation"
+        - "_notify_artifact_save"
+        - "append_to_artifact"
+        - "apply_embed_and_create_artifact"
+        - "artifact_search_and_replace_regex"
+        - "create_chart_from_plotly_config"
+        - "delete_artifact"
+        - "extract_content_from_artifact"
+        - "list_artifacts"
+        - "load_artifact"
 
   # Turn 2: Artifact saved — agent emits the mandatory result embed.
   - static_response:

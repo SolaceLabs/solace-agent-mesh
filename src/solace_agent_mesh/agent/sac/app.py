@@ -36,7 +36,8 @@ from ...common.constants import (
 from ...agent.sac.component import SamAgentComponent
 from ...agent.utils.artifact_helpers import DEFAULT_SCHEMA_MAX_KEYS
 from ...common.utils.pydantic_utils import SamConfigBase
-from ..tools.tool_config_types import AnyToolConfig
+from ..tools.builtin_artifact_tools import ARTIFACT_MANAGEMENT_CATEGORY
+from ..tools.tool_config_types import AnyToolConfig, BUILTIN_GROUP_TOOL_TYPE
 
 log = logging.getLogger(__name__)
 
@@ -346,6 +347,17 @@ class SamAgentAppConfig(SamConfigBase):
         default_factory=list,
         description="List of tool configurations (python, mcp, built-in). Each tool can have 'required_scopes'.",
     )
+    auto_inject_artifact_tools: bool = Field(
+        default=True,
+        description=(
+            "If true (default), the 'artifact_management' builtin-group is auto-injected "
+            "when the agent does not already declare it. Set to false to opt out, e.g. when "
+            "an agent defines a custom Python tool whose name collides with one of the builtin "
+            "artifact tools (load_artifact, save_artifact, append_to_artifact, list_artifacts, "
+            "delete_artifact, extract_content_from_artifact, artifact_search_and_replace_regex, "
+            "apply_embed_and_create_artifact)."
+        ),
+    )
     supports_streaming: bool = Field(
         default=False,
         description="Whether this host supports A2A streaming (tasks/sendSubscribe).",
@@ -553,27 +565,34 @@ def _ensure_artifact_management_tools(app_config_dict: Dict[str, Any], agent_nam
     Injects the artifact_management builtin-group into the raw config dict before
     Pydantic validation if it is not already configured. This guarantees every agent
     has artifact tools available regardless of what the YAML declares.
+
+    Agents can opt out by setting `auto_inject_artifact_tools: false` — useful when
+    a custom tool's name collides with one of the builtin artifact tools.
     """
-    try:
-        tools = app_config_dict.get("tools") or []
-        configured_groups = {
-            t.get("group_name")
-            for t in tools
-            if isinstance(t, dict) and t.get("tool_type") == "builtin-group"
-        }
-        if "artifact_management" not in configured_groups:
-            app_config_dict["tools"] = [
-                {"tool_type": "builtin-group", "group_name": "artifact_management"}
-            ] + list(tools)
-            log.info(
-                "Agent '%s': auto-injected 'artifact_management' tool group (not found in YAML config).",
-                agent_name,
-            )
-    except Exception:
-        log.exception(
-            "Agent '%s': failed to inject 'artifact_management' tool group into config. "
-            "The agent may not have artifact tools available.",
+    if app_config_dict.get("auto_inject_artifact_tools") is False:
+        log.info(
+            "Agent '%s': skipping 'artifact_management' auto-injection (auto_inject_artifact_tools is false).",
             agent_name,
+        )
+        return
+
+    tools = app_config_dict.get("tools") or []
+    configured_groups = {
+        t.get("group_name")
+        for t in tools
+        if isinstance(t, dict) and t.get("tool_type") == BUILTIN_GROUP_TOOL_TYPE
+    }
+    if ARTIFACT_MANAGEMENT_CATEGORY not in configured_groups:
+        app_config_dict["tools"] = [
+            {
+                "tool_type": BUILTIN_GROUP_TOOL_TYPE,
+                "group_name": ARTIFACT_MANAGEMENT_CATEGORY,
+            }
+        ] + list(tools)
+        log.info(
+            "Agent '%s': auto-injected '%s' tool group (not found in YAML config).",
+            agent_name,
+            ARTIFACT_MANAGEMENT_CATEGORY,
         )
 
 
