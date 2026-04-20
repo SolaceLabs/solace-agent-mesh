@@ -18,6 +18,13 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     environment: release-please
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+      discussions: write
+      issues: write
+
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -31,6 +38,24 @@ jobs:
           token: ${{ secrets.SAM_RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Add commit author as reviewer on release PR
+        if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: |
+          set -euo pipefail
+
+          COMMIT_AUTHOR="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }} --jq '.author.login')"
+
+          if [[ -z "$COMMIT_AUTHOR" || "$COMMIT_AUTHOR" == "null" ]]; then
+            echo "Could not determine commit author for `${{ github.sha }}`, skipping reviewer assignment."
+            exit 0
+          fi
+
+          echo "Adding $COMMIT_AUTHOR as reviewer on PR #$PR_NUMBER"
+          gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "$COMMIT_AUTHOR" || true
 
   post-process-release:
     name: Build and Attach Release Assets
