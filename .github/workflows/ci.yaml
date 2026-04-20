@@ -138,12 +138,13 @@ jobs:
     needs: detect-context
     uses: ./.github/workflows/build-push-image.yaml
     permissions:
-      contents: read
+      contents: write
       id-token: write
       packages: write
       checks: write
       pull-requests: write
       actions: read
+      repository-projects: read
     with:
       ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
       push_to_ecr: ${{ fromJSON(needs.detect-context.outputs.is_push_to_main) || fromJSON(needs.detect-context.outputs.is_release_please_pr) }}
