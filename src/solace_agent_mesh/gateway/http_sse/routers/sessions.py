@@ -1243,21 +1243,30 @@ def _lookup_configured_context_limit(db: Session, model_name: str) -> Optional[i
     return None
 
 
-def _get_model_context_limit(model_name: str, db: Optional[Session] = None) -> Optional[int]:
+def _get_model_context_limit(
+    model_name: str,
+    db: Optional[Session] = None,
+    stamped: Optional[int] = None,
+) -> Optional[int]:
     """Get model context window limit.
 
     Resolution order:
       1. Admin-configured value in `model_configurations.max_input_tokens`
          (matched by `model_name` then `alias`), when a DB session is provided.
-      2. LiteLLM's registry — try the full name, then strip any provider prefix
+      2. Stamped value recorded by the agent in `token_usage_details.by_model`
+         (sourced from the agent's shared_config.yaml `max_input_tokens`).
+      3. LiteLLM's registry — try the full name, then strip any provider prefix
          (e.g. "openai/gpt-4o" → "gpt-4o").
-      3. None — lets the frontend hide the indicator rather than show a wrong
+      4. None — lets the frontend hide the indicator rather than show a wrong
          denominator.
     """
     if db is not None:
         configured = _lookup_configured_context_limit(db, model_name)
         if configured:
             return configured
+
+    if stamped:
+        return stamped
 
     from litellm import get_model_info
 
@@ -1398,7 +1407,18 @@ async def get_session_context_usage(
                     dominant = max(by_model.items(), key=lambda kv: kv[1].get("input_tokens", 0))
                     effective_model = dominant[0]
 
-        max_input_tokens = _get_model_context_limit(effective_model, db=db)
+        stamped_limit: Optional[int] = None
+        if completed_tasks:
+            by_model = (completed_tasks[0].token_usage_details or {}).get("by_model") or {}
+            entry = by_model.get(effective_model)
+            if isinstance(entry, dict):
+                raw = entry.get("max_input_tokens")
+                try:
+                    stamped_limit = int(raw) if raw else None
+                except (TypeError, ValueError):
+                    stamped_limit = None
+
+        max_input_tokens = _get_model_context_limit(effective_model, db=db, stamped=stamped_limit)
         usage_pct = (
             min(100.0, round((current_tokens / max_input_tokens) * 100, 1))
             if max_input_tokens and current_tokens > 0
