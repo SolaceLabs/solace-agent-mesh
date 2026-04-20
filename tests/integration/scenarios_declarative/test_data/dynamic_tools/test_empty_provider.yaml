@@ -17,10 +17,18 @@ llm_interactions:
   - step_id: "llm_sees_no_dynamic_tools"
     expected_request:
       # We assert that NO tools from the provider are present.
-      # The agent will still have its default internal tools.
+      # The agent will still have its default internal tools plus the
+      # auto-injected artifact_management group (DATAGO-130050).
       assert_tools_exact:
-        - "_notify_artifact_save"
         - "_continue_generation"
+        - "_notify_artifact_save"
+        - "append_to_artifact"
+        - "apply_embed_and_create_artifact"
+        - "artifact_search_and_replace_regex"
+        - "delete_artifact"
+        - "extract_content_from_artifact"
+        - "list_artifacts"
+        - "load_artifact"
     static_response:
       id: "chatcmpl-empty-provider-1"
       object: "chat.completion"
