@@ -226,15 +226,51 @@ class TestCreateWebuiGatewayConfig:
         mock_echo = mocker.patch("click.echo")
         mock_ask = mocker.patch("cli.commands.init_cmd.webui_gateway_step.ask_if_not_provided")
         mock_ask.return_value = "test"
-        
+
         options = {"add_webui_gateway": True}
         default_values = {}
-        
+
         create_webui_gateway_config(
             temp_project_dir, options, skip_interactive=True, default_values=default_values
         )
-        
+
         echo_calls = [str(call) for call in mock_echo.call_args_list]
         assert any("Configuring Web UI Gateway" in call for call in echo_calls)
         assert any("Creating Web UI Gateway configuration" in call for call in echo_calls)
         assert any("Created" in call for call in echo_calls)
+
+    def test_no_provider_strips_model_from_webui(self, temp_project_dir, mocker, mock_templates):
+        """Test that webui yaml has no model anchor when no LLM provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.webui_gateway_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = {"add_webui_gateway": True, "llm_provider": ""}
+        default_values = {}
+
+        result = create_webui_gateway_config(
+            temp_project_dir, options, skip_interactive=True, default_values=default_values
+        )
+
+        assert result is True
+        webui_content = (temp_project_dir / "configs" / "gateways" / "webui.yaml").read_text()
+        assert "model: *general_model" not in webui_content
+        assert "model_provider" in webui_content
+
+    def test_with_provider_keeps_model_in_webui(self, temp_project_dir, mocker, mock_templates):
+        """Test that webui yaml retains model anchor when a provider is selected"""
+        mocker.patch("click.echo")
+        mock_ask = mocker.patch("cli.commands.init_cmd.webui_gateway_step.ask_if_not_provided")
+        mock_ask.return_value = "test"
+
+        options = {"add_webui_gateway": True, "llm_provider": "openai"}
+        default_values = {}
+
+        result = create_webui_gateway_config(
+            temp_project_dir, options, skip_interactive=True, default_values=default_values
+        )
+
+        assert result is True
+        webui_content = (temp_project_dir / "configs" / "gateways" / "webui.yaml").read_text()
+        assert "model: *general_model" in webui_content
+        assert "model_provider" in webui_content

@@ -2,17 +2,7 @@ import React from "react";
 import { StepProps } from "../../AddAgentFlow";
 import FormField from "../../ui/FormField";
 import Input from "../../ui/Input";
-import Select from "../../ui/Select";
 import Checkbox from "../../ui/Checkbox";
-
-const modelTypeOptions = [
-  { value: "planning", label: "Planning Model (*planning_model)" },
-  { value: "general", label: "General Model (*general_model)" },
-  { value: "image_gen", label: "Image Generation Model (*image_gen_model)" },
-  { value: "report_gen", label: "Report Generation Model (*report_gen_model)" },
-  { value: "multimodal", label: "Multimodal Model (*multimodal_model)" },
-  { value: "gemini_pro", label: "Gemini Pro Model (*gemini_pro_model)" },
-];
 
 const AgentBasicInfoStep: React.FC<StepProps> = ({
   data,
@@ -93,13 +83,17 @@ const AgentBasicInfoStep: React.FC<StepProps> = ({
         />
       </FormField>
 
-      <FormField label="Model Type" htmlFor="model_type" required>
-        <Select
-          id="model_type"
-          name="model_type"
-          value={data.model_type || "planning"}
+      <FormField
+        label="Model Provider"
+        htmlFor="model_provider"
+        helpText="Model provider alias defined in shared_config.yaml (e.g., general, planning)."
+      >
+        <Input
+          id="model_provider"
+          name="model_provider"
+          value={data.model_provider !== undefined ? data.model_provider : "general"}
           onChange={handleChange}
-          options={modelTypeOptions}
+          placeholder="general"
         />
       </FormField>
 

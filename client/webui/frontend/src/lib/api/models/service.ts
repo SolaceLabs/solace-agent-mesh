@@ -5,7 +5,7 @@
 import { api } from "@/lib/api";
 import type { ModelConfig, ModelConfigStatus } from "./types";
 
-interface ModelData {
+export interface ModelData {
     alias: string;
     provider: string;
     modelName: string;

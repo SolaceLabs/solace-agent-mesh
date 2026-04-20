@@ -30,6 +30,8 @@ apps:
       agent_name: "FileSystemAgent"
       display_name: "File System"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         You can interact with the local filesystem.
 
@@ -90,6 +92,8 @@ apps:
       agent_name: "PlaywrightAgent"
       display_name: "Web Browser"
       model: *planning_model
+      model_provider: 
+        - "planning"
       instruction: |
         Use the Playwright MCP server to answer incoming questions through web browsing. The tools you have will allow
         you to navigate to, click on, and extract information from web pages. You must retrieve information to answer
@@ -126,7 +130,7 @@ apps:
       enable_artifact_content_instruction: true
       extract_content_from_artifact_config:
           supported_binary_mime_types: ["image/png", "image/jpeg"] # Process PNGs and JPEGs
-          model: *general_model # if not provided, use the parent component's model
+          model: *general_model
 
       # --- Agent Card Definition ---
       agent_card:
@@ -154,8 +158,9 @@ apps:
   #     namespace: ${NAMESPACE}
   #     supports_streaming: true # MCP tools generally don't stream responses
   #     agent_name: "AtlassianAgent"
-  #     model: *multimodal_model
-
+  #     model: *planning_model
+  #     model_provider: 
+  #      - "planning"
   #     instruction: |
   #       You can interact with Jira and Confluence using the Atlassian MCP server.
   #     # --- Tools Definition (including MCP) ---

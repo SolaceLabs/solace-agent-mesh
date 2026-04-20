@@ -17,6 +17,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "SimpleEcho"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Echo back the input message.

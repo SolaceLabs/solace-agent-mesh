@@ -6,7 +6,9 @@ import asyncio
 import fnmatch
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+from openfeature import api as openfeature_api
 
 from ...common.error_handlers import LITELLM_EXCEPTIONS
 
@@ -34,6 +36,7 @@ from ...agent.adk.runner import TaskCancelledError, run_adk_async_task_thread_wr
 from ...agent.utils.artifact_helpers import generate_artifact_metadata_summary
 from ...common import a2a
 from ...common.error_handlers import get_error_message
+from ...common.utils.mime_helpers import is_image_artifact
 from ...common.utils.embeds.constants import (
     EMBED_DELIMITER_OPEN,
     EMBED_DELIMITER_CLOSE,
@@ -806,6 +809,118 @@ async def _copy_history_for_run_based_session(
         )
 
 
+async def _inject_scheduler_conversation_history(
+    component: "SamAgentComponent",
+    agent_name: str,
+    user_id: str,
+    effective_session_id: str,
+    conversation_history: list,
+    logical_task_id: str,
+) -> None:
+    """
+    Inject reconstructed conversation history into an ADK session.
+
+    When a user continues a chat from a scheduled task execution, the
+    original RUN_BASED ADK session has been deleted.  The gateway
+    reconstructs the conversation from ChatTask ``message_bubbles`` and
+    passes it as ``schedulerConversationHistory`` in the task metadata.
+
+    This function creates ADK events for each user/assistant turn and
+    appends them to the (freshly created) ADK session so the agent has
+    context about the prior execution.
+
+    Args:
+        component: The SamAgentComponent instance.
+        agent_name: The agent name for session operations.
+        user_id: The user ID for session operations.
+        effective_session_id: The session ID to inject history into.
+        conversation_history: List of ``{"role": "user"|"assistant", "content": "..."}`` dicts.
+        logical_task_id: The task ID for logging.
+    """
+    if not conversation_history:
+        return
+
+    try:
+        from google.adk.events import Event as ADKEvent
+        from google.adk.events.event_actions import EventActions
+        from google.genai import types as adk_types
+        from ...agent.adk.services import append_event_with_retry
+
+        adk_session = await component.session_service.get_session(
+            app_name=agent_name, user_id=user_id, session_id=effective_session_id
+        )
+        if adk_session is None:
+            log.warning(
+                "%s Cannot inject scheduler history - ADK session '%s' not found.",
+                component.log_identifier,
+                effective_session_id,
+            )
+            return
+
+        # Re-fetch interval: proactively refresh the session every N appends
+        # to reduce stale-session retries inside append_event_with_retry.
+        # A value of 10 means at most 1 in 10 appends may trigger a retry
+        # instead of every single one, cutting session lookups by ~80%.
+        _REFETCH_INTERVAL = 10
+
+        injected_count = 0
+        for entry in conversation_history:
+            role = entry.get("role", "")
+            content = entry.get("content", "")
+            if not content or role not in ("user", "assistant"):
+                continue
+
+            # Map "assistant" to "model" for ADK content role
+            adk_role = "user" if role == "user" else "model"
+            author = "user" if role == "user" else "agent"
+
+            history_event = ADKEvent(
+                invocation_id=f"scheduler_history_{logical_task_id}_{injected_count}",
+                author=author,
+                content=adk_types.Content(
+                    role=adk_role,
+                    parts=[adk_types.Part(text=content)],
+                ),
+                actions=EventActions(),
+                branch=None,
+            )
+
+            await append_event_with_retry(
+                session_service=component.session_service,
+                session=adk_session,
+                event=history_event,
+                app_name=agent_name,
+                user_id=user_id,
+                session_id=effective_session_id,
+                log_identifier=f"{component.log_identifier}[SchedulerHistory:{logical_task_id}]",
+            )
+            injected_count += 1
+
+            # Periodically re-fetch the session to keep it fresh and avoid
+            # stale-session retries on every subsequent append.  The retry
+            # helper handles any remaining staleness between refreshes.
+            if injected_count % _REFETCH_INTERVAL == 0:
+                adk_session = await component.session_service.get_session(
+                    app_name=agent_name, user_id=user_id, session_id=effective_session_id
+                )
+
+        log.info(
+            "%s Injected %d scheduler conversation history events into ADK session '%s' for task '%s'.",
+            component.log_identifier,
+            injected_count,
+            effective_session_id,
+            logical_task_id,
+        )
+    except Exception as e:
+        log.error(
+            "%s Failed to inject scheduler conversation history for task '%s': %s. Proceeding without history.",
+            component.log_identifier,
+            logical_task_id,
+            e,
+            exc_info=True,
+        )
+
+
 async def _prepare_adk_content_with_artifacts(
     component: "SamAgentComponent",
     a2a_message,
@@ -840,37 +955,67 @@ async def _prepare_adk_content_with_artifacts(
     )
 
     if invoked_artifacts:
-        log.info(
-            "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
-            component.log_identifier,
-            logical_task_id,
-            len(invoked_artifacts),
-        )
-        header_text = (
-            "The user has provided the following artifacts as context for your task. "
-            "Use the information contained within their metadata to complete your objective."
-        )
-        artifact_summary = await generate_artifact_metadata_summary(
-            component=component,
-            artifact_identifiers=invoked_artifacts,
-            user_id=user_id,
-            session_id=effective_session_id,
-            app_name=agent_name,
-            header_text=header_text,
-        )
+        enable_inline_vision = component.enable_inline_vision
 
-        task_description = get_text_from_message(a2a_message_for_adk)
-        final_prompt = f"{task_description}\n\n{artifact_summary}"
+        # When inline vision is enabled, image artifacts will be passed directly
+        # as inline_data to the LLM (handled in _prepare_a2a_filepart_for_adk).
+        # Filter them out from the metadata summary to avoid redundancy.
+        artifacts_for_summary = invoked_artifacts
+        if enable_inline_vision:
+            artifacts_for_summary = [
+                a for a in invoked_artifacts
+                if not is_image_artifact(
+                    a.get("filename"), a.get("mime_type")
+                )
+            ]
+            skipped_count = len(invoked_artifacts) - len(artifacts_for_summary)
+            if skipped_count > 0:
+                log.info(
+                    "%s Task %s: inline vision enabled, skipping metadata summary for %d image artifact(s).",
+                    component.log_identifier,
+                    logical_task_id,
+                    skipped_count,
+                )
 
-        a2a_message_for_adk = a2a.update_message_parts(
-            message=a2a_message_for_adk,
-            new_parts=[a2a.create_text_part(text=final_prompt)],
-        )
-        log.debug(
-            "%s Generated new prompt for task %s with artifact context.",
-            component.log_identifier,
-            logical_task_id,
-        )
+        if artifacts_for_summary:
+            log.info(
+                "%s Task %s invoked with %d artifact(s). Preparing context from metadata.",
+                component.log_identifier,
+                logical_task_id,
+                len(artifacts_for_summary),
+            )
+            header_text = (
+                "The user has provided the following artifacts as context for your task. "
+                "Use the information contained within their metadata to complete your objective."
+            )
+            artifact_summary = await generate_artifact_metadata_summary(
+                component=component,
+                artifact_identifiers=artifacts_for_summary,
+                user_id=user_id,
+                session_id=effective_session_id,
+                app_name=agent_name,
+                header_text=header_text,
+            )
+
+            task_description = get_text_from_message(a2a_message_for_adk)
+            final_prompt = f"{task_description}\n\n{artifact_summary}"
+
+            a2a_message_for_adk = a2a.update_message_parts(
+                message=a2a_message_for_adk,
+                new_parts=[a2a.create_text_part(text=final_prompt)],
+            )
+            log.debug(
+                "%s Generated new prompt for task %s with artifact context.",
+                component.log_identifier,
+                logical_task_id,
+            )
+        elif invoked_artifacts:
+            log.info(
+                "%s Task %s: all %d artifact(s) are images handled by inline vision.",
+                component.log_identifier,
+                logical_task_id,
+                len(invoked_artifacts),
+            )
 
     adk_content = await translate_a2a_to_adk_content(
         a2a_message=a2a_message_for_adk,
@@ -932,6 +1077,75 @@ def _send_error_response_and_nack(
         )
 
     component.handle_error(exception, Event(EventType.MESSAGE, message))
+
+
+async def _resolve_model_override_metadata(
+    task_metadata: Dict[str, Any],
+    dynamic_model_provider: Any,
+    log_identifier: str,
+) -> Optional[str]:
+    """Resolve model_override alias in task metadata to a raw LiteLLM config dict.
+
+    Gated behind the ``offline_evals`` feature flag.  Mutates *task_metadata*
+    in place:
+
+    * Valid alias resolved   -> replaces value with raw config dict
+    * Flag disabled / invalid format -> removes the key
+    * Resolution failure     -> returns an error reason string
+
+    Returns ``None`` on success/no-op, or an error reason string when the
+    caller should reject the request.
+    """
+    model_override = task_metadata.get("model_override")
+    if model_override is None:
+        return None
+
+    if not openfeature_api.get_client().get_boolean_value("offline_evals", False):
+        log.debug(
+            "%s model_override in metadata ignored (offline_evals flag disabled)",
+            log_identifier,
+        )
+        task_metadata.pop("model_override", None)
+        return None
+
+    if not (
+        isinstance(model_override, dict)
+        and isinstance(model_override.get("model_id"), str)
+        and model_override["model_id"]
+    ):
+        log.warning(
+            "%s Unrecognized model_override format, ignoring",
+            log_identifier,
+        )
+        task_metadata.pop("model_override", None)
+        return None
+
+    model_id = model_override["model_id"]
+    resolved = None
+    if dynamic_model_provider:
+        resolved = await dynamic_model_provider.resolve(model_id)
+
+    if resolved:
+        task_metadata["model_override"] = resolved
+        log.info(
+            "%s Resolved model override alias '%s' to model=%s",
+            log_identifier,
+            model_id,
+            resolved.get("model"),
+        )
+        return None
+
+    reason = (
+        "model config not available"
+        if not dynamic_model_provider
+        else f"alias '{model_id}' not found or resolution timed out"
+    )
+    log.error(
+        "%s Model override resolution failed: %s",
+        log_identifier,
+        reason,
+    )
+    return reason
 
 
 async def _handle_send_message_request(
@@ -1009,6 +1223,35 @@ async def _handle_send_message_request(
     original_session_id = a2a_message.context_id
     message_id = a2a_message.message_id
     task_metadata = a2a_message.metadata or {}
+
+    override_error = await _resolve_model_override_metadata(
+        task_metadata,
+        component._dynamic_model_provider,
+        component.log_identifier,
+    )
+    if override_error:
+        error_response = a2a.create_invalid_request_error_response(
+            message=f"Model override resolution failed: {override_error}",
+            request_id=jsonrpc_request_id,
+        )
+        target_topic = reply_topic_from_peer or (
+            get_client_response_topic(namespace, client_id)
+            if client_id
+            else None
+        )
+        if target_topic:
+            component.publish_a2a_message(
+                error_response.model_dump(exclude_none=True),
+                target_topic,
+            )
+        else:
+            log.warning(
+                "%s Model override error response could not be delivered (no reply topic)",
+                component.log_identifier,
+            )
+        message.call_negative_acknowledgements()
+        return None
+
     system_purpose = task_metadata.get("system_purpose")
     response_format = task_metadata.get("response_format")
     session_behavior_from_meta = task_metadata.get("sessionBehavior")
@@ -1091,6 +1334,17 @@ async def _handle_send_message_request(
         await _copy_history_for_run_based_session(
             component, agent_name, user_id, original_session_id,
             effective_session_id, logical_task_id,
+        )
+
+    # For scheduled task continued chats, inject conversation history from
+    # ChatTask records into the ADK session.  The original RUN_BASED ADK
+    # session was deleted after execution, so we reconstruct the history
+    # from the gateway's persisted message bubbles.
+    scheduler_history = task_metadata.get("schedulerConversationHistory")
+    if scheduler_history:
+        await _inject_scheduler_conversation_history(
+            component, agent_name, user_id, effective_session_id,
+            scheduler_history, logical_task_id,
         )
 
     a2a_context = {

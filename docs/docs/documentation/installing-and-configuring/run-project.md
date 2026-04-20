@@ -15,7 +15,7 @@ Before you begin, ensure you have the following:
 
 1. **Agent Mesh CLI installed** - If not installed, see the [installation guide](installation.md)
 2. **Virtual environment activated** - You must have activated the virtual environment you created during installation (not required for containerized deployments)
-3. **AI provider and API key** - For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
+3. **AI provider and API key** (optional at setup time)—you can skip AI model configuration during project initialization and configure your models later through the Agent Mesh UI. For details, see [Model Configurations](./model_configurations.md). For best results, use a state-of-the-art AI model like Anthropic Claude Sonnet 4, Google Gemini 2.5 Pro, or OpenAI GPT-4
 
 ## Create Your Project
 
@@ -62,9 +62,13 @@ To get a list of all available options, run:
 solace-agent-mesh init --help
 ```
 
-### Step 3: Configure AI Models
+### Step 3: Configure AI Models (Optional)
 
-Understanding the model name format is important for proper configuration:
+:::tip[Recommended: Configure Models After Starting]
+You can skip AI model configuration during project initialization and configure your models later through the Agent Mesh UI. After starting your project, navigate to the **Models** page in the web interface to set up your models. This approach lets you add, update, or switch models without modifying configuration files or restarting the application. For details, see [Model Configurations](./model_configurations.md).
+:::
+
+If you prefer to configure models during initialization, understanding the model name format is important for proper configuration:
 
 #### Web-Based Configuration
 When using the web interface:

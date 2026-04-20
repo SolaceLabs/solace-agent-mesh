@@ -70,6 +70,8 @@ export interface ChatState {
     backgroundNotifications: BackgroundTaskNotification[];
     // Permission: user can configure LLM models
     hasModelConfigWrite: boolean;
+    // Index in messages[] where the current turn starts (for fresh-page effect)
+    turnDividerIndex: number | null;
 }
 
 export interface ChatActions {

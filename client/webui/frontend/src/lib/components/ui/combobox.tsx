@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
-import { Button, Input, useClickOutside } from "@/lib/components/ui";
+import { cn } from "@/lib/utils";
+import { Input, useClickOutside } from "@/lib/components/ui";
 
 export interface ComboBoxItem {
     id: string;
@@ -44,7 +45,7 @@ export const ComboBox = ({
 }: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
-    const [highlightedIndex, setHighlightedIndex] = useState(0);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [openAbove, setOpenAbove] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -172,14 +173,13 @@ export const ComboBox = ({
     };
 
     const renderOption = (item: ComboBoxItem, index: number) => (
-        <Button
+        <div
             key={item.id}
             role="option"
             aria-selected={item.id === value}
-            variant="ghost"
-            size="default"
-            className={`relative flex h-auto w-full justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal select-none ${index === highlightedIndex ? "bg-[var(--primary-w10)] text-[var(--primary-text-w60)]" : ""}`}
+            className={cn("relative flex h-auto w-full cursor-pointer justify-start gap-2 py-1.5 pr-8 pl-2 text-left text-sm font-normal text-(--primary-text-wMain) select-none", index === highlightedIndex && "bg-(--primary-w10)")}
             onClick={() => handleItemSelect(item.id)}
+            onKeyDown={e => e.key === "Enter" && handleItemSelect(item.id)}
             onMouseEnter={() => setHighlightedIndex(index)}
         >
             {item.icon && <div className="flex-shrink-0">{item.icon}</div>}
@@ -198,7 +198,7 @@ export const ComboBox = ({
                     <Check className="h-4 w-4" />
                 </div>
             )}
-        </Button>
+        </div>
     );
 
     return (
@@ -206,6 +206,9 @@ export const ComboBox = ({
             <Input
                 ref={inputRef}
                 type="text"
+                role="combobox"
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
                 placeholder={placeholder}
                 value={searchText || selectedItem?.label || ""}
                 onChange={e => handleInputChange(e.target.value)}
@@ -214,10 +217,7 @@ export const ComboBox = ({
                 onFocus={handleFocus}
                 disabled={disabled || isLoading}
                 aria-invalid={invalid}
-                role="combobox"
-                aria-expanded={isOpen}
-                aria-haspopup="listbox"
-                className={`w-full bg-(--background-w10) pr-10 ${invalid ? "border-(--error-w100)" : ""}`}
+                className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
                 autoComplete="off"
             />
             {isLoading ? (
@@ -227,7 +227,13 @@ export const ComboBox = ({
             )}
 
             {isOpen && (flatItems.length > 0 || searchText) && (
-                <div ref={dropdownRef} role="listbox" className={`absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md ${openAbove ? "bottom-full mb-1" : "top-full mt-1"}`}>
+                <div
+                    ref={dropdownRef}
+                    role="listbox"
+                    tabIndex={-1}
+                    onMouseLeave={() => setHighlightedIndex(-1)}
+                    className={cn("absolute right-0 left-0 z-50 rounded-md border border-(--secondary-w20) bg-(--background-w10) shadow-md", openAbove ? "bottom-full mb-1" : "top-full mt-1")}
+                >
                     <div className="overflow-y-auto bg-(--background-w10)" style={{ maxHeight: `${dropdownMaxHeight}px` }}>
                         {flatItems.length > 0 ? (
                             <>

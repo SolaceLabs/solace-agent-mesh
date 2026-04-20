@@ -267,9 +267,25 @@ class PlatformServiceFactory:
         """Set up exception handlers for the FastAPI application."""
         from fastapi.responses import JSONResponse
         from solace_agent_mesh.shared.exceptions.exceptions import (
+            BusinessRuleViolationError,
             EntityNotFoundError,
             EntityAlreadyExistsError,
+            ValidationError,
         )
+
+        @self.app.exception_handler(ValidationError)
+        async def validation_error_handler(request, exc):
+            return JSONResponse(
+                status_code=422,
+                content={"detail": exc.message}
+            )
+
+        @self.app.exception_handler(BusinessRuleViolationError)
+        async def business_rule_violation_handler(request, exc):
+            return JSONResponse(
+                status_code=422,
+                content={"detail": exc.message}
+            )
 
         @self.app.exception_handler(EntityNotFoundError)
         async def entity_not_found_handler(request, exc):

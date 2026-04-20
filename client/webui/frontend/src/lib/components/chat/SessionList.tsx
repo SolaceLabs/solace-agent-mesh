@@ -89,7 +89,8 @@ interface SessionListProps {
 export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, updateSessionName, openSessionDeleteModal, addNotification, displayError, currentTaskId } = useChatContext();
-    const { persistenceEnabled } = useConfigContext();
+    const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
+    const schedulerEnabled = configFeatureEnablement?.scheduler ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
     const { generateTitle } = useTitleGeneration();
     const inputRef = useRef<HTMLInputElement>(null);
@@ -130,6 +131,11 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
     const [regeneratingTitleForSession, setRegeneratingTitleForSession] = useState<string | null>(null);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
+
+    // Reset to chat tab when scheduler feature is disabled
+    useEffect(() => {
+        if (!schedulerEnabled) setActiveTab("chat");
+    }, [schedulerEnabled]);
 
     // Shared-with-me (React Query)
     const sharedWithMeQuery = useSharedWithMe();
@@ -458,21 +464,23 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                     <SessionSearch onSessionSelect={handleSwitchSession} projectId={selectedProjectId} />
                 </div>
 
-                {/* Tabs: Chats / Scheduled */}
-                <div className="pr-4">
-                    <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
-                        <TabsList className="w-full bg-transparent p-0">
-                            <TabsTrigger value="chat" className="rounded-none rounded-l-md">
-                                <MessageCircle className="h-4 w-4 shrink-0" />
-                                Chats
-                            </TabsTrigger>
-                            <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0">
-                                <CalendarClock className="h-4 w-4 shrink-0" />
-                                Scheduled Tasks
-                            </TabsTrigger>
-                        </TabsList>
-                    </Tabs>
-                </div>
+                {/* Tabs: Chats / Scheduled (only when scheduler is enabled) */}
+                {schedulerEnabled && (
+                    <div className="pr-4">
+                        <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                            <TabsList className="w-full bg-transparent p-0">
+                                <TabsTrigger value="chat" className="rounded-none rounded-l-md">
+                                    <MessageCircle className="h-4 w-4 shrink-0" />
+                                    Chats
+                                </TabsTrigger>
+                                <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0">
+                                    <CalendarClock className="h-4 w-4 shrink-0" />
+                                    Scheduled Tasks
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                )}
 
                 {/* Project Filter (only for chats tab) */}
                 {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
