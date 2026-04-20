@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 from solace_agent_mesh.services.platform.models import ModelConfiguration
 from solace_agent_mesh.shared.database.database_exceptions import handle_database_errors
 from solace_agent_mesh.shared.exceptions.exceptions import ValidationError
@@ -30,6 +31,7 @@ class ModelConfigurationRepository:
             )
         return model_id.strip()
 
+    @MonitorLatency(DBMonitor.query("model_configurations"))
     def get_all(self, db: Session) -> List[ModelConfiguration]:
         """
         Retrieve all model configurations from the database.
@@ -42,6 +44,7 @@ class ModelConfigurationRepository:
         """
         return db.query(ModelConfiguration).all()
 
+    @MonitorLatency(DBMonitor.query("model_configurations"))
     def get_by_alias(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
         """
         Retrieve a model configuration by alias (case-sensitive exact match).
@@ -58,6 +61,7 @@ class ModelConfigurationRepository:
         ).first()
 
     @handle_database_errors("ModelConfiguration")
+    @MonitorLatency(DBMonitor.insert("model_configurations"))
     def create(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
         """
         Create a new model configuration.
@@ -71,9 +75,11 @@ class ModelConfigurationRepository:
         """
         db.add(model)
         db.flush()
+
         return model
 
     @handle_database_errors("ModelConfiguration")
+    @MonitorLatency(DBMonitor.update("model_configurations"))
     def update(self, db: Session, model: ModelConfiguration) -> ModelConfiguration:
         """
         Update an existing model configuration.
@@ -86,8 +92,10 @@ class ModelConfigurationRepository:
             The updated ModelConfiguration
         """
         db.flush()
+
         return model
 
+    @MonitorLatency(DBMonitor.delete("model_configurations"))
     def delete(self, db: Session, model: ModelConfiguration) -> None:
         """
         Delete a model configuration.
@@ -99,6 +107,7 @@ class ModelConfigurationRepository:
         db.delete(model)
         db.flush()
 
+    @MonitorLatency(DBMonitor.query("model_configurations"))
     def get_by_id(self, db: Session, model_id: str) -> Optional[ModelConfiguration]:
         """
         Retrieve a model configuration by ID.
@@ -115,6 +124,7 @@ class ModelConfigurationRepository:
             ModelConfiguration.id == model_id
         ).first()
 
+    @MonitorLatency(DBMonitor.query("model_configurations"))
     def get_by_alias_or_id(self, db: Session, alias: str) -> Optional[ModelConfiguration]:
         """
         Retrieve a model configuration by alias or ID.

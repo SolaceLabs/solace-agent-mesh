@@ -92,7 +92,7 @@ const withMockDeletePlugin: Decorator = Story => {
             };
             if (!open) return null;
             return (
-                <div role="dialog" aria-label="Enterprise Delete Dialog" className="bg-background rounded-lg border p-6">
+                <div role="dialog" aria-label="Enterprise Delete Dialog" className="rounded-lg border bg-(--background-w10) p-6">
                     <h2>Enterprise Delete: {modelAlias}</h2>
                     <p>This is a custom enterprise delete dialog injected via plugin.</p>
                     <button onClick={onConfirm}>Confirm Enterprise Delete</button>

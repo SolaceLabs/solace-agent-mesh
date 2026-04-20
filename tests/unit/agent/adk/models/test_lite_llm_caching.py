@@ -306,3 +306,27 @@ class TestGetCompletionInputsIntegration:
         assert generation_params["temperature"] == 0.7
         assert generation_params["max_completion_tokens"] == 1000
         assert generation_params["top_p"] == 0.9
+
+    def test_generation_params_without_temperature(self):
+        """Test that generation params work when temperature is not set.
+
+        Regression test: an indentation bug caused generation_params to be
+        set to None inside the extraction loop when the first key
+        (temperature) was absent, crashing on subsequent keys like
+        max_output_tokens.
+        """
+        content = Content(role="user", parts=[Part(text="Hello")])
+        config = GenerateContentConfig(
+            system_instruction="You are a helpful assistant.",
+            max_output_tokens=256,
+        )
+        request = LlmRequest(contents=[content], config=config)
+
+        _, _, _, generation_params = _get_completion_inputs(
+            request,
+            cache_strategy="5m"
+        )
+
+        assert generation_params is not None
+        assert "temperature" not in generation_params
+        assert generation_params["max_completion_tokens"] == 256

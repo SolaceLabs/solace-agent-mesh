@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Workflow } from "lucide-react";
 
 import { Button, EmptyState } from "@/lib/components";
+import { PageLayout } from "@/lib/components/layout";
 import { Header, type BreadcrumbItem } from "@/lib/components/header";
 import { useChatContext } from "@/lib/hooks";
 import { isWorkflowAgent, getWorkflowConfig } from "@/lib/utils/agentUtils";
@@ -243,7 +244,7 @@ export function WorkflowVisualizationPage() {
     // Loading state
     if (agentsLoading) {
         return (
-            <div className="flex h-full w-full flex-col">
+            <PageLayout>
                 <Header
                     title={
                         <div className="flex items-center gap-2">
@@ -254,14 +255,14 @@ export function WorkflowVisualizationPage() {
                     breadcrumbs={breadcrumbs}
                 />
                 <EmptyState title="Loading..." variant="loading" />
-            </div>
+            </PageLayout>
         );
     }
 
     // Error state
     if (agentsError) {
         return (
-            <div className="flex h-full w-full flex-col">
+            <PageLayout>
                 <Header
                     title={
                         <div className="flex items-center gap-2">
@@ -272,14 +273,14 @@ export function WorkflowVisualizationPage() {
                     breadcrumbs={breadcrumbs}
                 />
                 <EmptyState variant="error" title="Error loading data" subtitle={agentsError} />
-            </div>
+            </PageLayout>
         );
     }
 
     // Workflow not found
     if (!workflow || !config) {
         return (
-            <div className="flex h-full w-full flex-col">
+            <PageLayout>
                 <Header
                     title={
                         <div className="flex items-center gap-2">
@@ -290,12 +291,12 @@ export function WorkflowVisualizationPage() {
                     breadcrumbs={breadcrumbs}
                 />
                 <EmptyState variant="error" title="Workflow not found" subtitle={`Could not find a workflow named "${workflowName}"`} />
-            </div>
+            </PageLayout>
         );
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title={
                     <div className="flex items-center gap-2">
@@ -342,7 +343,7 @@ export function WorkflowVisualizationPage() {
                 {workflowPanelView && (
                     <div className={`absolute top-0 right-0 bottom-0 z-10 flex ${shouldAnimate ? "animate-in slide-in-from-right duration-300" : ""}`} style={{ width: panelWidth }}>
                         {/* Resize handle - matches ResizableHandle styling */}
-                        <div className="bg-border relative flex w-px cursor-col-resize items-center justify-center after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2" onMouseDown={handleResizeStart} />
+                        <div className="relative flex w-px cursor-col-resize items-center justify-center bg-(--secondary-w40) after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2" onMouseDown={handleResizeStart} />
                         {/* Panel content */}
                         <div className="min-w-0 flex-1 bg-(--background-w10)">
                             <WorkflowDetailsSidePanel workflow={workflow} config={config} view={workflowPanelView} onClose={handleCloseWorkflowPanel} onViewChange={handleSwitchPanelView} />
@@ -350,7 +351,7 @@ export function WorkflowVisualizationPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </PageLayout>
     );
 }
 

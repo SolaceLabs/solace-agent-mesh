@@ -49,6 +49,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "TextAnalyzer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You analyze text content.
@@ -102,6 +104,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "Summarizer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You create summaries from analysis results.
@@ -326,6 +330,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "RequestClassifier"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Classify the incoming request.
@@ -374,6 +380,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "BillingHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Handle billing-related requests.
@@ -418,6 +426,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "TechnicalHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Handle technical support requests.
@@ -462,6 +472,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "GeneralHandler"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Handle general inquiries.
@@ -610,6 +622,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ItemProcessor"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Process a single item from a batch.
@@ -736,6 +750,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "StatusChecker"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         Check if a task is ready.

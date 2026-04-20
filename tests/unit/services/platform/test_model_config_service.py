@@ -1,9 +1,14 @@
-"""Unit tests for ModelConfigService new methods.
+"""Unit tests for ModelConfigService methods.
 
 Tests:
 - get_by_alias with raw=True returns unredacted LiteLlm config
 - get_by_alias_or_id delegates to repository and handles raw/response modes
 - _to_raw_litellm_config builds correct unredacted config dicts
+- _to_raw_litellm_config strips placeholder sentinel values
+
+Note: are_default_models_configured, _to_response placeholder stripping, and
+delete default model guard are covered by integration tests in
+tests/integration/apis/platform/test_model_config_api.py.
 """
 
 from unittest.mock import AsyncMock, Mock, patch
@@ -406,6 +411,31 @@ class TestTestConnection:
             # Check that sensitive key doesn't appear
             assert "sk-very-secret-key" not in message
 
+    @pytest.mark.asyncio
+    async def test_test_connection_succeeds_without_temperature(self):
+        """Test connection succeeds when no temperature is provided in model_params."""
+        from solace_agent_mesh.services.platform.api.routers.dto.requests import ModelConfigurationTestRequest
+
+        service = ModelConfigService()
+        service.repository = Mock()
+        mock_db = Mock()
+
+        request = ModelConfigurationTestRequest(
+            provider="openai",
+            model_name="gpt-5",
+            auth_config={"type": "apikey", "api_key": "sk-test-key"},
+            # No model_params / no temperature — should not crash
+        )
+
+        with patch("solace_agent_mesh.services.platform.services.model_config_service.LiteLlm") as MockLiteLlm:
+            mock_instance = MockLiteLlm.return_value
+            mock_instance.generate_content_async = _mock_llm_success_response()
+
+            success, message = await service.test_connection(mock_db, request)
+
+            assert success is True
+            assert "successful" in message.lower()
+
 
 class TestGetModelsFromProviderById:
     """Tests for get_models_from_provider_by_id with override logic."""
@@ -554,3 +584,19 @@ class TestUpdateAuthHandling:
         service.update(Mock(), db_model.id, request, "admin")
         assert db_model.model_auth_config["api_key"] == "sk-updated"
         assert db_model.model_auth_config["org_id"] == "org-1"
+
+
+class TestToRawLitellmConfigPlaceholderStripping:
+    """Tests for _to_raw_litellm_config stripping placeholder sentinel values."""
+
+    def test_placeholder_values_stripped(self):
+        """Placeholder provider and model_name are stripped to None before LiteLLM config."""
+        db_model = _make_db_model(
+            provider="undefined", model_name="undefined",
+            api_base=None, model_auth_config=None, model_params=None,
+        )
+        result = ModelConfigService._to_raw_litellm_config(db_model)
+        # _resolve_litellm_model_name(None, None) returns None
+        assert result["model"] is None
+
+

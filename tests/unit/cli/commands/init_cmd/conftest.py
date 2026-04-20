@@ -30,10 +30,16 @@ def temp_project_dir(tmp_path):
 def mock_templates(mocker):
     """Mock template loading to avoid file system dependencies"""
     mock_shared_config = """
-artifact_service:
-  type: __DEFAULT_ARTIFACT_SERVICE_TYPE__
-  artifact_scope: __DEFAULT_ARTIFACT_SERVICE_SCOPE__
-  # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__
+  - models:
+    planning: &planning_model
+      # __PLANNING_MODEL_CONFIG__
+    general: &general_model
+      # __GENERAL_MODEL_CONFIG__
+
+  - artifact_service:
+    type: __DEFAULT_ARTIFACT_SERVICE_TYPE__
+    artifact_scope: __DEFAULT_ARTIFACT_SERVICE_SCOPE__
+    # __DEFAULT_ARTIFACT_SERVICE_BASE_PATH_LINE__
 """
     
     mock_logging_config = """
@@ -62,6 +68,9 @@ app_name: __APP_NAME__
 supports_streaming: __SUPPORTS_STREAMING__
 agent_name: __AGENT_NAME__
 log_file_name: __LOG_FILE_NAME__
+      model: *planning_model
+      model_provider:
+        - planning
 instruction: |
   __INSTRUCTION__
 session_service:__SESSION_SERVICE__
@@ -84,6 +93,9 @@ inter_agent_communication:
 """
     
     mock_webui_config = """
+      model: *general_model
+      model_provider:
+        - general
 frontend_welcome_message: __FRONTEND_WELCOME_MESSAGE__
 frontend_bot_name: __FRONTEND_BOT_NAME__
 frontend_collect_feedback: __FRONTEND_COLLECT_FEEDBACK__

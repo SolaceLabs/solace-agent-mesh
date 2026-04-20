@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { AccordionCard } from "@/lib/components/ui/accordion-card";
 import { Plus } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
@@ -11,14 +12,13 @@ import { PasswordInput } from "@/lib/components/common";
 import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
-import { ComboBox } from "@/lib/components/ui";
 import { KeyValuePairList } from "../common/KeyValuePairList";
 import { DEFAULT_MODEL_ALIASES } from "./common";
 import { useDebounce } from "@/lib/hooks";
 
 interface ModelEditProps {
     isNew: boolean;
-    modelToEdit: ModelConfig | null;
+    modelToEdit?: ModelConfig | null;
     onSave: (data: ModelFormData, dirtyFields: Partial<Record<string, boolean>>) => Promise<void>;
     onDirtyStateChange?: (isDirty: boolean) => void;
     modelsByProvider?: Record<string, Array<{ id: string; label: string }>>;
@@ -41,6 +41,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const [queryParams, setQueryParams] = useState<SupportedModelsQueryParams | null>(null);
     const { data: dynamicModels = [], isLoading: isLoadingModels, isError: hasFetchError } = useSupportedModels(queryParams);
     const [supportedParams, setSupportedParams] = useState<string[] | null>(null);
+    const [paramsError, setParamsError] = useState(false);
     const hasInitializedFromModelRef = useRef(false);
     const {
         register,
@@ -66,6 +67,14 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     const handleCustomParamKeyCommit = useCallback(() => {
         setCommittedCustomParamsJson(JSON.stringify(getValues("customParams") ?? []));
     }, [getValues]);
+    // When supportedParams arrives (async fetch after model load), snapshot the current
+    // form values so existing invalid params are flagged without waiting for user interaction.
+    useEffect(() => {
+        if (supportedParams && supportedParams.length > 0) {
+            handleCustomParamKeyCommit();
+        }
+    }, [supportedParams, handleCustomParamKeyCommit]);
+
     const unsupportedCustomKeys = useMemo(() => {
         if (!supportedParams || supportedParams.length === 0) return [];
         const committed: { key: string }[] = JSON.parse(committedCustomParamsJson);
@@ -162,15 +171,20 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
     useEffect(() => {
         if (!selectedProvider || !debouncedModelName) {
             setSupportedParams(null);
+            setParamsError(false);
             return;
         }
         let cancelled = false;
+        setParamsError(false);
         fetchSupportedParams(selectedProvider, debouncedModelName)
             .then(params => {
                 if (!cancelled) setSupportedParams(params);
             })
             .catch(() => {
-                if (!cancelled) setSupportedParams(null);
+                if (!cancelled) {
+                    setSupportedParams(null);
+                    setParamsError(true);
+                }
             });
         return () => {
             cancelled = true;
@@ -183,6 +197,22 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             setQueryParams(null);
         }
     }, [selectedAuthType, apiKey, apiBase, selectedProvider]);
+
+    // Clear all authentication and model fields when the user switches auth type
+    const handleAuthTypeChange = useCallback(
+        (newAuthType: string, formOnChange: (value: string) => void) => {
+            formOnChange(newAuthType);
+            for (const fields of Object.values(AUTH_FIELDS)) {
+                for (const field of fields) {
+                    setValue(field.name, "");
+                }
+            }
+            setStoredCredentialFields(new Set());
+            setValue("modelName", "");
+            setQueryParams(null);
+        },
+        [setValue]
+    );
 
     // When the model dropdown opens, commit the current form credentials as query params.
     // React Query handles caching: if params haven't changed since the last successful
@@ -232,12 +262,12 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
             hasInitializedFromModelRef.current = true;
 
             setValue("alias", modelToEdit.alias);
-            setValue("provider", modelToEdit.provider);
+            setValue("provider", modelToEdit.provider ?? "");
 
             // Strip provider prefix from model name for editing
             // e.g., "openai/bedrock-claude-4-5-haiku" → "bedrock-claude-4-5-haiku"
-            let modelName = modelToEdit.modelName;
-            if (modelToEdit.provider === "custom" && modelName?.startsWith("openai/")) {
+            let modelName = modelToEdit.modelName ?? "";
+            if (modelToEdit.provider === "custom" && modelName.startsWith("openai/")) {
                 modelName = modelName.substring(7);
             }
 
@@ -314,7 +344,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
         // Password fields use the dedicated PasswordInput component
         if (field.type === "password") {
             return (
-                <FormFieldLayoutItem key={field.name} label={field.label} required={field.required} error={errors[field.name] as { message?: string }} helpText={field.helpText}>
+                <FormFieldLayoutItem key={field.name} helpText={field.helpText} label={field.label} required={field.required} error={errors[field.name] as { message?: string }}>
                     <PasswordInput name={field.name} control={control} hasStoredValue={storedCredentialFields.has(field.name)} placeholder={field.placeholder} rules={{ required: isRequiredField ? `${field.label} is required` : false }} />
                 </FormFieldLayoutItem>
             );
@@ -452,7 +482,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                 <div className="flex gap-4">
                                                     {providerConfig.allowedAuthTypes.map(authType => (
                                                         <label key={authType} className="flex cursor-pointer items-center gap-2">
-                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => field.onChange(authType)} />
+                                                            <input type="radio" value={authType} checked={field.value === authType} onChange={() => handleAuthTypeChange(authType, field.onChange)} />
                                                             <span className="text-sm">{AUTH_TYPE_LABELS[authType as AuthType]}</span>
                                                         </label>
                                                     ))}
@@ -494,6 +524,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
                                             return (
                                                 <ComboBox
+                                                    key={selectedAuthType}
                                                     value={field.value}
                                                     onValueChange={field.onChange}
                                                     items={displayItems}
@@ -510,18 +541,17 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                 </FormFieldLayoutItem>
 
                                 {/* Advanced Parameters Section - Collapsible */}
-                                <details className="group mt-4">
-                                    <summary className="text-foreground hover:text-secondary-foreground cursor-pointer text-sm font-medium select-none">Advanced Settings</summary>
-                                    <div className="mt-4 flex flex-col gap-6">
+                                <AccordionCard value="advanced-settings" variant="borderless" trigger={<span className="text-sm font-medium text-(--primary-text-wMain)">Advanced Settings</span>} className="mt-4">
+                                    <div className="flex flex-col gap-6">
                                         {/* Common Parameters - Temperature and Max Tokens */}
                                         {!providerConfig.hideCommonParams && COMMON_MODEL_PARAMS.length > 0 && <>{COMMON_MODEL_PARAMS.map((field: ProviderField) => renderField(field))}</>}
 
                                         {/* Custom Parameters */}
-                                        <div className="mt-10">
+                                        <div className="mt-2">
                                             <div className="flex items-start justify-between">
                                                 <div>
                                                     <PageLabel>Custom Parameters</PageLabel>
-                                                    <p className="text-secondary-foreground mt-1 text-sm">Add any additional parameters supported by your model provider.</p>
+                                                    <p className="mt-1 text-sm text-(--secondary-text-wMain)">Add any additional parameters supported by your model provider.</p>
                                                 </div>
                                                 <Button type="button" variant="ghost" size="sm" onClick={handleAddCustomParam} disabled={hasEmptyCustomParam} tooltip={hasEmptyCustomParam ? "Each row needs a key and value" : undefined}>
                                                     <Plus className="mr-2 size-4" />
@@ -548,17 +578,18 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                     }}
                                                     render={() => (
                                                         <>
-                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onValidateKey={handleCustomParamKeyCommit} />
+                                                            <KeyValuePairList name="customParams" error={errors.customParams} minPairs={0} emptyMessage="No custom parameters added yet" onChange={handleCustomParamKeyCommit} />
                                                             {unsupportedCustomKeys.length > 0 && (
                                                                 <p className="mt-2 text-xs text-(--warning-wMain)">Some custom parameters may not be supported by the selected model: {unsupportedCustomKeys.join(", ")}</p>
                                                             )}
                                                         </>
                                                     )}
                                                 />
+                                                {paramsError && <p className="mt-2 text-xs text-(--warning-wMain)">Unable to validate custom parameters for this model.</p>}
                                             </div>
                                         </div>
                                     </div>
-                                </details>
+                                </AccordionCard>
 
                                 {/* Test Connection */}
                                 <TestConnectionSection

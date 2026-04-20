@@ -25,7 +25,9 @@ apps:
       agent_name: "OrchestratorAgent"
       display_name: "Orchestrator"
 
-      model: *planning_model # Points to shared_config.yaml
+      model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: | 
         You are the Orchestrator Agent within an AI agentic system. Your primary responsibilities are to:

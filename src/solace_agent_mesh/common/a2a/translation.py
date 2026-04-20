@@ -25,7 +25,7 @@ from a2a.types import (
 )
 
 from .. import a2a
-from ..utils.mime_helpers import resolve_mime_type
+from ..utils.mime_helpers import resolve_mime_type, is_image_artifact
 from ...agent.utils.context_helpers import get_original_session_id
 
 log = logging.getLogger(__name__)
@@ -39,19 +39,93 @@ A2A_LLM_STREAM_CHUNKS_PROCESSED_KEY = "temp:llm_stream_chunks_processed"
 A2A_STATUS_SIGNAL_STORAGE_KEY = "temp:a2a_status_signals_collected"
 
 
+async def _try_inline_vision_part(
+    load_artifact_content_or_metadata,
+    artifact_service: "BaseArtifactService",
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+    version: int,
+    mime_type: str,
+    content_bytes: Optional[bytes],
+    log_id: str,
+) -> Optional[adk_types.Part]:
+    """Attempt to build an inline-vision Part for an image artifact.
+
+    Returns an ``adk_types.Part`` with ``inline_data`` on success, or ``None``
+    if the image bytes could not be obtained (callers should fall back to a
+    text metadata summary).
+    """
+    if content_bytes is None:
+        load_result = await load_artifact_content_or_metadata(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=user_id,
+            session_id=get_original_session_id(session_id),
+            filename=filename,
+            version=version,
+            load_metadata_only=False,
+            return_raw_bytes=True,
+        )
+        if load_result["status"] == "success":
+            raw_bytes = load_result.get("raw_bytes")
+            if raw_bytes:
+                content_bytes = raw_bytes
+            else:
+                log.warning(
+                    "%s Could not extract image bytes from artifact '%s'. "
+                    "Falling back to text metadata.",
+                    log_id,
+                    filename,
+                )
+        else:
+            log.warning(
+                "%s Failed to load image artifact '%s': %s. "
+                "Falling back to text metadata.",
+                log_id,
+                filename,
+                load_result.get("message", "unknown error"),
+            )
+
+    if content_bytes:
+        log.info(
+            "%s Inline vision: passing image '%s' (%d bytes, %s) directly to LLM.",
+            log_id,
+            filename,
+            len(content_bytes),
+            mime_type,
+        )
+        return adk_types.Part(
+            inline_data=adk_types.Blob(
+                mime_type=mime_type,
+                data=content_bytes,
+            )
+        )
+
+    return None
+
+
 async def _prepare_a2a_filepart_for_adk(
     part: FilePart,
     component: "SamAgentComponent",
     user_id: str,
     session_id: str,
+    inline_vision_tracker: Optional[Dict[str, int]] = None,
 ) -> Optional[adk_types.Part]:
     """
-    Prepares an incoming A2A FilePart for the ADK by converting it into a
-    textual summary of its metadata.
+    Prepares an incoming A2A FilePart for the ADK.
 
     - If the part has bytes, it saves it to the artifact store first.
     - If the part has a URI, it loads metadata from the store.
-    - It then formats this information into a text string for the LLM.
+    - For image files when enable_inline_vision is True: returns an inline_data
+      Part so the LLM can process the image natively via its vision capability.
+    - Otherwise: formats metadata into a text string for the LLM.
+
+    Args:
+        inline_vision_tracker: Mutable dict tracking {"images_inlined": int, "bytes_inlined": int}
+            across multiple FileParts in a single message. Used to enforce
+            max_inline_vision_images and max_inline_vision_bytes limits.
     """
     from ...agent.utils.artifact_helpers import (
         save_artifact_with_metadata,
@@ -62,6 +136,7 @@ async def _prepare_a2a_filepart_for_adk(
     log_id = f"{component.log_identifier}[PrepareFilePartForADK]"
     app_name = component.get_config("agent_name")
     artifact_service = component.artifact_service
+    enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
     if not artifact_service:
         log.error(
@@ -74,6 +149,7 @@ async def _prepare_a2a_filepart_for_adk(
     filename = None
     version = None
     mime_type = None
+    content_bytes = None
 
     try:
         if isinstance(part.file, FileWithBytes):
@@ -116,7 +192,7 @@ async def _prepare_a2a_filepart_for_adk(
             filename = path_parts[-1]
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
             version = int(version_str) if version_str else None
-            mime_type = part.file.mime_type
+            mime_type = part.file.mime_type or resolve_mime_type(filename, None)
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
@@ -125,7 +201,47 @@ async def _prepare_a2a_filepart_for_adk(
         if filename is None or version is None:
             raise ValueError("Could not determine filename and version for artifact.")
 
-        # Fetch metadata only.
+        # Inline vision: for image files, pass the image bytes directly to the LLM
+        # so vision-capable models can reason about the image natively.
+        if enable_inline_vision and is_image_artifact(filename, mime_type):
+            # Check limits before attempting inline vision
+            tracker = inline_vision_tracker or {"images_inlined": 0, "bytes_inlined": 0}
+            max_images = getattr(component, "max_inline_vision_images", 5)
+            max_bytes = getattr(component, "max_inline_vision_bytes", 20971520)
+
+            if tracker["images_inlined"] >= max_images:
+                log.info(
+                    "%s Inline vision limit reached (%d/%d images). "
+                    "Falling back to text metadata for '%s'.",
+                    log_id, tracker["images_inlined"], max_images, filename,
+                )
+            elif tracker["bytes_inlined"] >= max_bytes:
+                log.info(
+                    "%s Inline vision byte limit reached (%d/%d bytes). "
+                    "Falling back to text metadata for '%s'.",
+                    log_id, tracker["bytes_inlined"], max_bytes, filename,
+                )
+            else:
+                vision_part = await _try_inline_vision_part(
+                    load_artifact_content_or_metadata=load_artifact_content_or_metadata,
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    version=version,
+                    mime_type=mime_type,
+                    content_bytes=content_bytes,
+                    log_id=log_id,
+                )
+                if vision_part is not None:
+                    # Update tracker with the inlined image
+                    image_size = len(vision_part.inline_data.data) if vision_part.inline_data and vision_part.inline_data.data else 0
+                    tracker["images_inlined"] += 1
+                    tracker["bytes_inlined"] += image_size
+                    return vision_part
+
+        # Default: fetch metadata only and return text summary
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
@@ -169,11 +285,15 @@ async def translate_a2a_to_adk_content(
 ) -> adk_types.Content:
     """
     Translates an A2A Message object to ADK Content.
-    FileParts are converted to textual metadata summaries.
+    FileParts are converted to textual metadata summaries, or to inline_data
+    Parts for images when enable_inline_vision is True (subject to limits).
     """
     adk_parts: List[adk_types.Part] = []
     unwrapped_parts = a2a.get_parts_from_message(a2a_message)
     log_identifier = component.log_identifier
+
+    # Track inline vision usage across all FileParts in this message
+    inline_vision_tracker: Dict[str, int] = {"images_inlined": 0, "bytes_inlined": 0}
 
     for part in unwrapped_parts:
         try:
@@ -181,7 +301,8 @@ async def translate_a2a_to_adk_content(
                 adk_parts.append(adk_types.Part(text=a2a.get_text_from_text_part(part)))
             elif isinstance(part, FilePart):
                 adk_part = await _prepare_a2a_filepart_for_adk(
-                    part, component, user_id, session_id
+                    part, component, user_id, session_id,
+                    inline_vision_tracker=inline_vision_tracker,
                 )
                 if adk_part:
                     adk_parts.append(adk_part)

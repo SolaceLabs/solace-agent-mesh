@@ -29,6 +29,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "OperationExecutor"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You execute operations that can succeed or fail based on input mode.
@@ -81,6 +83,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "SuccessNotifier"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You notify about successful workflow completion.
@@ -129,6 +133,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "FailureAlerter"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You send alerts for workflow failures.
@@ -178,6 +184,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "CleanupService"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You perform cleanup operations.

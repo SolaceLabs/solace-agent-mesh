@@ -21,6 +21,9 @@ apps:
       session_secret_key: "${SESSION_SECRET_KEY}"
 
       model: *general_model
+      model_provider: 
+        - "general"
+
       artifact_service: *default_artifact_service
       session_service: __SESSION_SERVICE__
       gateway_id: ${WEBUI_GATEWAY_ID}

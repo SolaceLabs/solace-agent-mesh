@@ -21,11 +21,23 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
     const lastScrollTop = useRef(0);
     const recentUpwardScroll = useRef(false);
     const isProgrammaticScroll = useRef(false);
+    const programmaticScrollCount = useRef(0);
+    const unmountedRef = useRef(false);
 
     const [scrollState, setScrollState] = useState<ScrollState>({
         isAtBottom: true,
         autoScrollEnabled: true,
     });
+
+    // Reset programmatic scroll state on unmount to prevent stale refs
+    useEffect(() => {
+        unmountedRef.current = false;
+        return () => {
+            unmountedRef.current = true;
+            programmaticScrollCount.current = 0;
+            isProgrammaticScroll.current = false;
+        };
+    }, []);
 
     const checkIsAtBottom = useCallback(
         (element: HTMLElement) => {
@@ -143,7 +155,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         const hasNewContent = currentHeight !== lastContentHeight.current;
 
         if (hasNewContent) {
-            if (scrollState.autoScrollEnabled || autoScrollOnNewContent) {
+            if ((scrollState.autoScrollEnabled || autoScrollOnNewContent) && !isProgrammaticScroll.current) {
                 requestAnimationFrame(() => {
                     scrollToBottom(lastContentHeight.current === 0);
                 });
@@ -159,7 +171,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         if (!element) return;
 
         const resizeObserver = new ResizeObserver(() => {
-            if (scrollState.autoScrollEnabled) {
+            if (scrollState.autoScrollEnabled && !isProgrammaticScroll.current) {
                 scrollToBottom(true);
             }
         });
@@ -181,12 +193,55 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}) {
         }
     }, [checkIsAtBottom]);
 
+    // Synchronously block auto-scroll for the next render cycle.
+    // Sets isProgrammaticScroll (checked by content & resize effects)
+    // and disables autoScrollEnabled via state.
+    // The flag is cleared after layout settles via requestAnimationFrame, which fires
+    // after the browser has completed layout and paint — unlike a fixed timeout this
+    // adapts to slow devices and heavy DOM updates.
+    // Pauses auto-scroll until the browser has completed layout and paint
+    // (double-rAF). Returns a Promise that resolves once the pause has
+    // fully settled, so callers can chain follow-up scroll actions without
+    // guessing rAF nesting depth.
+    //
+    // Concurrency: programmaticScrollCount acts as a semaphore — each call
+    // increments it, and the inner rAF decrements. isProgrammaticScroll is
+    // only cleared when all concurrent pauses have settled (count reaches 0).
+    const pauseAutoScroll = useCallback((): Promise<void> => {
+        programmaticScrollCount.current += 1;
+        isProgrammaticScroll.current = true;
+        setScrollState({ isAtBottom: false, autoScrollEnabled: false });
+        userHasScrolled.current = true;
+        return new Promise<void>(resolve => {
+            requestAnimationFrame(() => {
+                // Double-rAF ensures the scroll position is stable after both layout and paint
+                requestAnimationFrame(() => {
+                    if (unmountedRef.current) {
+                        resolve();
+                        return;
+                    }
+                    if (scrollRef.current) {
+                        lastScrollTop.current = scrollRef.current.scrollTop;
+                        lastContentHeight.current = scrollRef.current.scrollHeight;
+                    }
+                    programmaticScrollCount.current -= 1;
+                    if (programmaticScrollCount.current <= 0) {
+                        programmaticScrollCount.current = 0;
+                        isProgrammaticScroll.current = false;
+                    }
+                    resolve();
+                });
+            });
+        });
+    }, []);
+
     return {
         scrollRef,
         isAtBottom: scrollState.isAtBottom,
         autoScrollEnabled: scrollState.autoScrollEnabled,
         scrollToBottom: () => scrollToBottom(),
         disableAutoScroll,
+        pauseAutoScroll,
         userHasScrolled: userHasScrolled.current,
     };
 }

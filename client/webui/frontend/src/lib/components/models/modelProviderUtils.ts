@@ -264,7 +264,7 @@ export const COMMON_MODEL_PARAMS: ProviderField[] = [
         label: "Temperature",
         type: "number",
         required: false,
-        helpText: "Sampling temperature between 0 and 2. Higher values like 0.8 produce more random outputs, while lower values like 0.2 make outputs more focused and deterministic.",
+        helpText: "Controls output randomness. Higher values produce more creative responses, lower values are more focused. Refer to your provider's documentation for the supported range.",
         storageTarget: "model_params",
         min: 0,
         max: 2,
@@ -373,8 +373,8 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
  * Get the configuration for a specific provider.
  * Returns the provider config with field definitions, auth types, and placeholders.
  */
-export function getProviderConfig(providerId: string): ProviderConfig {
-    return PROVIDER_CONFIGS[providerId] || PROVIDER_CONFIGS.custom;
+export function getProviderConfig(providerId: string | null | undefined): ProviderConfig {
+    return (providerId && PROVIDER_CONFIGS[providerId]) || PROVIDER_CONFIGS.custom;
 }
 
 /**
@@ -528,5 +528,20 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         authType: data.authType,
         authConfig,
         modelParams,
+    };
+}
+
+/**
+ * Build the payload for testing a model connection.
+ * Extracts only the fields needed by the test endpoint from a save payload.
+ */
+export function buildTestPayload(savePayload: ReturnType<typeof buildModelPayload>, modelId?: string) {
+    return {
+        provider: savePayload.provider,
+        modelName: savePayload.modelName,
+        apiBase: savePayload.apiBase || undefined,
+        authConfig: savePayload.authConfig,
+        modelParams: savePayload.modelParams,
+        ...(modelId ? { modelId } : {}),
     };
 }

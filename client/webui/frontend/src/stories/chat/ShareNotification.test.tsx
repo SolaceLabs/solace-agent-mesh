@@ -41,7 +41,7 @@ describe("ShareNotification", () => {
         const { container } = render(<ShareNotification sharedBy="Alice" shareType="public" sharedAt={RECENT_TIMESTAMP} />);
 
         // Should show a relative time like "30s ago"
-        const timeEl = container.querySelector("p.text-muted-foreground\\/70");
+        const timeEl = container.querySelector("p.text-\\(--secondary-text-w50\\)");
         expect(timeEl?.textContent).toMatch(/\d+s ago/);
     });
 });

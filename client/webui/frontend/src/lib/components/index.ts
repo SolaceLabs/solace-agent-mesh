@@ -8,6 +8,7 @@ export * from "./chat";
 export * from "./settings";
 
 export * from "./common";
+export * from "./layout";
 
 export * from "./header";
 export * from "./pages";

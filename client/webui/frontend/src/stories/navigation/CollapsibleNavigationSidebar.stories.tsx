@@ -64,6 +64,26 @@ const defaultItems: NavItemConfig[] = [
     },
 ];
 
+const sharedWithMeItems = [
+    {
+        share_id: "share-1",
+        title: "Shared Analysis Report",
+        owner_email: "alice@example.com",
+        access_level: "RESOURCE_VIEWER",
+        shared_at: Date.now() - 86400000,
+        share_url: "/shared/share-1",
+    },
+    {
+        share_id: "share-2",
+        title: "Collaborative Design Review",
+        owner_email: "bob@example.com",
+        access_level: "RESOURCE_EDITOR",
+        shared_at: Date.now() - 172800000,
+        share_url: "/shared/share-2",
+        session_id: "session-2",
+    },
+];
+
 const sessionHandlers = [
     http.get("/api/v1/sessions", () => {
         return HttpResponse.json({
@@ -72,6 +92,16 @@ const sessionHandlers = [
             totalPages: 1,
             currentPage: 1,
         });
+    }),
+    http.get("/api/v1/share/shared-with-me", () => {
+        return HttpResponse.json([]);
+    }),
+];
+
+const sessionHandlersWithShared = [
+    ...sessionHandlers.filter(h => !String(h.info.path).includes("shared-with-me")),
+    http.get("/api/v1/share/shared-with-me", () => {
+        return HttpResponse.json(sharedWithMeItems);
     }),
 ];
 
@@ -145,5 +175,24 @@ export const CustomHeader: Story = {
         expect(canvas.getByText("Custom Logo")).toBeInTheDocument();
 
         expect(canvasElement.querySelector(".navigation-sidebar")).toBeInTheDocument();
+    },
+};
+
+export const WithSharedChats: Story = {
+    args: {
+        items: defaultItems,
+    },
+    parameters: {
+        msw: { handlers: sessionHandlersWithShared },
+        configContext: {
+            configFeatureEnablement: { chatSharing: true },
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(await canvas.findByText("Shared with Me")).toBeInTheDocument();
+        await expect(await canvas.findByText("Shared Analysis Report")).toBeInTheDocument();
+        await expect(await canvas.findByText("Collaborative Design Review")).toBeInTheDocument();
+        await expect(await canvas.findByText("Recent Chats")).toBeInTheDocument();
     },
 };

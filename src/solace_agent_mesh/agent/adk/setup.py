@@ -265,7 +265,12 @@ async def _load_python_tool(component: "SamAgentComponent", tool_config: Dict) -
     tool_scopes_map: Dict[str, List[str]] = {}
     config_scopes = tool_config_model.required_scopes
     for tool in loaded_python_tools:
-        tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
+        # For DynamicTool subclasses, use tool_name property
+        # (the inherited 'name' attr may still be the placeholder)
+        if hasattr(tool, "tool_name"):
+            tool_name = tool.tool_name
+        else:
+            tool_name = getattr(tool, "name", getattr(tool, "__name__", None))
         if tool_name:
             tool_scopes_map[tool_name] = config_scopes
 
@@ -1012,6 +1017,16 @@ def initialize_adk_agent(
         )
         log.debug(
             "%s Added repair_history_callback to before_model chain.",
+            component.log_identifier,
+        )
+
+        model_override_cb = functools.partial(
+            adk_callbacks.apply_model_override_callback,
+            host_component=component,
+        )
+        callbacks_in_order_for_before_model.append(model_override_cb)
+        log.debug(
+            "%s Added apply_model_override_callback to before_model chain.",
             component.log_identifier,
         )
 

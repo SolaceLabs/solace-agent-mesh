@@ -2,6 +2,7 @@
 
 import threading
 
+import httpx
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -10,6 +11,7 @@ from solace_ai_connector.common.observability.monitors.gateway import (
     GatewayMonitor,
     GatewayTTFBMonitor,
 )
+from solace_ai_connector.common.observability.monitors.remote import RemoteRequestMonitor
 
 
 class SamGatewayMonitor(GatewayMonitor):
@@ -213,3 +215,47 @@ class SamWebGatewayCounter:
         }
 
         counter.record(1, labels)
+
+
+class OAuthRemoteMonitor(RemoteRequestMonitor):
+    """
+    Concrete monitor for outbound HTTP calls to the OAuth2 service.
+
+    Maps to: outbound.request.duration histogram
+    Labels: service.peer.name="oauth_service", operation.name, error.type
+
+    Usage:
+        async with MonitorLatency(OAuthRemoteMonitor.validate_token()):
+            response = await client.post(token_validation_url, ...)
+    """
+
+    @staticmethod
+    def parse_error(exc: Exception) -> str:
+        """Map exceptions to HTTP-style error categories, including httpx-specific exceptions."""
+        if isinstance(exc, httpx.TimeoutException):
+            return "timeout"
+        return RemoteRequestMonitor.parse_error(exc)
+
+    @classmethod
+    def validate_token(cls) -> MonitorInstance:
+        """Create monitor instance for the POST /is_token_valid call."""
+        return MonitorInstance(
+            monitor_type=cls.monitor_type,
+            labels={
+                "service.peer.name": "oauth_service",
+                "operation.name": "validate_token",
+            },
+            error_parser=cls.parse_error,
+        )
+
+    @classmethod
+    def get_user_info(cls) -> MonitorInstance:
+        """Create monitor instance for the GET /user_info call."""
+        return MonitorInstance(
+            monitor_type=cls.monitor_type,
+            labels={
+                "service.peer.name": "oauth_service",
+                "operation.name": "get_user_info",
+            },
+            error_parser=cls.parse_error,
+        )

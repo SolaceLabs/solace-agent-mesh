@@ -14,6 +14,7 @@ import { AlertCircle, Info, Loader2, MessageSquare, PanelLeftIcon, UserLock } fr
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Spinner, ResizablePanelGroup, ResizablePanel, ResizableHandle, Tooltip, TooltipContent, TooltipTrigger, CHAT_STYLES } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
+import { PageLayout } from "@/lib/components/layout";
 import { ChatMessage, SessionSidePanel } from "@/lib/components/chat";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
 import { SharedSidePanel } from "@/lib/components/share/SharedSidePanel";
@@ -36,39 +37,39 @@ export function SharedChatViewPage() {
     // Loading state
     if (shared.loading) {
         return (
-            <div className="flex h-screen items-center justify-center">
+            <PageLayout className="items-center justify-center">
                 <Spinner size="large" variant="primary">
-                    <p className="text-muted-foreground mt-4 text-sm">Loading shared chat...</p>
+                    <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading shared chat...</p>
                 </Spinner>
-            </div>
+            </PageLayout>
         );
     }
 
     // Error state
     if (shared.error) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-destructive h-16 w-16" />
+            <PageLayout className="items-center justify-center gap-4 p-8">
+                <AlertCircle className="h-16 w-16 text-(--error-wMain)" />
                 <h1 className="text-2xl font-semibold">Unable to View Shared Chat</h1>
-                <p className="text-muted-foreground max-w-md text-center">{shared.error}</p>
+                <p className="max-w-md text-center text-(--secondary-text-wMain)">{shared.error}</p>
                 <Button variant="outline" onClick={() => shared.navigate("/chat")}>
                     Go to Chat
                 </Button>
-            </div>
+            </PageLayout>
         );
     }
 
     // Not found state
     if (!shared.session) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 p-8">
-                <AlertCircle className="text-muted-foreground h-16 w-16" />
+            <PageLayout className="items-center justify-center gap-4 p-8">
+                <AlertCircle className="h-16 w-16 text-(--secondary-text-wMain)" />
                 <h1 className="text-2xl font-semibold">Shared Chat Not Found</h1>
-                <p className="text-muted-foreground">This shared chat may have been deleted or the link is invalid.</p>
+                <p className="text-(--secondary-text-wMain)">This shared chat may have been deleted or the link is invalid.</p>
                 <Button variant="outline" onClick={() => shared.navigate("/chat")}>
                     Go to Chat
                 </Button>
-            </div>
+            </PageLayout>
         );
     }
 
@@ -87,11 +88,11 @@ export function SharedChatViewPage() {
                     Shared by <span className="font-bold">{session.tasks[0]?.userId || "Unknown"}</span> on <span className="font-bold">{formatDateYMD(session.createdTime)}</span>
                 </TooltipContent>
             </Tooltip>
-            <span className="text-muted-foreground text-xs">Viewer</span>
+            <span className="text-xs text-(--secondary-text-wMain)">Viewer</span>
             {session.snapshotTime && (
                 <>
-                    <div className="bg-border h-4 w-px" />
-                    <span className="text-muted-foreground text-xs">Snapshot from {formatDateYMD(session.snapshotTime)}</span>
+                    <div className="h-4 w-px bg-(--secondary-w40)" />
+                    <span className="text-xs text-(--secondary-text-wMain)">Snapshot from {formatDateYMD(session.snapshotTime)}</span>
                 </>
             )}
         </div>,
@@ -114,7 +115,7 @@ export function SharedChatViewPage() {
             onSwitchSession={sid => navigate("/chat", { state: { openSessionsPanel: true, switchToSession: sid } })}
             onNewSession={() => navigate("/chat", { state: { openSessionsPanel: true, newChat: true } })}
         >
-            <div className="relative flex h-screen w-full flex-col overflow-hidden">
+            <PageLayout className="relative">
                 <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
                     <SessionSidePanel onToggle={() => setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed)} />
                 </div>
@@ -142,7 +143,7 @@ export function SharedChatViewPage() {
                                         <main className="h-full overflow-y-auto px-6">
                                             <div className="mx-auto max-w-3xl space-y-4">
                                                 {shared.messages.length === 0 ? (
-                                                    <div className="text-muted-foreground py-12 text-center">
+                                                    <div className="py-12 text-center text-(--secondary-text-wMain)">
                                                         <p>No messages in this shared chat.</p>
                                                     </div>
                                                 ) : (
@@ -160,9 +161,9 @@ export function SharedChatViewPage() {
 
                                         {/* Read-only banner instead of ChatInputArea */}
                                         <div style={CHAT_STYLES}>
-                                            <div className="bg-muted/50 border-border mx-auto flex max-w-3xl items-center gap-3 rounded-lg border px-4 py-3 shadow-sm backdrop-blur-sm">
-                                                <Info className="text-muted-foreground h-5 w-5 flex-shrink-0" />
-                                                <span className="text-muted-foreground text-sm">This chat is read-only. To build off of it, continue a new conversation.</span>
+                                            <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-(--secondary-w20) bg-(--background-w20) px-4 py-3 shadow-sm">
+                                                <Info className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
+                                                <span className="text-sm text-(--secondary-text-wMain)">This chat is read-only. To build off of it, continue a new conversation.</span>
                                                 {!(session?.isOwner && session?.sessionId) && (
                                                     <Button variant="outline" size="sm" onClick={shared.handleForkChat} disabled={shared.isForking} className="ml-auto flex-shrink-0">
                                                         {shared.isForking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
@@ -196,7 +197,7 @@ export function SharedChatViewPage() {
                         </ResizablePanelGroup>
                     </div>
                 </div>
-            </div>
+            </PageLayout>
         </SharedChatProvider>
     );
 }

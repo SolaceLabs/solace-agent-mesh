@@ -40,12 +40,17 @@ def project_dir(tmp_path):
     """Create a temporary project directory"""
     project_path = tmp_path / "test_project"
     project_path.mkdir()
-    
+
     # Create necessary directories
     (project_path / "configs" / "agents").mkdir(parents=True)
     (project_path / "data").mkdir()
     (project_path / ".env").write_text("")
-    
+
+    # Create a shared_config with models section so model anchors are preserved
+    (project_path / "configs" / "shared_config.yaml").write_text(
+        "  - models:\n    general: &general_model\n      model: openai/gpt-4\n"
+    )
+
     return project_path
 
 
@@ -56,7 +61,8 @@ def mock_template(mocker):
 namespace: __NAMESPACE__
 agent_name: __AGENT_NAME__
 supports_streaming: __SUPPORTS_STREAMING__
-model: __MODEL_ALIAS__
+model_provider:
+  - __MODEL_PROVIDER__
 instruction: |
 __INSTRUCTION__
 tools: __TOOLS_CONFIG__
@@ -117,7 +123,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -163,7 +168,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "session_service_behavior": "PERSISTENT",
@@ -205,7 +209,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": "filesystem",
@@ -248,7 +251,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": "s3",
@@ -305,7 +307,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -357,7 +358,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -402,7 +402,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -444,7 +443,6 @@ class TestWriteAgentYamlFromData:
         config_options = {
             "namespace": "test/namespace",
             "supports_streaming": True,
-            "model_type": "general",
             "instruction": "Test instruction",
             "session_service_type": "sql",
             "artifact_service_type": USE_DEFAULT_SHARED_ARTIFACT,
@@ -482,21 +480,22 @@ class TestWriteAgentYamlFromData:
     def test_write_agent_yaml_error_handling(self, project_dir, mocker):
         """Test error handling in YAML writing"""
         mocker.patch("cli.commands.add_cmd.agent_cmd.load_template", side_effect=Exception("Template error"))
-        
+
         config_options = {}
-        
+
         original_cwd = Path.cwd()
         os.chdir(project_dir)
-        
+
         try:
             success, message, file_path = _write_agent_yaml_from_data(
                 "TestAgent", config_options, project_dir
             )
-            
+
             assert success is False
             assert "Error creating agent configuration" in message
         finally:
             os.chdir(original_cwd)
+
 
 
 class TestCreateAgentConfig:
@@ -510,8 +509,7 @@ class TestCreateAgentConfig:
         try:
             cli_options = {
                 "namespace": "test/namespace",
-                "model_type": "general",
-            }
+                }
             
             result = create_agent_config("TestAgent", cli_options, skip_interactive=True)
             
@@ -587,27 +585,6 @@ class TestAddAgentCommand:
             agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
             content = agent_file.read_text()
             assert "custom/namespace" in content
-        finally:
-            os.chdir(original_cwd)
-    
-    def test_add_agent_with_model_type_option(self, runner, project_dir, mock_template, mocker):
-        """Test add agent with --model-type option"""
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-        
-        try:
-            result = runner.invoke(add_agent, [
-                "TestAgent",
-                "--skip",
-                "--model-type", "planning"
-            ])
-            
-            assert result.exit_code == 0
-            
-            # Verify model type in file
-            agent_file = project_dir / "configs" / "agents" / "test_agent_agent.yaml"
-            content = agent_file.read_text()
-            assert "planning" in content
         finally:
             os.chdir(original_cwd)
     
@@ -776,25 +753,6 @@ class TestAddAgentCommand:
             result = runner.invoke(add_agent, ["TestAgent", "--skip"])
             
             assert result.exit_code == 1
-        finally:
-            os.chdir(original_cwd)
-    
-    def test_add_agent_with_all_model_types(self, runner, project_dir, mock_template, mocker):
-        """Test add agent with all available model types"""
-        original_cwd = Path.cwd()
-        os.chdir(project_dir)
-        
-        model_types = ["planning", "general", "image_gen", "report_gen", "multimodal", "gemini_pro"]
-        
-        try:
-            for model_type in model_types:
-                result = runner.invoke(add_agent, [
-                    f"Agent{model_type.title()}",
-                    "--skip",
-                    "--model-type", model_type
-                ])
-                
-                assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
     
