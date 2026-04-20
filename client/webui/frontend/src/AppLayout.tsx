@@ -138,7 +138,7 @@ function AppLayoutContent() {
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
-            <main className="flex h-full w-full flex-1 flex-col">
+            <main className="flex h-full w-full min-w-0 flex-1 flex-col">
                 <ModelWarningBanner />
                 <Outlet />
             </main>
