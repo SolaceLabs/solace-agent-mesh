@@ -19,10 +19,25 @@ Rather than automatically bundling all created artifacts in the final response, 
 
 ## Configuration
 
-The file management tools are encapsulated within the `artifact_management` tool group.
+The file management tools are encapsulated within the `artifact_management` tool group, which is available to every SAM agent by default.
 
-### Enabling the Tools
-Enable the tool group within the agent's `app_config.yml`:
+### Default Behavior
+
+Every agent has the `artifact_management` tool group available automatically — you do not need to declare it in YAML.
+
+### Opting Out
+
+If your agent defines a custom Python tool whose name collides with one of the builtin artifact tools (`load_artifact`, `append_to_artifact`, `list_artifacts`, `delete_artifact`, `extract_content_from_artifact`, `artifact_search_and_replace_regex`, `apply_embed_and_create_artifact`), set the opt-out flag:
+
+```yaml
+# In your agent's app_config:
+auto_inject_artifact_tools: false
+```
+
+### Explicit Declaration
+
+Declaring the group explicitly is still supported and is equivalent to the default:
+
 ```yaml
 # In your agent's app_config:
 tools:
