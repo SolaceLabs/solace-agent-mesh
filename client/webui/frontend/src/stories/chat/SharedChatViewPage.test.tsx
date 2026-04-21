@@ -42,6 +42,11 @@ describe("SharedChatViewPage", () => {
             Header: ({ title }: { title: string }) => React.createElement("header", { "data-testid": "header" }, title),
         }));
 
+        // Mock useConfigContext — component reads feature flags but tests don't need real config
+        vi.doMock("@/lib/hooks", () => ({
+            useConfigContext: () => ({ configFeatureEnablement: { newNavigation: false } }),
+        }));
+
         const mod = await import("@/lib/components/pages/SharedChatViewPage");
         SharedChatViewPage = mod.SharedChatViewPage;
     });
