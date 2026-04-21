@@ -1529,7 +1529,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             # before flushing to DB to reduce database writes
             task_logging_config = self.get_config("task_logging", {})
             hybrid_buffer_config = task_logging_config.get("hybrid_buffer", {})
-            hybrid_buffer_enabled = hybrid_buffer_config.get("enabled", False)
+            hybrid_buffer_enabled = hybrid_buffer_config.get("enabled", True)
             hybrid_buffer_threshold = hybrid_buffer_config.get("flush_threshold", 10)
             
             # Initialize SSE manager with session factory for background task detection

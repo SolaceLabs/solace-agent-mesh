@@ -45,7 +45,7 @@ class PersistentSSEEventBuffer:
         self,
         session_factory: Optional[Callable] = None,
         enabled: bool = True,
-        hybrid_mode_enabled: bool = False,
+        hybrid_mode_enabled: bool = True,
         hybrid_flush_threshold: int = 10,
     ):
         """

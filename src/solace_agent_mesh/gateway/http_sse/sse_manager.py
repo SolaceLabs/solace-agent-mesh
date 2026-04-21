@@ -32,7 +32,7 @@ class SSEManager:
         event_buffer: SSEEventBuffer,
         session_factory: Optional[Callable] = None,
         persistent_buffer_enabled: bool = True,
-        hybrid_buffer_enabled: bool = False,
+        hybrid_buffer_enabled: bool = True,
         hybrid_buffer_threshold: int = 10,
     ):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
