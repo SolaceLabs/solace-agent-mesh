@@ -19,10 +19,13 @@ import { ChatMessage, SessionSidePanel } from "@/lib/components/chat";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
 import { SharedSidePanel } from "@/lib/components/share/SharedSidePanel";
 import { useSharedSession, formatDateYMD } from "@/lib/hooks/useSharedSession";
+import { useConfigContext } from "@/lib/hooks";
 export function SharedChatViewPage() {
     const shared = useSharedSession();
     const location = useLocation();
     const navigate = useNavigate();
+    const { configFeatureEnablement } = useConfigContext();
+    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
 
     // Open sessions panel if navigated with state
@@ -116,15 +119,17 @@ export function SharedChatViewPage() {
             onNewSession={() => navigate("/chat", { state: { openSessionsPanel: true, newChat: true } })}
         >
             <PageLayout className="relative">
-                <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
-                    <SessionSidePanel onToggle={() => setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed)} />
-                </div>
-                <div className={`transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+                {!useNewNav && (
+                    <div className={`absolute top-0 left-0 z-20 h-screen transition-transform duration-300 ${isSessionSidePanelCollapsed ? "-translate-x-full" : "translate-x-0"}`}>
+                        <SessionSidePanel onToggle={() => setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed)} />
+                    </div>
+                )}
+                <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <Header
                         title={session.title}
                         buttons={headerButtons}
                         leadingAction={
-                            isSessionSidePanelCollapsed ? (
+                            !useNewNav && isSessionSidePanelCollapsed ? (
                                 <Button variant="ghost" onClick={() => setIsSessionSidePanelCollapsed(false)} className="h-10 w-10 p-0" tooltip="Show Chat Sessions">
                                     <PanelLeftIcon className="size-5" />
                                 </Button>
@@ -133,7 +138,7 @@ export function SharedChatViewPage() {
                     />
                 </div>
 
-                <div className={`flex min-h-0 flex-1 transition-all duration-300 ${isSessionSidePanelCollapsed ? "ml-0" : "ml-100"}`}>
+                <div className={`flex min-h-0 flex-1 transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
                     <div className="min-h-0 flex-1 overflow-x-auto">
                         <ResizablePanelGroup direction="horizontal" autoSaveId="shared-chat-view-side-panel" className="h-full">
                             {/* Messages panel */}
