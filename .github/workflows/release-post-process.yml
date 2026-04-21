@@ -1,6 +1,12 @@
 name: Build and Attach Release Assets
 
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        type: string
+        required: true
   workflow_call:
     inputs:
       release_tag:
