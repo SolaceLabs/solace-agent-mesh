@@ -89,10 +89,10 @@ jobs:
             didn't match the configured pattern. Please ensure that the subject
             is not empty.
 
-  fossa_pr_scan:
-    name: FOSSA PR Scan
+  fossa_scan:
+    name: FOSSA Scan
     needs: detect-context
-    if: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
+    if: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) || github.event_name == 'push' }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
     permissions:
       contents: read
@@ -108,8 +108,8 @@ jobs:
       setup_actions: '["setup-uv"]'
       custom_setup_script: "uv export --format requirements-txt --no-dev --output-file requirements.txt"
       additional_scan_params: |
-        fossa.branch="PR"
-        fossa.revision=${{ github.event.pull_request.head.ref }}
+        fossa.branch=${{ github.event_name == 'pull_request' && 'PR' || 'main' }}
+        fossa.revision=${{ github.event.pull_request.head.ref || github.sha }}
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
 
