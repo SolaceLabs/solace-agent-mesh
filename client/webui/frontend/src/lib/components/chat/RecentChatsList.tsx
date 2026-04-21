@@ -1,13 +1,15 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Share2 } from "lucide-react";
 
 import { useRecentSessions } from "@/lib/api/sessions";
+import { useSharedWithMe } from "@/lib/api/share";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsChatSharingEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+import type { SharedWithMeItem } from "@/lib/types/share";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -86,12 +88,18 @@ interface RecentChatsListProps {
     maxItems?: number;
 }
 
+type SessionEntry = { kind: "session"; timestamp: number; session: Session };
+type SharedEntry = { kind: "shared"; timestamp: number; shared: SharedWithMeItem };
+type Entry = SessionEntry | SharedEntry;
+
 export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
+    const { data: sharedItems = [] } = useSharedWithMe();
 
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
@@ -109,13 +117,35 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
+    const entries = useMemo<Entry[]>(() => {
+        const sessionEntries: Entry[] = sessions.map(session => ({
+            kind: "session",
+            timestamp: new Date(session.updatedTime).getTime() || 0,
+            session,
+        }));
+
+        const sharedEntries: Entry[] = chatSharingEnabled ? sharedItems.map(shared => ({ kind: "shared", timestamp: shared.sharedAt || 0, shared })) : [];
+
+        return [...sessionEntries, ...sharedEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, maxItems);
+    }, [sessions, sharedItems, chatSharingEnabled, maxItems]);
+
     const handleSessionClick = async (clickedSessionId: string) => {
         // Navigate to chat page first, then switch session
         navigate("/chat");
         await handleSwitchSession(clickedSessionId);
     };
 
-    if (isLoading && sessions.length === 0 && persistenceEnabled) {
+    const handleSharedClick = async (item: SharedWithMeItem) => {
+        const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
+        if (isEditor && item.sessionId) {
+            navigate("/chat");
+            await handleSwitchSession(item.sessionId);
+        } else {
+            navigate(`/shared-chat/${item.shareId}`);
+        }
+    };
+
+    if (isLoading && entries.length === 0 && persistenceEnabled) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <Spinner />
@@ -123,7 +153,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         );
     }
 
-    if (sessions.length === 0) {
+    if (entries.length === 0) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <MessageCircle className="mb-2 h-6 w-6" />
@@ -134,18 +164,38 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
 
     return (
         <div className="flex flex-col">
-            {sessions.slice(0, maxItems).map(session => {
-                const displayName = session.name?.trim() || "New Chat";
+            {entries.map(entry => {
+                if (entry.kind === "session") {
+                    const { session } = entry;
+                    const displayName = session.name?.trim() || "New Chat";
+                    return (
+                        <Tooltip key={`session-${session.id}`}>
+                            <TooltipTrigger asChild>
+                                <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                                    <div className="min-w-0 flex-1">
+                                        <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
+                                    </div>
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{displayName}</TooltipContent>
+                        </Tooltip>
+                    );
+                }
+
+                const { shared } = entry;
                 return (
-                    <Tooltip key={session.id}>
+                    <Tooltip key={`shared-${shared.shareId}`}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                            <button onClick={() => handleSharedClick(shared)} className={sessionButtonStyles({ active: false })}>
+                                <Share2 className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" aria-label="Shared with me" />
                                 <div className="min-w-0 flex-1">
-                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
+                                    <span className={sessionTextStyles({ active: false, animation: "none" })}>{shared.title}</span>
                                 </div>
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{displayName}</TooltipContent>
+                        <TooltipContent side="top">
+                            Shared by {shared.ownerEmail}: {shared.title}
+                        </TooltipContent>
                     </Tooltip>
                 );
             })}
