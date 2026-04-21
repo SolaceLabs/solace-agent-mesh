@@ -68,6 +68,7 @@
   "packages": {
     ".": {
       "package-name": "solace-agent-mesh",
+      "component": "",
       "changelog-path": "CHANGELOG.md",
       "extra-files": ["cli/__init__.py"]
     }
