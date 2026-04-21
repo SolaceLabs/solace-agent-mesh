@@ -2,9 +2,10 @@ import React, { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import type { ChangeEvent, FormEvent, ClipboardEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import { Ban, Paperclip, Send, Quote, X } from "lucide-react";
+import { Ban, Paperclip, Send, Quote, X, Upload, Link2 } from "lucide-react";
 
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { Button, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import type { ArtifactWithSession } from "@/lib/api/artifacts";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -16,7 +17,11 @@ import { detectVariables } from "@/lib/utils/promptUtils";
 import { detectMentionTrigger, insertMention, buildMessageFromDOM } from "@/lib/utils/mentionUtils";
 import { addRecentMention } from "@/lib/utils/recentMentions";
 
-import { FileBadge } from "./file/FileBadge";
+import { AttachArtifactDialog } from "./file/AttachArtifactDialog";
+import { ArtifactAttachmentCard } from "./file/ArtifactAttachmentCard";
+import { FileUploadCard } from "./file/FileUploadCard";
+import { StandaloneArtifactPreview, getArtifactApiUrl } from "./file/StandaloneArtifactPreview";
+import { api } from "@/lib/api";
 import { AudioRecorder } from "./AudioRecorder";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
@@ -56,7 +61,24 @@ const createEnhancedMessage = (command: ChatCommand, conversationContext?: strin
 export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?: () => void }> = ({ agents = [], scrollToBottom }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { isResponding, isCancelling, selectedAgentName, sessionId, setSessionId, handleSubmit, handleCancel, uploadArtifactFile, displayError, artifacts, messages, startNewChatWithPrompt, pendingPrompt, clearPendingPrompt } = useChatContext();
+    const {
+        isResponding,
+        isCancelling,
+        selectedAgentName,
+        sessionId,
+        setSessionId,
+        handleSubmit,
+        handleCancel,
+        uploadArtifactFile,
+        displayError,
+        addNotification,
+        artifacts,
+        messages,
+        startNewChatWithPrompt,
+        pendingPrompt,
+        clearPendingPrompt,
+        handleSwitchSession,
+    } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
@@ -71,6 +93,14 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+
+    // Existing-artifact attachment support (references, not re-uploads).
+    // The backend re-validates access when the agent fetches the referenced URI,
+    // so we only keep the URI + display metadata client-side.
+    const [selectedArtifactRefs, setSelectedArtifactRefs] = useState<ArtifactWithSession[]>([]);
+    const [showAttachArtifactDialog, setShowAttachArtifactDialog] = useState(false);
+    // Artifact currently shown in the standalone preview modal (cross-session safe).
+    const [previewingArtifact, setPreviewingArtifact] = useState<ArtifactWithSession | null>(null);
 
     // Pending pasted text support (not yet saved as artifacts, shown as badges)
     // These items may have optional metadata if user has configured them via dialog
@@ -172,6 +202,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             setInputValue("");
             setShowPromptsCommand(false);
             setPendingPastedTextItems([]);
+            setSelectedArtifactRefs([]);
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
@@ -389,9 +420,64 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
+    const handleAttachArtifacts = (artifactsToAttach: ArtifactWithSession[]) => {
+        setSelectedArtifactRefs(prev => {
+            const existingUris = new Set(prev.map(a => a.uri).filter(Boolean));
+            const deduped = artifactsToAttach.filter(a => a.uri && !existingUris.has(a.uri));
+            return deduped.length ? [...prev, ...deduped] : prev;
+        });
+        setTimeout(() => {
+            chatInputRef.current?.focus();
+        }, 100);
+    };
+
+    const handleRemoveArtifactRef = (uri: string) => {
+        setSelectedArtifactRefs(prev => prev.filter(a => a.uri !== uri));
+    };
+
+    const handlePreviewArtifactDownload = useCallback(
+        async (artifact: ArtifactWithSession) => {
+            try {
+                const response = await api.webui.get(getArtifactApiUrl(artifact), { fullResponse: true });
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = downloadUrl;
+                link.download = artifact.filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(downloadUrl);
+                addNotification?.(`Downloaded ${artifact.filename}`, "success");
+            } catch (error) {
+                displayError({ title: "Download Failed", error: getErrorMessage(error) });
+            }
+        },
+        [addNotification, displayError]
+    );
+
+    const handlePreviewGoToChat = useCallback(
+        async (artifact: ArtifactWithSession) => {
+            setPreviewingArtifact(null);
+            await handleSwitchSession(artifact.sessionId);
+            navigate("/chat");
+        },
+        [handleSwitchSession, navigate]
+    );
+
+    const handlePreviewGoToProject = useCallback(
+        (artifact: ArtifactWithSession) => {
+            if (artifact.projectId) {
+                setPreviewingArtifact(null);
+                navigate(`/projects/${artifact.projectId}`);
+            }
+        },
+        [navigate]
+    );
+
     const isSubmittingEnabled = useMemo(
-        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0),
-        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems]
+        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
+        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems, selectedArtifactRefs]
     );
 
     const onSubmit = async (event: FormEvent) => {
@@ -411,6 +497,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             // Capture values needed for async work before clearing input
             const capturedSelectedFiles = [...selectedFiles];
             const capturedPendingPastedTextItems = [...pendingPastedTextItems];
+            const capturedSelectedArtifactRefs = [...selectedArtifactRefs];
             const capturedContextText = contextText;
             const capturedContextSourceId = contextSourceId;
             const capturedShowContextBadge = showContextBadge;
@@ -421,6 +508,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             const resetInputState = () => {
                 setSelectedFiles([]);
                 setPendingPastedTextItems([]);
+                setSelectedArtifactRefs([]);
                 setInputValue("");
                 setMentionMap(new Map());
                 setContextText(null);
@@ -447,6 +535,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // Only restore non-text fields if the user hasn't added new ones
                 setSelectedFiles(current => (current.length > 0 ? current : capturedSelectedFiles));
                 setPendingPastedTextItems(current => (current.length > 0 ? current : capturedPendingPastedTextItems));
+                setSelectedArtifactRefs(current => (current.length > 0 ? current : capturedSelectedArtifactRefs));
                 setContextText(current => (current !== null ? current : capturedContextText));
                 setContextSourceId(current => (current !== null ? current : capturedContextSourceId));
                 setShowContextBadge(current => (current ? current : capturedShowContextBadge));
@@ -550,8 +639,28 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     });
                 });
 
-                // Combine regular files with artifact references
-                const allFiles = [...capturedSelectedFiles, ...artifactFiles];
+                // Existing-artifact references (chosen via the Attach-artifact dialog).
+                // Encode each with the same application/x-artifact-reference envelope so
+                // ChatProvider.handleSubmit sends them as file parts with a URI instead
+                // of re-uploading. The URI is authoritative — the backend re-checks the
+                // user's access to the artifact when the agent fetches it.
+                const existingArtifactFiles: File[] = capturedSelectedArtifactRefs
+                    .filter(artifact => !!artifact.uri)
+                    .map(artifact => {
+                        const artifactData = JSON.stringify({
+                            isArtifactReference: true,
+                            uri: artifact.uri,
+                            filename: artifact.filename,
+                            mimeType: artifact.mime_type,
+                        });
+                        const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
+                        return new File([blob], artifact.filename, {
+                            type: "application/x-artifact-reference",
+                        });
+                    });
+
+                // Combine regular files with artifact references (pasted-text uploads + pre-existing artifacts)
+                const allFiles = [...capturedSelectedFiles, ...artifactFiles, ...existingArtifactFiles];
 
                 // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
                 // as the uploaded artifacts (avoids React state timing issues)
@@ -812,15 +921,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Hidden File Input */}
             <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileChange} accept="*/*" disabled={isResponding} />
 
-            {/* Selected Files */}
-            {selectedFiles.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                    {selectedFiles.map((file, index) => (
-                        <FileBadge key={`${file.name}-${file.lastModified}-${index}`} fileName={file.name} onRemove={() => handleRemoveFile(index)} />
-                    ))}
-                </div>
-            )}
-
             {/* Context Text Badge (from text selection) */}
             {showContextBadge && contextText && (
                 <div className="mb-2 overflow-hidden">
@@ -842,9 +942,15 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 </div>
             )}
 
-            {/* Pending Pasted Text Items (not yet uploaded as artifacts) */}
-            {pendingPastedTextItems.length > 0 && (
-                <div className="mb-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pt-2 pl-2">
+            {/* Attachment row: uploaded files, artifact references, and pending pasted text — one wrapping row */}
+            {(selectedFiles.length > 0 || selectedArtifactRefs.length > 0 || pendingPastedTextItems.length > 0) && (
+                <div className="mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto pt-2 pl-2">
+                    {selectedFiles.map((file, index) => (
+                        <FileUploadCard key={`file-${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => handleRemoveFile(index)} />
+                    ))}
+                    {selectedArtifactRefs.map(artifact => (
+                        <ArtifactAttachmentCard key={`artifact-${artifact.uri}`} artifact={artifact} onClick={() => setPreviewingArtifact(artifact)} onRemove={() => artifact.uri && handleRemoveArtifactRef(artifact.uri)} />
+                    ))}
                     {pendingPastedTextItems.map((item, index) => {
                         // Compute default filename for non-configured items
                         // This mirrors the logic used at submit time
@@ -1063,11 +1169,50 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 }}
             />
 
+            {/* Standalone preview Dialog for attached artifacts (cross-session safe). */}
+            <Dialog
+                open={previewingArtifact !== null}
+                onOpenChange={open => {
+                    if (!open) setPreviewingArtifact(null);
+                }}
+            >
+                <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                    {previewingArtifact && (
+                        <StandaloneArtifactPreview artifact={previewingArtifact} onClose={() => setPreviewingArtifact(null)} onDownload={handlePreviewArtifactDownload} onGoToChat={handlePreviewGoToChat} onGoToProject={handlePreviewGoToProject} />
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Attach-artifact Dialog */}
+            <AttachArtifactDialog isOpen={showAttachArtifactDialog} onClose={() => setShowAttachArtifactDialog(false)} onAttach={handleAttachArtifacts} alreadyAttachedUris={selectedArtifactRefs.map(a => a.uri).filter((u): u is string => !!u)} />
+
             {/* Buttons */}
             <div className="@container relative m-2 flex min-w-[420px] items-center gap-2">
-                <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
-                    <Paperclip className="size-4" />
-                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" disabled={isResponding} tooltip="Attach">
+                            <Paperclip className="size-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                handleFileSelect();
+                            }}
+                        >
+                            <Upload className="text-(--primary-wMain)" />
+                            <span>Upload from computer</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                setShowAttachArtifactDialog(true);
+                            }}
+                        >
+                            <Link2 className="text-(--primary-wMain)" />
+                            <span>Attach existing artifact</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
 
                 <div className="hidden @[480px]:block">Agent: </div>
                 <Select

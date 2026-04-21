@@ -11,26 +11,5 @@
     }
 }
 
-/* DocumentThumbnail styles - moved from inline to avoid duplicate <style> tags */
-.thumbnail-document {
-    width: 100% !important;
-    height: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-.thumbnail-page {
-    width: 100% !important;
-    height: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-.thumbnail-page canvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    object-position: top center !important;
-}
+/* DocumentThumbnail thumbnail-* rules moved to src/lib/index.css so they're
+   actually loaded (App.css is not imported anywhere). */
