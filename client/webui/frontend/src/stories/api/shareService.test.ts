@@ -239,6 +239,58 @@ describe("share service", () => {
                 chatHistory: [],
             });
         });
+
+        test("preserves snake_case keys inside full_payload (opaque A2A payload)", async () => {
+            // full_payload carries A2A JSON-RPC events whose nested keys
+            // (tool_args, tool_name, function_call_id) are consumed verbatim
+            // by taskVisualizerProcessor — they must not be camelCased.
+            mockGet.mockResolvedValue({
+                share_id: "s1",
+                task_events: {
+                    t1: {
+                        task_id: "t1",
+                        events: [
+                            {
+                                event_type: "a2a_message",
+                                full_payload: {
+                                    result: {
+                                        status: {
+                                            message: {
+                                                parts: [
+                                                    {
+                                                        kind: "data",
+                                                        data: {
+                                                            type: "tool_invocation_start",
+                                                            tool_name: "search",
+                                                            tool_args: { query_text: "hello" },
+                                                            function_call_id: "fc1",
+                                                        },
+                                                    },
+                                                ],
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            });
+
+            const result = (await service.viewSharedSession("s1")) as unknown as {
+                taskEvents: { t1: { events: { fullPayload: Record<string, unknown> }[] } };
+            };
+
+            const payload = result.taskEvents.t1.events[0].fullPayload;
+            const data = (payload as { result: { status: { message: { parts: { data: Record<string, unknown> }[] } } } }).result.status.message.parts[0].data;
+
+            // Wrapper key got camelCased, but inner A2A payload stayed snake_case.
+            expect(data.tool_name).toBe("search");
+            expect(data.function_call_id).toBe("fc1");
+            expect(data.tool_args).toEqual({ query_text: "hello" });
+            expect(data.toolName).toBeUndefined();
+            expect(data.functionCallId).toBeUndefined();
+        });
     });
 
     // ── downloadSharedArtifact ──────────────────────────────────────
