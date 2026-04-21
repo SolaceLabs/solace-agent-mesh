@@ -9,6 +9,42 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 expect.extend(matchers);
 
 const mockUseSharedSession = vi.fn();
+const mockUseConfigContext = vi.fn();
+
+function makeValidSession(overrides: Record<string, unknown> = {}) {
+    return {
+        shareId: "share-1",
+        navigate: vi.fn(),
+        session: {
+            title: "Test Shared Chat",
+            tasks: [{ userId: "alice@example.com" }],
+            createdTime: 0,
+            snapshotTime: null,
+            isOwner: false,
+            sessionId: null,
+        },
+        loading: false,
+        error: null,
+        isForking: false,
+        isSidePanelCollapsed: true,
+        activeSidePanelTab: "files",
+        setActiveSidePanelTab: vi.fn(),
+        selectedTaskId: null,
+        setSelectedTaskId: vi.fn(),
+        toggleSidePanel: vi.fn(),
+        openSidePanelTab: vi.fn(),
+        convertedArtifacts: [],
+        ragData: [],
+        hasRagSources: false,
+        messages: [],
+        lastMessageIndexByTaskId: new Map(),
+        sessionIdForProvider: "session-1",
+        handleSharedArtifactDownload: vi.fn(),
+        handleForkChat: vi.fn(),
+        handleProviderTabOpen: vi.fn(),
+        ...overrides,
+    };
+}
 
 describe("SharedChatViewPage", () => {
     let SharedChatViewPage: React.ComponentType;
@@ -16,15 +52,26 @@ describe("SharedChatViewPage", () => {
     beforeEach(async () => {
         vi.resetModules();
         mockUseSharedSession.mockReset();
+        mockUseConfigContext.mockReset();
+        mockUseConfigContext.mockReturnValue({});
 
         vi.doMock("@/lib/hooks/useSharedSession", () => ({
             useSharedSession: mockUseSharedSession,
             formatDateYMD: (epochMs: number) => new Date(epochMs).toISOString().slice(0, 10),
         }));
 
-        // Mock ChatMessage to avoid pulling in the full chat component tree
+        vi.doMock("@/lib/hooks", async () => {
+            const actual = await vi.importActual<typeof import("@/lib/hooks")>("@/lib/hooks");
+            return {
+                ...actual,
+                useConfigContext: mockUseConfigContext,
+            };
+        });
+
+        // Mock chat components — include SessionSidePanel so the flag-gate tests can assert its presence
         vi.doMock("@/lib/components/chat", () => ({
             ChatMessage: () => React.createElement("div", { "data-testid": "chat-message" }),
+            SessionSidePanel: ({ onToggle }: { onToggle: () => void }) => React.createElement("div", { "data-testid": "session-side-panel", onClick: onToggle }),
         }));
 
         // Mock SharedSidePanel
@@ -37,10 +84,23 @@ describe("SharedChatViewPage", () => {
             SharedChatProvider: ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children),
         }));
 
-        // Mock Header component
+        // Mock Header — render leadingAction so the toggle button is findable in tests
         vi.doMock("@/lib/components/header", () => ({
-            Header: ({ title }: { title: string }) => React.createElement("header", { "data-testid": "header" }, title),
+            Header: ({ title, leadingAction }: { title: string; leadingAction?: React.ReactNode }) => React.createElement("header", { "data-testid": "header" }, leadingAction, title),
         }));
+
+        // Neutralize ResizablePanel* — their real impl needs DOM measurements that jsdom can't provide
+        vi.doMock("@/lib/components/ui", async () => {
+            const actual = await vi.importActual<Record<string, unknown>>("@/lib/components/ui");
+            return {
+                ...actual,
+                ResizablePanelGroup: ({ children }: { children: React.ReactNode }) => React.createElement("div", { "data-testid": "resizable-panel-group" }, children),
+                ResizablePanel: React.forwardRef<unknown, { children: React.ReactNode }>(function ResizablePanel({ children }) {
+                    return React.createElement("div", { "data-testid": "resizable-panel" }, children);
+                }),
+                ResizableHandle: () => React.createElement("div", { "data-testid": "resizable-handle" }),
+            };
+        });
 
         const mod = await import("@/lib/components/pages/SharedChatViewPage");
         SharedChatViewPage = mod.SharedChatViewPage;
@@ -87,5 +147,23 @@ describe("SharedChatViewPage", () => {
 
         renderPage();
         expect(screen.getByText("Shared Chat Not Found")).toBeInTheDocument();
+    });
+
+    test("hides SessionSidePanel and toggle button when newNavigation flag is enabled", () => {
+        mockUseSharedSession.mockReturnValue(makeValidSession());
+        mockUseConfigContext.mockReturnValue({ configFeatureEnablement: { newNavigation: true } });
+
+        renderPage();
+        expect(screen.queryByTestId("session-side-panel")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("showSessionsPanel")).not.toBeInTheDocument();
+    });
+
+    test("renders SessionSidePanel and toggle button when newNavigation flag is disabled", () => {
+        mockUseSharedSession.mockReturnValue(makeValidSession());
+        mockUseConfigContext.mockReturnValue({ configFeatureEnablement: { newNavigation: false } });
+
+        renderPage();
+        expect(screen.getByTestId("session-side-panel")).toBeInTheDocument();
+        expect(screen.getByTestId("showSessionsPanel")).toBeInTheDocument();
     });
 });
