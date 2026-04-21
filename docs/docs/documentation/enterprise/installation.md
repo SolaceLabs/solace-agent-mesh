@@ -158,7 +158,7 @@ After starting Solace Agent Mesh, configure your AI models from the **Models** p
 
 Replace the placeholder values with your actual configuration. You need to provide:
 
-- `<YOUR_BROKER_URL>`: The secured web messaging URI for your Solace broker
+- `<YOUR_BROKER_URL>`: The secured Web Messaging URI for your Solace broker
 - `<YOUR_BROKER_VPN>`: The Message VPN name for your Solace service
 - `<YOUR_BROKER_USERNAME>`: The username for broker authentication
 - `<YOUR_BROKER_PASSWORD>`: The password for broker authentication
