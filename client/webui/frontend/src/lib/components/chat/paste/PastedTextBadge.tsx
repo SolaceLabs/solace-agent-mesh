@@ -97,8 +97,10 @@ export const PendingPastedTextBadge: React.FC<PendingPastedTextBadgeProps> = ({ 
                         <XIcon className="h-3 w-3" />
                     </Button>
 
-                    {/* Text preview */}
-                    <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
+                    {/* Text preview — min-h-20 matches the 80px preview-box
+                        height used by attachment cards so all three card types
+                        (paste / upload / artifact) share the same overall height. */}
+                    <div className="min-h-20 overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
                         {previewLines.map((line, index) => (
                             <div key={`${index}-${line}`} className="truncate">
                                 {line || "\u00A0"}

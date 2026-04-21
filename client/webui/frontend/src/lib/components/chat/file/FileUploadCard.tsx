@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { XIcon } from "lucide-react";
 
-import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui";
 import { cn } from "@/lib/utils";
 
+import { AttachmentCardShell, AttachmentInlineText } from "./AttachmentCardShell";
 import { DocumentThumbnail, supportsThumbnail } from "./DocumentThumbnail";
 import { getFileTypeColor } from "./FileIcon";
+import { MAX_THUMBNAIL_FILE_BYTES, getExtensionLabel, isImageType, supportsTextPreview } from "./attachmentUtils";
 
 interface FileUploadCardProps {
     file: File;
@@ -16,28 +17,6 @@ interface FileUploadCardProps {
      * the browser; other types trigger the browser's default handler.
      */
     onClick?: () => void;
-}
-
-// Don't base64-encode huge binaries just to render a thumbnail.
-const MAX_THUMBNAIL_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
-
-function isImageType(mimeType: string, filename: string): boolean {
-    if (mimeType.startsWith("image/")) return true;
-    const ext = filename.toLowerCase().split(".").pop();
-    return !!ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico"].includes(ext);
-}
-
-function supportsTextPreview(mimeType: string, filename: string): boolean {
-    if (mimeType.startsWith("text/")) return true;
-    if (["json", "xml", "javascript", "typescript", "markdown", "yaml", "yml"].some(k => mimeType.includes(k))) return true;
-    const ext = filename.toLowerCase().split(".").pop();
-    return !!ext && ["txt", "md", "markdown", "json", "yaml", "yml", "xml", "html", "htm", "css", "scss", "js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "h", "sh", "log", "csv", "tsv", "ini", "toml"].includes(ext);
-}
-
-function getExtensionLabel(filename: string): string {
-    const parts = filename.split(".");
-    const ext = parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
-    return ext.length > 4 ? ext.substring(0, 4) : ext;
 }
 
 /**
@@ -128,9 +107,8 @@ export const FileUploadCard: React.FC<FileUploadCardProps> = ({ file, onRemove, 
         if (!tab) URL.revokeObjectURL(url);
     };
     const handleClick = onClick ?? openBlobInNewTab;
-    const clickable = true;
 
-    const fixedPreview = (() => {
+    const preview = (() => {
         if (isImage && imageObjectUrl) {
             return <img src={imageObjectUrl} alt={file.name} className="h-full w-full object-cover" />;
         }
@@ -161,72 +139,5 @@ export const FileUploadCard: React.FC<FileUploadCardProps> = ({ file, onRemove, 
         );
     })();
 
-    const CardBody = (
-        <div
-            className={cn("relative inline-flex w-[200px] flex-col rounded-lg border bg-(--background-w10) shadow-sm transition-colors", clickable && "cursor-pointer hover:border-(--primary-w20)")}
-            role={clickable ? "button" : undefined}
-            tabIndex={clickable ? 0 : undefined}
-            onClick={handleClick}
-            onKeyDown={
-                clickable
-                    ? event => {
-                          if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              handleClick();
-                          }
-                      }
-                    : undefined
-            }
-        >
-            {onRemove && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={event => {
-                        event.stopPropagation();
-                        onRemove();
-                    }}
-                    className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full border bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
-                    tooltip="Remove file"
-                    tooltipSide="left"
-                >
-                    <XIcon className="h-3 w-3" />
-                </Button>
-            )}
-
-            {inlineText ? (
-                <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
-                    {textLines.slice(0, 2).map((line, index) => {
-                        const trimmed = line.trim();
-                        const display = trimmed.length > 40 ? trimmed.substring(0, 37) + "..." : trimmed;
-                        return (
-                            <div key={`${index}-${line}`} className="truncate">
-                                {display || " "}
-                            </div>
-                        );
-                    })}
-                    {textLines.length > 2 && <div className="text-(--secondary-text-w50)">...</div>}
-                </div>
-            ) : (
-                <div className="relative h-20 w-full overflow-hidden rounded-t-lg bg-(--secondary-w10)">{fixedPreview}</div>
-            )}
-
-            <div className="flex items-center gap-1 px-2 pb-2">
-                <span className="inline-block max-w-[170px] truncate rounded bg-(--secondary-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--secondary-text-wMain)" title={file.name}>
-                    {file.name}
-                </span>
-            </div>
-        </div>
-    );
-
-    if (!clickable) return CardBody;
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>{CardBody}</TooltipTrigger>
-            <TooltipContent side="top">
-                <p>{file.name}</p>
-            </TooltipContent>
-        </Tooltip>
-    );
+    return <AttachmentCardShell filename={file.name} preview={preview} inlineText={inlineText ? <AttachmentInlineText lines={textLines} /> : undefined} onClick={handleClick} onRemove={onRemove} removeTooltip="Remove file" />;
 };

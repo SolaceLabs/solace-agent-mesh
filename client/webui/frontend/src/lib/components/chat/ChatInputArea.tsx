@@ -20,6 +20,7 @@ import { addRecentMention } from "@/lib/utils/recentMentions";
 import { AttachArtifactDialog } from "./file/AttachArtifactDialog";
 import { ArtifactAttachmentCard } from "./file/ArtifactAttachmentCard";
 import { FileUploadCard } from "./file/FileUploadCard";
+import { LocalFilePreview } from "./file/LocalFilePreview";
 import { StandaloneArtifactPreview, getArtifactApiUrl } from "./file/StandaloneArtifactPreview";
 import { api } from "@/lib/api";
 import { AudioRecorder } from "./AudioRecorder";
@@ -101,6 +102,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const [showAttachArtifactDialog, setShowAttachArtifactDialog] = useState(false);
     // Artifact currently shown in the standalone preview modal (cross-session safe).
     const [previewingArtifact, setPreviewingArtifact] = useState<ArtifactWithSession | null>(null);
+    // Local file currently shown in the preview modal (not yet uploaded).
+    const [previewingLocalFile, setPreviewingLocalFile] = useState<File | null>(null);
 
     // Pending pasted text support (not yet saved as artifacts, shown as badges)
     // These items may have optional metadata if user has configured them via dialog
@@ -420,15 +423,23 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
+    // Refocus the chat input after the attachment row re-renders, so users can
+    // keep typing without a manual click. Using a useEffect keyed on the
+    // attached-count (rather than a setTimeout) avoids a brittle magic delay.
+    const prevArtifactRefsLenRef = useRef(selectedArtifactRefs.length);
+    useEffect(() => {
+        if (selectedArtifactRefs.length > prevArtifactRefsLenRef.current) {
+            chatInputRef.current?.focus();
+        }
+        prevArtifactRefsLenRef.current = selectedArtifactRefs.length;
+    }, [selectedArtifactRefs.length]);
+
     const handleAttachArtifacts = (artifactsToAttach: ArtifactWithSession[]) => {
         setSelectedArtifactRefs(prev => {
             const existingUris = new Set(prev.map(a => a.uri).filter(Boolean));
             const deduped = artifactsToAttach.filter(a => a.uri && !existingUris.has(a.uri));
             return deduped.length ? [...prev, ...deduped] : prev;
         });
-        setTimeout(() => {
-            chatInputRef.current?.focus();
-        }, 100);
     };
 
     const handleRemoveArtifactRef = (uri: string) => {
@@ -946,7 +957,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {(selectedFiles.length > 0 || selectedArtifactRefs.length > 0 || pendingPastedTextItems.length > 0) && (
                 <div className="mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto pt-2 pl-2">
                     {selectedFiles.map((file, index) => (
-                        <FileUploadCard key={`file-${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => handleRemoveFile(index)} />
+                        <FileUploadCard key={`file-${file.name}-${file.lastModified}-${index}`} file={file} onClick={() => setPreviewingLocalFile(file)} onRemove={() => handleRemoveFile(index)} />
                     ))}
                     {selectedArtifactRefs.map(artifact => (
                         <ArtifactAttachmentCard key={`artifact-${artifact.uri}`} artifact={artifact} onClick={() => setPreviewingArtifact(artifact)} onRemove={() => artifact.uri && handleRemoveArtifactRef(artifact.uri)} />
@@ -1180,6 +1191,18 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     {previewingArtifact && (
                         <StandaloneArtifactPreview artifact={previewingArtifact} onClose={() => setPreviewingArtifact(null)} onDownload={handlePreviewArtifactDownload} onGoToChat={handlePreviewGoToChat} onGoToProject={handlePreviewGoToProject} />
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Preview Dialog for locally-selected files (not yet uploaded). */}
+            <Dialog
+                open={previewingLocalFile !== null}
+                onOpenChange={open => {
+                    if (!open) setPreviewingLocalFile(null);
+                }}
+            >
+                <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                    {previewingLocalFile && <LocalFilePreview file={previewingLocalFile} onClose={() => setPreviewingLocalFile(null)} />}
                 </DialogContent>
             </Dialog>
 

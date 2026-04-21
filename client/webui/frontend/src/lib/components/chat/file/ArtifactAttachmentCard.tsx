@@ -1,43 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { XIcon } from "lucide-react";
 
-import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Spinner } from "@/lib/components/ui";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 import { getArtifactContent } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
+import { AttachmentCardShell, AttachmentInlineText } from "./AttachmentCardShell";
 import { DocumentThumbnail, supportsThumbnail } from "./DocumentThumbnail";
 import { getFileTypeColor } from "./FileIcon";
 import { isProjectArtifact } from "./StandaloneArtifactPreview";
+import { MAX_THUMBNAIL_FILE_BYTES, getExtensionLabel, isImageType, supportsTextPreview } from "./attachmentUtils";
 
 interface ArtifactAttachmentCardProps {
     artifact: ArtifactWithSession;
     onClick?: () => void;
     onRemove?: () => void;
-}
-
-function isImageType(mimeType: string): boolean {
-    return mimeType.startsWith("image/");
-}
-
-function supportsTextPreview(mimeType: string): boolean {
-    return (
-        mimeType.startsWith("text/") ||
-        mimeType.includes("json") ||
-        mimeType.includes("xml") ||
-        mimeType.includes("javascript") ||
-        mimeType.includes("typescript") ||
-        mimeType.includes("markdown") ||
-        mimeType.includes("yaml") ||
-        mimeType.includes("yml")
-    );
-}
-
-function getExtensionLabel(filename: string): string {
-    const parts = filename.split(".");
-    const ext = parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
-    return ext.length > 4 ? ext.substring(0, 4) : ext;
 }
 
 function decodeBase64Snippet(base64: string): string {
@@ -59,12 +37,16 @@ function decodeBase64Snippet(base64: string): string {
  * tracks content); for images / documents a compact preview box is used.
  */
 export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ artifact, onClick, onRemove }) => {
-    const isImage = isImageType(artifact.mime_type);
-    const isDoc = supportsThumbnail(artifact.filename, artifact.mime_type);
+    // Skip thumbnail fetches for oversized artifacts — same threshold as
+    // FileUploadCard. Falls back to the extension pill instead.
+    const tooLargeToThumb = typeof artifact.size === "number" && artifact.size > MAX_THUMBNAIL_FILE_BYTES;
+
+    const isImage = !tooLargeToThumb && isImageType(artifact.mime_type, artifact.filename);
+    const isDoc = !tooLargeToThumb && supportsThumbnail(artifact.filename, artifact.mime_type);
     // PPTX/DOCX mime types contain the substring "xml" (from "…presentationml…",
     // "…wordprocessingml…"), which would otherwise match supportsTextPreview
     // and render the binary zip as text. Documents take precedence.
-    const isText = !isDoc && !isImage && supportsTextPreview(artifact.mime_type);
+    const isText = !tooLargeToThumb && !isDoc && !isImage && supportsTextPreview(artifact.mime_type, artifact.filename);
     const needsFetch = isImage || isDoc || isText;
 
     const sessionId = isProjectArtifact(artifact) ? undefined : artifact.sessionId;
@@ -93,8 +75,6 @@ export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ 
         return `data:${data.mimeType || artifact.mime_type};base64,${data.content}`;
     }, [isImage, data, artifact.mime_type]);
 
-    const clickable = Boolean(onClick);
-
     // Track document-thumbnail render failure (e.g. 413 from the conversion
     // service for large Office files) so we can fall back to the extension pill.
     const [docFailed, setDocFailed] = useState(false);
@@ -106,7 +86,7 @@ export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ 
     const inlineText = isText && !!textSnippet;
     const textLines = useMemo(() => (textSnippet ? textSnippet.split("\n") : []), [textSnippet]);
 
-    const fixedPreview = (() => {
+    const preview = (() => {
         if (needsFetch && isLoading) {
             return (
                 <div className="flex h-full items-center justify-center">
@@ -133,72 +113,15 @@ export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ 
     const scopeLabel = artifact.projectName || artifact.sessionName;
     const tooltipText = `Preview ${artifact.filename}${scopeLabel ? ` · ${scopeLabel}` : ""}`;
 
-    const CardBody = (
-        <div
-            className={cn("relative inline-flex w-[200px] flex-col rounded-lg border bg-(--background-w10) shadow-sm transition-colors", clickable && "cursor-pointer hover:border-(--primary-w20)")}
-            role={clickable ? "button" : undefined}
-            tabIndex={clickable ? 0 : undefined}
-            onClick={clickable ? onClick : undefined}
-            onKeyDown={
-                clickable
-                    ? event => {
-                          if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              onClick?.();
-                          }
-                      }
-                    : undefined
-            }
-        >
-            {onRemove && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={event => {
-                        event.stopPropagation();
-                        onRemove();
-                    }}
-                    className="absolute -top-2 -left-2 z-10 h-5 w-5 rounded-full border bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
-                    tooltip="Remove attached artifact"
-                    tooltipSide="left"
-                >
-                    <XIcon className="h-3 w-3" />
-                </Button>
-            )}
-
-            {inlineText ? (
-                <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
-                    {textLines.slice(0, 2).map((line, index) => {
-                        const trimmed = line.trim();
-                        const display = trimmed.length > 40 ? trimmed.substring(0, 37) + "..." : trimmed;
-                        return (
-                            <div key={`${index}-${line}`} className="truncate">
-                                {display || " "}
-                            </div>
-                        );
-                    })}
-                    {textLines.length > 2 && <div className="text-(--secondary-text-w50)">...</div>}
-                </div>
-            ) : (
-                <div className="relative h-20 w-full overflow-hidden rounded-t-lg bg-(--secondary-w10)">{fixedPreview}</div>
-            )}
-
-            <div className="flex items-center gap-1 px-2 pb-2">
-                <span className="inline-block max-w-[170px] truncate rounded bg-(--secondary-w10) px-2 py-0.5 text-[10px] font-semibold tracking-wider text-(--secondary-text-wMain)" title={artifact.filename}>
-                    {artifact.filename}
-                </span>
-            </div>
-        </div>
-    );
-
-    if (!clickable) return CardBody;
-
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>{CardBody}</TooltipTrigger>
-            <TooltipContent side="top">
-                <p>{tooltipText}</p>
-            </TooltipContent>
-        </Tooltip>
+        <AttachmentCardShell
+            filename={artifact.filename}
+            preview={preview}
+            inlineText={inlineText ? <AttachmentInlineText lines={textLines} /> : undefined}
+            tooltipText={tooltipText}
+            onClick={onClick}
+            onRemove={onRemove}
+            removeTooltip="Remove attached artifact"
+        />
     );
 };

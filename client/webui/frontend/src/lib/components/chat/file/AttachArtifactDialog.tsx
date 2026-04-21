@@ -8,12 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
 
 import { getFileTypeColor } from "./FileIcon";
-
-const getExtension = (filename: string): string => {
-    const parts = filename.split(".");
-    const ext = parts.length > 1 ? parts[parts.length - 1].toUpperCase() : "FILE";
-    return ext.length > 4 ? ext.substring(0, 4) : ext;
-};
+import { getExtensionLabel } from "./attachmentUtils";
 
 // The /artifacts/all fast endpoint omits `uri` on session-scoped items. Synthesize
 // the legacy `artifact://{sessionId}/{filename}` form — the same shape used across
@@ -144,7 +139,9 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                             className={`flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-(--primary-w10) focus:bg-(--primary-w10) focus:outline-none ${isSelected ? "bg-(--primary-w10)" : ""}`}
                                         >
                                             <Checkbox checked={isSelected} />
-                                            <span className={cn("flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>{getExtension(artifact.filename)}</span>
+                                            <span className={cn("flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>
+                                                {getExtensionLabel(artifact.filename)}
+                                            </span>
                                             <div className="min-w-0 flex-1">
                                                 <div className="truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
                                                     {artifact.filename}
