@@ -11,9 +11,83 @@ Deploy SAM Enterprise on Kubernetes in ~10 minutes using Helm with **zero requir
 This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with **authentication disabled**. It is designed for evaluation and testing only. **Do not use in production.** See [Production Kubernetes Installation](./production-kubernetes.md) for production-ready deployments.
 :::
 
+**What You'll Deploy:**
+- SAM Core (orchestrator, platform services, WebUI)
+- Embedded Solace PubSub+ broker
+- Embedded PostgreSQL database
+- Embedded SeaweedFS object storage
+- All accessed via `kubectl port-forward` (no Ingress/LoadBalancer)
+
+:::info Chart v2.0.0 Changes
+If upgrading from chart v1.x, note the breaking changes:
+- Default values changed (embedded components now enabled by default)
+- Sample values files removed (consolidated into inline values.yaml documentation)
+- Service account and secret naming changed
+- Image configuration restructured
+
+See the upgrade notice in the Helm release notes for migration guidance.
+:::
+
 ## Prerequisites
 
-<!-- Content: Minimal K8s prerequisites -->
+### Infrastructure Requirements
+
+**Kubernetes Cluster:**
+- Kubernetes version 1.20 or later
+- Standard worker nodes (VMs or bare metal)
+- **Not supported:** Serverless nodes (AWS Fargate, GKE Autopilot, Azure Virtual Nodes)
+
+**Minimum Node Requirements:**
+
+The table below shows resource requirements for embedded broker mode (quickstart). These values account for all SAM components plus embedded PostgreSQL, SeaweedFS, and Solace broker.
+
+| Scenario | CPU Requests | Memory Requests | Recommended Node Size |
+|----------|--------------|-----------------|----------------------|
+| **Install only** (no upgrade support) | 3500m | 4164Mi | 4 vCPU / 5 GiB allocatable |
+| **Install + upgrade safety** | 4600m | 5424Mi | 6 vCPU / 7 GiB allocatable |
+| **Recommended with headroom** (kube-system, bursts, limits) | ~5200m | ~6500Mi | **6 vCPU / 8 GiB allocatable** |
+
+:::tip Recommended Node Specification
+For the best quickstart experience, use **6 vCPU / 8 GiB RAM** nodes to accommodate:
+- Kubernetes system components (kube-system)
+- CPU/memory bursts during agent operations
+- Safe headroom for Helm upgrades
+- Resource limits (not just requests)
+:::
+
+**Node Instance Examples:**
+- **ARM64 (better price/performance):** AWS `m8g.xlarge`, Azure `Standard_D4ps_v6`, GCP `c4a-standard-4`
+- **x86_64:** AWS `m8i.xlarge`, Azure `Standard_D4s_v6`, GCP `n2-standard-4`
+
+**Storage Requirements:**
+
+Embedded persistence requires SSD-backed storage for acceptable performance:
+
+| Component | Volume Size | Storage Class |
+|-----------|-------------|---------------|
+| PostgreSQL | 30 GiB | SSD-backed (gp3, Premium_LRS, pd-ssd) |
+| SeaweedFS | 50 GiB | SSD-backed (gp3, Premium_LRS, pd-ssd) |
+
+:::warning Storage Class Configuration
+- Use `volumeBindingMode: WaitForFirstConsumer` to avoid cross-zone scheduling failures
+- Ensure `reclaimPolicy: Retain` if you need data persistence across Helm uninstall/reinstall
+- Standard HDD storage will cause agent timeouts - use SSD-backed storage classes
+:::
+
+**Recommended Storage Classes by Provider:**
+
+| Provider | Storage Class | Notes |
+|----------|--------------|-------|
+| **AWS EKS** | `gp3` | EBS General Purpose SSD, zoned automatically |
+| **Azure AKS** | `Premium_LRS` | Azure Zoned Premium SSD |
+| **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
+
+**Command-Line Tools:**
+- `kubectl` configured to access your cluster
+- Helm 3.0 or later
+
+**Optional (for evaluation):**
+- LLM service API key (OpenAI, Azure OpenAI, etc.) - can be configured post-install via UI
 
 ## Step 1: Add Helm Repository
 
@@ -25,8 +99,23 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 ## Step 3: Install with Zero Configuration
 
-<!-- Content: Zero-input helm install command -->
-<!-- Content: What gets deployed - embedded components list -->
+Install SAM with zero required configuration:
+
+```bash
+helm install sam solace/solace-agent-mesh --namespace sam
+```
+
+No values file needed - the chart defaults are optimized for quickstart evaluation.
+
+**What gets deployed** (chart defaults):
+
+- **Embedded Solace broker** - Pre-configured message broker for evaluation (`global.broker.embedded: true`)
+- **Embedded PostgreSQL** - For session and artifact storage (evaluation only, NOT production-grade)
+- **Embedded SeaweedFS** - For file storage (evaluation only, NOT production-grade)
+- **Service type**: ClusterIP (accessed via port-forward)
+- **RBAC authorization**: Disabled (`sam.authorization.enabled: false`)
+- **OIDC authentication**: Disabled (no login required)
+- **Session secret**: Auto-generated and preserved across upgrades
 
 ## Step 4: Wait for Installation to Complete
 
@@ -36,10 +125,46 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 ## Step 5: Access the WebUI
 
-<!-- Content: Port-forward command to access WebUI -->
-<!-- Content: Browser URL to open -->
-<!-- Content: First-time Model Config UI setup steps -->
+Set up port forwarding to access SAM locally:
+
+```bash
+kubectl port-forward -n sam svc/sam-solace-agent-mesh-core 8000:80 8080:8080
+```
+
+This forwards both the WebUI (port 80) and Platform API (port 8080).
+
+Open your browser to:
+
+```
+http://localhost:8000
+```
+
+### First-Time Model Configuration
+
 <!-- Content: How to configure LLM endpoint, API key, and model -->
+
+On first login, the **Model Configuration UI** will prompt you to configure your LLM provider.
+
+**Your Zero-to-Hero Journey** (6 steps):
+
+1. **Access the Console UI**
+2. **Configure your LLM model** via the UI prompt (or skip to explore)
+3. **Send your first chat message** to the orchestrator
+4. **Build a custom agent** via Agent Builder
+5. **Deploy your agent**
+6. **Chat with your deployed agent**
+
+:::tip Alternative: Pre-configure via values.yaml
+Configure LLM in your values file before installation:
+```yaml
+llmService:
+  llmServiceEndpoint: "https://api.openai.com/v1"
+  llmServiceApiKey: "your-api-key"
+  planningModel: "gpt-4o"
+  generalModel: "gpt-4o"
+```
+See the [RBAC Setup Guide](./rbac-setup-guide.md) for `enterprise_config.yaml` configuration.
+:::
 
 ## Step 6: Send Your First Message
 
@@ -53,15 +178,80 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 ### Explore SAM Features
 
-<!-- Content: Feature exploration suggestions -->
+Now that your quickstart installation is running, explore SAM capabilities:
+
+- **Agent Builder** - Create custom agents with specialized capabilities
+- **Multi-Agent Workflows** - Deploy multiple agents that collaborate
+- **Platform Services** - Connect agents to external APIs and services
+- **Gateways** - Integrate with Slack, Teams, or other messaging platforms
+
+:::info OpenAPI Connector Feature
+If you plan to use the **OpenAPI Connector** feature for REST API integrations, you'll need to configure a separate S3 bucket for OpenAPI specification files. This is optional for evaluation but required for production use of this feature. See [Production Installation - S3 Buckets for OpenAPI Connector Specs](./production-kubernetes.md#s3-buckets-for-openapi-connector-specs) for setup instructions.
+:::
+
+Refer to the main [Enterprise documentation](./enterprise.md) for detailed feature guides.
 
 ### Moving to Production
 
-<!-- Content: Link to Production Installation Guide -->
-<!-- Content: How to upgrade using helm upgrade (no reinstall needed) -->
-<!-- Content: List of external components to enable progressively -->
-<!-- Content: Warning reminder about embedded components not for production -->
+When ready for production, upgrade using `helm upgrade` with production overrides:
+
+```bash
+helm upgrade sam solace/solace-agent-mesh \
+  --namespace sam \
+  -f production-overrides.yaml
+```
+
+Create a `production-overrides.yaml` file with production settings. The main `values.yaml` contains comprehensive inline documentation for all options.
+
+**Production Readiness Checklist** (items to address before production use):
+
+- ☐ **Disable embedded broker** - Set `global.broker.embedded: false` and configure external Solace broker
+- ☐ **Disable embedded persistence** - Set `global.persistence.enabled: false` and configure external PostgreSQL and S3
+- ☐ **Configure durable queues** - Set `USE_TEMPORARY_QUEUES: "false"` and configure Queue Template on Solace broker
+- ☐ **Enable authorization** - Set `sam.authorization.enabled: true`
+- ☐ **Configure OAuth/OIDC provider** - Set `sam.oauthProvider.oidc.*` fields
+- ☐ **Enable Ingress or LoadBalancer** - Set `ingress.enabled: true` or `service.type: LoadBalancer`
+- ☐ **Configure TLS certificates** - Set `service.tls.*` or `ingress.tls.*`
+
+:::danger Embedded Components Not for Production
+The embedded PostgreSQL, SeaweedFS, and Solace broker are designed for evaluation only. They lack high availability, backup/restore capabilities, and proper resource limits for production workloads.
+:::
+
+See [Production Kubernetes Installation](./production-kubernetes.md) for complete production deployment guidance.
 
 ## Troubleshooting
 
-<!-- Content: Common quick start issues -->
+### Health Checks
+
+Verify SAM components are healthy:
+
+```bash
+# After port-forward is running (kubectl port-forward -n sam svc/sam-solace-agent-mesh-core 8000:80 8080:8080)
+
+# Check WebUI health
+curl -s http://localhost:8000/health
+
+# Check Platform API health
+curl -s http://localhost:8080/api/v1/platform/health
+```
+
+Both endpoints should return successful responses when SAM is running correctly.
+
+For detailed health check configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
+
+### Common Issues
+
+**Pods not starting:**
+- Check pod status: `kubectl get pods -n sam`
+- View pod logs: `kubectl logs -n sam <pod-name>`
+- Describe pod for events: `kubectl describe pod -n sam <pod-name>`
+
+**Port-forward connection issues:**
+- Verify service exists: `kubectl get service -n sam sam-solace-agent-mesh-core`
+- Check that all pods are Running: `kubectl get pods -n sam`
+- Ensure no other process is using ports 8000 or 8080 on your local machine
+
+**UI loads but shows errors:**
+- Verify both ports are forwarded (8000 for UI, 8080 for Platform API)
+- Check browser console (F12) for specific error messages
+- Ensure you're accessing `http://localhost:8000` (port must match)

@@ -31,16 +31,24 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 ### Infrastructure Requirements
 
-- A running Kubernetes cluster (version 1.20 or later) within the airgapped network
-- `kubectl` configured to access your cluster
-- Helm 3.0 or later installed
+Airgap deployments have the same infrastructure requirements as [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites), plus the following airgap-specific requirements:
+
+**Airgap-Specific Requirements:**
 - A private container registry accessible from your airgapped cluster (Harbor, Artifactory, ECR, ACR, GCR, etc.)
 - Registry credentials with push/pull permissions
-- Appropriate RBAC permissions to create namespaces, deployments, and services
-- StorageClass configured for persistent volumes
-- Storage solution for artifacts and session data accessible from your airgapped network
-- Solace broker (embedded or external) within the airgapped network
-- LLM service endpoint accessible from your airgapped network (or deployed within it)
+- Ability to transfer files into the airgapped environment (USB, secure file transfer, etc.)
+- System with internet access for downloading the SAM delivery bundle
+
+**Within Airgapped Network:**
+- Kubernetes cluster (version 1.20 or later) with standard worker nodes
+- Private container registry (all SAM images must be mirrored)
+- Solace event broker (external recommended for production)
+- PostgreSQL 17+ database (for production)
+- S3-compatible object storage (for production)
+- LLM service endpoint (self-hosted or via internal proxy)
+- Identity Provider (IdP) accessible within the network (for OIDC/SSO)
+
+For detailed infrastructure requirements (node sizing, compute resources, storage classes), see [Production Prerequisites](./production-kubernetes.md#production-prerequisites).
 
 ## Understanding the Airgap Installation Process
 
@@ -162,7 +170,50 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 ### Minimal Airgap Configuration
 
-<!-- Content: Minimal config for airgap K8s -->
+Create an airgap overrides file (`airgap-overrides.yaml`) with the following settings:
+
+**Configure Private Registry:**
+
+```yaml
+global:
+  # Redirect all images to your private registry
+  imageRegistry: registry.internal.example.com/sam
+  
+  # Image pull secrets for your private registry
+  imagePullSecrets:
+    - name: your-registry-secret
+```
+
+**Enable Bundled Agent Charts:**
+
+```yaml
+samDeployment:
+  agentDeployer:
+    localCharts:
+      enabled: true  # Use bundled agent chart instead of remote
+```
+
+**Disable Embedded Components (use external):**
+
+```yaml
+global:
+  broker:
+    embedded: false  # Use external Solace broker in airgapped network
+  persistence:
+    enabled: false   # Use external datastores in airgapped network
+
+broker:
+  url: "tcps://broker.internal.example.com:55443"
+  # ... other broker config
+
+dataStores:
+  # ... external datastore config
+```
+
+:::info Remote vs Local Agent Charts
+- **Remote mode** (`localCharts.enabled: false`): Agent charts fetched from `samDeployment.agentDeployer.chartBaseUrl`
+- **Airgap mode** (`localCharts.enabled: true`): Agent charts bundled within the installation
+:::
 
 ### Production Airgap Configuration
 
@@ -170,11 +221,16 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 ## Step 8: Installing SAM with Helm
 
-<!-- Content: Helm installation command and options -->
+Install SAM in your airgapped environment with your custom overrides:
 
-### Installation Command
+```bash
+helm install sam ./solace-agent-mesh-chart.tgz \
+  --namespace sam \
+  --create-namespace \
+  -f airgap-overrides.yaml
+```
 
-<!-- Content: helm install command for airgap -->
+Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not the remote Helm repository.
 
 ### Dry Run Installation
 
@@ -212,6 +268,8 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 <!-- Content: Confirm pods use private registry -->
 
+Verify that all pods are using images from your private registry and that airgap mode (bundled agent charts) is active.
+
 ### Test Agent Deployment
 
 <!-- Content: Deploy test agent to validate -->
@@ -228,6 +286,14 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 The following SAM components require internet access or external service connectivity to function. In airgapped environments, you must provide alternative solutions:
 
+### Solace Broker Configuration
+
+Configure your external Solace broker within the airgapped network.
+
+**Queue Template Configuration:**
+
+For Kubernetes deployments, configure durable queues with message TTL. See [Queue Template Configuration for Kubernetes](./production-kubernetes.md#queue-template-configuration-for-kubernetes) in the Production guide for detailed setup instructions. The same configuration applies to airgap deployments.
+
 #### Bedrock Knowledge Base Tool
 
 <!-- Content: Bedrock tool airgap configuration -->
@@ -242,11 +308,68 @@ The following SAM components require internet access or external service connect
 
 ### LLM Service Configuration
 
-<!-- Content: How to configure LLM endpoints in airgap -->
+In airgapped environments, ensure your LLM service endpoint is accessible from within the isolated network.
+
+**Configuration Options:**
+
+**Option 1: Post-Install via Model Config UI**
+
+On first login to the Console UI, you'll be prompted to configure your LLM provider. Ensure the LLM endpoint is accessible from your airgapped network.
+
+**Option 2: Pre-Configure via values.yaml**
+
+Add LLM configuration to your `airgap-overrides.yaml`:
+
+```yaml
+llmService:
+  llmServiceEndpoint: "https://llm.internal.example.com/v1"
+  llmServiceApiKey: "your-api-key"
+  planningModel: "gpt-4o"
+  generalModel: "gpt-4o"
+```
+
+**LLM Deployment Options in Airgap:**
+- Self-hosted LLM within the airgapped network
+- Azure OpenAI with private endpoints
+- AWS Bedrock with VPC endpoints
+- Internal LLM proxy service
 
 ### Storage Services
 
-<!-- Content: Internal S3-compatible storage setup -->
+Configure S3-compatible object storage accessible within your airgapped network.
+
+**Storage Requirements:**
+
+1. **Artifact Storage** - For user files, session data, and artifacts
+2. **OpenAPI Connector Specs Storage** (if using OpenAPI Connectors)
+
+**Airgap-Specific Considerations:**
+
+Unlike internet-connected deployments, airgap environments cannot use public S3 buckets. Both artifact storage and connector specs storage must be accessible within the airgapped network using internal S3-compatible storage or cloud storage with private endpoints.
+
+#### OpenAPI Connector Specs in Airgap
+
+**Key Difference from Internet-Connected Deployments:**
+
+In internet-connected environments, the connector specs bucket uses public read access. In airgap environments, you must configure authenticated access for agents:
+
+```yaml
+dataStores:
+  objectStorage:
+    type: "s3"
+  
+  s3:
+    endpointUrl: "https://storage.internal.example.com"  # Internal S3 endpoint
+    bucketName: "sam-artifacts"
+    connectorSpecBucketName: "sam-connector-specs"  # Same auth as artifacts
+    region: "us-east-1"
+    accessKey: "..."  # Agents use credentials for both buckets
+    secretKey: "..."
+```
+
+**No Public Access Required:** Agents authenticate to download connector specs using the same credentials as artifact storage.
+
+Configure identical access credentials for both buckets in your Helm values.
 
 ## Security Best Practices
 
