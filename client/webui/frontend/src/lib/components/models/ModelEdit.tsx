@@ -9,7 +9,19 @@ import type { ModelConfig } from "@/lib/api/models";
 import { useSupportedModels, type SupportedModelsQueryParams } from "@/lib/api/models";
 import { PageSection, PageLabel, FormFieldLayoutItem } from "../common/PageCommon";
 import { PasswordInput } from "@/lib/components/common";
-import { getProviderConfig, buildModelPayload, AUTH_FIELDS, AUTH_TYPE_LABELS, COMMON_MODEL_PARAMS, AUTH_CONFIG_TO_FORM_FIELD_MAP, type AuthType, type ProviderField, type ModelProvider, type ModelFormData } from "./modelProviderUtils";
+import {
+    getProviderConfig,
+    buildModelPayload,
+    formatCustomParamValue,
+    AUTH_FIELDS,
+    AUTH_TYPE_LABELS,
+    COMMON_MODEL_PARAMS,
+    AUTH_CONFIG_TO_FORM_FIELD_MAP,
+    type AuthType,
+    type ProviderField,
+    type ModelProvider,
+    type ModelFormData,
+} from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
 import { KeyValuePairList } from "../common/KeyValuePairList";
@@ -320,7 +332,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                 // Extract custom parameters (anything not in known params)
                 const customParamsArray = Object.entries(modelToEdit.modelParams)
                     .filter(([key]) => !knownParamNames.has(key))
-                    .map(([key, value]) => ({ key, value: String(value) }));
+                    .map(([key, value]) => ({ key, value: formatCustomParamValue(value) }));
                 if (customParamsArray.length > 0) {
                     setValue("customParams", customParamsArray);
                 }

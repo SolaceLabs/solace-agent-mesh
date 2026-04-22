@@ -394,6 +394,34 @@ export const ALL_PROVIDERS: ModelProvider[] = Object.values(PROVIDER_CONFIGS)
         return a.label.localeCompare(b.label);
     });
 
+// Custom-parameter values are entered as strings but may represent numbers, booleans,
+// or null. We use JSON-literal semantics (like YAML/TOML): unquoted `500` → number,
+// quoted `"500"` → string; same for `true`/`"true"`, `null`/`"null"`.
+export function coerceCustomParamValue(input: string): string | number | boolean | null {
+    try {
+        return JSON.parse(input);
+    } catch {
+        return input;
+    }
+}
+
+// Inverse of coerceCustomParamValue: produce a form-display string that, when fed back
+// through coerceCustomParamValue, yields the same value. Strings that happen to look
+// like JSON literals (e.g. "500", "true") are quoted so they round-trip as strings.
+export function formatCustomParamValue(value: unknown): string {
+    if (typeof value === "string") {
+        try {
+            if (typeof JSON.parse(value) !== "string") {
+                return JSON.stringify(value);
+            }
+        } catch {
+            // plain string — display as-is
+        }
+        return value;
+    }
+    return JSON.stringify(value);
+}
+
 /**
  * Build model params and auth config from form data.
  * Shared between save and test connection flows.
@@ -433,7 +461,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
     if (data.customParams && Array.isArray(data.customParams)) {
         data.customParams.forEach((param: { key: string; value: string }) => {
             if (param.key.trim()) {
-                modelParams[param.key] = param.value;
+                modelParams[param.key] = coerceCustomParamValue(param.value);
             }
         });
     }
