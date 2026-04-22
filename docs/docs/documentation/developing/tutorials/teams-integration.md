@@ -13,7 +13,7 @@ This tutorial shows you how to configure and run a Microsoft Teams Gateway with 
 
 :::warning[Enterprise Feature]
 The Microsoft Teams Gateway requires:
-- Agent Mesh Enterprise (Docker image or wheel installation with `sam-teams-gateway-adapter`)
+- Agent Mesh Enterprise
 - Azure Active Directory tenant access
 - Azure Bot Service setup
 :::
@@ -192,13 +192,6 @@ docker-compose up -d
 After the gateway is running, configure the Azure Bot Service to route messages to the gateway.
 
 1. Obtain your public HTTPS URL. The gateway listens on port 8092 at the `/api/messages` endpoint. You must make this endpoint publicly accessible via HTTPS so that Microsoft Teams can reach the gateway.
-   - For production: set up a reverse proxy, load balancer, or ingress that terminates TLS and forwards traffic to port 8092 (e.g., `https://<your-gateway-hostname>/api/messages`)
-   - For development: use ngrok to expose port 8092:
-     ```bash
-     ngrok http 8092
-     ```
-     Use the ngrok HTTPS URL (e.g., `https://abc123.ngrok.io/api/messages`)
-
 2. Go to the [Azure Portal](https://portal.azure.com) and navigate to your **Azure Bot** resource
 3. Go to **Configuration**
 4. Set the **Messaging endpoint** to your webhook URL
