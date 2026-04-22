@@ -1,16 +1,12 @@
 import { useState } from "react";
 import Button from "../../ui/Button";
-import {
-  PROVIDER_PREFIX_MAP,
-  formatModelName,
-} from "../../../common/providerModels";
 import { StepComponentProps } from "../../InitializationFlow";
+import { submitInitConfig } from "../../../common/submitConfig";
 
 const CAPITALIZED_WORDS = ["llm", "ai", "api", "url", "vpn"];
 
 const SENSITIVE_FIELDS = [
   "broker_password",
-  "llm_api_key",
   "webui_session_secret_key",
 ];
 
@@ -24,7 +20,6 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "broker_username",
     "broker_password",
   ],
-  "AI Provider": ["llm_model_name", "llm_endpoint_url", "llm_api_key"],
   Orchestrator: [
     "agent_name",
     "supports_streaming",
@@ -219,94 +214,17 @@ export default function CompletionStep({
     );
   };
 
-  const cleanDataBeforeSubmit = (dataToClean: Record<string, unknown>) => {
-    const cleanedData = { ...dataToClean };
-    if (cleanedData.namespace && !String(cleanedData.namespace).endsWith("/")) {
-      cleanedData.namespace += "/";
-    }
-    if (cleanedData.container_started) {
-      delete cleanedData.container_started;
-    }
-    
-    const originalProvider = cleanedData.llm_provider as string;
-    
-    // For AWS Bedrock, keep the provider as 'aws_bedrock' and don't transform
-    if (originalProvider === "aws_bedrock") {
-      // Keep llm_provider as 'aws_bedrock' for backend detection
-      // Don't format model name or delete provider
-    } else {
-      // For other providers, apply the normal transformation
-      if (cleanedData.llm_provider) {
-        cleanedData.llm_provider = PROVIDER_PREFIX_MAP[cleanedData.llm_provider as keyof typeof PROVIDER_PREFIX_MAP];
-      }
-
-      if (cleanedData.llm_model_name && cleanedData.llm_provider) {
-        cleanedData.llm_model_name = formatModelName(
-          String(cleanedData.llm_model_name),
-          String(cleanedData.llm_provider)
-        );
-      }
-    }
-    
-    if (data.broker_type === "container") {
-      
-      data.broker_type = "solace";
-    }
-    return cleanedData;
-  };
-
-  const submitConfiguration = async (force = true) => {
-    const cleanedData = cleanDataBeforeSubmit(data);
-    console.log("Submitting configuration:", cleanedData);
-    try {
-      const response = await fetch("api/save_config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(force ? { ...cleanedData, force: true } : cleanedData),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          `HTTP error ${response.status}: ${result.message ?? "Unknown error"}`
-        );
-      }
-
-      if (result.status === "success") {
-        console.log("Configuration sent successfully!");
-
-        updateData({ showSuccess: true });
-
-        try {
-          const shutdownResponse = await fetch("api/shutdown", {
-            method: "POST",
-          });
-          if (!shutdownResponse.ok) {
-            console.warn("Shutdown request failed:", shutdownResponse.status);
-          } else {
-            console.log("Shutdown request sent successfully");
-          }
-        } catch (shutdownError) {
-          console.error("Error sending shutdown request:", shutdownError);
-        }
-      } else {
-        throw new Error(result.message ?? "Failed to save configuration");
-      }
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "An unknown error occurred"
-      );
-      console.error("Error saving configuration:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setSubmitError(null);
-    await submitConfiguration();
+    const { error } = await submitInitConfig(data as Record<string, unknown>);
+    if (error) {
+      setSubmitError(error);
+      setIsSubmitting(false);
+      return;
+    }
+    updateData({ showSuccess: true });
+    setIsSubmitting(false);
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -318,13 +236,9 @@ export default function CompletionStep({
     <div className="space-y-6">
       <form onSubmit={onSubmit}>
         <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
-          {(data.setupPath === "quick")
-            ? (data.llm_provider ? renderGroup("AI Provider", CONFIG_GROUPS["AI Provider"]) : null)
-            : Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
-                groupName === "AI Provider" && !data.llm_provider
-                  ? null
-                  : renderGroup(groupName, keys)
-              )}
+          {Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
+            renderGroup(groupName, keys)
+          )}
         </div>
         {submitError && (
           <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">

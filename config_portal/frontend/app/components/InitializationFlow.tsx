@@ -3,7 +3,6 @@ import StepIndicator from "./StepIndicator";
 import PathSelectionStep from "./steps/init/PathSelectionStep";
 import ProjectSetup from "./steps/init/ProjectSetup";
 import BrokerSetup from "./steps/init/BrokerSetup";
-import AIProviderSetup from "./steps/init/AIProviderSetup";
 import OrchestratorSetup from "./steps/init/OrchestratorSetup";
 import WebUIGatewaySetup from "./steps/init/WebUIGatewaySetup";
 import CompletionStep from "./steps/init/CompletionStep";
@@ -44,12 +43,6 @@ export const advancedInitSteps: Step[] = [
     component: BrokerSetup,
   },
   {
-    id: "ai-provider-setup",
-    title: "AI Provider",
-    description: "Configure your AI services (optional)",
-    component: AIProviderSetup,
-  },
-  {
     id: "orchestrator-setup",
     title: "Orchestrator",
     description: "Configure your main orchestrator",
@@ -60,21 +53,6 @@ export const advancedInitSteps: Step[] = [
     title: "Web UI & Platform Service",
     description: "Configure Web UI Gateway and Platform Service",
     component: WebUIGatewaySetup,
-  },
-  {
-    id: "completion",
-    title: "Review & Submit",
-    description: "Finalize your configuration",
-    component: CompletionStep,
-  },
-];
-
-export const quickInitSteps: Step[] = [
-  {
-    id: "ai-provider-setup",
-    title: "AI Provider",
-    description: "Configure your AI services (optional)",
-    component: AIProviderSetup,
   },
   {
     id: "completion",
@@ -125,10 +103,10 @@ export default function InitializationFlow() {
   }, [setupPath]);
 
   useEffect(() => {
-    if (setupPath === "quick") {
-      setActiveSteps([pathSelectionStep, ...quickInitSteps]);
-    } else if (setupPath === "advanced") {
+    if (setupPath === "advanced") {
       setActiveSteps([pathSelectionStep, ...advancedInitSteps]);
+    } else {
+      setActiveSteps([pathSelectionStep]);
     }
   }, [setupPath]);
 
@@ -224,7 +202,6 @@ export default function InitializationFlow() {
   const showStepIndicator = currentStepIndex > 0;
 
   const getStepsForPath = () => {
-    if (setupPath === "quick") return quickInitSteps;
     if (setupPath === "advanced") return advancedInitSteps;
     return [];
   };
