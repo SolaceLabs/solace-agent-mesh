@@ -66,12 +66,14 @@ const PathOptionCard = ({
   pathType,
   isSelected,
   isSubmitting,
+  isLoading,
   onSelect,
   onAction,
 }: {
   pathType: PathType;
   isSelected: boolean;
   isSubmitting: boolean;
+  isLoading: boolean;
   onSelect: () => void;
   onAction: () => void;
 }) => {
@@ -124,7 +126,7 @@ const PathOptionCard = ({
             e.stopPropagation();
             onAction();
           }}
-          disabled={isSubmitting || !showAction}
+          disabled={isSubmitting || isLoading || !showAction}
         >
           {isSubmitting && pathType === "quick" ? (
             <div className="flex items-center space-x-2">
@@ -144,9 +146,12 @@ export default function PathSelectionStep({
   data,
   updateData,
   onNext,
+  isLoading = false,
 }: StepComponentProps) {
   const { setupPath } = data as { setupPath?: PathType };
-  const [selectedPath, setSelectedPath] = useState<PathType>(setupPath ?? "quick");
+  const [selectedPath, setSelectedPath] = useState<PathType>(
+    setupPath ?? "quick"
+  );
   const { isSubmitting, submitError, submit, clearError } = useInitSubmit(
     data,
     updateData
@@ -167,6 +172,7 @@ export default function PathSelectionStep({
   };
 
   const handleAction = async (path: PathType) => {
+    if (isLoading) return;
     if (path === "advanced") {
       onNext();
       return;
@@ -183,6 +189,7 @@ export default function PathSelectionStep({
             pathType={pathType}
             isSelected={selectedPath === pathType}
             isSubmitting={isSubmitting}
+            isLoading={isLoading}
             onSelect={() => handlePathSelect(pathType)}
             onAction={() => handleAction(pathType)}
           />

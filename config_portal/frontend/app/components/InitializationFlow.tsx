@@ -13,6 +13,7 @@ export interface StepComponentProps {
   updateData: (newData: Partial<Record<string, unknown>>) => void;
   onNext: () => void;
   onPrevious: () => void;
+  isLoading?: boolean;
 }
 
 export type Step = {
@@ -235,6 +236,7 @@ export default function InitializationFlow() {
           updateData={updateFormData}
           onNext={handleNext}
           onPrevious={handlePrevious}
+          isLoading={isLoading}
         />
       </div>
     </div>
