@@ -27,6 +27,7 @@ interface ComboBoxProps {
     allowCustomValue?: boolean;
     noItemsFoundText?: string;
     dropdownMaxHeight?: number;
+    "data-testid"?: string;
 }
 
 export const ComboBox = ({
@@ -42,6 +43,7 @@ export const ComboBox = ({
     allowCustomValue = false,
     noItemsFoundText = "No items found",
     dropdownMaxHeight = 240,
+    "data-testid": dataTestId,
 }: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
@@ -202,7 +204,7 @@ export const ComboBox = ({
     );
 
     return (
-        <div ref={containerRef} className="relative w-full">
+        <div ref={containerRef} className="relative w-full" data-testid={dataTestId}>
             <Input
                 ref={inputRef}
                 type="text"
