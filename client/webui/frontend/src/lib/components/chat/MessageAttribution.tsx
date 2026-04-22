@@ -29,7 +29,7 @@ export function MessageAttribution({ type, name, userIndex = 0, timestamp, avata
         <div className="flex items-center gap-2">
             {/* Icon/Avatar */}
             {type === "agent" ? (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--accent-n2-w10) dark:bg-(--accent-n2-w100)">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--secondary-w10)">
                     <Bot className="h-4 w-4 text-(--brand-wMain)" />
                 </div>
             ) : (

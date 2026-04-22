@@ -795,13 +795,11 @@ const getChatBubble = (
             {/* Render inline progress updates at the top of AI messages (only when inline-activity-timeline is enabled).
                 Also renders when active with no updates yet to show the "Processing..." placeholder. */}
             {inlineActivityTimelineEnabled && !message.isUser && (!message.isComplete || (message.progressUpdates && message.progressUpdates.length > 0)) && (
-                <div className="pl-4">
-                    <InlineProgressUpdates
-                        updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
-                        isActive={!message.isComplete}
-                        onViewWorkflow={message.taskId ? handleViewWorkflowClick : undefined}
-                    />
-                </div>
+                <InlineProgressUpdates
+                    updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
+                    isActive={!message.isComplete}
+                    onViewWorkflow={message.taskId ? handleViewWorkflowClick : undefined}
+                />
             )}
             {/* Render context quote above user message if present */}
             {message.isUser && message.contextQuote && (
