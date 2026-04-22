@@ -35,7 +35,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
+            "args": "run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -47,7 +47,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/test_agent_example.yaml examples/workflows/jira_bug_triage_workflow.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/agents/test_agent_example.yaml examples/workflows/jira_bug_triage_workflow.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -59,7 +59,7 @@
             "request": "launch",
             "module": "solace_ai_connector.main",
             "console": "integratedTerminal",
-            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/workflows/all_node_types_workflow.yaml examples/workflows/complex_branching_workflow.yaml examples/workflows/workflow_to_workflow_example.yaml examples/workflows/simple_nested_test.yaml",
+            "args": "--envfile .env examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/workflows/all_node_types_workflow.yaml examples/workflows/complex_branching_workflow.yaml examples/workflows/workflow_to_workflow_example.yaml examples/workflows/simple_nested_test.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -83,7 +83,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/gateways/mcp_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
+            "args": "run examples/gateways/mcp_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -95,7 +95,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/a2a_proxy_example.yaml",
+            "args": "run examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/a2a_proxy_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -107,7 +107,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/gateways/slack_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
+            "args": "run examples/gateways/slack_gateway_example.yaml examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
         },
         {
@@ -128,7 +128,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/gateways/rest_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml",
+            "args": "run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/gateways/rest_gateway_example.yaml examples/agents/test_agent_example.yaml examples/agents/a2a_multimodal_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -140,7 +140,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/a2a_multimodal_example.yaml examples/gateways/webui_gateway_example.yaml ",
+            "args": "run examples/agents/a2a_multimodal_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -212,7 +212,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/gateways/webui_gateway_example.yaml",
+            "args": "run examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -224,7 +224,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "run examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -236,7 +236,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/agents/a2a_mcp_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "run examples/agents/a2a_mcp_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -248,7 +248,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/agents/a2a_multimodal_example.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
@@ -260,7 +260,7 @@
             "request": "launch",
             "module": "cli.main",
             "console": "integratedTerminal",
-            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/gateways/test_gateway_workflow.yaml examples/workflows/all_node_types_workflow.yaml examples/workflows/simple_nested_test.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml",
+            "args": "run examples/gateways/event_mesh_gateway_example.yaml examples/gateways/test_gateway_workflow.yaml examples/workflows/all_node_types_workflow.yaml examples/workflows/simple_nested_test.yaml examples/agents/orchestrator_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml",
             "justMyCode": false,
             "env": {
                 "LOGGING_CONFIG_PATH": "${workspaceFolder}/preset/logging_config.yaml"
