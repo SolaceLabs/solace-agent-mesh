@@ -1,0 +1,160 @@
+name: Build and Attach Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        type: string
+        required: true
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  id-token: write
+
+jobs:
+  build-and-attach-assets:
+    name: Build and Attach Release Assets
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    outputs:
+      release_tag: ${{ steps.resolve-tag.outputs.release_tag }}
+      version: ${{ steps.resolve-tag.outputs.version }}
+      short_sha: ${{ steps.resolve-commit.outputs.short_sha }}
+      commit_sha: ${{ steps.resolve-commit.outputs.commit_sha }}
+      is_release_please_tag: ${{ steps.resolve-commit.outputs.is_release_please_tag }}
+    steps:
+      - name: Checkout repository at release tag
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Resolve release tag and version
+        id: resolve-tag
+        run: |
+          TAG="${{ env.RELEASE_TAG }}"
+          VERSION="${TAG#v}"
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag '${TAG}' is not a supported semantic version tag."
+            exit 1
+          fi
+
+          echo "release_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: ${TAG}"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Resolve release commit SHA
+        id: resolve-commit
+        run: |
+          RELEASE_TAG="${{ steps.resolve-tag.outputs.release_tag }}"
+          COMMIT_SHA="$(git rev-list -n 1 "${RELEASE_TAG}")"
+          if [[ -z "${COMMIT_SHA}" ]]; then
+            echo "Could not resolve commit SHA for tag ${RELEASE_TAG}"
+            exit 1
+          fi
+
+          SHORT_SHA="${COMMIT_SHA:0:10}"
+          COMMIT_SUBJECT="$(git log -1 --format='%s' "${COMMIT_SHA}")"
+          IS_RELEASE_PLEASE_TAG=false
+          if [[ "${COMMIT_SUBJECT}" =~ ^chore(\(.*\))?:\ release ]]; then
+            IS_RELEASE_PLEASE_TAG=true
+          fi
+
+          echo "commit_sha=${COMMIT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "is_release_please_tag=${IS_RELEASE_PLEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved commit SHA: ${COMMIT_SHA}"
+          echo "Commit subject: ${COMMIT_SUBJECT}"
+          echo "Is release-please release: ${IS_RELEASE_PLEASE_TAG}"
+
+      - name: Setup Node.js
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "25.5.0"
+          cache: "npm"
+          cache-dependency-path: client/webui/frontend/package-lock.json
+
+      - name: Install uv
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Install Hatch
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        run: uv tool install --with virtualenv==20.26.6 hatch
+
+      - name: Build package artifacts
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        run: hatch build
+
+      - name: Upload build artifacts to release
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: ${{ steps.resolve-tag.outputs.release_tag }}
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve previous release tag
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        id: previous-tag
+        run: |
+          CURRENT_TAG="${{ steps.resolve-tag.outputs.release_tag }}"
+          VERSION_TAG="${{ steps.resolve-tag.outputs.version }}"
+          PREVIOUS_TAG="$(git tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -Fvx "${CURRENT_TAG}" | grep -Fvx "${VERSION_TAG}" | head -n 1 || true)"
+
+          if [[ -z "${PREVIOUS_TAG}" ]]; then
+            PREVIOUS_TAG="main"
+            echo "No previous semantic version tag found, falling back to ${PREVIOUS_TAG}"
+          else
+            echo "Previous release tag: ${PREVIOUS_TAG}"
+          fi
+
+          echo "previous_tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Release Notes
+        if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
+        id: generate_release_notes
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/generate-github-release-notes@main
+        with:
+          from-ref: ${{ steps.previous-tag.outputs.previous_tag }}
+          to-ref: ${{ steps.resolve-tag.outputs.release_tag }}
+          output-file: RELEASE_NOTES.md
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update release notes
+        if: ${{ steps.resolve-commit.outputs.is_release_please_tag == 'true' && format('{0}', steps.generate_release_notes.outputs.total-commits) != '0' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ steps.resolve-tag.outputs.release_tag }}" --notes-file RELEASE_NOTES.md
+
+      - name: Create summary
+        run: |
+          echo "## Release Post-Processing Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Release Tag:** ${{ steps.resolve-tag.outputs.release_tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** ${{ steps.resolve-tag.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit SHA:** ${{ steps.resolve-commit.outputs.commit_sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Is release-please release:** ${{ steps.resolve-commit.outputs.is_release_please_tag }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.resolve-commit.outputs.is_release_please_tag }}" == "true" ]]; then
+            echo "**Previous Tag:** ${{ steps.previous-tag.outputs.previous_tag }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Skipped artifact publishing chain because the release commit does not look like a release-please release commit." >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -61,8 +61,10 @@ class DeclarativeAgentExecutor(AgentExecutor):
 
                 await event_queue.enqueue_event(event_obj)
 
-                # If the event is a terminal task, stop processing more responses for this request.
-                # Non-terminal states like 'submitted' or 'working' should not stop the processing.
+                # Check if this is a terminal event (ends the stream):
+                # 1. Task with terminal state (completed/failed/canceled/rejected)
+                # 2. TaskStatusUpdateEvent with final=True
+                # These match the SDK's EventConsumer definition of is_final_event
                 if isinstance(event_obj, Task) and event_obj.status and event_obj.status.state in [
                     TaskState.completed,
                     TaskState.failed,
@@ -71,18 +73,24 @@ class DeclarativeAgentExecutor(AgentExecutor):
                 ]:
                     terminal_event_sent = True
                     break
+                elif isinstance(event_obj, TaskStatusUpdateEvent) and event_obj.final:
+                    terminal_event_sent = True
+                    break
             except Exception as e:
                 log.error(f"{log_id} Failed to validate or enqueue primed response: {e}")
                 # Stop processing on error to avoid cascading failures
                 break
 
-        # If no terminal event was sent, just close the queue
-        # For cancellation tests, we only need to verify the cancel request arrives at the server
-        # We don't need to fully process the cancellation through the A2A framework
+        # Close the queue appropriately based on whether terminal event was sent
         if not terminal_event_sent:
-            log.info(f"{log_id} No terminal event in primed responses. Closing queue.")
-
-        await event_queue.close()
+            # No terminal event: use immediate close to avoid race condition where
+            # EventConsumer hangs in timeout loop. immediate=True returns immediately,
+            # allowing consumer's next iteration (within 0.5s) to detect closed state.
+            log.info(f"{log_id} No terminal event in primed responses. Closing queue immediately.")
+            await event_queue.close(immediate=True)
+        else:
+            # Terminal event sent: use graceful close to let consumer process all events
+            await event_queue.close()
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue):
         """Handles a cancellation request by updating the task state."""
@@ -92,4 +100,8 @@ class DeclarativeAgentExecutor(AgentExecutor):
             task = context.current_task
             task.status = TaskStatus(state=TaskState.canceled)
             await event_queue.enqueue_event(task)
-        await event_queue.close()
+            # Graceful close - canceled task is terminal, let consumer process it
+            await event_queue.close()
+        else:
+            # No task to cancel, close immediately
+            await event_queue.close(immediate=True)

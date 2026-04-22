@@ -5,6 +5,7 @@ import { Button } from "@/lib/components/ui";
 import { Header } from "@/lib/components/header";
 
 import { Footer, PageContentWrapper, EmptyState, MessageBanner, ConfirmationDialog } from "@/lib/components/common";
+import { PageLayout } from "@/lib/components/layout";
 import { ModelEdit } from "./ModelEdit";
 import { ALL_PROVIDERS, buildModelPayload, buildTestPayload } from "./modelProviderUtils";
 import { useModelById, useCreateModel, useUpdateModel, useTestModelConnection, useSupportedModels } from "@/lib/api/models";
@@ -115,7 +116,7 @@ export const ModelEditPage = () => {
     }
 
     return (
-        <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
+        <PageLayout className="min-w-4xl">
             <Header title={title} breadcrumbs={[{ label: "Agent Mesh", onClick: () => navigate("/agents?tab=models") }, { label: title }]} />
 
             <PageContentWrapper>
@@ -146,6 +147,6 @@ export const ModelEditPage = () => {
                     {isSaving ? "Saving..." : isNew ? "Add" : "Save"}
                 </Button>
             </Footer>
-        </div>
+        </PageLayout>
     );
 };

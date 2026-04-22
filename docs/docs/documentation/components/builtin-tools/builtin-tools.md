@@ -3,6 +3,8 @@ title: Configuring Built-in Tools
 sidebar_position: 60
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Configuring Built-in Tools
 
 This guide provides instructions for enabling and configuring the built-in tools provided by Agent Mesh framework.
@@ -69,6 +71,8 @@ The Agent Mesh framework automatically handles duplicate tool registrations. If 
 ## Available Tool Groups and Tools
 
 The following sections detail the available tool groups and the individual tools they contain.
+
+<NetworkAccessRequiredSomeFeatures />
 
 ### Artifact Management
 **Group Name**: `artifact_management`

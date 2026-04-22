@@ -1,0 +1,417 @@
+name: Release Readiness Check
+run-name: "Release Readiness Check for `${{ inputs.version }}`"
+on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: "Commit SHA that should be evaluated for release readiness."
+        type: string
+        required: true
+      version:
+        description: "Semantic version associated with the candidate release."
+        type: string
+        required: true
+      image_tag:
+        description: "Container tag to scan (defaults to <version>-<short_sha>)."
+        type: string
+        required: false
+        default: ""
+      check_only:
+        description: "Check-only mode: do not rerun FOSSA/Prisma scans."
+        type: boolean
+        required: false
+        default: false
+      check_sonarqube_hotspots:
+        description: "Whether SonarQube hotspot check should be enforced."
+        type: boolean
+        required: false
+        default: true
+      skip_security_checks:
+        description: "Skip failed security checks and continue the workflow (requires admin permission)."
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      fossa_status:
+        description: "FOSSA gate status"
+        value: ${{ jobs.release-readiness-status.outputs.fossa_status }}
+      prisma_status:
+        description: "Prisma gate status"
+        value: ${{ jobs.release-readiness-status.outputs.prisma_status }}
+      sonarqube_hotspots_status:
+        description: "SonarQube hotspots gate status"
+        value: ${{ jobs.release-readiness-status.outputs.sonarqube_hotspots_status }}
+      guardian_status:
+        description: "Guardian gate status"
+        value: ${{ jobs.release-readiness-status.outputs.guardian_status }}
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA that should be evaluated for release readiness."
+        type: string
+        required: true
+      version:
+        description: "Semantic version associated with the candidate release."
+        type: string
+        required: true
+      image_tag:
+        description: "Container tag to scan (defaults to <version>-<short_sha>)."
+        type: string
+        required: false
+        default: ""
+      check_only:
+        description: "Check-only mode: do not rerun FOSSA/Prisma scans."
+        type: boolean
+        required: false
+        default: false
+      check_sonarqube_hotspots:
+        description: "Whether SonarQube hotspot check should be enforced."
+        type: boolean
+        required: false
+        default: true
+      skip_security_checks:
+        description: "Skip failed security checks and continue the workflow (requires admin permission)."
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  checks: write
+  statuses: write
+  pull-requests: write
+  actions: read
+  issues: write
+  packages: read
+
+jobs:
+  resolve-context:
+    name: Resolve Context
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.resolve.outputs.commit_sha }}
+      clean_version: ${{ steps.resolve.outputs.clean_version }}
+      short_sha: ${{ steps.resolve.outputs.short_sha }}
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+    steps:
+      - name: Normalize release inputs
+        id: resolve
+        env:
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          COMMIT_SHA="$INPUT_COMMIT_SHA"
+          CLEAN_VERSION="${INPUT_VERSION#v}"
+          SHORT_SHA="${COMMIT_SHA:0:10}"
+          IMAGE_TAG="$INPUT_IMAGE_TAG"
+          if [[ -z "$IMAGE_TAG" ]]; then
+            IMAGE_TAG="${CLEAN_VERSION}-${SHORT_SHA}"
+          fi
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "clean_version=$CLEAN_VERSION" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+  fossa-scan:
+    name: FOSSA Scan
+    needs: resolve-context
+    if: ${{ !fromJSON(inputs.check_only) }}
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      id-token: write
+      actions: read
+      checks: write
+      statuses: write
+    with:
+      git_ref: ${{ needs.resolve-context.outputs.commit_sha }}
+      use_vault: false
+      config_file: ".github/workflow-config.json"
+      setup_actions: '["setup-uv"]'
+      custom_setup_script: "uv export --format requirements-txt --no-dev --output-file requirements.txt"
+      guardian_url: ${{ vars.GUARDIAN_API_URL }}
+      additional_scan_params: |
+        fossa.revision=${{ needs.resolve-context.outputs.clean_version }}
+        fossa.branch=main
+    secrets:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+      GUARDIAN_API_TOKEN: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
+
+  prisma-scan:
+    name: Prisma Scan
+    needs: resolve-context
+    if: ${{ !fromJSON(inputs.check_only) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+      checks: write
+      statuses: write
+    steps:
+      - name: Checkout candidate revision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.resolve-context.outputs.commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Run Prisma Cloud scan
+        id: prisma
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
+        with:
+          image_registry: ${{ steps.login-ecr.outputs.registry }}
+          image_repo: ${{ github.event.repository.name }}
+          image_tag: ${{ needs.resolve-context.outputs.image_tag }}
+          pcc_console_url: ${{ vars.PRISMACLOUD_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+          pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+          twistcli_publish: "true"
+          guardian_url: ${{ vars.GUARDIAN_API_URL }}
+          guardian_key: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
+          guardian_product_full_version: ${{ needs.resolve-context.outputs.clean_version }}
+
+      - name: Enforce Prisma result
+        if: ${{ steps.prisma.outcome != 'success' }}
+        run: |
+          echo "Prisma scan failed." >&2
+          exit 1
+
+  sonarqube-hotspots:
+    name: SonarQube Hotspots
+    needs: resolve-context
+    if: ${{ fromJSON(inputs.check_sonarqube_hotspots) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+      checks: write
+      statuses: write
+    outputs:
+      status: ${{ steps.capture.outputs.status }}
+    steps:
+      - name: Run SonarQube hotspot checker
+        id: sonarqube
+        continue-on-error: true
+        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
+        env:
+          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+          SONARQUBE_PROJECT_MAIN_BRANCH: "main"
+          SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
+        with:
+          entrypoint: /bin/sh
+          args: >
+            -c ". $VIRTUAL_ENV/bin/activate &&
+            cd $ACTIONS_PATH/sonarqube-hotspot-checker &&
+            python sonarqube_checker.py
+            "
+
+      - name: Capture SonarQube status
+        id: capture
+        if: always()
+        env:
+          SONAR_OUTCOME: ${{ steps.sonarqube.outcome }}
+        run: |
+          STATUS=success
+          if [[ "$SONAR_OUTCOME" != "success" ]]; then
+            STATUS=failure
+          fi
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce SonarQube hotspot result
+        if: ${{ steps.capture.outputs.status != 'success' }}
+        run: |
+          echo "SonarQube hotspot check failed." >&2
+          exit 1
+
+  guardian-gate:
+    name: Guardian Vulnerability Gate
+    needs: [resolve-context, fossa-scan, prisma-scan]
+    if: |
+      always() &&
+      !cancelled() &&
+      needs.resolve-context.result == 'success' &&
+      (fromJSON(inputs.check_only) || (needs.fossa-scan.result == 'success' && needs.prisma-scan.result == 'success'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      checks: write
+      statuses: write
+    outputs:
+      status: ${{ steps.capture.outputs.status }}
+    steps:
+      - name: Synchronize Guardian DB
+        if: ${{ !fromJSON(inputs.check_only) }}
+        uses: SolaceDev/solace-public-workflows/guardian-db-sync@main
+        with:
+          guardian-url: ${{ vars.GUARDIAN_API_URL }}
+          guardian-key: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
+          product-full-version: ${{ needs.resolve-context.outputs.clean_version }}
+          unifiers: "fossa,prisma"
+          upload-logs: "true"
+
+      - name: Evaluate Guardian vulnerability gate
+        id: gate
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/guardian-vulnerability-gate@main
+        with:
+          guardian-url: ${{ vars.GUARDIAN_API_URL }}
+          guardian-key: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
+          product-version: ${{ needs.resolve-context.outputs.clean_version }}
+          fail-on-blocked: "true"
+          upload-logs: "true"
+
+      - name: Capture Guardian status
+        id: capture
+        if: always()
+        env:
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+        run: |
+          STATUS=success
+          if [[ "$GATE_OUTCOME" != "success" ]]; then
+            STATUS=failure
+          fi
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce Guardian gate
+        if: ${{ steps.capture.outputs.status != 'success' }}
+        run: |
+          echo "Guardian gate failed." >&2
+          exit 1
+
+  release-readiness-status:
+    name: Release Readiness Status
+    needs:
+      - resolve-context
+      - fossa-scan
+      - prisma-scan
+      - sonarqube-hotspots
+      - guardian-gate
+    if: always()
+    runs-on: ubuntu-latest
+    outputs:
+      fossa_status: ${{ steps.evaluate.outputs.fossa_status }}
+      prisma_status: ${{ steps.evaluate.outputs.prisma_status }}
+      sonarqube_hotspots_status: ${{ steps.evaluate.outputs.sonarqube_hotspots_status }}
+      guardian_status: ${{ steps.evaluate.outputs.guardian_status }}
+    steps:
+      - name: Check admin permissions for security bypass
+        id: check_skip_permission
+        if: ${{ fromJSON(inputs.skip_security_checks) }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const actor = context.actor;
+            const repo = context.repo;
+
+            try {
+              const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: repo.owner,
+                repo: repo.repo,
+                username: actor
+              });
+
+              console.log(`User ${actor} has permission: ${permission.permission}`);
+
+              if (permission.permission === 'admin') {
+                console.log(`Admin permission verified for ${actor}; security checks will be bypassed.`);
+                core.setOutput('bypass_approved', 'true');
+              } else {
+                core.warning(`Security bypass denied for ${actor} (permission: ${permission.permission}); security checks will still be enforced.`);
+                core.setOutput('bypass_approved', 'false');
+              }
+            } catch (error) {
+              core.warning(`Failed to check permissions for ${actor}: ${error.message}; security checks will still be enforced.`);
+              core.setOutput('bypass_approved', 'false');
+            }
+
+      - name: Evaluate release readiness gates
+        id: evaluate
+        env:
+          CHECK_ONLY: ${{ fromJSON(inputs.check_only) && 'true' || 'false' }}
+          CHECK_SONARQUBE: ${{ fromJSON(inputs.check_sonarqube_hotspots) && 'true' || 'false' }}
+          SKIP_SECURITY: ${{ steps.check_skip_permission.outputs.bypass_approved || 'false' }}
+          FOSSA_RESULT: ${{ needs.fossa-scan.result }}
+          PRISMA_RESULT: ${{ needs.prisma-scan.result }}
+          SONAR_RESULT: ${{ needs.sonarqube-hotspots.result }}
+          GUARDIAN_RESULT: ${{ needs.guardian-gate.result }}
+        run: |
+          set -euo pipefail
+
+          FAILURES=0
+          FOSSA_STATUS="$FOSSA_RESULT"
+          PRISMA_STATUS="$PRISMA_RESULT"
+          SONAR_STATUS="$SONAR_RESULT"
+          GUARDIAN_STATUS="$GUARDIAN_RESULT"
+
+          if [[ "$CHECK_ONLY" == "true" ]]; then
+            FOSSA_STATUS="skipped"
+            PRISMA_STATUS="skipped"
+          fi
+
+          if [[ "$CHECK_SONARQUBE" != "true" ]]; then
+            SONAR_STATUS="skipped"
+          fi
+
+          require_success() {
+            local gate="$1"
+            local result="$2"
+            if [[ "$result" != "success" ]]; then
+              if [[ "$SKIP_SECURITY" == "true" ]]; then
+                echo "::warning::${gate} gate failed with status '${result}' (bypassed by admin)"
+              else
+                echo "::error::${gate} gate failed with status '${result}'"
+                FAILURES=$((FAILURES + 1))
+              fi
+            fi
+          }
+
+          if [[ "$CHECK_ONLY" != "true" ]]; then
+            require_success "FOSSA" "$FOSSA_RESULT"
+            require_success "Prisma" "$PRISMA_RESULT"
+          fi
+
+          if [[ "$CHECK_SONARQUBE" == "true" ]]; then
+            require_success "SonarQube Hotspots" "$SONAR_RESULT"
+          fi
+
+          require_success "Guardian" "$GUARDIAN_RESULT"
+
+          echo "fossa_status=$FOSSA_STATUS" >> "$GITHUB_OUTPUT"
+          echo "prisma_status=$PRISMA_STATUS" >> "$GITHUB_OUTPUT"
+          echo "sonarqube_hotspots_status=$SONAR_STATUS" >> "$GITHUB_OUTPUT"
+          echo "guardian_status=$GUARDIAN_STATUS" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Release Readiness Result"
+            echo ""
+            echo "- FOSSA: \`$FOSSA_STATUS\`"
+            echo "- Prisma: \`$PRISMA_STATUS\`"
+            echo "- SonarQube Hotspots: \`$SONAR_STATUS\`"
+            echo "- Guardian: \`$GUARDIAN_STATUS\`"
+            echo "- Security bypass: \`$SKIP_SECURITY\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$FAILURES" -gt 0 ]]; then
+            exit 1
+          fi

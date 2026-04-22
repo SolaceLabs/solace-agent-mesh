@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
-import { useNavigate, Navigate } from "react-router-dom";
-import { Loader2, Check, X, Plus, MessageCircle, CalendarClock } from "lucide-react";
+import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
+import { Loader2, Check, X, Plus, MessageCircle, CalendarClock, Share2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
+import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
@@ -12,6 +13,7 @@ import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
+import { PageLayout } from "@/lib/components/layout";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, Tabs, TabsList, TabsTrigger, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 
 const PAGE_SIZE = 20;
@@ -94,9 +96,30 @@ export const RecentChatsPage: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const [activeTab, setActiveTab] = useState<"chat" | "scheduler">("chat");
+    type Tab = "chat" | "scheduler" | "shared";
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialTab: Tab = searchParams.get("tab") === "shared" && chatSharingEnabled ? "shared" : "chat";
+    const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, activeTab);
+    const handleTabChange = useCallback(
+        (value: string) => {
+            const next = value as Tab;
+            setActiveTab(next);
+            const nextParams = new URLSearchParams(searchParams);
+            if (next === "shared") {
+                nextParams.set("tab", "shared");
+            } else {
+                nextParams.delete("tab");
+            }
+            setSearchParams(nextParams, { replace: true });
+        },
+        [searchParams, setSearchParams]
+    );
+
+    // Sessions fetched only for chat/scheduler tabs; shared tab uses its own query.
+    const sessionSource = activeTab === "shared" ? "chat" : activeTab;
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource);
+    const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe();
     const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
 
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -278,7 +301,7 @@ export const RecentChatsPage: React.FC = () => {
     }
 
     return (
-        <div className="flex h-full flex-col">
+        <PageLayout>
             <Header
                 title="Recent Chats"
                 buttons={[
@@ -298,26 +321,34 @@ export const RecentChatsPage: React.FC = () => {
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
                 {/* Tabs and Search/Filter Bar */}
                 <div className="flex flex-col gap-4">
-                    {/* Tabs: Chats / Scheduled Tasks */}
-                    {configFeatureEnablement?.scheduler && (
+                    {/* Tabs: Chats / Scheduled Tasks / Shared with Me */}
+                    {(configFeatureEnablement?.scheduler || chatSharingEnabled) && (
                         <div className="flex justify-center">
-                            <Tabs value={activeTab} onValueChange={value => setActiveTab(value as "chat" | "scheduler")}>
+                            <Tabs value={activeTab} onValueChange={handleTabChange}>
                                 <TabsList className="bg-transparent p-0">
                                     <TabsTrigger value="chat" className="rounded-none rounded-l-md px-6">
                                         <MessageCircle className="h-4 w-4 shrink-0" />
                                         Chats
                                     </TabsTrigger>
-                                    <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0 px-6">
-                                        <CalendarClock className="h-4 w-4 shrink-0" />
-                                        Scheduled Tasks
-                                    </TabsTrigger>
+                                    {configFeatureEnablement?.scheduler && (
+                                        <TabsTrigger value="scheduler" className={`rounded-none border-l-0 px-6 ${chatSharingEnabled ? "" : "rounded-r-md"}`}>
+                                            <CalendarClock className="h-4 w-4 shrink-0" />
+                                            Scheduled Tasks
+                                        </TabsTrigger>
+                                    )}
+                                    {chatSharingEnabled && (
+                                        <TabsTrigger value="shared" className="rounded-none rounded-r-md border-l-0 px-6">
+                                            <Share2 className="h-4 w-4 shrink-0" />
+                                            Shared with Me
+                                        </TabsTrigger>
+                                    )}
                                 </TabsList>
                             </Tabs>
                         </div>
                     )}
 
-                    {/* Search and Filter Bar - only show when there are sessions */}
-                    {sessions.length > 0 && (
+                    {/* Search and Filter Bar - only show when there are sessions and not on shared tab */}
+                    {activeTab !== "shared" && sessions.length > 0 && (
                         <div className="flex items-center gap-4">
                             <div className="flex-1">
                                 <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
@@ -345,8 +376,52 @@ export const RecentChatsPage: React.FC = () => {
                     )}
                 </div>
 
+                {/* Shared with Me Grid */}
+                {activeTab === "shared" && (
+                    <>
+                        {isLoadingShared && (
+                            <div className="flex justify-center py-8">
+                                <Spinner size="small" variant="muted" />
+                            </div>
+                        )}
+                        {!isLoadingShared && sharedChats.length > 0 && (
+                            <div className="flex flex-col gap-2">
+                                {sharedChats.map(item => {
+                                    const isEditor = item.accessLevel === "RESOURCE_EDITOR" && !!item.sessionId;
+                                    const onClick = async () => {
+                                        if (isEditor && item.sessionId) {
+                                            await handleSwitchSession(item.sessionId);
+                                            navigate("/chat");
+                                        } else {
+                                            navigate(`/shared-chat/${item.shareId}`);
+                                        }
+                                    };
+                                    return (
+                                        <div key={item.shareId} className={sessionCardStyles({ active: false })}>
+                                            <div className="flex cursor-pointer items-center gap-4" onClick={onClick}>
+                                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <span className={sessionTitleStyles({ active: false, animation: "none" })}>{item.title}</span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent className="max-w-[480px]">{item.title}</TooltipContent>
+                                                    </Tooltip>
+                                                    <div className="text-xs font-normal text-(--secondary-text-wMain)">
+                                                        Shared by {item.ownerEmail} · {formatRelativeTime(new Date(item.sharedAt).toISOString())}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {!isLoadingShared && sharedChats.length === 0 && <EmptyState variant="noImage" title="No shared chats" subtitle="Chats that others share with you will appear here" />}
+                    </>
+                )}
+
                 {/* Sessions Grid */}
-                {filteredSessions.length > 0 && (
+                {activeTab !== "shared" && filteredSessions.length > 0 && (
                     <div className="flex flex-col gap-2">
                         {filteredSessions.map(session => (
                             <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
@@ -416,9 +491,9 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Empty States */}
-                {filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
+                {activeTab !== "shared" && filteredSessions.length === 0 && sessions.length > 0 && !isFetchingNextPage && <EmptyState variant="noImage" title="No sessions found for this project" subtitle="Try selecting a different project filter" />}
 
-                {sessions.length === 0 && !isFetchingNextPage && (
+                {activeTab !== "shared" && sessions.length === 0 && !isFetchingNextPage && (
                     <EmptyState
                         variant="noImage"
                         title={activeTab === "scheduler" ? "No scheduled task sessions" : "No chat sessions available"}
@@ -442,7 +517,7 @@ export const RecentChatsPage: React.FC = () => {
                 )}
 
                 {/* Infinite Scroll Loader */}
-                {hasNextPage && (
+                {activeTab !== "shared" && hasNextPage && (
                     <div ref={loadMoreRef} className="flex justify-center py-4">
                         {isFetchingNextPage && <Spinner size="small" variant="muted" />}
                     </div>
@@ -462,6 +537,6 @@ export const RecentChatsPage: React.FC = () => {
                     }}
                 />
             )}
-        </div>
+        </PageLayout>
     );
 };

@@ -3,6 +3,11 @@ name: Test and SonarQube Analysis
 on:
   workflow_call:
     inputs:
+      git_ref:
+        type: string
+        required: false
+        default: "main"
+        description: "Git reference to test against"
       min-python-version:
         type: string
         required: false
@@ -23,6 +28,17 @@ on:
         required: false
         default: "client/webui/frontend"
         description: "Path to the UI frontend directory"
+
+      run_sonarqube_analysis:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether to run SonarQube analysis"
+      run_quality_gate:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether to run SonarQube quality gate"
     secrets:
       SONAR_TOKEN:
         description: "SonarQube token"
@@ -48,6 +64,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -79,6 +96,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -144,7 +162,7 @@ jobs:
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()  # Upload artifacts even if tests failed
+        if: always() # Upload artifacts even if tests failed
         with:
           name: python-coverage-${{ matrix.python-version }}
           path: |
@@ -166,6 +184,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.git_ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -231,7 +250,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-
+          ref: ${{ inputs.git_ref || github.sha }}
       - name: Checkout Workflows Repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -297,7 +316,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-
+          ref: ${{ inputs.git_ref || github.sha }}
       - name: Download Python Coverage Artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -338,12 +357,13 @@ jobs:
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        if: ${{ fromJSON(inputs.run_sonarqube_analysis) }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: SonarQube Quality Gate
-        if: github.event_name == 'pull_request'
+        if: ${{ fromJSON(inputs.run_quality_gate) }}
         id: sonarqube-quality-gate-check
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:

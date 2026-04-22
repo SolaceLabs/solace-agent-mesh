@@ -4,6 +4,7 @@ import { Pencil, Trash2, Ellipsis } from "lucide-react";
 
 import { Button, Menu, Popover, PopoverContent, PopoverTrigger, type MenuAction } from "@/lib/components/ui";
 import { EmptyState, Footer, PageContentWrapper, PageSection, PageLabelWithValue, PageLabel, PageValue, Metadata } from "@/lib/components/common";
+import { PageLayout } from "@/lib/components/layout";
 import { Header } from "@/lib/components/header";
 
 import { useModelConfigs, useDeleteModel } from "@/lib/api/models";
@@ -68,7 +69,7 @@ export const ModelDetailsPage = () => {
     const title = modelToView ? modelToView.alias : "N/A";
 
     return (
-        <div className="flex h-full w-full min-w-4xl flex-col overflow-hidden">
+        <PageLayout className="min-w-4xl">
             <Header title={title} breadcrumbs={[{ label: "Models", onClick: () => navigate("/agents?tab=models") }, { label: title }]} buttons={headerButtons} />
 
             {modelConfigsLoading ? (
@@ -159,6 +160,6 @@ export const ModelDetailsPage = () => {
                     Close
                 </Button>
             </Footer>
-        </div>
+        </PageLayout>
     );
 };
