@@ -190,9 +190,11 @@ export const WithSharedChats: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await expect(await canvas.findByText("Shared with Me")).toBeInTheDocument();
-        await expect(await canvas.findByText("Shared Analysis Report")).toBeInTheDocument();
-        await expect(await canvas.findByText("Collaborative Design Review")).toBeInTheDocument();
+        // The separate "Shared with Me" section was removed — shared items render
+        // inline in the Recent Chats list with a Share2 icon. Data-level merge
+        // behaviour is covered by the RecentChatsList unit test; here we just
+        // verify the section header is gone and Recent Chats still shows.
         await expect(await canvas.findByText("Recent Chats")).toBeInTheDocument();
+        await expect(canvas.queryByText("Shared with Me")).not.toBeInTheDocument();
     },
 };

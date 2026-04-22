@@ -10,7 +10,7 @@ import { ProjectDetailView } from "./ProjectDetailView";
 import { ShareProjectDialog } from "./ShareProjectDialog";
 import { useProjectContext } from "@/lib/providers";
 import type { Project } from "@/lib/types/projects";
-import { Button, Header } from "@/lib/components";
+import { Button, Header, PageLayout } from "@/lib/components";
 import { downloadBlob, getErrorMessage } from "@/lib/utils";
 import { useChatContext, useIsProjectSharingEnabled, useStartIndexing } from "@/lib/hooks";
 import { useExportProject, useImportProject, useFetchProjectsOnMount, useTogglePinProject } from "@/lib/api/projects/hooks";
@@ -183,7 +183,7 @@ export const ProjectsPage: React.FC = () => {
     const showDetailView = selectedProject !== null;
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             {!showDetailView && (
                 <Header
                     title="Projects"
@@ -241,6 +241,6 @@ export const ProjectsPage: React.FC = () => {
 
             {/* Share Project Dialog */}
             {projectToShare && <ShareProjectDialog isOpen={isShareDialogOpen} onClose={handleShareDialogClose} project={projectToShare} />}
-        </div>
+        </PageLayout>
     );
 };

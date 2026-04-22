@@ -27,6 +27,14 @@ interface StoryProviderProps {
     taskContextValues?: Partial<TaskContextValue>;
     configContextValues?: Partial<ConfigContextValue>;
     routerValues?: RouterValues;
+    /**
+     * When true, skip the internal OpenFeatureTestProvider — the caller is
+     * responsible for configuring the global OpenFeature provider (e.g. via
+     * `renderWithProviders`, which calls `setProviderAndWait` before render).
+     * Prevents a double-mount race where the test provider overrides a
+     * pre-warmed global provider.
+     */
+    skipFeatureFlagProvider?: boolean;
 }
 
 /**
@@ -57,30 +65,29 @@ export const StoryProvider: React.FC<StoryProviderProps> = ({
     projectContextValues = {},
     taskContextValues = {},
     configContextValues = {},
+    skipFeatureFlagProvider = false,
 }) => {
     const featureFlags = configContextValues.configFeatureEnablement ?? {};
 
-    return (
-        <QueryProvider>
-            <OpenFeatureTestProvider flagValueMap={featureFlags}>
-                <ThemeProvider>
-                    <MockConfigProvider mockValues={configContextValues}>
-                        <MockAuthProvider mockValues={authContextValues}>
-                            <SSEProvider>
-                                <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
-                                    <MockProjectProvider mockValues={projectContextValues}>
-                                        <MockTextSelectionProvider mockValues={textSelectionContextValues}>
-                                            <MockTaskProvider mockValues={taskContextValues}>
-                                                <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
-                                            </MockTaskProvider>
-                                        </MockTextSelectionProvider>
-                                    </MockProjectProvider>
-                                </MockAudioSettingsProvider>
-                            </SSEProvider>
-                        </MockAuthProvider>
-                    </MockConfigProvider>
-                </ThemeProvider>
-            </OpenFeatureTestProvider>
-        </QueryProvider>
+    const innerTree = (
+        <ThemeProvider>
+            <MockConfigProvider mockValues={configContextValues}>
+                <MockAuthProvider mockValues={authContextValues}>
+                    <SSEProvider>
+                        <MockAudioSettingsProvider mockValues={audioSettingsContextValues}>
+                            <MockProjectProvider mockValues={projectContextValues}>
+                                <MockTextSelectionProvider mockValues={textSelectionContextValues}>
+                                    <MockTaskProvider mockValues={taskContextValues}>
+                                        <MockChatProvider mockValues={chatContextValues}>{children}</MockChatProvider>
+                                    </MockTaskProvider>
+                                </MockTextSelectionProvider>
+                            </MockProjectProvider>
+                        </MockAudioSettingsProvider>
+                    </SSEProvider>
+                </MockAuthProvider>
+            </MockConfigProvider>
+        </ThemeProvider>
     );
+
+    return <QueryProvider>{skipFeatureFlagProvider ? innerTree : <OpenFeatureTestProvider flagValueMap={featureFlags}>{innerTree}</OpenFeatureTestProvider>}</QueryProvider>;
 };

@@ -3,6 +3,8 @@ title: Creating Custom Gateways
 sidebar_position: 430
 ---
 
+import NetworkAccessMayBeRequired from '@site/docs/partials/network-access-may-be-required.mdx';
+
 # Creating Custom Gateways
 
 Gateway adapters connect external systems to the Agent Mesh through custom interfaces. They translate between platform-specific formats (Slack messages, HTTP requests, webhook payloads) and the standardized A2A protocol that agents understand. Gateway adapters handle platform events, extract user identity, and deliver agent responses back to users in the appropriate format.
@@ -12,6 +14,8 @@ This guide walks you through creating custom gateways using the gateway adapter 
 :::tip[In one sentence]
 Gateway adapters are custom interfaces that connect external platforms to the agent mesh by translating events and responses between platform formats and the A2A protocol.
 :::
+
+<NetworkAccessMayBeRequired />
 
 ## Key Functions
 
