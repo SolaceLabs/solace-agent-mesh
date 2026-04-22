@@ -74,33 +74,39 @@ export default function InitializationFlow() {
   const [activeSteps, setActiveSteps] = useState<Step[]>([pathSelectionStep]);
 
   useEffect(() => {
-    if (setupPath) {
-      setIsLoading(true);
+    if (!setupPath) return;
 
-      fetch(`/api/default_options?path=${setupPath}`)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error("Failed to fetch default options");
-          }
-          return response.json();
-        })
-        .then((data) => {
-          if (data?.default_options) {
-            const options = data.default_options;
-            setFormData((prevData) => ({ ...prevData, ...options }));
-            setIsLoading(false);
-          } else {
-            throw new Error("Invalid response format");
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching default options:", err);
-          setError(
-            "Failed to connect to server, is the init process still running?"
-          );
+    const controller = new AbortController();
+    setIsLoading(true);
+
+    fetch(`/api/default_options?path=${setupPath}`, {
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch default options");
+        }
+        return response.json();
+      })
+      .then((data) => {
+        if (data?.default_options) {
+          const options = data.default_options;
+          setFormData((prevData) => ({ ...prevData, ...options }));
           setIsLoading(false);
-        });
-    }
+        } else {
+          throw new Error("Invalid response format");
+        }
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        console.error("Error fetching default options:", err);
+        setError(
+          "Failed to connect to server, is the init process still running?"
+        );
+        setIsLoading(false);
+      });
+
+    return () => controller.abort();
   }, [setupPath]);
 
   useEffect(() => {
