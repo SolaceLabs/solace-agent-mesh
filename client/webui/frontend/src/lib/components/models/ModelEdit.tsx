@@ -560,24 +560,25 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                 <FormFieldLayoutItem
                                     label={
                                         <span className="inline-flex items-center gap-1.5">
-                                            Context Window Size
+                                            Max Input Tokens
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                    <button type="button" className="text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)" aria-label="Context Window Size help">
+                                                    <button type="button" className="text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)" aria-label="Max Input Tokens help">
                                                         <CircleHelp className="size-3.5" />
                                                     </button>
                                                 </TooltipTrigger>
-                                                <TooltipContent side="right" className="max-w-sm">
+                                                <TooltipContent side="right" className="max-w-80" style={{ textWrap: "wrap", display: "table" }}>
                                                     <p>
-                                                        The maximum number of <em>input</em> tokens this specific model accepts. This drives the chat context-usage indicator so users can see how much of the window they&apos;ve consumed and trigger
-                                                        compaction before it overflows.
+                                                        Drives the chat context-usage indicator so users can see how much of the window they&apos;ve consumed and trigger compaction before it overflows. This doesn&apos;t change what the provider
+                                                        accepts — it only changes what the usage indicator displays.
                                                     </p>
-                                                    <p className="mt-2">Check your provider&apos;s model documentation for the correct value. This doesn&apos;t change what the provider accepts — it only changes what the usage indicator displays.</p>
+                                                    <p className="mt-2">If left blank, the indicator falls back to LiteLLM&apos;s built-in registry, then to the agent&apos;s configured value, and finally hides if nothing is known.</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                         </span>
                                     }
                                     error={errors.maxInputTokens as { message?: string }}
+                                    helpText="Check the model provider's documentation for the current context window limit for this model version."
                                 >
                                     <Input
                                         type="number"
