@@ -71,6 +71,7 @@ class GatewayObservabilityMiddleware(BaseHTTPMiddleware):
     # Streaming endpoints that should measure TTFB
     STREAMING_PATHS = {
         '/api/v1/sse/subscribe',  # SSE event streaming
+        '/api/v1/sse/notifications',  # User-level notification SSE stream
         '/api/v1/message:stream',  # Streaming message responses
     }
 

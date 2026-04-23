@@ -23,6 +23,7 @@ from .dto.scheduled_task_dto import (
     ScheduledTaskListResponse,
     ExecutionResponse,
     ExecutionListResponse,
+    LastExecutionSummary,
     SchedulerStatusResponse,
     TaskActionResponse,
     SchedulePreviewRequest,
@@ -44,6 +45,67 @@ def _check_task_ownership(task, user_id: str, user: dict) -> None:
         raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
     elif not task.user_id and "admin" not in user.get("roles", []):
         raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
+
+
+def _fetch_last_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
+    """Fetch the most recent execution for each given task id in one query.
+
+    Used to surface "last run" info directly on task cards so users can see
+    health at a glance instead of drilling into execution history. Returns
+    a map keyed by scheduled_task_id; tasks with no executions are absent.
+    """
+    if not task_ids:
+        return {}
+
+    from ..repository.models import ScheduledTaskExecutionModel
+    from sqlalchemy import func
+
+    # Subquery: max scheduled_for per task. Correlated on scheduled_task_id so
+    # we pick exactly one row per task even when two fires happen at the same
+    # millisecond (use max(id) as a tiebreaker).
+    subq = (
+        db.query(
+            ScheduledTaskExecutionModel.scheduled_task_id.label("tid"),
+            func.max(ScheduledTaskExecutionModel.scheduled_for).label("max_for"),
+        )
+        .filter(ScheduledTaskExecutionModel.scheduled_task_id.in_(task_ids))
+        .group_by(ScheduledTaskExecutionModel.scheduled_task_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(ScheduledTaskExecutionModel)
+        .join(
+            subq,
+            (ScheduledTaskExecutionModel.scheduled_task_id == subq.c.tid)
+            & (ScheduledTaskExecutionModel.scheduled_for == subq.c.max_for),
+        )
+        .all()
+    )
+
+    result: dict[str, LastExecutionSummary] = {}
+    for row in rows:
+        duration_ms = None
+        if row.started_at and row.completed_at:
+            duration_ms = row.completed_at - row.started_at
+        status_value = row.status.value if hasattr(row.status, "value") else str(row.status)
+        trigger = getattr(row, "trigger_type", None)
+        trigger_value = trigger.value if hasattr(trigger, "value") else (trigger or "scheduled")
+        # If two rows share the same (task_id, scheduled_for) they'll both be
+        # returned — keep the one with the latest completed_at / started_at.
+        existing = result.get(row.scheduled_task_id)
+        if existing is None or (row.started_at or 0) >= (existing.started_at or 0):
+            result[row.scheduled_task_id] = LastExecutionSummary(
+                id=row.id,
+                status=status_value,
+                scheduled_for=row.scheduled_for,
+                started_at=row.started_at,
+                completed_at=row.completed_at,
+                duration_ms=duration_ms,
+                error_message=row.error_message,
+                trigger_type=trigger_value,
+            )
+    return result
 
 
 def get_scheduler_service():
@@ -286,7 +348,12 @@ async def create_scheduled_task(
 
         if task.enabled:
             try:
-                await task_service.schedule_task(task)
+                # Interval schedules without a specific start time fire their
+                # series from "now" on creation, so users get immediate feedback
+                # instead of waiting a full interval for the first run. Cron and
+                # one-time schedules keep their declared timing.
+                fire_now = task.schedule_type == "interval"
+                await task_service.schedule_task(task, fire_immediately=fire_now)
             except Exception as e:
                 log.error("Failed to schedule task %s: %s", task.id, e)
 
@@ -324,8 +391,9 @@ async def list_scheduled_tasks(
             pagination=pagination,
         )
 
+        last_by_task = _fetch_last_executions(db, [t.id for t in tasks])
         return ScheduledTaskListResponse(
-            tasks=[ScheduledTaskResponse.from_orm(t) for t in tasks],
+            tasks=[ScheduledTaskResponse.from_orm(t, last_execution=last_by_task.get(t.id)) for t in tasks],
             total=total,
             skip=pagination.offset,
             limit=page_size,
@@ -422,7 +490,8 @@ async def get_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
-        return ScheduledTaskResponse.from_orm(task)
+        last = _fetch_last_executions(db, [task.id]).get(task.id)
+        return ScheduledTaskResponse.from_orm(task, last_execution=last)
     except HTTPException:
         raise
     except Exception as e:
@@ -564,6 +633,51 @@ async def enable_scheduled_task(
         db.rollback()
         log.error("Error enabling scheduled task %s: %s", task_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to enable scheduled task") from e
+
+
+@router.post("/{task_id}/run", response_model=TaskActionResponse)
+async def run_scheduled_task_now(
+    task_id: str,
+    db: DBSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(get_user_config),
+    config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
+    scheduler_service=Depends(get_scheduler_service),
+):
+    """Manually trigger a scheduled task ("Run Now").
+
+    Rejects with 409 if an execution is already in-flight for this task.
+    Disabled tasks may still be run so users can verify behaviour before
+    enabling. Does not shift the task's next_run_at.
+    """
+    from ..services.scheduler.scheduler_service import TaskAlreadyRunningError, TaskNotFoundError
+
+    _validate_scheduling_permission(user_config, config_resolver)
+    user_id = user.get("id")
+    try:
+        task = task_service.get_task(db, task_id, user_id=user_id)
+        if not task:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
+        _check_task_ownership(task, user_id, user)
+
+        try:
+            await scheduler_service.trigger_task_now(task_id, triggered_by=user_id)
+        except TaskNotFoundError as e:
+            raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG) from e
+        except TaskAlreadyRunningError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Task is currently executing; wait for it to finish before running again.",
+            ) from e
+
+        return TaskActionResponse(success=True, message="Task triggered", task_id=task_id)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error running scheduled task %s: %s", task_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to run scheduled task") from e
 
 
 @router.post("/{task_id}/disable", response_model=TaskActionResponse)

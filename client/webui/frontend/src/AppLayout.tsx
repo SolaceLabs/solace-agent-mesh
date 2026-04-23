@@ -10,6 +10,7 @@ import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession } from "@/lib/hooks";
+import { useNotificationSSE } from "@/lib/hooks/useNotificationSSE";
 import { useModelConfigStatus } from "@/lib/api/models";
 
 function AppLayoutContent() {
@@ -89,6 +90,10 @@ function AppLayoutContent() {
     });
 
     useBeforeUnload();
+
+    // Subscribe to server-pushed notifications (e.g. scheduled task session created)
+    // so the Recent Chats sidebar updates in real time.
+    useNotificationSSE();
 
     const getActiveItem = () => {
         const path = location.pathname;

@@ -19,6 +19,7 @@ from .scheduled_task_model import (
     ScheduledTaskExecutionModel,
     ScheduleType,
     ExecutionStatus,
+    TriggerType,
 )
 from .share_model import (
     SharedLinkModel,
