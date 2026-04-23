@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { AccordionCard } from "@/lib/components/ui/accordion-card";
-import { Plus } from "lucide-react";
+import { Plus, CircleHelp } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
@@ -558,27 +558,26 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                     Placed after connection details so it's clear this applies to *this* model,
                                     not a global default. */}
                                 <FormFieldLayoutItem
-                                    label="Context Window Size"
-                                    error={errors.maxInputTokens as { message?: string }}
-                                    helpText={
-                                        <>
-                                            <span className="block">
-                                                The maximum number of <em>input</em> tokens this model accepts. This is only used to display the chat context-usage percentage so users know when to manually compact the conversation — it does{" "}
-                                                <em>not</em> trigger automatic compaction.
-                                            </span>
-                                            <span className="mt-2 block">
-                                                <strong>Leave blank</strong> unless you have a reason to override — SAM will automatically use the value from LiteLLM&apos;s built-in model registry for well-known models. Only set this when:
-                                            </span>
-                                            <ul className="mt-1 ml-4 list-disc">
-                                                <li>You&apos;re using a custom or self-hosted model LiteLLM doesn&apos;t know about (otherwise the indicator can&apos;t show a percentage)</li>
-                                                <li>Your provider has configured a smaller window than the model&apos;s maximum (e.g., a proxy or deployment limit), so the registry value overstates what you can actually send</li>
-                                                <li>The registry value is wrong for your deployment</li>
-                                            </ul>
-                                            <span className="mt-2 block">
-                                                Check your provider&apos;s model documentation for the correct value. This doesn&apos;t change what the provider accepts — it only changes what the usage indicator displays.
-                                            </span>
-                                        </>
+                                    label={
+                                        <span className="inline-flex items-center gap-1.5">
+                                            Context Window Size
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button type="button" className="text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)" aria-label="Context Window Size help">
+                                                        <CircleHelp className="size-3.5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="right" className="max-w-sm">
+                                                    <p>
+                                                        The maximum number of <em>input</em> tokens this specific model accepts. This drives the chat context-usage indicator so users can see how much of the window they&apos;ve consumed and trigger
+                                                        compaction before it overflows.
+                                                    </p>
+                                                    <p className="mt-2">Check your provider&apos;s model documentation for the correct value. This doesn&apos;t change what the provider accepts — it only changes what the usage indicator displays.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </span>
                                     }
+                                    error={errors.maxInputTokens as { message?: string }}
                                 >
                                     <Input
                                         type="number"
