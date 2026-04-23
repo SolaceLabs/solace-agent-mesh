@@ -9,11 +9,16 @@ import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroun
 
 const STORAGE_KEY = "sam_background_tasks";
 const POLL_INTERVAL_MS = 10_000;
-// A task that disappears from the active-tasks batch response is treated as
-// terminated only after this grace period has elapsed since local registration.
-// This prevents a race where the backend hasn't yet persisted the task row from
-// triggering a false completion.
-const REGISTRATION_GRACE_MS = 3000;
+const REGISTRATION_GRACE_MS = 3000; // A task that disappears from the active-tasks is treated as terminated only after this period
+
+function logFetchFailure(error: unknown): null {
+    if (error instanceof DOMException && error.name === "AbortError") {
+        // Don't log expected aborts from effect cleanup
+        return null;
+    }
+    console.error(`[BackgroundTaskMonitor] Failed to fetch task status:`, error);
+    return null;
+}
 
 interface UseBackgroundTaskMonitorProps {
     userId: string | null;
@@ -111,20 +116,17 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
                 }
                 return await response.json();
             } catch (error: unknown) {
-                console.warn(`[BackgroundTaskMonitor] Failed to check status for task ${taskId}:`, error);
-                return null;
+                return logFetchFailure(error);
             }
         },
         [unregisterBackgroundTask]
     );
 
-    // Fetch the authoritative list of running background tasks for this user.
-    // Returns `null` on failure (distinguished from an empty list on success) so
-    // callers can decide whether to act on the response or bail.
+    // Fetch the authoritative list of running background tasks for this user or null if no response available
     const fetchActiveBackgroundTasks = useCallback(
         async (signal?: AbortSignal): Promise<BackgroundTaskState[] | null> => {
             if (!userId) {
-                return [];
+                return null;
             }
 
             try {
@@ -142,8 +144,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
                     startTime: task.start_time,
                 }));
             } catch (error) {
-                console.warn("[BackgroundTaskMonitor] Failed to fetch active background tasks:", error);
-                return null;
+                return logFetchFailure(error);
             }
         },
         [userId]
