@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2, Sparkles } from "lucide-react";
-import { AudioRecorder, Button, MessageBanner, Textarea } from "@/lib/components";
+import { AudioRecorder, Button, MarkdownWrapper, MessageBanner, Textarea } from "@/lib/components";
 import { useAudioSettings, useConfigContext, useChatContext } from "@/lib/hooks";
 import { api } from "@/lib/api/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -50,9 +50,10 @@ interface TaskBuilderChatProps {
     onReadyToSave: (ready: boolean) => void;
     initialMessage?: string | null;
     availableAgents?: Array<{ name: string; displayName?: string; description?: string }>;
+    isEditing?: boolean;
 }
 
-export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, availableAgents = [] }) => {
+export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate, currentConfig, onReadyToSave, initialMessage, availableAgents = [], isEditing = false }) => {
     const { addNotification } = useChatContext();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -100,7 +101,14 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         if (initRef.current || !greetingQuery.data) return;
         initRef.current = true;
 
-        const greetingMessage = greetingQuery.data.message;
+        // In edit mode the backend greeting ("Hi! I'll help you create a
+        // scheduled task...") doesn't fit — the user already has a task and
+        // is here to change it. Swap in a context-aware greeting that
+        // references the existing task's name if we have one.
+        const taskName = currentConfigRef.current?.name?.trim();
+        const greetingMessage = isEditing
+            ? `Hi! Let's refine${taskName ? ` the **${taskName}**` : " this"} task. Tell me what you'd like to change — for example the schedule, target agent, or the instructions. I can also help tweak the wording.`
+            : greetingQuery.data.message;
         setMessages([
             {
                 role: "assistant",
@@ -275,8 +283,8 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {messages.map((message, index) => (
                     <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-[var(--message-background)]" : ""}`}>
-                            <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-(--secondary-w20)" : ""}`}>
+                            {message.role === "assistant" ? <MarkdownWrapper content={message.content} className="text-sm leading-relaxed" /> : <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
                         </div>
                     </div>
                 ))}

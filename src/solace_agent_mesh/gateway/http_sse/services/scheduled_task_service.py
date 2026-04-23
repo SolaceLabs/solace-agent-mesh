@@ -53,10 +53,10 @@ class ScheduledTaskService:
         db.commit()
         return task
 
-    async def schedule_task(self, task) -> None:
+    async def schedule_task(self, task, fire_immediately: bool = False) -> None:
         """Schedule a task in APScheduler (public interface)."""
         if self.scheduler_service:
-            await self.scheduler_service.schedule_task(task)
+            await self.scheduler_service.schedule_task(task, fire_immediately=fire_immediately)
 
     async def unschedule_task(self, task_id: str) -> None:
         """Remove a task from APScheduler (public interface)."""

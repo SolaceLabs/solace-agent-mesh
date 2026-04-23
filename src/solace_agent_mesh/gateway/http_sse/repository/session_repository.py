@@ -2,7 +2,7 @@
 Session repository implementation using SQLAlchemy.
 """
 
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, text
 from sqlalchemy.orm import Session as DBSession, joinedload
 from solace_ai_connector.common.observability import DBMonitor, MonitorLatency
 
@@ -140,6 +140,32 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
             )
             # metric already covered
             return self.create(db_session, create_model.model_dump())
+
+    def mark_viewed(
+        self, db_session: DBSession, session_id: SessionId, user_id: UserId, viewed_at: int
+    ) -> bool:
+        """Set last_viewed_at on a session without bumping updated_time.
+
+        Writes ``MAX(updated_time, :viewed_at)`` atomically so we can't end
+        up behind ``updated_time`` if a concurrent ``save_task`` advances the
+        session's ``updated_time`` in the same tick (which would otherwise
+        cause the UI to re-show an "unseen" dot immediately after viewing).
+
+        Returns True if the row was found and updated, False otherwise.
+        """
+        with MonitorLatency(DBMonitor.query(self.table_name)):
+            stmt = text(
+                "UPDATE sessions "
+                "SET last_viewed_at = CASE "
+                "  WHEN COALESCE(updated_time, 0) > :viewed_at THEN COALESCE(updated_time, 0) "
+                "  ELSE :viewed_at "
+                "END "
+                "WHERE id = :sid AND user_id = :uid AND deleted_at IS NULL"
+            )
+            result = db_session.execute(
+                stmt, {"viewed_at": viewed_at, "sid": session_id, "uid": user_id}
+            )
+        return result.rowcount > 0
 
     def delete(self, db_session: DBSession, session_id: SessionId, user_id: UserId) -> bool:
         """Delete a session belonging to a user."""
