@@ -24,6 +24,7 @@ export interface BackgroundTaskStatusResponse {
         last_activity_time: number | null;
         background_execution_enabled: boolean | null;
         max_execution_time_ms: number | null;
+        session_id: string | null;
     };
     is_running: boolean;
     is_background: boolean;

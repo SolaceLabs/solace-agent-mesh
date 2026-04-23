@@ -8,6 +8,12 @@ import { api } from "@/lib/api";
 import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
 
 const STORAGE_KEY = "sam_background_tasks";
+const POLL_INTERVAL_MS = 10_000;
+// A task that disappears from the active-tasks batch response is treated as
+// terminated only after this grace period has elapsed since local registration.
+// This prevents a race where the backend hasn't yet persisted the task row from
+// triggering a false completion.
+const REGISTRATION_GRACE_MS = 3000;
 
 interface UseBackgroundTaskMonitorProps {
     userId: string | null;
@@ -20,10 +26,17 @@ interface UseBackgroundTaskMonitorProps {
  * Hook for monitoring and reconnecting to background tasks.
  * Stores active background tasks in localStorage and automatically reconnects on session load.
  */
-export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
+export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompleted, onTaskFailed }: UseBackgroundTaskMonitorProps) {
     const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTaskState[]>([]);
     const backgroundTasksRef = useRef<BackgroundTaskState[]>(backgroundTasks);
     const [notifications, setNotifications] = useState<BackgroundTaskNotification[]>([]);
+
+    // Tracked via ref so the polling tick reads the latest session without being rebuilt
+    // every time the user navigates.
+    const currentSessionIdRef = useRef(currentSessionId);
+    useEffect(() => {
+        currentSessionIdRef.current = currentSessionId;
+    }, [currentSessionId]);
 
     // Load background tasks from localStorage on mount
     useEffect(() => {
@@ -51,11 +64,6 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         } else {
             localStorage.removeItem(STORAGE_KEY);
         }
-    }, [backgroundTasks]);
-
-    // Keep ref in sync with state for use in stable callbacks
-    useEffect(() => {
-        backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
 
     // Register a background task
@@ -92,9 +100,9 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
     }, []);
 
     const checkTaskStatus = useCallback(
-        async (taskId: string): Promise<BackgroundTaskStatusResponse | null> => {
+        async (taskId: string, signal?: AbortSignal): Promise<BackgroundTaskStatusResponse | null> => {
             try {
-                const response = await api.webui.get(`/api/v1/tasks/${taskId}/status`, { fullResponse: true });
+                const response = await api.webui.get(`/api/v1/tasks/${taskId}/status`, { fullResponse: true, signal });
                 if (!response.ok) {
                     if (response.status === 404) {
                         unregisterBackgroundTask(taskId);
@@ -103,96 +111,173 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
                 }
                 return await response.json();
             } catch (error: unknown) {
-                console.error(`[BackgroundTaskMonitor] Failed to check status for task ${taskId}:`, error);
+                console.warn(`[BackgroundTaskMonitor] Failed to check status for task ${taskId}:`, error);
                 return null;
             }
         },
         [unregisterBackgroundTask]
     );
 
-    // Check all background tasks and update their status
-    // Uses backgroundTasksRef to read current tasks, making this callback stable
+    // Fetch the authoritative list of running background tasks for this user.
+    // Returns `null` on failure (distinguished from an empty list on success) so
+    // callers can decide whether to act on the response or bail.
+    const fetchActiveBackgroundTasks = useCallback(
+        async (signal?: AbortSignal): Promise<BackgroundTaskState[] | null> => {
+            if (!userId) {
+                return [];
+            }
+
+            try {
+                const response = await api.webui.get(`/api/v1/tasks/background/active?user_id=${encodeURIComponent(userId)}`, { fullResponse: true, signal });
+                if (!response.ok) {
+                    return null;
+                }
+                const data: ActiveBackgroundTasksResponse = await response.json();
+
+                return data.tasks.map(task => ({
+                    taskId: task.id,
+                    sessionId: task.session_id ?? "",
+                    lastEventTimestamp: task.last_activity_time || task.start_time,
+                    isBackground: true,
+                    startTime: task.start_time,
+                }));
+            } catch (error) {
+                console.warn("[BackgroundTaskMonitor] Failed to fetch active background tasks:", error);
+                return null;
+            }
+        },
+        [userId]
+    );
+
+    // Dispatch the completion/failure callbacks for a single terminated task.
+    // Called once per completion after the batched diff identifies it.
+    const handleTerminalTask = useCallback(
+        async (task: BackgroundTaskState, signal: AbortSignal) => {
+            const status = await checkTaskStatus(task.taskId, signal);
+            if (signal.aborted || !status) {
+                return;
+            }
+
+            // The batch endpoint can transiently omit a still-running task (DB write lag,
+            // execution_mode not yet set). Treat only actually-terminal tasks as complete;
+            // a false positive here fires replayBufferedEvents on an in-flight task and
+            // clobbers its final response.
+            if (status.is_running) {
+                return;
+            }
+
+            const taskStatus = status.task.status;
+            let notificationType: "completed" | "failed" | "timeout" = "completed";
+            let message = `Background task completed`;
+
+            if (taskStatus === "failed" || taskStatus === "error") {
+                notificationType = "failed";
+                message = status.error_message || `Background task failed`;
+            } else if (taskStatus === "timeout") {
+                notificationType = "timeout";
+                message = `Background task timed out`;
+            }
+
+            const notification: BackgroundTaskNotification = {
+                taskId: task.taskId,
+                type: notificationType,
+                message,
+                timestamp: Date.now(),
+            };
+
+            setNotifications(prev => [...prev, notification]);
+
+            if (notificationType === "completed" && onTaskCompleted) {
+                onTaskCompleted(task.taskId, task.sessionId);
+            } else if (notificationType !== "completed" && onTaskFailed) {
+                onTaskFailed(task.taskId, message, task.sessionId);
+            }
+
+            unregisterBackgroundTask(task.taskId);
+        },
+        [checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]
+    );
+
+    // One polling tick: single batch request, diff against tracked tasks,
+    // dispatch completion for any that have disappeared (past the grace period).
+    const runPollTick = useCallback(
+        async (signal: AbortSignal) => {
+            const tasks = backgroundTasksRef.current;
+            if (tasks.length === 0) {
+                return;
+            }
+
+            const serverTasks = await fetchActiveBackgroundTasks(signal);
+            if (signal.aborted || serverTasks === null) {
+                // Request failed or was aborted — do not infer anything about
+                // the state of tracked tasks.
+                return;
+            }
+
+            const activeTaskIds = new Set(serverTasks.map(t => t.taskId));
+            const now = Date.now();
+            const activeSessionId = currentSessionIdRef.current;
+            const terminalTasks: BackgroundTaskState[] = [];
+
+            for (const task of tasks) {
+                // SSE is authoritative for the session the user is currently viewing —
+                // it delivers terminal events live and runs save-task itself. Firing
+                // onTaskCompleted here would race with that save and can destructively
+                // replay buffered events mid-flight.
+                if (task.sessionId && task.sessionId === activeSessionId) {
+                    continue;
+                }
+
+                if (activeTaskIds.has(task.taskId)) {
+                    continue;
+                }
+
+                if (now - task.startTime >= REGISTRATION_GRACE_MS) {
+                    terminalTasks.push(task);
+                }
+            }
+
+            for (const terminal of terminalTasks) {
+                if (signal.aborted) return;
+                await handleTerminalTask(terminal, signal);
+            }
+        },
+        [fetchActiveBackgroundTasks, handleTerminalTask]
+    );
+
+    // Stable ref to the latest tick function. The polling effect calls through
+    // this ref so that changes to user-supplied callbacks (onTaskCompleted etc.)
+    // don't tear down and rebuild the interval.
+    const tickRef = useRef<(signal: AbortSignal) => Promise<void>>(runPollTick);
+    useEffect(() => {
+        tickRef.current = runPollTick;
+    }, [runPollTick]);
+
+    // Public handle for callers that want to force a check. Creates its own
+    // AbortController so it composes safely outside the polling effect.
     const checkAllBackgroundTasks = useCallback(async () => {
-        const tasks = backgroundTasksRef.current;
-        if (tasks.length === 0) {
-            return;
-        }
+        const controller = new AbortController();
+        await tickRef.current(controller.signal);
+    }, []);
 
-        for (const task of tasks) {
-            const status = await checkTaskStatus(task.taskId);
+    const fetchActiveBackgroundTasksPublic = useCallback(async (): Promise<BackgroundTaskState[]> => {
+        const result = await fetchActiveBackgroundTasks();
+        return result ?? [];
+    }, [fetchActiveBackgroundTasks]);
 
-            if (!status) {
-                continue;
-            }
-
-            // If task is no longer running, handle completion
-            if (!status.is_running) {
-                const taskStatus = status.task.status;
-
-                // Create notification
-                let notificationType: "completed" | "failed" | "timeout" = "completed";
-                let message = `Background task completed`;
-
-                if (taskStatus === "failed" || taskStatus === "error") {
-                    notificationType = "failed";
-                    // Use the actual error message from backend, fallback to generic message
-                    message = status.error_message || `Background task failed`;
-                } else if (taskStatus === "timeout") {
-                    notificationType = "timeout";
-                    message = `Background task timed out`;
-                }
-
-                const notification: BackgroundTaskNotification = {
-                    taskId: task.taskId,
-                    type: notificationType,
-                    message,
-                    timestamp: Date.now(),
-                };
-
-                setNotifications(prev => [...prev, notification]);
-
-                // Call callbacks with session ID so caller can decide whether to show notification
-                if (notificationType === "completed" && onTaskCompleted) {
-                    onTaskCompleted(task.taskId, task.sessionId);
-                } else if (notificationType !== "completed" && onTaskFailed) {
-                    onTaskFailed(task.taskId, message, task.sessionId);
-                }
-
-                // Remove from tracking
-                unregisterBackgroundTask(task.taskId);
-            }
-        }
-    }, [checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]);
-
-    const fetchActiveBackgroundTasks = useCallback(async (): Promise<BackgroundTaskState[]> => {
-        if (!userId) {
-            return [];
-        }
-
-        try {
-            const data: ActiveBackgroundTasksResponse = await api.webui.get(`/api/v1/tasks/background/active?user_id=${encodeURIComponent(userId)}`);
-
-            return data.tasks.map(task => ({
-                taskId: task.id,
-                sessionId: "",
-                lastEventTimestamp: task.last_activity_time || task.start_time,
-                isBackground: true,
-                startTime: task.start_time,
-            }));
-        } catch (error) {
-            console.error("[BackgroundTaskMonitor] Failed to fetch active background tasks:", error);
-            return [];
-        }
-    }, [userId]);
-
-    // Check for running background tasks on mount and when userId changes
+    // Check for running background tasks on mount and when userId changes.
     useEffect(() => {
         if (!userId) {
             return;
         }
 
+        const controller = new AbortController();
+
         const checkForRunningTasks = async () => {
-            const serverTasks = await fetchActiveBackgroundTasks();
+            const serverTasks = await fetchActiveBackgroundTasks(controller.signal);
+            if (controller.signal.aborted || serverTasks === null) {
+                return;
+            }
 
             // Merge with locally stored tasks
             setBackgroundTasks(prev => {
@@ -209,10 +294,13 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         };
 
         checkForRunningTasks();
+
+        return () => {
+            controller.abort();
+        };
     }, [userId, fetchActiveBackgroundTasks]);
 
-    // Periodic checking to detect background task completion when not connected to SSE
-    // This handles the case where a task completes while the user is on a different session
+    // Periodic polling to detect background task completion when not connected to SSE.
     const hasBackgroundTasks = backgroundTasks.length > 0;
 
     useEffect(() => {
@@ -220,18 +308,38 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
             return;
         }
 
-        // Check immediately when polling starts
-        checkAllBackgroundTasks();
+        let currentController: AbortController | null = null;
+        // Effect-scoped guard (not useRef) so every rebuild of this effect starts
+        // with a fresh `false` — a hook-level ref could stay stuck at `true` if
+        // a prior tick was mid-flight when the effect tore down.
+        const isPollingRef = { current: false };
 
-        // Then check periodically (every 5 seconds)
-        const intervalId = setInterval(() => {
-            checkAllBackgroundTasks();
-        }, 5000);
+        const tick = async () => {
+            if (isPollingRef.current) {
+                return;
+            }
+            isPollingRef.current = true;
+            const controller = new AbortController();
+            currentController = controller;
+            try {
+                await tickRef.current(controller.signal);
+            } finally {
+                isPollingRef.current = false;
+                if (currentController === controller) {
+                    currentController = null;
+                }
+            }
+        };
+
+        const intervalId = setInterval(tick, POLL_INTERVAL_MS);
 
         return () => {
             clearInterval(intervalId);
+            if (currentController) {
+                currentController.abort();
+            }
         };
-    }, [hasBackgroundTasks, checkAllBackgroundTasks]);
+    }, [hasBackgroundTasks]);
 
     // Dismiss a notification
     const dismissNotification = useCallback((taskId: string) => {
@@ -265,6 +373,6 @@ export function useBackgroundTaskMonitor({ userId, onTaskCompleted, onTaskFailed
         dismissNotification,
         getSessionBackgroundTasks,
         isTaskRunningInBackground,
-        fetchActiveBackgroundTasks,
+        fetchActiveBackgroundTasks: fetchActiveBackgroundTasksPublic,
     };
 }
