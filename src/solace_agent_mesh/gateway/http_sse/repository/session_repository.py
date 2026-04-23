@@ -311,3 +311,20 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         search_query = base_query.filter(SessionModel.name.ilike(search_pattern))
 
         return search_query.count()
+
+    def find_sessions_older_than(
+        self,
+        db_session: DBSession,
+        cutoff_timestamp_ms: int,
+        limit: int | None = None,
+    ) -> list[Session]:
+        """Find non-deleted sessions older than a cutoff timestamp."""
+        query = db_session.query(SessionModel).filter(
+            SessionModel.updated_time < cutoff_timestamp_ms,
+            SessionModel.deleted_at.is_(None),
+        ).order_by(SessionModel.updated_time.asc())
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        return [Session.model_validate(model) for model in query.all()]

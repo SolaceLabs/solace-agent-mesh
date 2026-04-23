@@ -863,7 +863,7 @@ async def delete_session(
             )
 
         deleted = session_service.delete_session_with_notifications(
-            db=db, session_id=session_id, user_id=user_id
+        deleted = await session_service.delete_session_with_notifications(
         )
 
         if not deleted:
