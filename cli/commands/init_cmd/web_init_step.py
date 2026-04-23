@@ -68,41 +68,6 @@ def perform_web_init(current_cli_params: dict) -> dict:
         if shared_config_from_web:
             config_from_portal = dict(shared_config_from_web)
 
-            # Check if a provider was selected
-            llm_provider = config_from_portal.get("llm_provider", "")
-
-            if llm_provider:
-                # Map web portal keys to CLI expected keys for backwards compatibility
-                key_mappings = {
-                    "llm_api_key": "llm_service_api_key",
-                    "llm_endpoint_url": "llm_service_endpoint",
-                    "llm_model_name": "llm_service_model_name",
-                }
-
-                for old_key, new_key in key_mappings.items():
-                    if old_key in config_from_portal and new_key not in config_from_portal:
-                        config_from_portal[new_key] = config_from_portal[old_key]
-
-                # For AWS Bedrock, we don't need planning and general model names
-                # The model info is already in llm_model_name and aws_model_id
-                if llm_provider != "aws_bedrock":
-                    # Handle planning and general model names with fallback to single model name
-                    config_from_portal["llm_service_planning_model_name"] = (
-                        config_from_portal.get("llm_service_planning_model_name")
-                        or config_from_portal.get("llm_planning_model_name")
-                        or config_from_portal.get("llm_model_name")
-                    )
-
-                    config_from_portal["llm_service_general_model_name"] = (
-                        config_from_portal.get("llm_service_general_model_name")
-                        or config_from_portal.get("llm_general_model_name")
-                        or config_from_portal.get("llm_model_name")
-                    )
-
-                    # Clean up deprecated keys if new keys are present
-                    config_from_portal.pop("llm_planning_model_name", None)
-                    config_from_portal.pop("llm_general_model_name", None)
-
             click.echo(
                 click.style("Configuration received from web portal.", fg="green")
             )

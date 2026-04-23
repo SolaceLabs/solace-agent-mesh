@@ -6,7 +6,7 @@
 export type ScheduleType = "cron" | "interval" | "one_time";
 export type TaskStatus = "active" | "paused" | "error";
 export type TargetType = "agent" | "workflow";
-export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled";
+export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled" | "skipped";
 
 export interface MessagePart {
     type: "text" | "file";
@@ -60,6 +60,19 @@ export interface ScheduledTask {
     updatedAt: number;
     nextRunAt?: number;
     lastRunAt?: number;
+
+    lastExecution?: LastExecutionSummary;
+}
+
+export interface LastExecutionSummary {
+    id: string;
+    status: ExecutionStatus;
+    scheduledFor: number;
+    startedAt?: number;
+    completedAt?: number;
+    durationMs?: number;
+    errorMessage?: string;
+    triggerType?: "scheduled" | "manual";
 }
 
 export interface ArtifactInfo {
@@ -90,6 +103,9 @@ export interface TaskExecution {
     };
     errorMessage?: string;
     retryCount: number;
+
+    triggerType?: "scheduled" | "manual";
+    triggeredBy?: string;
 
     artifacts?: Array<string | ArtifactInfo>; // Support both string IDs and objects
     notificationsSent?: Array<{
@@ -205,6 +221,18 @@ interface ApiScheduledTask {
     updated_at: number;
     next_run_at?: number;
     last_run_at?: number;
+    last_execution?: ApiLastExecutionSummary;
+}
+
+interface ApiLastExecutionSummary {
+    id: string;
+    status: ExecutionStatus;
+    scheduled_for: number;
+    started_at?: number;
+    completed_at?: number;
+    duration_ms?: number;
+    error_message?: string;
+    trigger_type?: "scheduled" | "manual";
 }
 
 interface ApiTaskExecution {
@@ -227,6 +255,8 @@ interface ApiTaskExecution {
     };
     error_message?: string;
     retry_count: number;
+    trigger_type?: "scheduled" | "manual";
+    triggered_by?: string;
     artifacts?: Array<string | ArtifactInfo>;
     notifications_sent?: Array<{
         type: string;
@@ -279,6 +309,18 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
         updatedAt: apiTask.updated_at,
         nextRunAt: apiTask.next_run_at,
         lastRunAt: apiTask.last_run_at,
+        lastExecution: apiTask.last_execution
+            ? {
+                  id: apiTask.last_execution.id,
+                  status: apiTask.last_execution.status,
+                  scheduledFor: apiTask.last_execution.scheduled_for,
+                  startedAt: apiTask.last_execution.started_at,
+                  completedAt: apiTask.last_execution.completed_at,
+                  durationMs: apiTask.last_execution.duration_ms,
+                  errorMessage: apiTask.last_execution.error_message,
+                  triggerType: apiTask.last_execution.trigger_type,
+              }
+            : undefined,
     };
 }
 
@@ -305,6 +347,8 @@ export function transformApiExecution(apiExecution: ApiTaskExecution): TaskExecu
             : undefined,
         errorMessage: apiExecution.error_message,
         retryCount: apiExecution.retry_count,
+        triggerType: apiExecution.trigger_type,
+        triggeredBy: apiExecution.triggered_by,
         artifacts: apiExecution.artifacts,
         notificationsSent: apiExecution.notifications_sent,
     };
