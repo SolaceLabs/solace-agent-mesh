@@ -50,7 +50,7 @@ export interface FormFieldLayoutItemProps {
     required?: boolean;
     error?: { message?: string };
     warning?: string;
-    helpText?: string;
+    helpText?: React.ReactNode;
     statusIndicator?: React.ReactNode;
     children: React.ReactNode;
 }

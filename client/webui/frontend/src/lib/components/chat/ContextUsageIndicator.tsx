@@ -7,12 +7,14 @@ import { ConfirmationDialog } from "@/lib/components/common";
 import { useSessionContextUsage, useCompactSession, sessionKeys } from "@/lib/api/sessions";
 import { useChatContext } from "@/lib/hooks";
 
-// Thresholds that surface the "Summarize Conversation" button and toolbar icon.
-// Either condition is enough — early in the session (high message count, low
-// tokens) we still want to offer compaction; mid-session with few messages but
-// lots of context we also want to offer it.
-const COMPACT_BUTTON_MIN_MESSAGES = 20;
-const COMPACT_BUTTON_MIN_USAGE_PCT = 80;
+// Eligibility: the server needs ≥2 user turns to compact (runner.py:271).
+// 4 messages ≈ 2 user + 2 assistant, the minimum realistic back-and-forth.
+const COMPACT_MIN_MESSAGES = 4;
+// Escape hatch for token-heavy short sessions (e.g. one big paste blows past
+// the window before message count grows). Either condition surfaces the button.
+const COMPACT_MIN_USAGE_PCT = 50;
+// Toolbar icon only nudges the user once context usage is high.
+const COMPACT_TOOLBAR_MIN_USAGE_PCT = 80;
 
 interface ContextUsageIndicatorProps {
     sessionId: string;
@@ -152,7 +154,8 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const formattedCurrent = formatTokenCount(usage?.currentContextTokens ?? 0);
     const formattedLimit = usage?.maxInputTokens ? formatTokenCount(usage.maxInputTokens) : null;
 
-    const shouldShowCompressButton = useMemo(() => messageCount >= COMPACT_BUTTON_MIN_MESSAGES || pct >= COMPACT_BUTTON_MIN_USAGE_PCT, [messageCount, pct]);
+    const canCompact = useMemo(() => messageCount >= COMPACT_MIN_MESSAGES || pct >= COMPACT_MIN_USAGE_PCT, [messageCount, pct]);
+    const shouldShowToolbarIcon = useMemo(() => canCompact && pct >= COMPACT_TOOLBAR_MIN_USAGE_PCT, [canCompact, pct]);
 
     const requestCompress = () => {
         if (isCompacting) return;
@@ -252,7 +255,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                             </div>
                         </div>
 
-                        {shouldShowCompressButton && (
+                        {canCompact && (
                             <div className="space-y-2 border-t pt-3">
                                 {compactSuccess && (
                                     <div className="flex items-start justify-between gap-1 rounded bg-(--success-w10) p-2 text-xs text-(--success-wMain)">
@@ -307,7 +310,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                     <Progress value={pct} className="h-1.5" indicatorClassName={getUsageBarColor(pct)} />
                                     <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
-                                {(shouldShowCompressButton || isCompacting) && (
+                                {(shouldShowToolbarIcon || isCompacting) && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <div

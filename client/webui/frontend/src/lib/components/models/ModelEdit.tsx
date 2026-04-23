@@ -457,29 +457,6 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                             <Textarea {...register("description", { required: "Description is required" })} rows={4} maxLength={1001} aria-invalid={!!errors.description} />
                         </FormFieldLayoutItem>
 
-                        {/* Max input tokens (context window) — optional.
-                            Drives the chat context-usage indicator; leave blank to fall back to LiteLLM's registry. */}
-                        <FormFieldLayoutItem
-                            label="Context Window (max input tokens)"
-                            error={errors.maxInputTokens as { message?: string }}
-                            helpText="Optional. Overrides the agent's config and any built-in model info used by the chat context-usage indicator."
-                        >
-                            <Input
-                                type="number"
-                                min={1}
-                                placeholder="e.g. 200000"
-                                {...register("maxInputTokens", {
-                                    validate: value => {
-                                        if (value == null || value === "") return true;
-                                        const n = Number(value);
-                                        if (!Number.isFinite(n) || n < 1) return "Must be a positive integer";
-                                        return true;
-                                    },
-                                })}
-                                aria-invalid={!!errors.maxInputTokens}
-                            />
-                        </FormFieldLayoutItem>
-
                         {/* Provider Dropdown - Always Visible */}
                         <FormFieldLayoutItem label="Model Provider" required error={errors.provider as { message?: string }}>
                             <Controller
@@ -574,6 +551,48 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                 />
                                             );
                                         }}
+                                    />
+                                </FormFieldLayoutItem>
+
+                                {/* Context window override — specific to the selected model.
+                                    Placed after connection details so it's clear this applies to *this* model,
+                                    not a global default. */}
+                                <FormFieldLayoutItem
+                                    label="Context Window Size"
+                                    error={errors.maxInputTokens as { message?: string }}
+                                    helpText={
+                                        <>
+                                            <span className="block">
+                                                The maximum number of <em>input</em> tokens this model accepts. This is only used to display the chat context-usage percentage so users know when to manually compact the conversation — it does{" "}
+                                                <em>not</em> trigger automatic compaction.
+                                            </span>
+                                            <span className="mt-2 block">
+                                                <strong>Leave blank</strong> unless you have a reason to override — SAM will automatically use the value from LiteLLM&apos;s built-in model registry for well-known models. Only set this when:
+                                            </span>
+                                            <ul className="mt-1 ml-4 list-disc">
+                                                <li>You&apos;re using a custom or self-hosted model LiteLLM doesn&apos;t know about (otherwise the indicator can&apos;t show a percentage)</li>
+                                                <li>Your provider has configured a smaller window than the model&apos;s maximum (e.g., a proxy or deployment limit), so the registry value overstates what you can actually send</li>
+                                                <li>The registry value is wrong for your deployment</li>
+                                            </ul>
+                                            <span className="mt-2 block">
+                                                Check your provider&apos;s model documentation for the correct value. This doesn&apos;t change what the provider accepts — it only changes what the usage indicator displays.
+                                            </span>
+                                        </>
+                                    }
+                                >
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="e.g. 200000"
+                                        {...register("maxInputTokens", {
+                                            validate: value => {
+                                                if (value == null || value === "") return true;
+                                                const n = Number(value);
+                                                if (!Number.isFinite(n) || n < 1) return "Must be a positive integer";
+                                                return true;
+                                            },
+                                        })}
+                                        aria-invalid={!!errors.maxInputTokens}
                                     />
                                 </FormFieldLayoutItem>
 
