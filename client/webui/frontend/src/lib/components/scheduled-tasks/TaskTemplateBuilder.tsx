@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker, Switch } from "@/lib/components/ui";
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker } from "@/lib/components/ui";
 import { Sparkles, Loader2, Pencil } from "lucide-react";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
@@ -285,10 +285,12 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         }
     };
 
-    const handleSave = async () => {
+    const handleSave = async (activate?: boolean) => {
         if (!validateConfig()) {
             return;
         }
+
+        const enabled = isEditing ? config.enabled : activate === true;
 
         try {
             const taskData: CreateScheduledTaskRequest = {
@@ -300,7 +302,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 targetAgentName: config.targetAgentName,
                 targetType: config.targetType,
                 taskMessage: [{ type: "text", text: config.taskMessage }],
-                enabled: config.enabled,
+                enabled,
                 timeoutSeconds: editingTask?.timeoutSeconds || 3600,
             };
 
@@ -402,14 +404,6 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     {builderMode === "manual" && (
                         <div className="flex-1 overflow-y-auto px-8 py-6">
                             <div className="mx-auto max-w-4xl space-y-6">
-                                {/* Enable toggle */}
-                                <div className="flex items-center justify-between rounded-md border p-4">
-                                    <Label className="cursor-pointer" onClick={() => updateConfig({ enabled: !config.enabled })}>
-                                        Enable task immediately
-                                    </Label>
-                                    <Switch checked={config.enabled} onCheckedChange={checked => updateConfig({ enabled: checked })} />
-                                </div>
-
                                 {/* Basic Information */}
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Basic Information</h3>
@@ -609,18 +603,41 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
                         {isEditing ? "Discard Changes" : "Cancel"}
                     </Button>
-                    <Button onClick={handleSave} disabled={isLoading}>
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {isEditing ? "Saving..." : "Creating..."}
-                            </>
-                        ) : isEditing ? (
-                            "Save"
-                        ) : (
-                            "Create"
-                        )}
-                    </Button>
+                    {isEditing ? (
+                        <Button onClick={() => handleSave()} disabled={isLoading}>
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                "Save"
+                            )}
+                        </Button>
+                    ) : (
+                        <>
+                            <Button variant="outline" onClick={() => handleSave(false)} disabled={isLoading}>
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    "Create"
+                                )}
+                            </Button>
+                            <Button onClick={() => handleSave(true)} disabled={isLoading}>
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Creating...
+                                    </>
+                                ) : (
+                                    "Create and Activate"
+                                )}
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
         </>
