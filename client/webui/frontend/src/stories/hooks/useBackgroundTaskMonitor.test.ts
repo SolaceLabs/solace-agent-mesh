@@ -94,10 +94,10 @@ describe("useBackgroundTaskMonitor", () => {
         // Mount-effect fetch + every tick uses this response.
         getSpy.mockImplementation(async (endpoint: string) => {
             if (endpoint.includes("/tasks/background/active")) {
-                return makeFullResponse({
+                return {
                     tasks: [makeActiveTask({ id: "task-1" }), makeActiveTask({ id: "task-2" })],
                     count: 2,
-                }) as unknown as ApiResponse;
+                };
             }
             throw new Error(`unexpected endpoint: ${endpoint}`);
         });
@@ -131,12 +131,12 @@ describe("useBackgroundTaskMonitor", () => {
             if (endpoint.includes("/tasks/background/active")) {
                 tickCount += 1;
                 if (tickCount === 1) {
-                    return makeFullResponse({
+                    return {
                         tasks: [makeActiveTask({ id: "task-1", session_id: "session-other" })],
                         count: 1,
-                    }) as unknown as ApiResponse;
+                    };
                 }
-                return makeFullResponse({ tasks: [], count: 0 }) as unknown as ApiResponse;
+                return { tasks: [], count: 0 };
             }
             if (/\/tasks\/task-1\/status/.test(endpoint)) {
                 return makeFullResponse(makeStatusResponse({ status: "completed" })) as unknown as ApiResponse;
@@ -170,7 +170,7 @@ describe("useBackgroundTaskMonitor", () => {
         getSpy.mockImplementation(async (endpoint: string) => {
             if (endpoint.includes("/tasks/background/active")) {
                 // Batch consistently omits this task — e.g., backend marked terminal.
-                return makeFullResponse({ tasks: [], count: 0 }) as unknown as ApiResponse;
+                return { tasks: [], count: 0 };
             }
             if (/\/tasks\/.+\/status/.test(endpoint)) {
                 throw new Error("/status should not be called for tasks on the currently-viewed session");
@@ -200,7 +200,7 @@ describe("useBackgroundTaskMonitor", () => {
         getSpy.mockImplementation(async (endpoint: string) => {
             if (endpoint.includes("/tasks/background/active")) {
                 // Batch endpoint transiently misses the task.
-                return makeFullResponse({ tasks: [], count: 0 }) as unknown as ApiResponse;
+                return { tasks: [], count: 0 };
             }
             if (/\/tasks\/task-1\/status/.test(endpoint)) {
                 // But /status confirms the task is still running.
@@ -253,7 +253,7 @@ describe("useBackgroundTaskMonitor", () => {
         // Active endpoint always returns empty list.
         getSpy.mockImplementation(async (endpoint: string) => {
             if (endpoint.includes("/tasks/background/active")) {
-                return makeFullResponse({ tasks: [], count: 0 }) as unknown as ApiResponse;
+                return { tasks: [], count: 0 };
             }
             if (/\/tasks\/.+\/status/.test(endpoint)) {
                 throw new Error("status should not be called during grace period");
@@ -290,7 +290,7 @@ describe("useBackgroundTaskMonitor", () => {
             if (endpoint.includes("/tasks/background/active")) {
                 callIndex += 1;
                 if (callIndex === 1) {
-                    return makeFullResponse({ tasks: [], count: 0 }) as unknown as ApiResponse;
+                    return { tasks: [], count: 0 };
                 }
                 throw new Error("network down");
             }
@@ -321,10 +321,10 @@ describe("useBackgroundTaskMonitor", () => {
     test("server-fetched tasks on mount preserve session_id", async () => {
         getSpy.mockImplementation(async (endpoint: string) => {
             if (endpoint.includes("/tasks/background/active")) {
-                return makeFullResponse({
+                return {
                     tasks: [makeActiveTask({ id: "task-from-server", session_id: "session-zzz" })],
                     count: 1,
-                }) as unknown as ApiResponse;
+                };
             }
             throw new Error(`unexpected endpoint: ${endpoint}`);
         });
