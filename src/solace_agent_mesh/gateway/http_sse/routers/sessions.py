@@ -7,6 +7,7 @@ import uuid
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ....common.utils.embeds import (
@@ -1218,30 +1219,58 @@ def _lookup_configured_context_limit(db: Session, model_name: str) -> Optional[i
 
     Matches against `model_configurations.model_name` first (the raw string the
     agent reports in `token_usage_details.by_model`), then `alias`. Returns the
-    configured `max_input_tokens` if set, otherwise None.
+    first non-null `max_input_tokens` — multiple rows can share a `model_name`
+    (several aliases pointing at the same underlying model), so rows with a
+    NULL limit must not shadow rows that have one configured.
+
+    Only resolves in community-standalone deployments where the gateway DB
+    and the platform DB are the same. In enterprise deployments the two DBs
+    are separate, this table isn't reachable from the gateway session, and
+    the client composes the limit from `/api/v1/platform/models` instead.
     """
     try:
         from ....services.platform.models.model_configuration import ModelConfiguration
-    except Exception:
+    except ImportError:
         return None
     try:
         row = (
             db.query(ModelConfiguration.max_input_tokens)
             .filter(ModelConfiguration.model_name == model_name)
+            .filter(ModelConfiguration.max_input_tokens.isnot(None))
             .first()
         )
-        if row and row[0]:
+        if row:
             return row[0]
         row = (
             db.query(ModelConfiguration.max_input_tokens)
             .filter(ModelConfiguration.alias == model_name)
+            .filter(ModelConfiguration.max_input_tokens.isnot(None))
             .first()
         )
-        if row and row[0]:
+        if row:
             return row[0]
-    except Exception as e:
-        log.debug("ModelConfiguration lookup failed for %s: %s", model_name, e)
+    except SQLAlchemyError as e:
+        # Expected in enterprise (table lives in the platform DB) — logged at
+        # WARN the first time per process so it is visible but not noisy.
+        _warn_missing_model_configurations_once(e)
     return None
+
+
+_model_configurations_warn_logged = False
+
+
+def _warn_missing_model_configurations_once(exc: Exception) -> None:
+    global _model_configurations_warn_logged
+    if _model_configurations_warn_logged:
+        log.debug("ModelConfiguration lookup unavailable: %s", exc)
+        return
+    _model_configurations_warn_logged = True
+    log.warning(
+        "model_configurations not reachable from the gateway DB — falling back. "
+        "In enterprise this is expected; the UI composes the limit from the "
+        "platform service. Underlying error: %s",
+        exc,
+    )
 
 
 def _get_model_context_limit(
@@ -1548,16 +1577,16 @@ def _map_compaction_error(session_id: str, result: dict) -> None:
     if "not enough" in lowered:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not enough conversation history to compact yet.",
+            detail="Not enough conversation history to compress yet.",
         )
     if "not found" in lowered:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session has no conversation history to compact.",
+            detail="Session has no conversation history to compress.",
         )
     raise HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Failed to compact session",
+        detail="Failed to compress session",
     )
 
 

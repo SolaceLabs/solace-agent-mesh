@@ -2989,7 +2989,7 @@ async def handle_compact_session(
                 log.info("%s No events compacted (not enough turns)", log_id)
                 _publish_response(
                     success=False,
-                    error_message="Not enough conversation turns to compact. Need at least 2 user turns.",
+                    error_message="Not enough conversation turns to compress. Need at least 2 user turns.",
                 )
                 return
 

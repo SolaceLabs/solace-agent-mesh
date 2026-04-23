@@ -39,6 +39,13 @@ function getUsageColor(percentage: number): string {
     return "text-(--success-wMain)";
 }
 
+function getUsageBarColor(percentage: number): string {
+    if (percentage >= 90) return "bg-(--error-wMain)";
+    if (percentage >= 75) return "bg-(--warning-wMain)";
+    if (percentage >= 50) return "bg-(--warning-w70)";
+    return "bg-(--success-wMain)";
+}
+
 const CompressionIcon = ({ className }: { className?: string }) => (
     <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
         <path d="M8 1V6M8 6L5.5 3.5M8 6L10.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -201,7 +208,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                         </div>
 
                         <div className="space-y-1">
-                            <Progress value={pct} className="h-2" />
+                            <Progress value={pct} className="h-2" indicatorClassName={getUsageBarColor(pct)} />
                             <div className="text-muted-foreground flex justify-between text-xs">
                                 <span>{formattedCurrent} used</span>
                                 {formattedLimit && <span>{formattedLimit} limit</span>}
@@ -279,35 +286,35 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                             {isCompacting ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                                    Summarizing...
+                                                    Compressing...
                                                 </>
                                             ) : (
                                                 <>
                                                     <Sparkles className="mr-2 h-3 w-3" />
-                                                    Summarize Conversation
+                                                    Compress Conversation
                                                 </>
                                             )}
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>Summarize older messages to free context space</TooltipContent>
+                                    <TooltipContent>Compress older messages to free context space</TooltipContent>
                                 </Tooltip>
                             </div>
                         )}
 
-                        {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compacting the conversation.</div>}
-                        {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compacting soon.</div>}
+                        {pct >= 90 && <div className="rounded bg-(--error-w10) p-2 text-xs text-(--error-wMain)">Approaching context limit! Consider compressing the conversation.</div>}
+                        {pct >= 75 && pct < 90 && <div className="rounded bg-(--warning-w10) p-2 text-xs text-(--warning-wMain)">Context usage is high. Consider compressing soon.</div>}
                     </div>
                 </div>
             )}
 
-            {/* Compact trigger — always visible in the toolbar, never changes size */}
+            {/* Compress trigger — always visible in the toolbar, never changes size */}
             <div className="rounded-lg border bg-(--background-w10)">
                 <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
                         <div className="cursor-pointer p-2" onClick={() => setIsExpanded(prev => !prev)}>
                             <div className="flex items-center gap-2">
                                 <div className="w-36 space-y-1">
-                                    <Progress value={pct} className="h-1.5" />
+                                    <Progress value={pct} className="h-1.5" indicatorClassName={getUsageBarColor(pct)} />
                                     <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
                                 {(shouldShowCompressButton || isCompacting) && (
@@ -323,7 +330,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                                 {isCompacting ? <Loader2 className="h-4 w-4 animate-spin text-(--primary-wMain)" /> : <CompressionIcon className="h-4 w-4" />}
                                             </div>
                                         </TooltipTrigger>
-                                        <TooltipContent side="top">{isCompacting ? "Compacting..." : "Compact conversation"}</TooltipContent>
+                                        <TooltipContent side="top">{isCompacting ? "Compressing..." : "Compress conversation"}</TooltipContent>
                                     </Tooltip>
                                 )}
                             </div>
@@ -339,9 +346,9 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
             <ConfirmationDialog
                 open={showCompactConfirm}
                 onOpenChange={setShowCompactConfirm}
-                title="Compact conversation?"
-                description="Older messages will be summarized so the agent has more room for new context. Your chat history stays visible here, but on the next turn the agent will work from the summary instead of the full original messages. This cannot be undone."
-                actionLabels={{ confirm: "Compact", cancel: "Cancel" }}
+                title="Compress conversation?"
+                description="Older messages will be compressed so the agent has more room for new context. Your chat history stays visible here, but on the next turn the agent will work from the summary instead of the full original messages. This cannot be undone."
+                actionLabels={{ confirm: "Compress", cancel: "Cancel" }}
                 isLoading={isCompacting}
                 onConfirm={handleCompress}
             />
