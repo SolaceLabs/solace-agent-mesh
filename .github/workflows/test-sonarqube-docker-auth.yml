@@ -6,7 +6,9 @@ name: Test SonarQube Docker Auth
 # (replaces the broken `uses: docker://` approach).
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - fix/sonarqube-docker-auth
 
 permissions:
   contents: read
