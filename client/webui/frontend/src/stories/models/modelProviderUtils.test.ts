@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { coerceCustomParamValue, formatCustomParamValue } from "../../lib/components/models/modelProviderUtils";
+import { coerceCustomParamValue, formatCustomParamValue, type CustomParamValue } from "../../lib/components/models/modelProviderUtils";
 
 describe("coerceCustomParamValue", () => {
     it("parses unquoted numbers as numbers", () => {
@@ -45,6 +45,11 @@ describe("coerceCustomParamValue", () => {
         expect(coerceCustomParamValue("{broken")).toBe("{broken");
         expect(coerceCustomParamValue("TRUE")).toBe("TRUE");
     });
+
+    it("does not coerce JSON objects or arrays — returns the original string", () => {
+        expect(coerceCustomParamValue("[1,2,3]")).toBe("[1,2,3]");
+        expect(coerceCustomParamValue('{"foo":"bar"}')).toBe('{"foo":"bar"}');
+    });
 });
 
 describe("formatCustomParamValue", () => {
@@ -75,10 +80,15 @@ describe("formatCustomParamValue", () => {
         expect(formatCustomParamValue("null")).toBe('"null"');
         expect(formatCustomParamValue("3.14")).toBe('"3.14"');
     });
+
+    it("leaves JSON-object/array strings unquoted — coerce treats them as strings anyway", () => {
+        expect(formatCustomParamValue('["a","b"]')).toBe('["a","b"]');
+        expect(formatCustomParamValue('{"a":"b"}')).toBe('{"a":"b"}');
+    });
 });
 
 describe("round-trip between coerce and format", () => {
-    const cases: Array<{ stored: unknown; displayed: string }> = [
+    const cases: Array<{ stored: CustomParamValue; displayed: string }> = [
         { stored: 500, displayed: "500" },
         { stored: 3.14, displayed: "3.14" },
         { stored: true, displayed: "true" },
@@ -87,6 +97,8 @@ describe("round-trip between coerce and format", () => {
         { stored: "hello", displayed: "hello" },
         { stored: "500", displayed: '"500"' },
         { stored: "true", displayed: '"true"' },
+        { stored: '["a","b"]', displayed: '["a","b"]' },
+        { stored: '{"a":"b"}', displayed: '{"a":"b"}' },
     ];
 
     it.each(cases)("stored $stored displays as $displayed and coerces back to the same value", ({ stored, displayed }) => {

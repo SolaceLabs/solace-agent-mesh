@@ -21,6 +21,7 @@ import {
     type ProviderField,
     type ModelProvider,
     type ModelFormData,
+    type CustomParamValue,
 } from "./modelProviderUtils";
 import { fetchSupportedParams } from "@/lib/api/models/service";
 import { ProviderSelect } from "./ProviderSelect";
@@ -332,7 +333,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                 // Extract custom parameters (anything not in known params)
                 const customParamsArray = Object.entries(modelToEdit.modelParams)
                     .filter(([key]) => !knownParamNames.has(key))
-                    .map(([key, value]) => ({ key, value: formatCustomParamValue(value) }));
+                    .map(([key, value]) => ({ key, value: formatCustomParamValue(value as CustomParamValue) }));
                 if (customParamsArray.length > 0) {
                     setValue("customParams", customParamsArray);
                 }

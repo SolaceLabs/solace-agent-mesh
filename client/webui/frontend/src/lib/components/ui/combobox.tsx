@@ -204,7 +204,7 @@ export const ComboBox = ({
     );
 
     return (
-        <div ref={containerRef} className="relative w-full" data-testid={dataTestId}>
+        <div ref={containerRef} className="relative w-full">
             <Input
                 ref={inputRef}
                 type="text"
@@ -221,6 +221,7 @@ export const ComboBox = ({
                 aria-invalid={invalid}
                 className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
                 autoComplete="off"
+                data-testid={dataTestId}
             />
             {isLoading ? (
                 <Loader2 className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin text-(--secondary-text-w50)" />

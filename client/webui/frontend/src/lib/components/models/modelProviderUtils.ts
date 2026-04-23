@@ -394,12 +394,19 @@ export const ALL_PROVIDERS: ModelProvider[] = Object.values(PROVIDER_CONFIGS)
         return a.label.localeCompare(b.label);
     });
 
+export type CustomParamValue = string | number | boolean | null;
+
 // Custom-parameter values are entered as strings but may represent numbers, booleans,
 // or null. We use JSON-literal semantics (like YAML/TOML): unquoted `500` → number,
-// quoted `"500"` → string; same for `true`/`"true"`, `null`/`"null"`.
-export function coerceCustomParamValue(input: string): string | number | boolean | null {
+// quoted `"500"` → string; same for `true`/`"true"`, `null`/`"null"`. Objects and
+// arrays are not supported — if JSON.parse yields one, we treat the input as a plain string.
+export function coerceCustomParamValue(input: string): CustomParamValue {
     try {
-        return JSON.parse(input);
+        const parsed = JSON.parse(input);
+        if (parsed === null || typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean") {
+            return parsed;
+        }
+        return input;
     } catch {
         return input;
     }
@@ -407,11 +414,14 @@ export function coerceCustomParamValue(input: string): string | number | boolean
 
 // Inverse of coerceCustomParamValue: produce a form-display string that, when fed back
 // through coerceCustomParamValue, yields the same value. Strings that happen to look
-// like JSON literals (e.g. "500", "true") are quoted so they round-trip as strings.
-export function formatCustomParamValue(value: unknown): string {
+// like scalar JSON literals (e.g. "500", "true") are quoted so they round-trip as strings.
+// Strings that look like JSON objects/arrays are left as-is — coerce treats those as strings.
+export function formatCustomParamValue(value: CustomParamValue): string {
     if (typeof value === "string") {
         try {
-            if (typeof JSON.parse(value) !== "string") {
+            const parsed = JSON.parse(value);
+            const parsedIsScalar = parsed === null || typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean";
+            if (parsedIsScalar) {
                 return JSON.stringify(value);
             }
         } catch {
