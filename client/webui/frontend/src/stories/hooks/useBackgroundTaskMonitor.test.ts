@@ -4,7 +4,8 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { api } from "@/lib/api";
-import { useBackgroundTaskMonitor } from "@/lib/hooks/useBackgroundTaskMonitor";
+import { useBackgroundTaskMonitor, selectTerminationCandidates } from "@/lib/hooks/useBackgroundTaskMonitor";
+import type { BackgroundTaskState } from "@/lib/types/background-tasks";
 
 type ApiResponse = Response | Record<string, unknown>;
 
@@ -193,6 +194,35 @@ describe("useBackgroundTaskMonitor", () => {
         expect(result.current.backgroundTasks.some(t => t.taskId === "task-on-active")).toBe(true);
     });
 
+    test("task on currently-viewed session is polled once SSE has gone stale", async () => {
+        const onTaskCompleted = vi.fn();
+
+        getSpy.mockImplementation(async (endpoint: string) => {
+            if (endpoint.includes("/tasks/background/active")) {
+                return { tasks: [], count: 0 };
+            }
+            if (/\/tasks\/task-stale\/status/.test(endpoint)) {
+                return makeFullResponse(makeStatusResponse({ status: "completed" })) as unknown as ApiResponse;
+            }
+            throw new Error(`unexpected endpoint: ${endpoint}`);
+        });
+
+        const { result } = renderHook(() => useBackgroundTaskMonitor({ userId: "user-1", currentSessionId: "session-viewing", onTaskCompleted }));
+
+        act(() => {
+            result.current.registerBackgroundTask("task-stale", "session-viewing");
+        });
+        // Advance past SSE_STALE_MS (60s) so the skip-active-session guard no longer applies.
+        // Polling should now treat the task as terminal and fire completion.
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(70_000);
+        });
+        await flushAsync();
+
+        expect(onTaskCompleted).toHaveBeenCalledWith("task-stale", "session-viewing");
+        expect(result.current.backgroundTasks.find(t => t.taskId === "task-stale")).toBeUndefined();
+    });
+
     test("task missing from batch but /status reports running is NOT treated as complete", async () => {
         const onTaskCompleted = vi.fn();
         const onTaskFailed = vi.fn();
@@ -246,38 +276,52 @@ describe("useBackgroundTaskMonitor", () => {
         expect(result.current.backgroundTasks.some(t => t.taskId === "task-1")).toBe(true);
     });
 
-    test("registration grace period prevents false completion", async () => {
-        const onTaskCompleted = vi.fn();
-        const onTaskFailed = vi.fn();
-
-        // Active endpoint always returns empty list.
-        getSpy.mockImplementation(async (endpoint: string) => {
-            if (endpoint.includes("/tasks/background/active")) {
-                return { tasks: [], count: 0 };
-            }
-            if (/\/tasks\/.+\/status/.test(endpoint)) {
-                throw new Error("status should not be called during grace period");
-            }
-            throw new Error(`unexpected endpoint: ${endpoint}`);
+    describe("selectTerminationCandidates (pure function)", () => {
+        const makeTrackedTask = (overrides: Partial<BackgroundTaskState> = {}): BackgroundTaskState => ({
+            taskId: "task-1",
+            sessionId: "session-other",
+            lastEventTimestamp: 0,
+            isBackground: true,
+            startTime: 0,
+            registeredAt: 0,
+            ...overrides,
         });
 
-        // Task is on a different session so the skip-active-session guard does not
-        // preempt the tick; this specifically tests the registration grace period.
-        const { result } = renderHook(() => useBackgroundTaskMonitor({ userId: "user-1", currentSessionId: "session-viewing", onTaskCompleted, onTaskFailed }));
-
-        act(() => {
-            result.current.registerBackgroundTask("task-fresh", "session-other");
-        });
-        // Force a tick within the grace window (< 3s since registration). The grace
-        // check must skip this task — if the guard were broken, /status would be
-        // called and the mock would throw.
-        await act(async () => {
-            await result.current.checkAllBackgroundTasks();
+        test("task within registration grace period is NOT returned", () => {
+            const now = 2_000;
+            const tracked = [makeTrackedTask({ taskId: "fresh", registeredAt: 0 })];
+            const result = selectTerminationCandidates(tracked, new Set(), "active-session", now);
+            expect(result).toHaveLength(0);
         });
 
-        expect(onTaskCompleted).not.toHaveBeenCalled();
-        expect(onTaskFailed).not.toHaveBeenCalled();
-        expect(result.current.backgroundTasks.some(t => t.taskId === "task-fresh")).toBe(true);
+        test("task past registration grace period AND missing from batch is returned", () => {
+            const now = 10_000;
+            const tracked = [makeTrackedTask({ taskId: "old", registeredAt: 0 })];
+            const result = selectTerminationCandidates(tracked, new Set(), "active-session", now);
+            expect(result.map(t => t.taskId)).toEqual(["old"]);
+        });
+
+        test("task present in the server's active set is NOT returned", () => {
+            const now = 10_000;
+            const tracked = [makeTrackedTask({ taskId: "in-batch", registeredAt: 0 })];
+            const activeTaskIds = new Set(["in-batch"]);
+            const result = selectTerminationCandidates(tracked, activeTaskIds, "active-session", now);
+            expect(result).toHaveLength(0);
+        });
+
+        test("task on currently-viewed session with fresh SSE is NOT returned", () => {
+            const now = 30_000;
+            const tracked = [makeTrackedTask({ taskId: "same", sessionId: "active", registeredAt: 0, lastEventTimestamp: now - 5_000 })];
+            const result = selectTerminationCandidates(tracked, new Set(), "active", now);
+            expect(result).toHaveLength(0);
+        });
+
+        test("task on currently-viewed session with stale SSE IS returned", () => {
+            const now = 120_000;
+            const tracked = [makeTrackedTask({ taskId: "stale", sessionId: "active", registeredAt: 0, lastEventTimestamp: 0 })];
+            const result = selectTerminationCandidates(tracked, new Set(), "active", now);
+            expect(result.map(t => t.taskId)).toEqual(["stale"]);
+        });
     });
 
     test("network error on batch request does NOT mark tasks complete", async () => {

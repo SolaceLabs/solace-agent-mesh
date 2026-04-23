@@ -8,6 +8,7 @@ export interface BackgroundTaskState {
     lastEventTimestamp: number;
     isBackground: boolean;
     startTime: number;
+    registeredAt: number;
     agentName?: string;
 }
 

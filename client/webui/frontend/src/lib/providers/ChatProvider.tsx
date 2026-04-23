@@ -1184,15 +1184,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
+            // Optimistically unregister background tasks for this session to stop polling
+            const orphanedTaskIds = backgroundTasksRef.current.filter(t => t.sessionId === sessionIdToDelete).map(t => t.taskId);
+            for (const taskId of orphanedTaskIds) {
+                unregisterBackgroundTask(taskId);
+            }
+
             try {
                 await api.webui.delete(`/api/v1/sessions/${sessionIdToDelete}`);
                 addNotification("Session deleted.", "success");
-
-                // Sessions are soft-deleted and their tasks keep running — unregister locally so polling stops.
-                const orphanedTaskIds = backgroundTasksRef.current.filter(t => t.sessionId === sessionIdToDelete).map(t => t.taskId);
-                for (const taskId of orphanedTaskIds) {
-                    unregisterBackgroundTask(taskId);
-                }
 
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
