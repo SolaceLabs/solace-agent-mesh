@@ -64,8 +64,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
     const backgroundTasksRef = useRef<BackgroundTaskState[]>(backgroundTasks);
     const [notifications, setNotifications] = useState<BackgroundTaskNotification[]>([]);
 
-    // Tracked via ref so the polling tick reads the latest session without being rebuilt
-    // every time the user navigates.
+    // Use ref so polling tick reads the latest session without being rebuilt
     const currentSessionIdRef = useRef(currentSessionId);
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
