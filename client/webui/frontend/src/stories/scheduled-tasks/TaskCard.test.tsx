@@ -125,12 +125,12 @@ describe("TaskCard", () => {
         expect(screen.getByText("Delete Task")).toBeInTheDocument();
     });
 
-    it("shows 'Enable Task' when task is disabled", () => {
+    it("shows 'Resume Task' when task is disabled", () => {
         renderTaskCard({ enabled: false });
         const menuTrigger = screen.getByRole("button", { name: /actions/i });
         fireEvent.click(menuTrigger);
 
-        expect(screen.getByText("Enable Task")).toBeInTheDocument();
+        expect(screen.getByText("Resume Task")).toBeInTheDocument();
     });
 
     it("calls onToggleEnabled with correct task when Enable/Disable is clicked", () => {

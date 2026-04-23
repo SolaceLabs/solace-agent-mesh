@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker } from "@/lib/components/ui";
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker, Switch } from "@/lib/components/ui";
 import { Sparkles, Loader2, Pencil } from "lucide-react";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
@@ -402,6 +402,14 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     {builderMode === "manual" && (
                         <div className="flex-1 overflow-y-auto px-8 py-6">
                             <div className="mx-auto max-w-4xl space-y-6">
+                                {/* Enable toggle */}
+                                <div className="flex items-center justify-between rounded-md border p-4">
+                                    <Label className="cursor-pointer" onClick={() => updateConfig({ enabled: !config.enabled })}>
+                                        Enable task immediately
+                                    </Label>
+                                    <Switch checked={config.enabled} onCheckedChange={checked => updateConfig({ enabled: checked })} />
+                                </div>
+
                                 {/* Basic Information */}
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Basic Information</h3>
@@ -589,13 +597,6 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                             className={validationErrors.taskMessage ? "border-red-500" : ""}
                                         />
                                         {validationErrors.taskMessage && <p className="text-sm text-red-600">{validationErrors.taskMessage}</p>}
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <input type="checkbox" id="enabled" checked={config.enabled} onChange={e => updateConfig({ enabled: e.target.checked })} />
-                                        <Label htmlFor="enabled" className="cursor-pointer">
-                                            Enable task immediately
-                                        </Label>
                                     </div>
                                 </div>
                             </div>

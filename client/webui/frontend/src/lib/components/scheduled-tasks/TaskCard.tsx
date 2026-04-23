@@ -179,7 +179,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                                     ) : (
                                         <>
                                             <Play size={14} className="mr-2" />
-                                            Enable Task
+                                            Resume Task
                                         </>
                                     )}
                                 </DropdownMenuItem>
