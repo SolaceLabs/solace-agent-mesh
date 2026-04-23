@@ -13,7 +13,7 @@ import { TaskExecutionHistoryPage } from "./TaskExecutionHistoryPage";
 import { TaskTemplateBuilder } from "@/lib/components/scheduled-tasks/TaskTemplateBuilder";
 import { GenerateTaskDialog } from "@/lib/components/scheduled-tasks/GenerateTaskDialog";
 import { TaskCards } from "@/lib/components/scheduled-tasks/TaskCards";
-import { Header, EmptyState, ConfirmationDialog } from "@/lib/components";
+import { Header, EmptyState, ConfirmationDialog, PageLayout } from "@/lib/components";
 import { LifecycleBadge } from "@/lib/components/ui";
 
 export function ScheduledTasksPage() {
@@ -145,7 +145,7 @@ export function ScheduledTasksPage() {
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title={
                     <>
@@ -203,6 +203,6 @@ export function ScheduledTasksPage() {
                 onConfirm={handleConfirmDelete}
                 actionLabels={{ confirm: "Delete", cancel: "Cancel" }}
             />
-        </div>
+        </PageLayout>
     );
 }

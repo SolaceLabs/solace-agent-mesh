@@ -43,7 +43,28 @@ Before you begin, make sure you have:
 
 ## Step 1: Create an Azure App Registration
 
-The App Registration provides authentication credentials for the gateway.
+The App Registration provides authentication credentials for the gateway. Follow Microsoft's official guide to [register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app), then create a client secret under **Certificates & secrets**.
+
+Use the following settings so the registration is compatible with the Teams Gateway:
+
+| Microsoft field | Required value |
+|---|---|
+| **Supported account types** | Accounts in this organizational directory only (single tenant) |
+| **Redirect URI** | Leave blank |
+| **Certificates & secrets** | Create a new **client secret** and copy the **Value** immediately (it is shown only once) |
+
+After creation, collect these values — you will plug them into the Agent Mesh gateway in [Step 4](#step-4-create-and-deploy-the-gateway-in-agent-mesh):
+
+| Microsoft value (from App registration) | Agent Mesh gateway field |
+|---|---|
+| **Application (client) ID** | Microsoft App ID |
+| **Directory (tenant) ID** | Microsoft App Tenant ID |
+| **Client secret — Value** | Microsoft App Password |
+
+<details>
+<summary>Example walkthrough (Azure Portal UI as of this writing — for reference only)</summary>
+
+The exact Azure Portal UI may change over time. The steps below reflect the flow at the time of writing and are provided as a convenience. If the portal looks different, defer to Microsoft's linked guide above.
 
 1. Go to the [Azure Portal](https://portal.azure.com)
 2. Navigate to **App registrations**
@@ -52,16 +73,34 @@ The App Registration provides authentication credentials for the gateway.
    - **Supported account types**: Select **Accounts in this organizational directory only** (single tenant)
    - **Redirect URI**: Leave blank
 4. Click **Register**
-5. On the overview page, copy the **Application (client) ID** -- this is your **Microsoft App ID** for Agent Mesh
-6. Copy the **Directory (tenant) ID** -- this is your **Microsoft App Tenant ID** for Agent Mesh
+5. On the overview page, copy the **Application (client) ID** — this is your **Microsoft App ID** for Agent Mesh
+6. Copy the **Directory (tenant) ID** — this is your **Microsoft App Tenant ID** for Agent Mesh
 7. Go to **Certificates & secrets** > **Client secrets** > **New client secret**
    - **Description**: e.g., `SAM Bot Secret`
    - **Expires**: Choose an appropriate duration
-8. Copy the secret **Value** immediately (it will not be shown again) -- this is your **Microsoft App Password** for Agent Mesh
+8. Copy the secret **Value** immediately (it will not be shown again) — this is your **Microsoft App Password** for Agent Mesh
+
+</details>
 
 ## Step 2: Create an Azure Bot Service
 
-The Bot Service registers your bot with Microsoft Teams.
+The Bot Service registers your bot with Microsoft Teams. Follow Microsoft's guide to [create an Azure Bot resource and enable the Teams channel](https://learn.microsoft.com/en-us/microsoftteams/platform/toolkit/configure-bot-capability).
+
+Use the following settings so the bot works with the Teams Gateway:
+
+| Microsoft field | Required value |
+|---|---|
+| **Type of App** | Single Tenant |
+| **Creation type** | Use existing app registration |
+| **App ID** | Application (client) ID from Step 1 |
+| **Tenant ID** | Directory (tenant) ID from Step 1 |
+| **Channels** | Enable the **Microsoft Teams** channel (Messaging enabled, Calling disabled) |
+| **Messaging endpoint** | Leave blank for now — you will set this in [Step 6](#step-6-configure-the-gateway-endpoint-in-azure-bot-service) after the gateway endpoint is available |
+
+<details>
+<summary>Example walkthrough (Azure Portal UI as of this writing — for reference only)</summary>
+
+The exact Azure Portal UI may change over time. The steps below reflect the flow at the time of writing and are provided as a convenience. If the portal looks different, defer to Microsoft's linked guide above.
 
 1. In the Azure Portal, search for **Azure Bot** and click **Create**
 2. Fill in the required fields:
@@ -81,15 +120,15 @@ The Bot Service registers your bot with Microsoft Teams.
 7. Ensure **Messaging** is enabled, leave **Calling** disabled
 8. Accept the terms of service and click **Apply**
 
+</details>
+
 ## Step 3: Create and Install the Teams App
 
-Create a Teams app package and upload it to make the bot available in Microsoft Teams.
+Create a Teams app package (a ZIP containing `manifest.json` plus a color and outline icon) and upload it to Teams. Follow Microsoft's guide to [upload a custom Teams app](https://learn.microsoft.com/en-us/microsoftteams/platform/concepts/deploy-and-publish/apps-upload).
 
-### 3.1: Create the App Manifest
+The manifest must declare the bot with the scopes and capabilities the gateway expects. The example below is a minimal manifest that works with the Teams Gateway — replace `<YOUR_APP_ID>` with the **Application (client) ID** from Step 1 and update the developer information with your organization's details.
 
-Create a file named `manifest.json` using the template below. Replace `<YOUR_APP_ID>` with the **Application (client) ID** from Step 1. Update the developer information with your organization's details.
-
-> **Note**: The manifest schema may change over time. See the [Teams app manifest schema reference](https://learn.microsoft.com/en-us/microsoftteams/platform/resources/schema/manifest-schema) for the latest version.
+> **Note**: This is an example and the manifest schema may change over time. See the [Teams app manifest schema reference](https://learn.microsoft.com/en-us/microsoftteams/platform/resources/schema/manifest-schema) for the latest version.
 
 ```json
 {
@@ -138,13 +177,23 @@ Create a file named `manifest.json` using the template below. Replace `<YOUR_APP
 }
 ```
 
-### 3.2: Create Icon Files
+The gateway relies on these manifest values specifically:
 
-Prepare two icon files:
-- `color.png` -- 192x192 pixels, full color
-- `outline.png` -- 32x32 pixels, white icon on transparent background
+| Manifest field | Required value | Why |
+|---|---|---|
+| `bots[0].botId` | Application (client) ID from Step 1 | Links the Teams app to your Azure Bot |
+| `bots[0].scopes` | `personal`, `team`, `groupChat` | Enables 1:1 chats, team channels, and group chats |
+| `bots[0].supportsFiles` | `true` | Required if you want users to send/receive files |
+| `permissions` | `identity`, `messageTeamMembers` | Required for the gateway to identify users and post messages |
 
-### 3.3: Package and Upload
+Icons: Teams requires a `color.png` (192×192) and `outline.png` (32×32, white on transparent).
+
+> **Note**: Uploading a custom app may require Teams Administrator approval depending on your organization's app policies.
+
+<details>
+<summary>Example walkthrough: package and upload (Teams UI as of this writing — for reference only)</summary>
+
+The exact Teams and Developer Portal UIs may change over time. The steps below reflect the flow at the time of writing and are provided as a convenience. If the interface looks different, defer to Microsoft's linked guide above.
 
 1. Create a ZIP file containing: `manifest.json`, `color.png`, `outline.png`
 2. Upload using one of the following methods:
@@ -163,7 +212,7 @@ Prepare two icon files:
 1. Ask your Teams Administrator to upload the app via the [Teams Admin Center](https://admin.teams.microsoft.com) under **Teams apps** > **Manage apps** > **Upload new app**
 2. Once uploaded, the app is available to users in the organization
 
-> **Note**: All options may require Teams Administrator approval depending on your organization's app policies.
+</details>
 
 ## Step 4: Create and Deploy the Gateway in Agent Mesh
 
@@ -203,7 +252,7 @@ In SAM Cloud, the platform automatically provisions a public endpoint for your T
 
 ### Option B: SAM Kubernetes
 
-In SAM Kubernetes, the platform creates a **ClusterIP Service** for the gateway. This service is accessible only within the Kubernetes cluster. You must expose the gateway endpoint to the public internet so that Microsoft Teams can reach the gateway.
+In SAM Kubernetes, the platform creates a **ClusterIP Service** for the gateway. This service is accessible only within the Kubernetes cluster. You must expose the gateway endpoint("/api/messages") to the public internet so that Microsoft Teams can reach the gateway.
 
 #### What SAM Creates
 
@@ -252,7 +301,7 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-    - host: <gw-example.your-domain.com>
+    - host: <your-gateway-hostname>
       http:
         paths:
           - path: /
@@ -348,6 +397,17 @@ To verify your setup, open `https://<your-gateway-hostname>/health` in a browser
 
 ## Step 6: Configure the Gateway Endpoint in Azure Bot Service
 
+On the Azure Bot resource you created in Step 2, update the **Messaging endpoint** to point at your gateway. See Microsoft's guide to [set the bot messaging endpoint](https://learn.microsoft.com/en-us/microsoftteams/platform/toolkit/configure-bot-capability).
+
+| Field | Value |
+|---|---|
+| **Messaging endpoint** | SAM Cloud: `https://<provided-gateway-hostname>/api/messages`<br/>SAM Kubernetes: `https://<your-gateway-hostname>/api/messages` |
+
+<details>
+<summary>Example walkthrough (Azure Portal UI as of this writing — for reference only)</summary>
+
+The exact Azure Portal UI may change over time. The steps below reflect the flow at the time of writing and are provided as a convenience. If the portal looks different, defer to Microsoft's linked guide above.
+
 1. Go to the [Azure Portal](https://portal.azure.com)
 2. Navigate to your **Azure Bot** resource
 3. Go to **Configuration**
@@ -355,6 +415,8 @@ To verify your setup, open `https://<your-gateway-hostname>/health` in a browser
    - SAM Cloud: `https://<provided-gateway-hostname>/api/messages`
    - SAM Kubernetes: `https://<your-gateway-hostname>/api/messages`
 5. Click **Apply**
+
+</details>
 
 ## Verification
 

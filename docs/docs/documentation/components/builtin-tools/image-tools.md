@@ -3,6 +3,8 @@ title: Image Tools
 sidebar_position: 35
 ---
 
+import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
+
 # Image Tools
 
 ## Overview
@@ -15,6 +17,8 @@ The image tools provide agents with capabilities for generating, editing, and an
 - **describe_image**: Analyze and describe image contents
 - **edit_image_with_gemini**: Edit existing images using AI
 - **describe_audio**: Analyze audio content (cross-listed with audio tools)
+
+<NetworkAccessRequiredSomeFeatures />
 
 ## Tool Reference
 

@@ -442,8 +442,8 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
         );
     };
 
-    const renderFormattedArguments = (args: Record<string, unknown>) => {
-        const entries = Object.entries(args);
+    const renderFormattedArguments = (args: Record<string, unknown> | null | undefined) => {
+        const entries = args ? Object.entries(args) : [];
 
         if (entries.length === 0) {
             return <div className="text-xs text-(--secondary-text-wMain) italic">No arguments</div>;
@@ -508,7 +508,7 @@ const NodeDetailsCard = ({ nodeDetails, onClose }: NodeDetailsCardProps) => {
 
         // Handle objects
         if (typeof value === "object") {
-            const entries = Object.entries(value);
+            const entries = value ? Object.entries(value) : [];
 
             // For small objects with simple values, render inline
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
