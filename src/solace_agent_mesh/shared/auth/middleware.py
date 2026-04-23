@@ -5,14 +5,15 @@ Provides reusable OAuth2 token validation middleware that works with any
 component that has OAuth configuration.
 """
 
-import re
-import httpx
 import logging
-from fastapi import Request as FastAPIRequest
-from fastapi.responses import JSONResponse
-from fastapi import status
+import re
 
+import httpx
+from fastapi import Request as FastAPIRequest
+from fastapi import status
+from fastapi.responses import JSONResponse
 from solace_ai_connector.common.observability import MonitorLatency
+
 from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
     is_sam_token_enabled,
 )
@@ -24,9 +25,7 @@ log = logging.getLogger(__name__)
 # Share IDs are 21-char nanoid strings ([A-Za-z0-9_-]{21}).
 # The {21} length constraint prevents false matches on sub-routes
 # like /link/..., /shared-with-me, or /{share_id}/users.
-_SHARE_SOFT_AUTH_RE = re.compile(
-    r"^/api/v1/share/[A-Za-z0-9_-]{21}(?:/artifacts/.+)?$"
-)
+_SHARE_SOFT_AUTH_RE = re.compile(r"^/api/v1/share/[A-Za-z0-9_-]{21}(?:/artifacts/.+)?$")
 
 
 def _extract_access_token(request: FastAPIRequest) -> str:
@@ -138,7 +137,9 @@ def _extract_user_identifier(user_info: dict) -> str:
     )
 
     if user_identifier and user_identifier.lower() == "unknown":
-        log.warning("AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback.")
+        log.warning(
+            "AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback."
+        )
         return "sam_dev_user"
 
     return user_identifier
@@ -170,7 +171,9 @@ async def _create_user_state(
     final_user_id = user_identifier or email_from_auth or "sam_dev_user"
     if not final_user_id or final_user_id.lower() in ["unknown", "null", "none", ""]:
         final_user_id = "sam_dev_user"
-        log.warning("AuthMiddleware: Had to use fallback user ID due to invalid identifier")
+        log.warning(
+            "AuthMiddleware: Had to use fallback user ID due to invalid identifier"
+        )
 
     return {
         "id": final_user_id,
@@ -198,10 +201,67 @@ def create_oauth_middleware(component):
         AuthMiddleware class configured for the component
     """
 
+    # Eager config validation at mount time — misconfigured pairs should
+    # fail noisy (warning log) rather than silently 401 on first CI run.
+    _aad_tenant = (
+        component.get_config("aad_tenant_id", "")
+        if hasattr(component, "get_config")
+        else ""
+    )
+    _aad_aud = (
+        component.get_config("aad_audience", "")
+        if hasattr(component, "get_config")
+        else ""
+    )
+    if _aad_tenant and _aad_aud:
+        log.info(
+            "AuthMiddleware: AAD local JWT validation enabled for tenant=%s audience=%s",
+            _aad_tenant,
+            _aad_aud,
+        )
+    elif _aad_tenant or _aad_aud:
+        log.warning(
+            "AuthMiddleware: AAD local JWT validation requires both aad_tenant_id "
+            "and aad_audience; got tenant=%r audience=%r. Branch disabled.",
+            _aad_tenant,
+            _aad_aud,
+        )
+
     class AuthMiddleware:
         def __init__(self, app, component):
             self.app = app
             self.component = component
+            self._aad_validator = None
+            self._aad_validator_key = None
+
+        def _get_or_build_aad_validator(self, tenant_id: str, audience: str):
+            """Build or reuse a cached AAD validator.
+
+            One validator per (tenant, audience). Deployments use one tenant,
+            so the cache is effectively a singleton. First-call race is
+            harmless — a second builder just does a redundant JWKS fetch and
+            the validators are stateless.
+            """
+            key = (tenant_id, audience)
+            if self._aad_validator_key == key and self._aad_validator is not None:
+                return self._aad_validator
+            from solace_agent_mesh.shared.auth.jwt_validator import (
+                AadValidatorConfig,
+                build_validator,
+            )
+
+            issuer_override = (
+                self.component.get_config("aad_issuer_override", "") or None
+            )
+            self._aad_validator = build_validator(
+                AadValidatorConfig(
+                    tenant_id=tenant_id,
+                    audience=audience,
+                    issuer_override=issuer_override,
+                )
+            )
+            self._aad_validator_key = key
+            return self._aad_validator
 
         async def __call__(self, scope, receive, send):
             if scope["type"] != "http":
@@ -263,7 +323,9 @@ def create_oauth_middleware(component):
                     await self._handle_authenticated_request(
                         request, scope, receive, send, soft=True
                     )
-                elif await self._handle_authenticated_request(request, scope, receive, send):
+                elif await self._handle_authenticated_request(
+                    request, scope, receive, send
+                ):
                     return
             else:
                 request.state.user = {
@@ -273,17 +335,25 @@ def create_oauth_middleware(component):
                     "authenticated": True,
                     "auth_method": "development",
                 }
-                log.debug("AuthMiddleware: Set development user (frontend_use_authorization=false)")
+                log.debug(
+                    "AuthMiddleware: Set development user (frontend_use_authorization=false)"
+                )
 
             await self.app(scope, receive, send)
 
-        async def _handle_authenticated_request(self, request, scope, receive, send, soft: bool = False) -> bool:
+        async def _handle_authenticated_request(
+            self, request, scope, receive, send, soft: bool = False
+        ) -> bool:
             """
             Handle authentication for a request.
 
-            Supports both sam_access_token (new) and IdP access_token (existing)
-            for backwards compatibility. Tries sam_access_token validation first
-            (fast, local JWT verification), then falls back to IdP validation.
+            Ordered auth branches (first match wins):
+              1. sam_access_token  — locally-minted JWT, trust_manager-verified
+              2. AAD JWT           — local JWKS verification (opt-in via aad_*)
+              3. IdP               — external OAuth proxy /user_info fallback
+
+            AAD-INVALID results in a hard 401 (no fall-through); only AAD
+            kid-unresolved / issuer-mismatch falls through to the IdP branch.
 
             Args:
                 soft: If True, authentication failures are silently ignored
@@ -298,7 +368,9 @@ def create_oauth_middleware(component):
 
             if not access_token:
                 if soft:
-                    log.debug("AuthMiddleware: No access token (soft-auth, proceeding without user)")
+                    log.debug(
+                        "AuthMiddleware: No access token (soft-auth, proceeding without user)"
+                    )
                     return False
                 log.warning("AuthMiddleware: No access token found. Returning 401.")
                 response = JSONResponse(
@@ -320,7 +392,9 @@ def create_oauth_middleware(component):
             if trust_manager and is_sam_token_enabled(self.component):
                 try:
                     # Validate as sam_access_token using trust_manager (no task_id binding)
-                    claims = trust_manager.verify_user_claims_without_task_binding(access_token)
+                    claims = trust_manager.verify_user_claims_without_task_binding(
+                        access_token
+                    )
                     user_identifier = claims.get("sam_user_id")
                     # Success! It's a valid sam_access_token
                     # Extract roles from token, resolve scopes at request
@@ -337,7 +411,7 @@ def create_oauth_middleware(component):
                     claim_roles = claims.get("roles")
                     if claim_roles:
                         user_state["roles"] = claim_roles
-                    request.state.user  = user_state
+                    request.state.user = user_state
 
                     log.debug(
                         f"AuthMiddleware: Validated sam_access_token for user '{user_identifier}' "
@@ -346,18 +420,94 @@ def create_oauth_middleware(component):
                     return False  # Success - continue to app
 
                 except Exception as e:
-                    # Not a sam_access_token or verification failed
-                    # Fall through to IdP token validation below
-                    # TODO - distinguish invalid sam_access_token vs not a sam_access_token?
-                    log.warning(f"AuthMiddleware: Token is not a valid sam_access_token: {e}")
+                    # Not a sam_access_token or verification failed.
+                    # Fall through to AAD / IdP branches below.
+                    # Logged at debug, not warning: with AAD enabled, every
+                    # AAD token will pass through this except clause before
+                    # succeeding in the next branch — warning would flood.
+                    log.debug(
+                        f"AuthMiddleware: Token is not a valid sam_access_token: {e}"
+                    )
+
+            # AAD local JWT validation (opt-in via aad_tenant_id + aad_audience).
+            # Validates bearer tokens signed by AAD against JWKS locally — no
+            # OAuth proxy / Graph round-trip, so app-only (client-credentials)
+            # tokens work. Runs *after* sam_access_token (locally-minted wins)
+            # and *before* IdP (issuer mismatch falls through).
+            aad_tenant_id = self.component.get_config("aad_tenant_id", "")
+            aad_audience = self.component.get_config("aad_audience", "")
+            if aad_tenant_id and aad_audience:
+                from solace_agent_mesh.shared.auth.jwt_validator import Outcome
+
+                validator = self._get_or_build_aad_validator(
+                    aad_tenant_id, aad_audience
+                )
+                result = validator.validate(access_token)
+                if result.outcome is Outcome.VALID:
+                    claims = result.claims
+                    user_id = claims.sub or claims.oid or claims.appid
+                    # `.invalid` TLD (RFC 2606) is non-routable and can never
+                    # match a real allowed_domains entry in share ACLs.
+                    email = (
+                        claims.email
+                        or claims.preferred_username
+                        or claims.upn
+                        or f"svc-principal+{claims.appid}@aad-app-only.invalid"
+                    )
+                    request.state.user = {
+                        "id": user_id,
+                        "user_id": user_id,
+                        "email": email,
+                        "name": claims.name or claims.preferred_username or user_id,
+                        "authenticated": True,
+                        "auth_method": "aad_jwt",
+                        "is_service_principal": claims.is_service_principal,
+                        "service_principal_id": (
+                            claims.appid if claims.is_service_principal else None
+                        ),
+                    }
+                    log.debug(
+                        "AuthMiddleware: Validated AAD JWT principal=%s app_only=%s",
+                        user_id,
+                        claims.is_service_principal,
+                    )
+                    return False
+                if result.outcome is Outcome.INVALID:
+                    if soft:
+                        log.warning(
+                            "AuthMiddleware: AAD token rejected (soft-auth, proceeding): %s",
+                            result.reason,
+                        )
+                        request.state.auth_probe = True
+                        return False
+                    log.warning("AuthMiddleware: AAD token rejected: %s", result.reason)
+                    response = JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={
+                            "detail": "Invalid token",
+                            "error_type": "invalid_token",
+                        },
+                    )
+                    await response(scope, receive, send)
+                    return True
+                # NOT_AAD → fall through. Info (not debug) so misconfigured
+                # audience shows up in staging logs instead of silent IdP 401.
+                log.info(
+                    "AuthMiddleware: Token not AAD (%s); falling through to IdP",
+                    result.reason,
+                )
 
             # EXISTING: Fall back to IdP token validation (unchanged logic)
-            auth_service_url = getattr(self.component, "external_auth_service_url", None)
+            auth_service_url = getattr(
+                self.component, "external_auth_service_url", None
+            )
             auth_provider = getattr(self.component, "external_auth_provider", "generic")
 
             if not auth_service_url:
                 if soft:
-                    log.debug("AuthMiddleware: Auth service not configured (soft-auth, proceeding)")
+                    log.debug(
+                        "AuthMiddleware: Auth service not configured (soft-auth, proceeding)"
+                    )
                     return False
                 log.error("Auth service URL not configured.")
                 response = JSONResponse(
@@ -369,7 +519,9 @@ def create_oauth_middleware(component):
 
             if not await _validate_token(auth_service_url, auth_provider, access_token):
                 if soft:
-                    log.debug("AuthMiddleware: Token validation failed (soft-auth, proceeding without user)")
+                    log.debug(
+                        "AuthMiddleware: Token validation failed (soft-auth, proceeding without user)"
+                    )
                     return False
                 log.warning("AuthMiddleware: Token validation failed")
                 response = JSONResponse(
@@ -379,10 +531,14 @@ def create_oauth_middleware(component):
                 await response(scope, receive, send)
                 return True
 
-            user_info = await _get_user_info(auth_service_url, auth_provider, access_token)
+            user_info = await _get_user_info(
+                auth_service_url, auth_provider, access_token
+            )
             if not user_info:
                 if soft:
-                    log.debug("AuthMiddleware: Failed to get user info (soft-auth, proceeding without user)")
+                    log.debug(
+                        "AuthMiddleware: Failed to get user info (soft-auth, proceeding without user)"
+                    )
                     return False
                 log.warning("AuthMiddleware: Failed to get user info")
                 response = JSONResponse(
@@ -393,7 +549,9 @@ def create_oauth_middleware(component):
                 return True
 
             user_identifier = _extract_user_identifier(user_info)
-            email_from_auth, display_name = _extract_user_details(user_info, user_identifier)
+            email_from_auth, display_name = _extract_user_details(
+                user_info, user_identifier
+            )
 
             request.state.user = await _create_user_state(
                 user_identifier, email_from_auth, display_name
