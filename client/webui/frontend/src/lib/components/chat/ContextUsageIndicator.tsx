@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare } from "lucide-react";
+import { Sparkles, Loader2, ArrowUp, ArrowDown, MessageSquare, FoldVertical } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger, Progress } from "@/lib/components/ui";
@@ -12,7 +12,7 @@ import { useChatContext } from "@/lib/hooks";
 // tokens) we still want to offer compaction; mid-session with few messages but
 // lots of context we also want to offer it.
 const COMPACT_BUTTON_MIN_MESSAGES = 20;
-const COMPACT_BUTTON_MIN_USAGE_PCT = 20;
+const COMPACT_BUTTON_MIN_USAGE_PCT = 80;
 
 interface ContextUsageIndicatorProps {
     sessionId: string;
@@ -45,15 +45,6 @@ function getUsageBarColor(percentage: number): string {
     if (percentage >= 50) return "bg-(--warning-w70)";
     return "bg-(--success-wMain)";
 }
-
-const CompressionIcon = ({ className }: { className?: string }) => (
-    <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-        <path d="M8 1V6M8 6L5.5 3.5M8 6L10.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M2 8H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
-        <path d="M2 12H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="2 2" />
-        <path d="M8 19V14M8 14L5.5 16.5M8 14L10.5 16.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-);
 
 export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0 }: ContextUsageIndicatorProps) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -161,7 +152,6 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const formattedCurrent = formatTokenCount(usage?.currentContextTokens ?? 0);
     const formattedLimit = usage?.maxInputTokens ? formatTokenCount(usage.maxInputTokens) : null;
 
-    // Show compress button when 15+ messages OR 2%+ token usage
     const shouldShowCompressButton = useMemo(() => messageCount >= COMPACT_BUTTON_MIN_MESSAGES || pct >= COMPACT_BUTTON_MIN_USAGE_PCT, [messageCount, pct]);
 
     const requestCompress = () => {
@@ -327,7 +317,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                                     if (!isCompacting) requestCompress();
                                                 }}
                                             >
-                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin text-(--primary-wMain)" /> : <CompressionIcon className="h-4 w-4" />}
+                                                {isCompacting ? <Loader2 className="h-4 w-4 animate-spin text-(--primary-wMain)" /> : <FoldVertical className="h-4 w-4" />}
                                             </div>
                                         </TooltipTrigger>
                                         <TooltipContent side="top">{isCompacting ? "Compressing..." : "Compress conversation"}</TooltipContent>
