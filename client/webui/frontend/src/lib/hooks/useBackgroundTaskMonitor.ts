@@ -6,6 +6,10 @@ const STORAGE_KEY = "sam_background_tasks";
 const POLL_INTERVAL_MS = 10_000;
 const REGISTRATION_GRACE_MS = 3000; // A task that disappears from the active-tasks is treated as terminated only after this period
 
+type TerminationKind = "completed" | "failed" | "timeout";
+
+// ============ Helpers ============
+
 function logFetchFailure(error: unknown): null {
     if (error instanceof DOMException && error.name === "AbortError") {
         // Don't log expected aborts from effect cleanup
@@ -14,6 +18,35 @@ function logFetchFailure(error: unknown): null {
     console.error(`[BackgroundTaskMonitor] Failed to fetch task status:`, error);
     return null;
 }
+
+function classifyTaskTermination(status: BackgroundTaskStatusResponse): { type: TerminationKind; message: string } {
+    const taskStatus = status.task.status;
+    if (taskStatus === "failed" || taskStatus === "error") {
+        return { type: "failed", message: status.error_message || "Background task failed" };
+    }
+    if (taskStatus === "timeout") {
+        return { type: "timeout", message: "Background task timed out" };
+    }
+    return { type: "completed", message: "Background task completed" };
+}
+
+// Returns the subset of tracked tasks that should be treated as terminal based on the following criteria:
+// * not in current session
+// * not in server's list
+// * past grace period
+function selectTerminationCandidates(tracked: BackgroundTaskState[], activeTaskIds: Set<string>, activeSessionId: string, now: number): BackgroundTaskState[] {
+    const terminals: BackgroundTaskState[] = [];
+    for (const task of tracked) {
+        if (task.sessionId && task.sessionId === activeSessionId) continue;
+        if (activeTaskIds.has(task.taskId)) continue;
+        if (now - task.startTime >= REGISTRATION_GRACE_MS) {
+            terminals.push(task);
+        }
+    }
+    return terminals;
+}
+
+// ============ Hook ============
 
 interface UseBackgroundTaskMonitorProps {
     userId: string | null;
@@ -38,7 +71,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         currentSessionIdRef.current = currentSessionId;
     }, [currentSessionId]);
 
-    // Load background tasks from localStorage on mount
     useEffect(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
@@ -52,12 +84,10 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         }
     }, []);
 
-    // Keep the ref in sync with state
     useEffect(() => {
         backgroundTasksRef.current = backgroundTasks;
     }, [backgroundTasks]);
 
-    // Save background tasks to localStorage whenever they change
     useEffect(() => {
         if (backgroundTasks.length > 0) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(backgroundTasks));
@@ -66,7 +96,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         }
     }, [backgroundTasks]);
 
-    // Register a background task
     const registerBackgroundTask = useCallback((taskId: string, sessionId: string, agentName?: string) => {
         const newTask: BackgroundTaskState = {
             taskId,
@@ -78,7 +107,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         };
 
         setBackgroundTasks(prev => {
-            // Don't add duplicates
             if (prev.some(t => t.taskId === taskId)) {
                 return prev;
             }
@@ -86,7 +114,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         });
     }, []);
 
-    // Unregister a background task
     const unregisterBackgroundTask = useCallback((taskId: string) => {
         setBackgroundTasks(prev => {
             const filtered = prev.filter(t => t.taskId !== taskId);
@@ -94,7 +121,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         });
     }, []);
 
-    // Update last event timestamp for a task
     const updateTaskTimestamp = useCallback((taskId: string, timestamp: number) => {
         setBackgroundTasks(prev => prev.map(task => (task.taskId === taskId ? { ...task, lastEventTimestamp: timestamp } : task)));
     }, []);
@@ -117,7 +143,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         [unregisterBackgroundTask]
     );
 
-    // Fetch the authoritative list of running background tasks for this user or null if no response available
     const fetchActiveBackgroundTasks = useCallback(
         async (signal?: AbortSignal): Promise<BackgroundTaskState[] | null> => {
             if (!userId) {
@@ -162,17 +187,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
                 return;
             }
 
-            const taskStatus = status.task.status;
-            let notificationType: "completed" | "failed" | "timeout" = "completed";
-            let message = `Background task completed`;
-
-            if (taskStatus === "failed" || taskStatus === "error") {
-                notificationType = "failed";
-                message = status.error_message || `Background task failed`;
-            } else if (taskStatus === "timeout") {
-                notificationType = "timeout";
-                message = `Background task timed out`;
-            }
+            const { type: notificationType, message } = classifyTaskTermination(status);
 
             const notification: BackgroundTaskNotification = {
                 taskId: task.taskId,
@@ -194,8 +209,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         [checkTaskStatus, onTaskCompleted, onTaskFailed, unregisterBackgroundTask]
     );
 
-    // One polling tick: single batch request, diff against tracked tasks,
-    // dispatch completion for any that have disappeared (past the grace period).
+    // One polling tick: single batch request, diff against tracked tasks
     const runPollTick = useCallback(
         async (signal: AbortSignal) => {
             const tasks = backgroundTasksRef.current;
@@ -205,37 +219,15 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
 
             const serverTasks = await fetchActiveBackgroundTasks(signal);
             if (signal.aborted || serverTasks === null) {
-                // Request failed or was aborted — do not infer anything about
-                // the state of tracked tasks.
+                // Request failed or was aborted — do not infer anything about task status, just try again on the next tick
                 return;
             }
-
             const activeTaskIds = new Set(serverTasks.map(t => t.taskId));
-            const now = Date.now();
-            const activeSessionId = currentSessionIdRef.current;
-            const terminalTasks: BackgroundTaskState[] = [];
+            const taskTerminationCandidates = selectTerminationCandidates(tasks, activeTaskIds, currentSessionIdRef.current, Date.now());
 
-            for (const task of tasks) {
-                // SSE is authoritative for the session the user is currently viewing —
-                // it delivers terminal events live and runs save-task itself. Firing
-                // onTaskCompleted here would race with that save and can destructively
-                // replay buffered events mid-flight.
-                if (task.sessionId && task.sessionId === activeSessionId) {
-                    continue;
-                }
-
-                if (activeTaskIds.has(task.taskId)) {
-                    continue;
-                }
-
-                if (now - task.startTime >= REGISTRATION_GRACE_MS) {
-                    terminalTasks.push(task);
-                }
-            }
-
-            for (const terminal of terminalTasks) {
+            for (const task of taskTerminationCandidates) {
                 if (signal.aborted) return;
-                await handleTerminalTask(terminal, signal);
+                await handleTerminalTask(task, signal);
             }
         },
         [fetchActiveBackgroundTasks, handleTerminalTask]
@@ -261,7 +253,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         return result ?? [];
     }, [fetchActiveBackgroundTasks]);
 
-    // Check for running background tasks on mount and when userId changes.
     useEffect(() => {
         if (!userId) {
             return;
@@ -337,12 +328,10 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         };
     }, [hasBackgroundTasks]);
 
-    // Dismiss a notification
     const dismissNotification = useCallback((taskId: string) => {
         setNotifications(prev => prev.filter(n => n.taskId !== taskId));
     }, []);
 
-    // Get background tasks for current session
     const getSessionBackgroundTasks = useCallback(
         (sessionId: string) => {
             return backgroundTasks.filter(t => t.sessionId === sessionId);
@@ -350,7 +339,6 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
         [backgroundTasks]
     );
 
-    // Check if a specific task is running in background
     const isTaskRunningInBackground = useCallback(
         (taskId: string) => {
             return backgroundTasks.some(t => t.taskId === taskId);
