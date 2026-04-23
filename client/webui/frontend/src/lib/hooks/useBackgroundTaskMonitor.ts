@@ -1,8 +1,3 @@
-/**
- * Hook for monitoring and reconnecting to background tasks.
- * Stores active background tasks in localStorage and automatically reconnects on session load.
- */
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import type { BackgroundTaskState, BackgroundTaskStatusResponse, ActiveBackgroundTasksResponse, BackgroundTaskNotification } from "@/lib/types/background-tasks";
