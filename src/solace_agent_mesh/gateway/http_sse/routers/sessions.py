@@ -1394,12 +1394,11 @@ async def get_session_context_usage(
             .all()
         )
 
-        # Filter tasks to the session's current agent — ADK sessions are keyed by
+        # Filter tasks to the session's active agent — ADK sessions are keyed by
         # (app_name, user_id, session_id), so switching agents mid-session starts a
         # fresh context window. Tokens accumulated under the previous agent must not
         # leak into the new agent's indicator.
-        current_agent = gateway_session.agent_id
-        if current_agent and completed_tasks:
+        if completed_tasks:
             task_ids = [t.id for t in completed_tasks]
             request_events = (
                 db.query(TaskEventModel)
@@ -1424,14 +1423,27 @@ async def get_session_context_usage(
                 except AttributeError:
                     return None
 
-            # Compaction-cost rows are synthetic (no task events, no agent
-            # metadata) and belong to the session, not a specific agent — keep
-            # them so their token usage contributes to the cumulative totals.
-            completed_tasks = [
-                t
-                for t in completed_tasks
-                if t.id.startswith("compaction-cost-") or _task_agent(t.id) == current_agent
-            ]
+            # Find the most recent real (non-compaction) task's agent — that's the
+            # ADK session currently active for this gateway session.
+            current_agent: Optional[str] = None
+            for t in completed_tasks:
+                if (t.id or "").startswith("compaction-cost-"):
+                    continue
+                current_agent = _task_agent(t.id)
+                if current_agent:
+                    break
+            if current_agent is None:
+                current_agent = gateway_session.agent_id
+
+            if current_agent:
+                # Compaction-cost rows are synthetic (no task events, no agent
+                # metadata) and belong to the session, not a specific agent — keep
+                # them so their token usage contributes to the cumulative totals.
+                completed_tasks = [
+                    t
+                    for t in completed_tasks
+                    if t.id.startswith("compaction-cost-") or _task_agent(t.id) == current_agent
+                ]
 
         current_tokens = 0
 
