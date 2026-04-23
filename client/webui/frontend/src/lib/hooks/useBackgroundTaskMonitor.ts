@@ -149,11 +149,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
             }
 
             try {
-                const response = await api.webui.get(`/api/v1/tasks/background/active?user_id=${encodeURIComponent(userId)}`, { fullResponse: true, signal });
-                if (!response.ok) {
-                    return null;
-                }
-                const data: ActiveBackgroundTasksResponse = await response.json();
+                const data: ActiveBackgroundTasksResponse = await api.webui.get(`/api/v1/tasks/background/active?user_id=${encodeURIComponent(userId)}`, { signal });
 
                 return data.tasks.map(task => ({
                     taskId: task.id,
@@ -178,10 +174,8 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
                 return;
             }
 
-            // The batch endpoint can transiently omit a still-running task (DB write lag,
-            // execution_mode not yet set). Treat only actually-terminal tasks as complete;
-            // a false positive here fires replayBufferedEvents on an in-flight task and
-            // clobbers its final response.
+            // The batch endpoint can transiently omit a still-running task.
+            // Treat only actually-terminal tasks as complete;
             if (status.is_running) {
                 return;
             }
@@ -218,7 +212,7 @@ export function useBackgroundTaskMonitor({ userId, currentSessionId, onTaskCompl
 
             const serverTasks = await fetchActiveBackgroundTasks(signal);
             if (signal.aborted || serverTasks === null) {
-                // Request failed or was aborted — do not infer anything about task status, just try again on the next tick
+                // Request failed or was aborted — do not infer anything about task status, try again on next tick
                 return;
             }
             const activeTaskIds = new Set(serverTasks.map(t => t.taskId));
