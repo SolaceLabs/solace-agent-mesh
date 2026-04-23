@@ -23,6 +23,7 @@ async function loadList() {
 
     vi.doMock("@/lib/api/sessions", () => ({
         useRecentSessions: () => ({ data: mockSessions, isLoading: false }),
+        useMarkSessionViewed: () => ({ mutate: vi.fn() }),
     }));
 
     vi.doMock("@/lib/api/share", () => ({
