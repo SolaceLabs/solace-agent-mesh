@@ -211,7 +211,7 @@ jobs:
       - name: Run SonarQube hotspot checker
         id: sonarqube
         continue-on-error: true
-        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
+        uses: docker://ghcr.io/solacelabs/maas-build-actions:latest
         env:
           SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
           SONARQUBE_PROJECT_MAIN_BRANCH: "main"
@@ -279,7 +279,6 @@ jobs:
           guardian-key: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
           product-version: ${{ needs.resolve-context.outputs.clean_version }}
           fail-on-blocked: "true"
-          upload-logs: "true"
 
       - name: Capture Guardian status
         id: capture
