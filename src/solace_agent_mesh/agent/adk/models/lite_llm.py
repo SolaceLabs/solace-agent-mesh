@@ -975,6 +975,9 @@ Functions:
 -----------------------------------------------------------
 """
 
+_NON_COMPLETION_KEYS = frozenset({"cache_strategy", "thinking", "type"})
+"""Config keys used during initialization but not valid as litellm.completion() kwargs."""
+
 VALID_CACHE_STRATEGIES = ["none", "5m", "1h"]
 """
 Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
@@ -1109,9 +1112,8 @@ class LiteLlm(BaseLlm):
 
         Mutates and returns the dict.
         """
-        config.pop("cache_strategy", None)
-        config.pop("thinking", None)
-        config.pop("type", None)
+        for key in _NON_COMPLETION_KEYS:
+            config.pop(key, None)
         for key in list(config):
             if key.startswith("oauth_"):
                 config.pop(key)
@@ -1164,7 +1166,7 @@ class LiteLlm(BaseLlm):
             copied_model_config.setdefault("num_retries", 3)
             copied_model_config.setdefault("timeout", 120)
 
-        # Extract cache_strategy before sanitization (it's used for instance config)
+        # Extracted via get(); removed later by _sanitize_for_completion()
         cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
         if cache_strategy not in VALID_CACHE_STRATEGIES:
             logger.warning(
@@ -1176,7 +1178,7 @@ class LiteLlm(BaseLlm):
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 
-        # Extract thinking/reasoning token configuration before sanitization
+        # Extracted via get(); removed later by _sanitize_for_completion()
         thinking_config = copied_model_config.get("thinking")
         if thinking_config and isinstance(thinking_config, dict):
             self._thinking_config = thinking_config
@@ -1184,7 +1186,7 @@ class LiteLlm(BaseLlm):
         else:
             self._thinking_config = None
 
-        # Extract OAuth configuration before sanitization
+        # OAuth keys extracted here; remaining oauth_* removed by _sanitize_for_completion()
         oauth_config = self._extract_oauth_config(copied_model_config)
         if oauth_config:
             self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)

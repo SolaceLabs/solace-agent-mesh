@@ -120,7 +120,7 @@ class TestResolve:
 
 
 class TestReceiverRouting:
-    def test_own_model_updates_litellm(self):
+    def test_own_model_updates_litellm_and_completes_resolve(self):
         from solace_agent_mesh.agent.adk.models.dynamic_model_provider import (
             ModelConfigReceiverComponent,
         )
