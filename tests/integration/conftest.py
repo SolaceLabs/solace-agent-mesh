@@ -670,13 +670,18 @@ def test_a2a_agent_server_harness(
 @pytest.fixture(autouse=True)
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
-    Automatically clears any primed responses and captured requests from the
-    TestLLMServer AFTER each test completes (not before).
-    This prevents race conditions where async operations from test N are still
-    running when test N+1 starts.
+    Automatically clears primed responses and captured requests from the
+    TestLLMServer around each test.
+
+    Captured requests are cleared BEFORE the test body so any late-arriving
+    requests from a prior test's still-draining async work don't get counted
+    against this test's assertions. Full configuration (primed + captured) is
+    cleared AFTER to avoid clobbering primed responses that an in-flight prior
+    test may still be relying on.
     """
-    yield  # Test runs here
-    test_llm_server.clear_all_configurations()  # Cleanup AFTER test
+    test_llm_server.clear_captured_requests()
+    yield
+    test_llm_server.clear_all_configurations()
 
 
 @pytest.fixture(autouse=True)
