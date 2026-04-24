@@ -165,6 +165,7 @@ class TestSendPlanVerification:
     async def test_publishes_plan_data_signal(self):
         """Happy path: publishes DeepResearchPlanData via host_component."""
         host = MagicMock()
+        host.agent_name = "ResearchAgent"
         ctx = _make_tool_context(
             canonical_model=MagicMock(),
             host_component=host,
@@ -222,6 +223,7 @@ class TestSendPlanVerification:
     async def test_no_crash_on_publish_exception(self):
         """Catches exceptions from publish_data_signal_from_thread."""
         host = MagicMock()
+        host.agent_name = "ResearchAgent"
         host.publish_data_signal_from_thread.side_effect = RuntimeError("oops")
         ctx = _make_tool_context(
             canonical_model=MagicMock(),
@@ -240,15 +242,21 @@ class TestSendPlanVerification:
 
 @pytest.mark.asyncio
 class TestWaitForPlanResponse:
-    """Behavioral tests for _wait_for_plan_response."""
+    """Behavioral tests for _wait_for_plan_response (Future-based)."""
 
-    async def test_returns_cached_response_immediately(self):
-        """When cache already has a response, returns it on first poll."""
-        cache = MagicMock()
-        cache.get_data = MagicMock(return_value={"action": "start", "steps": ["edited"]})
-
+    async def test_resolves_with_registered_response(self):
+        """Tool registers a waiter; resolving the future returns the response."""
         host = MagicMock()
-        host.cache_service = cache
+        registered = {}
+
+        def _register(plan_id, user_id, future, loop):
+            registered["plan_id"] = plan_id
+            registered["user_id"] = user_id
+            registered["future"] = future
+            registered["loop"] = loop
+
+        host.register_deep_research_plan_waiter = MagicMock(side_effect=_register)
+        host.drop_deep_research_plan_waiter = MagicMock()
 
         ctx = _make_tool_context(
             canonical_model=MagicMock(),
@@ -256,28 +264,26 @@ class TestWaitForPlanResponse:
             a2a_context={"user_id": "user-1"},
         )
 
-        result = await _wait_for_plan_response("plan-1", ["original"], ctx)
+        async def _resolver():
+            # Give the tool a tick to register before we complete the future.
+            await asyncio.sleep(0)
+            registered["future"].set_result({"action": "start", "steps": ["edited"]})
 
-        assert result["action"] == "start"
-        assert result["steps"] == ["edited"]
-        cache.remove_data.assert_called_once_with("deep_research_plan:user-1:plan-1")
+        result, _ = await asyncio.gather(
+            _wait_for_plan_response("plan-1", ["original"], ctx),
+            _resolver(),
+        )
 
-    async def test_polls_until_response_appears(self):
-        """Simulates multiple poll cycles before the cache returns data."""
-        call_count = 0
+        assert result == {"action": "start", "steps": ["edited"]}
+        assert registered["plan_id"] == "plan-1"
+        assert registered["user_id"] == "user-1"
 
-        def _get_data(key):
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 3:
-                return {"action": "cancel"}
-            return None
-
-        cache = MagicMock()
-        cache.get_data = MagicMock(side_effect=_get_data)
-
+    async def test_timeout_drops_waiter_and_publishes_stale_signal(self):
+        """On timeout, waiter is dropped and a timed_out signal is published."""
         host = MagicMock()
-        host.cache_service = cache
+        host.register_deep_research_plan_waiter = MagicMock()
+        host.drop_deep_research_plan_waiter = MagicMock()
+        host.publish_data_signal_from_thread = MagicMock(return_value=True)
 
         ctx = _make_tool_context(
             canonical_model=MagicMock(),
@@ -285,31 +291,26 @@ class TestWaitForPlanResponse:
             a2a_context={"user_id": "user-1"},
         )
 
-        with patch("solace_agent_mesh.agent.tools.deep_research_tools.asyncio.sleep", new_callable=AsyncMock):
-            result = await _wait_for_plan_response("plan-x", ["s1"], ctx)
+        with patch(
+            "solace_agent_mesh.agent.tools.deep_research_tools._PLAN_RESPONSE_TIMEOUT_SECONDS",
+            0,
+        ):
+            result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
 
         assert result["action"] == "cancel"
-        assert call_count == 3
+        assert result["reason"] == "timeout"
+        host.drop_deep_research_plan_waiter.assert_called_once_with("plan-1")
+        host.publish_data_signal_from_thread.assert_called_once()
 
-    async def test_auto_approves_when_no_cache_service(self):
-        """When cache_service is unavailable, auto-approve with original steps."""
-        host = MagicMock(spec=[])  # no cache_service attribute
+    async def test_auto_approves_when_host_lacks_registry_api(self):
+        """A host_component without register_deep_research_plan_waiter auto-approves."""
+        host = MagicMock(spec=[])  # no registry methods at all
         ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
 
         result = await _wait_for_plan_response("plan-1", ["s1", "s2"], ctx)
 
         assert result["action"] == "start"
         assert result["steps"] == ["s1", "s2"]
-
-    async def test_auto_approves_when_cache_service_is_none(self):
-        """When cache_service exists but is None, auto-approve."""
-        host = MagicMock()
-        host.cache_service = None
-        ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
-
-        result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
-
-        assert result["action"] == "start"
 
     async def test_auto_approves_when_no_host_component(self):
         """When host_component chain is broken, auto-approve."""
@@ -321,13 +322,28 @@ class TestWaitForPlanResponse:
         assert result["action"] == "start"
         assert result["steps"] == ["s1"]
 
-    async def test_auto_approves_on_exception(self):
-        """If an exception occurs during polling, auto-approve."""
-        cache = MagicMock()
-        cache.get_data = MagicMock(side_effect=RuntimeError("cache down"))
-
+    async def test_auto_approves_when_no_user_id(self):
+        """Missing user_id on a2a_context short-circuits to auto-approve."""
         host = MagicMock()
-        host.cache_service = cache
+        host.register_deep_research_plan_waiter = MagicMock()
+        ctx = _make_tool_context(
+            canonical_model=MagicMock(),
+            host_component=host,
+            a2a_context={},  # no user_id
+        )
+
+        result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
+
+        assert result["action"] == "start"
+        assert result["steps"] == ["s1"]
+        host.register_deep_research_plan_waiter.assert_not_called()
+
+    async def test_auto_approves_when_register_raises(self):
+        """If the waiter registration raises, auto-approve defensively."""
+        host = MagicMock()
+        host.register_deep_research_plan_waiter = MagicMock(
+            side_effect=RuntimeError("registry down")
+        )
 
         ctx = _make_tool_context(
             canonical_model=MagicMock(),

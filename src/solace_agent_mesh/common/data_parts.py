@@ -475,6 +475,15 @@ class DeepResearchPlanData(BaseModel):
         "deep_research_plan", description="The constant type for this data part."
     )
     plan_id: str = Field(..., description="Unique ID for this plan verification request")
+    agent_name: str = Field(
+        ...,
+        description=(
+            "Name of the agent whose deep-research tool is awaiting the response. "
+            "The frontend echoes this in the plan-response POST so the gateway knows "
+            "which agent to route the control signal back to (supports delegated "
+            "research on peer agents)."
+        ),
+    )
     title: str = Field(..., description="Auto-generated research title")
     research_question: str = Field(..., description="The original research question")
     steps: list[str] = Field(..., description="Ordered list of research plan steps")
@@ -485,6 +494,29 @@ class DeepResearchPlanData(BaseModel):
     max_runtime_seconds: int = Field(..., description="Planned max runtime in seconds")
     sources: list[str] = Field(
         default_factory=list, description="Sources to search (e.g., web, kb)"
+    )
+
+
+class DeepResearchPlanStaleData(BaseModel):
+    """
+    Agent → frontend signal: the plan verification card is no longer actionable.
+
+    Emitted when the tool's wait times out, or when a plan-response control
+    signal arrives for a plan whose waiter is gone or whose user_id does not
+    match the recorded owner.
+    """
+
+    type: Literal["deep_research_plan_stale"] = Field(
+        "deep_research_plan_stale",
+        description="The constant type for this data part.",
+    )
+    plan_id: str = Field(..., description="The plan id that is no longer waiting.")
+    reason: Literal["timed_out", "stale"] = Field(
+        ...,
+        description=(
+            "'timed_out' when the agent's hard backstop fired; "
+            "'stale' when a response arrived too late or from the wrong user."
+        ),
     )
 
 
@@ -570,6 +602,7 @@ SignalData = Union[
     DeepResearchProgressData,
     RAGInfoUpdateData,
     DeepResearchPlanData,
+    DeepResearchPlanStaleData,
     DeepResearchReportData,
     CompactionNotificationData,
     ThinkingContentData,

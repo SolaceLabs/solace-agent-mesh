@@ -32,6 +32,7 @@ type Story = StoryObj<typeof meta>;
 const basePlan = {
     type: "deep_research_plan" as const,
     plan_id: "plan-demo-123",
+    agent_name: "ResearchAgent",
     title: "Impact of LLM-assisted coding on developer productivity",
     research_question: "How has LLM-assisted coding changed developer productivity over the past year?",
     steps: [

@@ -996,15 +996,6 @@ def _is_webui_gateway(tool_context: ToolContext) -> bool:
     return True
 
 
-def _plan_cache_key(user_id: str, plan_id: str) -> str:
-    """Build the cache key used to exchange plan responses.
-
-    Namespacing by user_id prevents a client that happens to know another
-    user's plan_id from writing a response into that user's slot.
-    """
-    return f"deep_research_plan:{user_id}:{plan_id}"
-
-
 async def _send_plan_verification(
     plan_id: str,
     title: str,
@@ -1041,9 +1032,15 @@ async def _send_plan_verification(
             return
 
         from ...common.data_parts import DeepResearchPlanData
-        
+
+        # Carry the publishing agent's name so the frontend can echo it back
+        # in the plan-response POST. The gateway uses this to publish the
+        # control signal to the correct agent's topic, which matters when
+        # deep research runs on a peer agent rather than the main agent the
+        # user is chatting with.
         plan_data = DeepResearchPlanData(
             plan_id=plan_id,
+            agent_name=getattr(host_component, "agent_name", ""),
             title=title,
             research_question=research_question,
             steps=steps,
@@ -1072,56 +1069,105 @@ async def _wait_for_plan_response(
     steps: List[str],
     tool_context: ToolContext
 ) -> Dict[str, Any]:
-    """
-    Wait for user response to plan verification by polling the cache.
-    
+    """Wait for the user's response to a plan verification card.
+
+    The gateway delivers the response as a fire-and-forget control signal on
+    the ``sam/events/deep_research/plan_response`` topic. The agent's event
+    handler resolves an asyncio.Future registered here via the component's
+    plan-waiter registry. On timeout, we publish a
+    ``DeepResearchPlanStaleData`` signal so the frontend can lock the card.
+
+    Auto-approve (returning ``{"action": "start", ...}``) is the defensive
+    fallback for environments that cannot support the signal path - missing
+    host_component, missing user_id, registry not available, etc.
+
     Returns:
-        Dict with "action" ("start" or "cancel") and optionally "steps" (modified steps)
+        Dict with "action" ("start" or "cancel") and, for "start", the steps
+        the research should run (either the original steps or the user's
+        edits from the frontend).
     """
     log_identifier = "[DeepResearch:PlanWait]"
-    
+
+    invocation_context = getattr(tool_context, "_invocation_context", None)
+    agent = getattr(invocation_context, "agent", None) if invocation_context else None
+    host_component = getattr(agent, "host_component", None) if agent else None
+
+    if host_component is None or not hasattr(
+        host_component, "register_deep_research_plan_waiter"
+    ):
+        log.warning(
+            "%s Host component does not support plan waiters; auto-approving.",
+            log_identifier,
+        )
+        return {"action": "start", "steps": steps}
+
+    a2a_context = tool_context.state.get("a2a_context") or {}
+    user_id = a2a_context.get("user_id") if isinstance(a2a_context, dict) else None
+    if not user_id:
+        log.warning("%s No user_id on a2a_context, auto-approving plan.", log_identifier)
+        return {"action": "start", "steps": steps}
+
     try:
-        invocation_context = getattr(tool_context, '_invocation_context', None)
-        agent = getattr(invocation_context, 'agent', None) if invocation_context else None
-        host_component = getattr(agent, 'host_component', None) if agent else None
-        
-        if not host_component or not hasattr(host_component, 'cache_service') or not host_component.cache_service:
-            log.warning("%s No cache service available, auto-approving plan", log_identifier)
-            return {"action": "start", "steps": steps}
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        host_component.register_deep_research_plan_waiter(
+            plan_id=plan_id, user_id=str(user_id), future=future, loop=loop
+        )
+    except Exception as e:
+        log.error(
+            "%s Could not register plan waiter (%s); auto-approving.",
+            log_identifier,
+            e,
+        )
+        return {"action": "start", "steps": steps}
 
-        a2a_context = tool_context.state.get("a2a_context") or {}
-        user_id = a2a_context.get("user_id") if isinstance(a2a_context, dict) else None
-        if not user_id:
-            log.warning("%s No user_id on a2a_context, auto-approving plan", log_identifier)
-            return {"action": "start", "steps": steps}
-
-        cache_key = _plan_cache_key(str(user_id), plan_id)
-        poll_interval = 0.5  # seconds
-        elapsed = 0.0
-
-        log.info("%s Waiting for plan response: plan_id=%s (timeout=%ds)",
-                log_identifier, plan_id, _PLAN_RESPONSE_TIMEOUT_SECONDS)
-
-        while elapsed < _PLAN_RESPONSE_TIMEOUT_SECONDS:
-            response = host_component.cache_service.get_data(cache_key)
-            if response:
-                host_component.cache_service.remove_data(cache_key)
-                log.info("%s Received plan response: action=%s",
-                        log_identifier, response.get("action", "unknown"))
-                return response
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-
-        log.warning("%s Plan verification timed out after %ds, cancelling",
-                log_identifier, _PLAN_RESPONSE_TIMEOUT_SECONDS)
+    log.info(
+        "%s Waiting for plan response: plan_id=%s (timeout=%ds)",
+        log_identifier,
+        plan_id,
+        _PLAN_RESPONSE_TIMEOUT_SECONDS,
+    )
+    try:
+        response = await asyncio.wait_for(
+            future, timeout=_PLAN_RESPONSE_TIMEOUT_SECONDS
+        )
+        log.info(
+            "%s Received plan response: action=%s",
+            log_identifier,
+            response.get("action", "unknown") if isinstance(response, dict) else "unknown",
+        )
+        return response
+    except asyncio.TimeoutError:
+        log.warning(
+            "%s Plan verification timed out after %ds; publishing stale signal.",
+            log_identifier,
+            _PLAN_RESPONSE_TIMEOUT_SECONDS,
+        )
+        host_component.drop_deep_research_plan_waiter(plan_id)
+        try:
+            from ...common.data_parts import DeepResearchPlanStaleData
+            host_component.publish_data_signal_from_thread(
+                a2a_context=a2a_context,
+                signal_data=DeepResearchPlanStaleData(
+                    plan_id=plan_id, reason="timed_out"
+                ),
+                skip_buffer_flush=False,
+                log_identifier=log_identifier,
+            )
+        except Exception as e:
+            log.error("%s Failed to publish timed-out signal: %s", log_identifier, e)
         return {
             "action": "cancel",
             "reason": "timeout",
             "timeout_seconds": _PLAN_RESPONSE_TIMEOUT_SECONDS,
         }
-
     except Exception as e:
-        log.error("%s Error waiting for plan response: %s, auto-approving", log_identifier, str(e))
+        host_component.drop_deep_research_plan_waiter(plan_id)
+        log.error(
+            "%s Error waiting for plan response: %s; auto-approving.",
+            log_identifier,
+            e,
+        )
         return {"action": "start", "steps": steps}
 
 
@@ -2085,13 +2131,19 @@ async def deep_research(
                         "status": "cancelled",
                         "message": (
                             f"Research was cancelled because the plan was not confirmed "
-                            f"within {verification_result.get('timeout_seconds')} seconds."
+                            f"within {verification_result.get('timeout_seconds')} seconds. "
+                            "Do not retry; acknowledge to the user and wait for their next "
+                            "instruction."
                         ),
                     }
                 log.info("%s Research cancelled by user", log_identifier)
                 return {
                     "status": "cancelled",
-                    "message": "Research was cancelled by the user before starting."
+                    "message": (
+                        "The user explicitly cancelled this research. Do NOT re-invoke "
+                        "deep research on this request. Acknowledge the cancellation "
+                        "briefly and wait for the user's next instruction."
+                    ),
                 }
 
             # User may have edited steps - regenerate queries if steps were modified

@@ -4,6 +4,7 @@ import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 
 import { ResearchPlanVerification, type ResearchPlanData } from "@/lib/components/research/ResearchPlanVerification";
+import { __resetRespondedPlansForTest } from "@/lib/components/research/respondedPlansStore";
 import { StoryProvider } from "../mocks/StoryProvider";
 
 expect.extend(matchers);
@@ -11,6 +12,7 @@ expect.extend(matchers);
 const basePlan: ResearchPlanData = {
     type: "deep_research_plan",
     plan_id: "plan-1",
+    agent_name: "ResearchAgent",
     title: "Demo plan",
     research_question: "Why is the sky blue?",
     steps: ["Step one", "Step two"],
@@ -41,6 +43,7 @@ function makeFetchMock(response: Partial<Response> & { ok?: boolean } = { ok: tr
 describe("ResearchPlanVerification", () => {
     beforeEach(() => {
         vi.unstubAllGlobals();
+        __resetRespondedPlansForTest();
     });
 
     test("renders plan title and steps", () => {
@@ -67,21 +70,23 @@ describe("ResearchPlanVerification", () => {
         const [url, init] = fetchMock.mock.calls[0];
         expect(String(url)).toContain("/api/v1/research/plan-response");
         const body = JSON.parse(String(init?.body ?? "{}"));
-        expect(body).toMatchObject({ planId: "plan-1", action: "start", steps: basePlan.steps });
+        expect(body).toMatchObject({ planId: "plan-1", agentName: "ResearchAgent", action: "start", steps: basePlan.steps });
         expect(setMessages).toHaveBeenCalled();
     });
 
-    test("clicking Cancel POSTs a cancel action", async () => {
+    test("clicking Cancel invokes the chat handleCancel (same as stop button)", async () => {
         const fetchMock = makeFetchMock();
         vi.stubGlobal("fetch", fetchMock);
+        const handleCancel = vi.fn();
 
-        renderComponent();
+        renderComponent(basePlan, { handleCancel });
         fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-        await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-        const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body ?? "{}"));
-        expect(body).toMatchObject({ planId: "plan-1", action: "cancel" });
-        expect(body.steps).toBeUndefined();
+        // Cancel must not hit the plan-response endpoint - it now cancels
+        // the orchestrator task, which cascades to the peer running research.
+        expect(handleCancel).toHaveBeenCalled();
+        const planResponseCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("/research/plan-response"));
+        expect(planResponseCalls.length).toBe(0);
     });
 
     test("surfaces a displayError when the mutation fails", async () => {

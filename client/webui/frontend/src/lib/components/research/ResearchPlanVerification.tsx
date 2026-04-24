@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { Brain, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
 
 import { useSubmitPlanResponse } from "@/lib/api";
@@ -6,6 +6,8 @@ import { Button } from "@/lib/components/ui/button";
 import { Input } from "@/lib/components/ui/input";
 import { useChatContext } from "@/lib/hooks";
 import type { DataPart } from "@/lib/types";
+
+import { getRespondedPlansSnapshot, markPlanResponded, subscribeRespondedPlans } from "./respondedPlansStore";
 
 const DashedCircle = ({ className }: { className?: string }) => (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={className}>
@@ -16,6 +18,10 @@ const DashedCircle = ({ className }: { className?: string }) => (
 export interface ResearchPlanData {
     type: "deep_research_plan";
     plan_id: string;
+    // Name of the agent whose tool is waiting for this response. Echoed in
+    // the plan-response POST so the gateway can route the control signal to
+    // the right agent (deep research may run on a delegated peer agent).
+    agent_name: string;
     title: string;
     research_question: string;
     steps: string[];
@@ -23,9 +29,9 @@ export interface ResearchPlanData {
     max_iterations: number;
     max_runtime_seconds: number;
     sources: string[];
-    // Persisted once the user confirms/cancels so reloading the session
-    // doesn't show an interactive prompt that has no live backend listener.
-    responded?: "start" | "cancel";
+    // Set once the user confirms/cancels (optimistic) or once a stale signal
+    // arrives from the backend.
+    responded?: "start" | "cancel" | "stale";
 }
 
 interface ResearchPlanVerificationProps {
@@ -42,14 +48,20 @@ const makeStepId = () => (typeof crypto !== "undefined" && "randomUUID" in crypt
 const toEditableSteps = (steps: string[]): EditableStep[] => steps.map(value => ({ id: makeStepId(), value }));
 
 export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationProps) => {
-    const { setMessages, displayError } = useChatContext();
+    const { setMessages, displayError, handleCancel: cancelCurrentTask } = useChatContext();
     const { mutateAsync: submitPlanResponse, isPending } = useSubmitPlanResponse();
 
     const [isEditing, setIsEditing] = useState(false);
     const [editedSteps, setEditedSteps] = useState<EditableStep[]>(() => toEditableSteps(planData.steps));
 
+    // Consult the session-local store so re-delivered plan events cannot
+    // resurrect a card the user has already answered.
+    const respondedMap = useSyncExternalStore(subscribeRespondedPlans, getRespondedPlansSnapshot, getRespondedPlansSnapshot);
+    const sessionResponded = respondedMap.get(planData.plan_id);
+
     const markResponded = useCallback(
         (action: "start" | "cancel") => {
+            markPlanResponded(planData.plan_id, action);
             setMessages(prev =>
                 prev.map(msg => {
                     if (!msg.parts) return msg;
@@ -69,16 +81,17 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
         [planData.plan_id, setMessages]
     );
 
-    const handleResponse = useCallback(
-        async (action: "start" | "cancel", steps?: string[]) => {
-            if (planData.responded) return;
+    const handleStart = useCallback(
+        async (steps?: string[]) => {
+            if (planData.responded || sessionResponded) return;
             try {
                 await submitPlanResponse({
                     planId: planData.plan_id,
-                    action,
-                    steps: action === "start" ? (steps ?? planData.steps) : undefined,
+                    agentName: planData.agent_name,
+                    action: "start",
+                    steps: steps ?? planData.steps,
                 });
-                markResponded(action);
+                markResponded("start");
             } catch (error) {
                 displayError({
                     title: "Research plan response failed",
@@ -86,11 +99,29 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
                 });
             }
         },
-        [planData.plan_id, planData.responded, planData.steps, submitPlanResponse, markResponded, displayError]
+        [planData.plan_id, planData.agent_name, planData.responded, planData.steps, sessionResponded, submitPlanResponse, markResponded, displayError]
     );
 
-    const handleStart = () => handleResponse("start", isEditing ? editedSteps.map(s => s.value) : planData.steps);
-    const handleCancel = () => handleResponse("cancel");
+    // Cancel must match the chat-input stop button: cancel the orchestrator
+    // task, which cascades to the peer running the research. The peer's
+    // tool unwinds via asyncio cancellation - no plan-response POST needed.
+    // Relying on the LLM to stop after a cancel is not robust (the
+    // orchestrator has been observed re-invoking deep_research anyway), so
+    // we short-circuit at the task level.
+    const handlePlanCancel = useCallback(() => {
+        if (planData.responded || sessionResponded) return;
+        markResponded("cancel");
+        try {
+            cancelCurrentTask();
+        } catch (error) {
+            displayError({
+                title: "Task cancellation failed",
+                error: error instanceof Error ? error.message : "Unable to cancel the research task.",
+            });
+        }
+    }, [planData.responded, sessionResponded, markResponded, cancelCurrentTask, displayError]);
+
+    const handleStartClick = () => handleStart(isEditing ? editedSteps.map(s => s.value) : planData.steps);
 
     const handleEdit = () => {
         setEditedSteps(toEditableSteps(planData.steps));
@@ -112,7 +143,7 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
         setEditedSteps(prev => (prev.length <= 1 ? prev : prev.filter(step => step.id !== id)));
     };
 
-    if (planData.responded) {
+    if (planData.responded || sessionResponded) {
         return null;
     }
 
@@ -169,7 +200,7 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending}>
+                    <Button variant="ghost" size="sm" onClick={handlePlanCancel} disabled={isPending}>
                         Cancel Research
                     </Button>
                     {isEditing && (
@@ -177,7 +208,7 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
                             Discard Changes
                         </Button>
                     )}
-                    <Button size="sm" onClick={handleStart} disabled={isPending} aria-label="Start">
+                    <Button size="sm" onClick={handleStartClick} disabled={isPending} aria-label="Start">
                         {isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                         ) : (

@@ -12,6 +12,7 @@ class TestDeepResearchPlanData:
     def test_creates_with_required_fields(self):
         d = DeepResearchPlanData(
             plan_id="abc-123",
+            agent_name="ResearchAgent",
             title="AI Research",
             research_question="What is AI?",
             steps=["Step 1", "Step 2"],
@@ -28,6 +29,7 @@ class TestDeepResearchPlanData:
     def test_overrides_defaults(self):
         d = DeepResearchPlanData(
             plan_id="x",
+            agent_name="ResearchAgent",
             title="t",
             research_question="q",
             steps=["s"],
@@ -62,6 +64,7 @@ class TestDeepResearchPlanData:
     def test_serializes_to_dict(self):
         d = DeepResearchPlanData(
             plan_id="p1",
+            agent_name="ResearchAgent",
             title="Title",
             research_question="Q?",
             steps=["a", "b"],

@@ -1,8 +1,15 @@
 """
 API Router for deep research plan verification responses.
 
-Handles user responses to research plan verification requests
-(start, cancel, edit steps) from the frontend.
+Handles user responses to research plan verification requests (start, cancel,
+edit steps) from the frontend by publishing a fire-and-forget control signal
+on the SAM event bus. The deep-research tool running on the target agent has
+an ``asyncio.Future`` waiting in its plan-waiter registry keyed by ``plan_id``;
+the agent's event handler resolves that future when the signal arrives.
+
+The endpoint returns ``202 Accepted`` as soon as the signal is published; the
+frontend relies on the existing SSE stream (research progress, or a stale
+signal if the plan is no longer being awaited) for the actual outcome.
 """
 
 import logging
@@ -11,10 +18,10 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ..dependencies import (
-    get_user_id,
-)
+from solace_agent_mesh.common.a2a.protocol import get_sam_events_topic
 from solace_agent_mesh.shared.utils.types import UserId
+
+from ..dependencies import get_user_id
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -24,6 +31,15 @@ class PlanResponsePayload(BaseModel):
     """Data model for the research plan response payload."""
 
     plan_id: str = Field(..., alias="planId", description="The unique plan verification ID")
+    agent_name: str = Field(
+        ...,
+        alias="agentName",
+        description=(
+            "Name of the agent running the deep-research tool. Echoed from the "
+            "plan signal; the gateway uses it to route the control message to "
+            "the correct agent (important when research is delegated to a peer)."
+        ),
+    )
     action: Literal["start", "cancel"] = Field(
         ..., description="User action: 'start' to proceed or 'cancel' to abort"
     )
@@ -32,27 +48,27 @@ class PlanResponsePayload(BaseModel):
     )
 
 
-@router.post("/research/plan-response", tags=["Research"])
+@router.post(
+    "/research/plan-response",
+    tags=["Research"],
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def submit_plan_response(
     payload: PlanResponsePayload,
     user_id: UserId = Depends(get_user_id),
 ):
     """
-    Receive user's response to a research plan verification request.
+    Publish the user's plan response as a control signal on the SAM event bus.
 
-    The frontend sends this when the user clicks Start, Cancel, or edits
-    the plan steps. The response is stored in the shared cache for the
-    deep research tool to pick up via polling.
-
-    Args:
-        payload: The plan response with action and optional modified steps
-        user_id: The authenticated user ID
+    Returns 202 immediately - confirmation of the actual outcome (research
+    starting, or the plan being stale/timed out) comes through the existing
+    SSE stream.
     """
     log_prefix = "[POST /api/v1/research/plan-response] "
 
-    # Defence-in-depth: get_user_id should never return empty, but a blank
-    # user_id would namespace the cache key incorrectly and let one user's
-    # response land in another slot on misconfiguration.
+    # Defence-in-depth: get_user_id should never return empty for an
+    # authenticated request, but a blank user_id would let one user's
+    # response attempt to claim another user's plan on misconfiguration.
     if not user_id:
         log.error("%sMissing user_id on authenticated request", log_prefix)
         raise HTTPException(
@@ -60,15 +76,6 @@ async def submit_plan_response(
             detail="Authenticated user not available",
         )
 
-    log.info(
-        "%sUser %s responded to plan %s with action: %s",
-        log_prefix,
-        user_id,
-        payload.plan_id,
-        payload.action,
-    )
-
-    # Access the gateway component's cache service
     from ..dependencies import sac_component_instance
 
     if not sac_component_instance:
@@ -78,42 +85,56 @@ async def submit_plan_response(
             detail="Gateway component not initialized",
         )
 
-    cache_service = getattr(sac_component_instance, "cache_service", None)
-    if not cache_service:
-        log.error("%sNo cache service available on component", log_prefix)
+    publish = getattr(sac_component_instance, "publish_a2a", None)
+    if not callable(publish):
+        log.error("%sGateway component does not support publish_a2a", log_prefix)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Cache service not available",
+            detail="Gateway publish transport not available",
         )
 
-    # Store the response in cache for the deep research tool to pick up.
-    # Namespacing the key by user_id ensures a client can only write to its
-    # own plan slot, even if it happens to know another user's plan_id.
-    cache_key = f"deep_research_plan:{user_id}:{payload.plan_id}"
-    response_data = {
-        "action": payload.action,
-        "steps": payload.steps,
-        "user_id": str(user_id),
+    namespace = sac_component_instance.get_config("namespace")
+    if not namespace:
+        log.error("%sGateway component has no namespace configured", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gateway namespace not configured",
+        )
+
+    topic = get_sam_events_topic(namespace, "deep_research", "plan_response")
+    event_payload = {
+        "event_type": "plan_response",
+        "source_component": f"{sac_component_instance.gateway_id}_gateway"
+        if hasattr(sac_component_instance, "gateway_id")
+        else "http_sse_gateway",
+        "data": {
+            "plan_id": payload.plan_id,
+            "agent_name": payload.agent_name,
+            "user_id": str(user_id),
+            "action": payload.action,
+            "steps": payload.steps,
+        },
     }
 
+    log.info(
+        "%sUser %s responded to plan %s (agent=%s) with action: %s",
+        log_prefix,
+        user_id,
+        payload.plan_id,
+        payload.agent_name,
+        payload.action,
+    )
+
     try:
-        cache_service.add_data(
-            key=cache_key,
-            value=response_data,
-            expiry=120,  # 2 minute expiry (generous buffer)
-            component=sac_component_instance,
-        )
-        log.info(
-            "%sStored plan response in cache: key=%s, action=%s",
-            log_prefix,
-            cache_key,
-            payload.action,
-        )
+        publish(topic=topic, payload=event_payload, user_properties={
+            "clientId": getattr(sac_component_instance, "gateway_id", "http_sse_gateway"),
+            "userId": str(user_id),
+        })
     except Exception as e:
-        log.error("%sError storing plan response in cache: %s", log_prefix, str(e))
+        log.error("%sFailed to publish plan response: %s", log_prefix, e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to store plan response",
+            detail="Failed to publish plan response",
         )
 
-    return {"status": "ok", "plan_id": payload.plan_id, "action": payload.action}
+    return {"status": "accepted", "plan_id": payload.plan_id, "action": payload.action}
