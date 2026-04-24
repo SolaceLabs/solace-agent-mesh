@@ -2750,11 +2750,11 @@ def handle_deep_research_event(component, message, topic):
 
     Currently handles one event type:
 
-      ``plan_response`` - A user (or the scheduler) responded to a plan
-      verification card. Resolves the tool's ``asyncio.Future`` via the
-      component's plan-waiter registry. On unknown plan_id or user_id
-      mismatch, publishes a ``DeepResearchPlanStaleData`` signal back to the
-      frontend so the card stops looking actionable.
+      ``plan_response`` - A user approved a plan verification card ("start",
+      optionally with edited steps). Resolves the tool's ``asyncio.Future``
+      via the component's plan-waiter registry. Cancellation does NOT come
+      through this path - the frontend uses the standard tasks/:cancel flow
+      so the orchestrator is terminated deterministically.
     """
     try:
         payload = message.get_payload()
@@ -2783,7 +2783,7 @@ def handle_deep_research_event(component, message, topic):
         target_agent = data.get("agent_name")
         current_agent = component.get_config("agent_name")
 
-        if not plan_id or not user_id or action not in ("start", "cancel"):
+        if not plan_id or not user_id or action != "start":
             log.warning(
                 "%s Malformed deep_research plan_response: plan_id=%r user_id_present=%s action=%r",
                 component.log_identifier,
@@ -2801,19 +2801,16 @@ def handle_deep_research_event(component, message, topic):
             message.call_acknowledgements()
             return
 
-        response = {"action": action, "steps": data.get("steps")}
+        response = {"action": "start", "steps": data.get("steps")}
         resolved = component.resolve_deep_research_plan_response(
             plan_id=plan_id, user_id=user_id, response=response
         )
 
         if not resolved:
-            # Either the tool already gave up (timeout) or the user_id did
-            # not match. Tell the frontend so the card stops pretending to
-            # be live. We re-use the plan-signal publishing path which
-            # requires an a2a_context; because the waiter entry is gone by
-            # the time we get here, we cannot recover the original context
-            # and simply log - the timeout branch in the tool publishes its
-            # own stale signal using the context it still holds.
+            # The waiter is gone (timeout already fired, never registered,
+            # or user mismatch). Nothing actionable left to do - the tool's
+            # own timeout branch has already published a stale signal if
+            # relevant.
             log.info(
                 "%s plan_response for plan_id=%s could not be resolved (unknown or user mismatch).",
                 component.log_identifier,

@@ -501,9 +501,9 @@ class DeepResearchPlanStaleData(BaseModel):
     """
     Agent → frontend signal: the plan verification card is no longer actionable.
 
-    Emitted when the tool's wait times out, or when a plan-response control
-    signal arrives for a plan whose waiter is gone or whose user_id does not
-    match the recorded owner.
+    Emitted when the tool's hard backstop timeout fires so the frontend can
+    lock the card. (User cancellation now cancels the orchestrator task
+    directly, so there is no "late response / wrong user" case to signal.)
     """
 
     type: Literal["deep_research_plan_stale"] = Field(
@@ -511,12 +511,9 @@ class DeepResearchPlanStaleData(BaseModel):
         description="The constant type for this data part.",
     )
     plan_id: str = Field(..., description="The plan id that is no longer waiting.")
-    reason: Literal["timed_out", "stale"] = Field(
-        ...,
-        description=(
-            "'timed_out' when the agent's hard backstop fired; "
-            "'stale' when a response arrived too late or from the wrong user."
-        ),
+    reason: Literal["timed_out"] = Field(
+        "timed_out",
+        description="Currently only 'timed_out' - the agent's hard backstop fired.",
     )
 
 

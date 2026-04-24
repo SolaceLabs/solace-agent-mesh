@@ -1,15 +1,25 @@
 """
 API Router for deep research plan verification responses.
 
-Handles user responses to research plan verification requests (start, cancel,
-edit steps) from the frontend by publishing a fire-and-forget control signal
-on the SAM event bus. The deep-research tool running on the target agent has
-an ``asyncio.Future`` waiting in its plan-waiter registry keyed by ``plan_id``;
-the agent's event handler resolves that future when the signal arrives.
+Handles the user's approval (with optional edits) of a research plan by
+publishing a fire-and-forget control signal on the SAM event bus. The
+deep-research tool running on the target agent has an ``asyncio.Future``
+waiting in its plan-waiter registry keyed by ``plan_id``; the agent's event
+handler resolves that future when the signal arrives.
 
-The endpoint returns ``202 Accepted`` as soon as the signal is published; the
-frontend relies on the existing SSE stream (research progress, or a stale
-signal if the plan is no longer being awaited) for the actual outcome.
+Cancellation does NOT go through this endpoint - it uses the standard
+``tasks/{taskId}:cancel`` flow so the orchestrator task is terminated
+deterministically (cascading to the peer running the research), rather than
+relying on the LLM to refrain from re-invoking the tool after a cooperative
+signal.
+
+Scheduled tasks never hit this endpoint either: the tool auto-approves its
+own plan when it detects a scheduled session, so only interactive chat
+start-requests reach here.
+
+The endpoint returns ``202 Accepted`` as soon as the signal is published;
+confirmation of the actual outcome (research starting, or a stale signal if
+the plan is no longer being awaited) comes through the existing SSE stream.
 """
 
 import logging
@@ -28,7 +38,7 @@ log = logging.getLogger(__name__)
 
 
 class PlanResponsePayload(BaseModel):
-    """Data model for the research plan response payload."""
+    """Data model for the research plan start payload."""
 
     plan_id: str = Field(..., alias="planId", description="The unique plan verification ID")
     agent_name: str = Field(
@@ -40,11 +50,12 @@ class PlanResponsePayload(BaseModel):
             "the correct agent (important when research is delegated to a peer)."
         ),
     )
-    action: Literal["start", "cancel"] = Field(
-        ..., description="User action: 'start' to proceed or 'cancel' to abort"
+    action: Literal["start"] = Field(
+        "start",
+        description="Only 'start' is accepted; cancellation goes through tasks/:cancel.",
     )
     steps: Optional[List[str]] = Field(
-        None, description="Optionally modified plan steps (if user edited them)"
+        None, description="Optionally modified plan steps (if the user edited them)."
     )
 
 
@@ -57,13 +68,7 @@ async def submit_plan_response(
     payload: PlanResponsePayload,
     user_id: UserId = Depends(get_user_id),
 ):
-    """
-    Publish the user's plan response as a control signal on the SAM event bus.
-
-    Returns 202 immediately - confirmation of the actual outcome (research
-    starting, or the plan being stale/timed out) comes through the existing
-    SSE stream.
-    """
+    """Publish the user's plan approval as a control signal on the SAM event bus."""
     log_prefix = "[POST /api/v1/research/plan-response] "
 
     # Defence-in-depth: get_user_id should never return empty for an

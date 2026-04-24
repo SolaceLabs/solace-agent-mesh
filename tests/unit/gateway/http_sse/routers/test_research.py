@@ -50,17 +50,19 @@ class TestPlanResponsePayload:
         assert p.action == "start"
         assert p.steps is None
 
-    def test_accepts_cancel_action(self):
-        p = PlanResponsePayload(planId="p2", agentName="A", action="cancel")
-        assert p.action == "cancel"
-
     def test_accepts_steps(self):
         p = PlanResponsePayload(planId="p3", agentName="A", action="start", steps=["a", "b"])
         assert p.steps == ["a", "b"]
 
-    def test_rejects_invalid_action(self):
+    def test_defaults_action_to_start(self):
+        # action is effectively constant now - the model accepts omission.
+        p = PlanResponsePayload(planId="p2", agentName="A")
+        assert p.action == "start"
+
+    def test_rejects_cancel_action(self):
+        # Cancellation moved to tasks/:cancel; this endpoint should reject it.
         with pytest.raises(Exception):
-            PlanResponsePayload(planId="p4", agentName="A", action="invalid")
+            PlanResponsePayload(planId="p4", agentName="A", action="cancel")
 
     def test_rejects_missing_agent_name(self):
         with pytest.raises(Exception):
@@ -107,22 +109,6 @@ class TestSubmitPlanResponse:
         assert payload["data"]["user_id"] == "user-1"
         assert payload["data"]["action"] == "start"
         assert payload["data"]["steps"] == ["edited step"]
-
-    def test_publishes_cancel_signal_without_steps(self):
-        component = _make_component()
-        app = _app_with_user("user-2")
-
-        with patch(PATCH_COMPONENT, component):
-            client = TestClient(app)
-            resp = client.post(
-                "/api/v1/research/plan-response",
-                json={"planId": "plan-xyz", "agentName": "A", "action": "cancel"},
-            )
-
-        assert resp.status_code == 202
-        payload = component.publish_a2a.call_args.kwargs["payload"]
-        assert payload["data"]["action"] == "cancel"
-        assert payload["data"]["steps"] is None
 
     def test_returns_503_when_no_component(self):
         app = _app_with_user()
@@ -171,7 +157,7 @@ class TestSubmitPlanResponse:
         client = TestClient(app)
         resp = client.post(
             "/api/v1/research/plan-response",
-            json={"planId": "p1", "agentName": "A", "action": "pause"},
+            json={"planId": "p1", "agentName": "A", "action": "cancel"},
         )
 
         assert resp.status_code == 422  # Pydantic validation error

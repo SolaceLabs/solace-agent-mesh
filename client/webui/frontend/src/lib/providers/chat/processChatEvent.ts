@@ -92,7 +92,7 @@ interface ToolInvocationStartPayload {
 interface DeepResearchPlanStalePayload {
     type: "deep_research_plan_stale";
     plan_id: string;
-    reason: "timed_out" | "stale";
+    reason: "timed_out";
 }
 
 type ChatDataPartPayload =

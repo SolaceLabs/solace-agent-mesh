@@ -88,7 +88,6 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
                 await submitPlanResponse({
                     planId: planData.plan_id,
                     agentName: planData.agent_name,
-                    action: "start",
                     steps: steps ?? planData.steps,
                 });
                 markResponded("start");
