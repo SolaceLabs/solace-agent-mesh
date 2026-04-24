@@ -18,7 +18,7 @@ import type {
     WorkflowExecutionResultData,
     WorkflowExecutionStartData,
     WorkflowNodeExecutionResultData,
-    WorkflowNodeExecutionStartData,
+    WorkflowNodeExecutionStartData
 } from "@/lib/types";
 import { isString } from "@/lib/utils";
 
