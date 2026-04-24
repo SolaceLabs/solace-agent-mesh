@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, test, expect, vi } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
@@ -66,9 +67,11 @@ vi.mock("@/lib/api/artifacts", async () => {
 function renderComponent(chatContextValues = {}) {
     return render(
         <MemoryRouter>
-            <StoryProvider chatContextValues={chatContextValues}>
-                <ChatInputArea agents={[]} />
-            </StoryProvider>
+            <OpenFeatureTestProvider flagValueMap={{ artifact_attachment: true }}>
+                <StoryProvider chatContextValues={chatContextValues} skipFeatureFlagProvider>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </OpenFeatureTestProvider>
         </MemoryRouter>
     );
 }
