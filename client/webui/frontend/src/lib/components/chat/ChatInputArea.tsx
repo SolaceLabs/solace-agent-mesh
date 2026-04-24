@@ -19,6 +19,7 @@ import { addRecentMention } from "@/lib/utils/recentMentions";
 
 import { AttachArtifactDialog } from "./file/AttachArtifactDialog";
 import { ArtifactAttachmentCard } from "./file/ArtifactAttachmentCard";
+import { FileBadge } from "./file/FileBadge";
 import { FileUploadCard } from "./file/FileUploadCard";
 import { LocalFilePreview } from "./file/LocalFilePreview";
 import { StandaloneArtifactPreview, getArtifactApiUrl } from "./file/StandaloneArtifactPreview";
@@ -84,6 +85,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
+    const { value: artifactAttachmentEnabled } = useBooleanFlagDetails("artifact_attachment", false);
     const { data: modelConfigStatus } = useModelConfigStatus();
     const modelNotConfigured = modelConfigUiEnabled && modelConfigStatus && !modelConfigStatus.configured;
 
@@ -956,12 +958,17 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {/* Attachment row: uploaded files, artifact references, and pending pasted text — one wrapping row */}
             {(selectedFiles.length > 0 || selectedArtifactRefs.length > 0 || pendingPastedTextItems.length > 0) && (
                 <div className="mb-2 flex max-h-32 flex-wrap items-start gap-2 overflow-y-auto pt-2 pl-2">
-                    {selectedFiles.map((file, index) => (
-                        <FileUploadCard key={`file-${file.name}-${file.lastModified}-${index}`} file={file} onClick={() => setPreviewingLocalFile(file)} onRemove={() => handleRemoveFile(index)} />
-                    ))}
-                    {selectedArtifactRefs.map(artifact => (
-                        <ArtifactAttachmentCard key={`artifact-${artifact.uri}`} artifact={artifact} onClick={() => setPreviewingArtifact(artifact)} onRemove={() => artifact.uri && handleRemoveArtifactRef(artifact.uri)} />
-                    ))}
+                    {selectedFiles.map((file, index) =>
+                        artifactAttachmentEnabled ? (
+                            <FileUploadCard key={`file-${file.name}-${file.lastModified}-${index}`} file={file} onClick={() => setPreviewingLocalFile(file)} onRemove={() => handleRemoveFile(index)} />
+                        ) : (
+                            <FileBadge key={`file-${file.name}-${file.lastModified}-${index}`} fileName={file.name} onRemove={() => handleRemoveFile(index)} />
+                        )
+                    )}
+                    {artifactAttachmentEnabled &&
+                        selectedArtifactRefs.map(artifact => (
+                            <ArtifactAttachmentCard key={`artifact-${artifact.uri}`} artifact={artifact} onClick={() => setPreviewingArtifact(artifact)} onRemove={() => artifact.uri && handleRemoveArtifactRef(artifact.uri)} />
+                        ))}
                     {pendingPastedTextItems.map((item, index) => {
                         // Compute default filename for non-configured items
                         // This mirrors the logic used at submit time
@@ -1181,61 +1188,73 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             />
 
             {/* Standalone preview Dialog for attached artifacts (cross-session safe). */}
-            <Dialog
-                open={previewingArtifact !== null}
-                onOpenChange={open => {
-                    if (!open) setPreviewingArtifact(null);
-                }}
-            >
-                <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
-                    {previewingArtifact && (
-                        <StandaloneArtifactPreview artifact={previewingArtifact} onClose={() => setPreviewingArtifact(null)} onDownload={handlePreviewArtifactDownload} onGoToChat={handlePreviewGoToChat} onGoToProject={handlePreviewGoToProject} />
-                    )}
-                </DialogContent>
-            </Dialog>
+            {artifactAttachmentEnabled && (
+                <Dialog
+                    open={previewingArtifact !== null}
+                    onOpenChange={open => {
+                        if (!open) setPreviewingArtifact(null);
+                    }}
+                >
+                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                        {previewingArtifact && (
+                            <StandaloneArtifactPreview artifact={previewingArtifact} onClose={() => setPreviewingArtifact(null)} onDownload={handlePreviewArtifactDownload} onGoToChat={handlePreviewGoToChat} onGoToProject={handlePreviewGoToProject} />
+                        )}
+                    </DialogContent>
+                </Dialog>
+            )}
 
             {/* Preview Dialog for locally-selected files (not yet uploaded). */}
-            <Dialog
-                open={previewingLocalFile !== null}
-                onOpenChange={open => {
-                    if (!open) setPreviewingLocalFile(null);
-                }}
-            >
-                <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
-                    {previewingLocalFile && <LocalFilePreview file={previewingLocalFile} onClose={() => setPreviewingLocalFile(null)} />}
-                </DialogContent>
-            </Dialog>
+            {artifactAttachmentEnabled && (
+                <Dialog
+                    open={previewingLocalFile !== null}
+                    onOpenChange={open => {
+                        if (!open) setPreviewingLocalFile(null);
+                    }}
+                >
+                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                        {previewingLocalFile && <LocalFilePreview file={previewingLocalFile} onClose={() => setPreviewingLocalFile(null)} />}
+                    </DialogContent>
+                </Dialog>
+            )}
 
             {/* Attach-artifact Dialog */}
-            <AttachArtifactDialog isOpen={showAttachArtifactDialog} onClose={() => setShowAttachArtifactDialog(false)} onAttach={handleAttachArtifacts} alreadyAttachedUris={selectedArtifactRefs.map(a => a.uri).filter((u): u is string => !!u)} />
+            {artifactAttachmentEnabled && (
+                <AttachArtifactDialog isOpen={showAttachArtifactDialog} onClose={() => setShowAttachArtifactDialog(false)} onAttach={handleAttachArtifacts} alreadyAttachedUris={selectedArtifactRefs.map(a => a.uri).filter((u): u is string => !!u)} />
+            )}
 
             {/* Buttons */}
             <div className="@container relative m-2 flex min-w-[420px] items-center gap-2">
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" disabled={isResponding} tooltip="Attach">
-                            <Paperclip className="size-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                        <DropdownMenuItem
-                            onSelect={() => {
-                                handleFileSelect();
-                            }}
-                        >
-                            <Upload className="text-(--primary-wMain)" />
-                            <span>Upload from computer</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onSelect={() => {
-                                setShowAttachArtifactDialog(true);
-                            }}
-                        >
-                            <Link2 className="text-(--primary-wMain)" />
-                            <span>Attach existing artifact</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {artifactAttachmentEnabled ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" disabled={isResponding} tooltip="Attach">
+                                <Paperclip className="size-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    handleFileSelect();
+                                }}
+                            >
+                                <Upload className="text-(--primary-wMain)" />
+                                <span>Upload from computer</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() => {
+                                    setShowAttachArtifactDialog(true);
+                                }}
+                            >
+                                <Link2 className="text-(--primary-wMain)" />
+                                <span>Attach existing artifact</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : (
+                    <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
+                        <Paperclip className="size-4" />
+                    </Button>
+                )}
 
                 <div className="hidden @[480px]:block">Agent: </div>
                 <Select
