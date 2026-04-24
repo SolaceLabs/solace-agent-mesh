@@ -321,7 +321,7 @@ The system always compacts up to the nearest complete conversation turn and pres
 
 ### Manual Compaction
 
-Users can also compact a conversation manually from the chat UI before the context window overflows. A per-session context-usage indicator below the chat input shows how much of the model's context window has been consumed (see [Context Usage Indicator](./model_configurations.md#context-usage-indicator) for how the limit is resolved).
+Users can also compact (compress) a conversation manually from the chat UI before the context window overflows. A per-session context-usage indicator below the chat input shows how much of the model's context window has been consumed (see [Context Usage Indicator](./model_configurations.md#context-usage-indicator) for how the limit is resolved).
 
 Once the conversation has enough history to compact — at least a few messages or 50%+ context usage — an expandable panel surfaces a **Compress Conversation** button, and a collapsed toolbar icon appears once usage exceeds 80%. Compaction uses the same `compaction_percentage` setting as the auto path, so the behavior is identical; it just runs on user request instead of on an overflow error. Older messages are summarized, the chat history stays visible to the user, and subsequent turns use the summary instead of the original messages.
 
