@@ -10,4 +10,5 @@ export const sessionKeys = {
     details: () => [...sessionKeys.all, "detail"] as const,
     detail: (id: string) => [...sessionKeys.details(), id] as const,
     chatTasks: (id: string) => [...sessionKeys.detail(id), "chat-tasks"] as const,
+    contextUsage: (id: string, agentName?: string) => [...sessionKeys.detail(id), "context-usage", agentName ?? null] as const,
 };

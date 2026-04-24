@@ -18,6 +18,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -33,6 +34,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -48,6 +50,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -63,6 +66,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -78,6 +82,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -93,6 +98,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -108,6 +114,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -123,6 +130,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -138,6 +146,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
 ];
@@ -160,6 +169,7 @@ export const mockModelConfigsWithUnconfiguredDefaults: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -175,6 +185,7 @@ export const mockModelConfigsWithUnconfiguredDefaults: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -190,6 +201,7 @@ export const mockModelConfigsWithUnconfiguredDefaults: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
 ];
@@ -211,5 +223,6 @@ export const anthropicModelConfig: ModelConfig = {
     createdBy: "admin@company.com",
     updatedBy: "admin@company.com",
     createdTime: 1704067200000, // 2024-01-01
+    maxInputTokens: null,
     updatedTime: 1710806400000, // 2024-03-19
 };
