@@ -9,7 +9,6 @@ import logging
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel, Field
 
 from ..dependencies import (
@@ -35,7 +34,6 @@ class PlanResponsePayload(BaseModel):
 
 @router.post("/research/plan-response", tags=["Research"])
 async def submit_plan_response(
-    request: FastAPIRequest,
     payload: PlanResponsePayload,
     user_id: UserId = Depends(get_user_id),
 ):
@@ -51,6 +49,17 @@ async def submit_plan_response(
         user_id: The authenticated user ID
     """
     log_prefix = "[POST /api/v1/research/plan-response] "
+
+    # Defence-in-depth: get_user_id should never return empty, but a blank
+    # user_id would namespace the cache key incorrectly and let one user's
+    # response land in another slot on misconfiguration.
+    if not user_id:
+        log.error("%sMissing user_id on authenticated request", log_prefix)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user not available",
+        )
+
     log.info(
         "%sUser %s responded to plan %s with action: %s",
         log_prefix,

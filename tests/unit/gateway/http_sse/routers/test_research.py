@@ -82,7 +82,7 @@ class TestSubmitPlanResponse:
 
         cache.add_data.assert_called_once()
         call_kwargs = cache.add_data.call_args[1]
-        assert call_kwargs["key"] == "deep_research_plan_plan-abc"
+        assert call_kwargs["key"] == "deep_research_plan:user-1:plan-abc"
         assert call_kwargs["value"]["action"] == "start"
         assert call_kwargs["value"]["steps"] == ["edited step"]
         assert call_kwargs["expiry"] == 120

@@ -468,7 +468,7 @@ class DeepResearchPlanData(BaseModel):
     Data model for deep research plan verification.
     Sent before research begins to allow user to review/edit/cancel the plan.
     The frontend renders this as an interactive card with Edit, Cancel, and Start buttons.
-    Includes a configurable auto-approve countdown timer.
+    If the user does not respond within the backend-side timeout the research is cancelled.
     """
 
     type: Literal["deep_research_plan"] = Field(
@@ -569,6 +569,7 @@ SignalData = Union[
     WorkflowExecutionResultData,
     DeepResearchProgressData,
     RAGInfoUpdateData,
+    DeepResearchPlanData,
     DeepResearchReportData,
     CompactionNotificationData,
     ThinkingContentData,

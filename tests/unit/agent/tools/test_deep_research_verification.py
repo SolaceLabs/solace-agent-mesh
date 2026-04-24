@@ -180,7 +180,6 @@ class TestSendPlanVerification:
             max_iterations=3,
             max_runtime_seconds=300,
             sources=["web"],
-            auto_approve_seconds=60,
             tool_context=ctx,
         )
 
@@ -197,7 +196,7 @@ class TestSendPlanVerification:
         ctx = _make_tool_context(canonical_model=MagicMock(), a2a_context=None)
         # Should not raise
         await _send_plan_verification(
-            "id", "t", "q", ["s"], "quick", 3, 300, [], 60, ctx
+            "id", "t", "q", ["s"], "quick", 3, 300, [], ctx
         )
 
     async def test_no_crash_when_no_invocation_context(self):
@@ -208,7 +207,7 @@ class TestSendPlanVerification:
         ctx._invocation_context = None
 
         await _send_plan_verification(
-            "id", "t", "q", ["s"], "quick", 3, 300, [], 60, ctx
+            "id", "t", "q", ["s"], "quick", 3, 300, [], ctx
         )
 
     async def test_no_crash_when_host_component_missing(self):
@@ -217,7 +216,7 @@ class TestSendPlanVerification:
         ctx._invocation_context.agent.host_component = None
 
         await _send_plan_verification(
-            "id", "t", "q", ["s"], "quick", 3, 300, [], 60, ctx
+            "id", "t", "q", ["s"], "quick", 3, 300, [], ctx
         )
 
     async def test_no_crash_on_publish_exception(self):
@@ -231,7 +230,7 @@ class TestSendPlanVerification:
         )
 
         await _send_plan_verification(
-            "id", "t", "q", ["s"], "quick", 3, 300, [], 60, ctx
+            "id", "t", "q", ["s"], "quick", 3, 300, [], ctx
         )
 
 
@@ -251,13 +250,17 @@ class TestWaitForPlanResponse:
         host = MagicMock()
         host.cache_service = cache
 
-        ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
+        ctx = _make_tool_context(
+            canonical_model=MagicMock(),
+            host_component=host,
+            a2a_context={"user_id": "user-1"},
+        )
 
-        result = await _wait_for_plan_response("plan-1", 60, ["original"], ctx)
+        result = await _wait_for_plan_response("plan-1", ["original"], ctx)
 
         assert result["action"] == "start"
         assert result["steps"] == ["edited"]
-        cache.remove_data.assert_called_once_with("deep_research_plan_plan-1")
+        cache.remove_data.assert_called_once_with("deep_research_plan:user-1:plan-1")
 
     async def test_polls_until_response_appears(self):
         """Simulates multiple poll cycles before the cache returns data."""
@@ -276,10 +279,14 @@ class TestWaitForPlanResponse:
         host = MagicMock()
         host.cache_service = cache
 
-        ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
+        ctx = _make_tool_context(
+            canonical_model=MagicMock(),
+            host_component=host,
+            a2a_context={"user_id": "user-1"},
+        )
 
         with patch("solace_agent_mesh.agent.tools.deep_research_tools.asyncio.sleep", new_callable=AsyncMock):
-            result = await _wait_for_plan_response("plan-x", 60, ["s1"], ctx)
+            result = await _wait_for_plan_response("plan-x", ["s1"], ctx)
 
         assert result["action"] == "cancel"
         assert call_count == 3
@@ -289,7 +296,7 @@ class TestWaitForPlanResponse:
         host = MagicMock(spec=[])  # no cache_service attribute
         ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
 
-        result = await _wait_for_plan_response("plan-1", 60, ["s1", "s2"], ctx)
+        result = await _wait_for_plan_response("plan-1", ["s1", "s2"], ctx)
 
         assert result["action"] == "start"
         assert result["steps"] == ["s1", "s2"]
@@ -300,7 +307,7 @@ class TestWaitForPlanResponse:
         host.cache_service = None
         ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
 
-        result = await _wait_for_plan_response("plan-1", 60, ["s1"], ctx)
+        result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
 
         assert result["action"] == "start"
 
@@ -309,7 +316,7 @@ class TestWaitForPlanResponse:
         ctx = MagicMock()
         ctx._invocation_context = None
 
-        result = await _wait_for_plan_response("plan-1", 60, ["s1"], ctx)
+        result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
 
         assert result["action"] == "start"
         assert result["steps"] == ["s1"]
@@ -322,9 +329,13 @@ class TestWaitForPlanResponse:
         host = MagicMock()
         host.cache_service = cache
 
-        ctx = _make_tool_context(canonical_model=MagicMock(), host_component=host)
+        ctx = _make_tool_context(
+            canonical_model=MagicMock(),
+            host_component=host,
+            a2a_context={"user_id": "user-1"},
+        )
 
-        result = await _wait_for_plan_response("plan-1", 60, ["s1"], ctx)
+        result = await _wait_for_plan_response("plan-1", ["s1"], ctx)
 
         assert result["action"] == "start"
         assert result["steps"] == ["s1"]

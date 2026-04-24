@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Brain, Loader2, Plus, Trash2, Play } from "lucide-react";
+import { Brain, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
 
 import { useSubmitPlanResponse } from "@/lib/api";
 import { Button } from "@/lib/components/ui/button";
@@ -32,12 +32,21 @@ interface ResearchPlanVerificationProps {
     planData: ResearchPlanData;
 }
 
+interface EditableStep {
+    id: string;
+    value: string;
+}
+
+const makeStepId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `step-${Math.random().toString(36).slice(2)}-${Date.now()}`);
+
+const toEditableSteps = (steps: string[]): EditableStep[] => steps.map(value => ({ id: makeStepId(), value }));
+
 export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationProps) => {
     const { setMessages, displayError } = useChatContext();
     const { mutateAsync: submitPlanResponse, isPending } = useSubmitPlanResponse();
 
     const [isEditing, setIsEditing] = useState(false);
-    const [editedSteps, setEditedSteps] = useState<string[]>(planData.steps);
+    const [editedSteps, setEditedSteps] = useState<EditableStep[]>(() => toEditableSteps(planData.steps));
 
     const markResponded = useCallback(
         (action: "start" | "cancel") => {
@@ -80,25 +89,27 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
         [planData.plan_id, planData.responded, planData.steps, submitPlanResponse, markResponded, displayError]
     );
 
-    const handleStart = () => handleResponse("start", isEditing ? editedSteps : planData.steps);
+    const handleStart = () => handleResponse("start", isEditing ? editedSteps.map(s => s.value) : planData.steps);
     const handleCancel = () => handleResponse("cancel");
 
     const handleEdit = () => {
+        setEditedSteps(toEditableSteps(planData.steps));
         setIsEditing(true);
-        setEditedSteps([...planData.steps]);
     };
 
-    const handleStepChange = (index: number, value: string) => {
-        const newSteps = [...editedSteps];
-        newSteps[index] = value;
-        setEditedSteps(newSteps);
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setEditedSteps(toEditableSteps(planData.steps));
     };
 
-    const handleAddStep = () => setEditedSteps([...editedSteps, ""]);
+    const handleStepChange = (id: string, value: string) => {
+        setEditedSteps(prev => prev.map(step => (step.id === id ? { ...step, value } : step)));
+    };
 
-    const handleRemoveStep = (index: number) => {
-        if (editedSteps.length <= 1) return;
-        setEditedSteps(editedSteps.filter((_, i) => i !== index));
+    const handleAddStep = () => setEditedSteps(prev => [...prev, { id: makeStepId(), value: "" }]);
+
+    const handleRemoveStep = (id: string) => {
+        setEditedSteps(prev => (prev.length <= 1 ? prev : prev.filter(step => step.id !== id)));
     };
 
     if (planData.responded) {
@@ -108,48 +119,50 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
     return (
         <div className="my-4">
             <div className="rounded-lg border bg-(--background-w10) p-4">
-                <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
-                        <div className="mt-0.5 flex-shrink-0 text-(--primary-wMain)">
+                        <div className="mt-0.5 flex-shrink-0 text-(--primary-wMain)" aria-hidden="true">
                             <Brain className="h-5 w-5" />
                         </div>
-                        <h3 className="text-base font-semibold">
-                            <span className="font-normal text-(--secondary-text-wMain)">Research Plan: </span>
-                            {planData.title}
-                        </h3>
+                        <div className="min-w-0">
+                            <h3 className="text-base font-semibold">
+                                <span className="font-normal text-(--secondary-text-wMain)">Research Plan: </span>
+                                {planData.title}
+                            </h3>
+                            {planData.research_question && <p className="mt-1 text-sm text-(--secondary-text-wMain)">{planData.research_question}</p>}
+                        </div>
                     </div>
                     {!isEditing && (
                         <Button variant="ghost" size="sm" onClick={handleEdit} disabled={isPending} className="flex-shrink-0 text-sm">
+                            <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                             Edit
                         </Button>
                     )}
                 </div>
 
                 <div className="mb-5 space-y-3 pl-2">
-                    {(isEditing ? editedSteps : planData.steps).map((step, index) => (
-                        <div key={index} className="flex items-start gap-3">
-                            {isEditing ? (
-                                <>
-                                    <span className="mt-2.5 w-4 flex-shrink-0 text-center text-xs font-medium text-(--secondary-text-wMain)">{index + 1}</span>
-                                    <Input type="text" value={step} onChange={e => handleStepChange(index, e.target.value)} placeholder="Describe a research step..." className="flex-1" />
-                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveStep(index)} disabled={editedSteps.length <= 1} className="flex-shrink-0">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="mt-0.5 flex-shrink-0">
-                                        <DashedCircle className="text-(--secondary-text-wMain)" />
-                                    </div>
-                                    <span className="text-sm leading-relaxed">{step}</span>
-                                </>
-                            )}
-                        </div>
-                    ))}
+                    {isEditing
+                        ? editedSteps.map((step, index) => (
+                              <div key={step.id} className="flex items-start gap-3">
+                                  <span className="mt-2.5 w-4 flex-shrink-0 text-center text-xs font-medium text-(--secondary-text-wMain)">{index + 1}</span>
+                                  <Input type="text" value={step.value} onChange={e => handleStepChange(step.id, e.target.value)} placeholder="Describe a research step..." className="flex-1" aria-label={`Research step ${index + 1}`} />
+                                  <Button variant="ghost" size="icon" onClick={() => handleRemoveStep(step.id)} disabled={editedSteps.length <= 1} className="flex-shrink-0" aria-label={`Remove step ${index + 1}`}>
+                                      <Trash2 className="h-4 w-4" />
+                                  </Button>
+                              </div>
+                          ))
+                        : planData.steps.map((step, index) => (
+                              <div key={index} className="flex items-start gap-3">
+                                  <div className="mt-0.5 flex-shrink-0" aria-hidden="true">
+                                      <DashedCircle className="text-(--secondary-text-wMain)" />
+                                  </div>
+                                  <span className="text-sm leading-relaxed">{step}</span>
+                              </div>
+                          ))}
 
                     {isEditing && (
                         <Button variant="ghost" size="sm" onClick={handleAddStep} className="ml-7 text-xs">
-                            <Plus className="mr-1 h-3 w-3" />
+                            <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
                             Add step
                         </Button>
                     )}
@@ -157,14 +170,19 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
 
                 <div className="flex items-center justify-end gap-2">
                     <Button variant="ghost" size="sm" onClick={handleCancel} disabled={isPending}>
-                        Cancel
+                        Cancel Research
                     </Button>
-                    <Button size="sm" onClick={handleStart} disabled={isPending}>
+                    {isEditing && (
+                        <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isPending}>
+                            Discard Changes
+                        </Button>
+                    )}
+                    <Button size="sm" onClick={handleStart} disabled={isPending} aria-label="Start">
                         {isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                         ) : (
                             <>
-                                <Play className="mr-1.5 h-3.5 w-3.5" />
+                                <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                                 Start
                             </>
                         )}

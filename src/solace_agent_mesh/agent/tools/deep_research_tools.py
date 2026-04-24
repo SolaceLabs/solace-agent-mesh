@@ -2030,13 +2030,30 @@ async def deep_research(
         # that can render and respond to plan signals (e.g. WebUI); leave disabled
         # for non-interactive surfaces (Slack, Teams, MCP) where the prompt would
         # never be answered and the tool would block until timeout.
-        interactive_verification = bool(config.get("interactive_plan_verification", False))
+        #
+        # Scheduled-task sessions (session_id prefixed "scheduled_") always
+        # auto-approve: there's no human available to confirm. The plan is still
+        # generated so it appears in the run's logs/artifacts for post-hoc review.
+        from ..utils.context_helpers import get_original_session_id
+        session_id = ""
+        inv_ctx = getattr(tool_context, "_invocation_context", None)
+        if inv_ctx is not None:
+            try:
+                session_id = get_original_session_id(inv_ctx)
+            except Exception:
+                session_id = ""
+        is_scheduled_session = session_id.startswith("scheduled_")
+
+        interactive_verification = (
+            bool(config.get("interactive_plan_verification", False))
+            and not is_scheduled_session
+        )
 
         if interactive_verification:
             # Only generate plan steps when verification is actually needed
             plan_steps = await _generate_research_plan(research_question, queries, tool_context, tool_config)
             log.info("%s Generated %d plan steps for verification", log_identifier, len(plan_steps))
-            
+
             plan_id = str(uuid.uuid4())
 
             log.info("%s Sending plan verification to frontend: plan_id=%s", log_identifier, plan_id)
@@ -2060,7 +2077,7 @@ async def deep_research(
                 steps=plan_steps,
                 tool_context=tool_context
             )
-            
+
             if verification_result.get("action") == "cancel":
                 if verification_result.get("reason") == "timeout":
                     log.info("%s Research cancelled: plan verification timed out", log_identifier)
@@ -2076,7 +2093,7 @@ async def deep_research(
                     "status": "cancelled",
                     "message": "Research was cancelled by the user before starting."
                 }
-            
+
             # User may have edited steps - regenerate queries if steps were modified
             user_steps = verification_result.get("steps", plan_steps)
             if user_steps != plan_steps:
@@ -2085,8 +2102,17 @@ async def deep_research(
                     user_steps, research_question, tool_context, tool_config
                 )
                 log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
-            
+
             log.info("%s Plan approved, proceeding with research", log_identifier)
+        elif is_scheduled_session:
+            # Scheduled task: generate plan for the run log, then auto-approve.
+            plan_steps = await _generate_research_plan(
+                research_question, queries, tool_context, tool_config
+            )
+            log.info(
+                "%s Scheduled session (session_id=%s); auto-approving plan with %d steps",
+                log_identifier, session_id, len(plan_steps),
+            )
         else:
             log.info("%s Interactive plan verification disabled, skipping", log_identifier)
         

@@ -24,7 +24,6 @@ class TestDeepResearchPlanData:
         assert d.steps == ["Step 1", "Step 2"]
         assert d.research_type == "quick"  # default
         assert d.sources == []  # default
-        assert d.auto_approve_seconds == 60  # default
 
     def test_overrides_defaults(self):
         d = DeepResearchPlanData(
@@ -36,11 +35,9 @@ class TestDeepResearchPlanData:
             max_runtime_seconds=600,
             research_type="in-depth",
             sources=["web", "kb"],
-            auto_approve_seconds=120,
         )
         assert d.research_type == "in-depth"
         assert d.sources == ["web", "kb"]
-        assert d.auto_approve_seconds == 120
 
     def test_rejects_missing_plan_id(self):
         with pytest.raises(ValidationError):
