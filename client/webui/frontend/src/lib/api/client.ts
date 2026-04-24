@@ -178,6 +178,21 @@ const refreshToken = async () => {
     return pendingRefresh;
 };
 
+type PydanticErrorEntry = { loc?: Array<string | number>; msg?: string };
+
+const formatPydanticErrors = (entries: PydanticErrorEntry[]): string =>
+    entries
+        .map(err => {
+            // "body.schedule_expression" reads better than "body, schedule_expression"
+            const field = (err.loc || [])
+                .filter(part => part !== "body") // drop the noisy outer prefix
+                .join(".");
+            const fieldPrefix = field ? `${field}: ` : "";
+            return `${fieldPrefix}${err.msg ?? "invalid"}`;
+        })
+        .filter(Boolean)
+        .join("; ");
+
 const getErrorFromResponse = async (response: Response): Promise<string> => {
     const fallbackMessage = `Request failed: ${response.statusText || `HTTP ${response.status}`}`;
     try {
@@ -186,15 +201,22 @@ const getErrorFromResponse = async (response: Response): Promise<string> => {
         try {
             const errorData = JSON.parse(text);
 
-            // Handle 422 validation errors with array format (FastAPI/Pydantic)
-            if (response.status === 422 && errorData.detail && Array.isArray(errorData.detail)) {
-                const validationErrors = errorData.detail
-                    .map((err: { loc?: string[]; msg: string }) => {
-                        const field = err.loc?.join(".") || "field";
-                        return `${field}: ${err.msg}`;
-                    })
-                    .join(", ");
-                return `Validation error: ${validationErrors}`;
+            // Handle 422 validation errors with array format (FastAPI/Pydantic default).
+            if (response.status === 422 && Array.isArray(errorData.detail)) {
+                const validationErrors = formatPydanticErrors(errorData.detail);
+                return validationErrors ? `Validation error: ${validationErrors}` : fallbackMessage;
+            }
+
+            // The HTTP/SSE gateway overrides the default Pydantic handler to
+            // wrap errors in a JSON-RPC envelope (see main.py:validation_exception_handler).
+            // Unwrap error.data (array of Pydantic entries) so the message names the field.
+            if (errorData.error && typeof errorData.error === "object") {
+                const { message: rpcMessage, data: rpcData } = errorData.error as { message?: string; data?: unknown };
+                if (Array.isArray(rpcData) && rpcData.length > 0) {
+                    const validationErrors = formatPydanticErrors(rpcData as PydanticErrorEntry[]);
+                    if (validationErrors) return `${rpcMessage || "Validation error"}: ${validationErrors}`;
+                }
+                if (rpcMessage) return rpcMessage;
             }
 
             // Handle standard error formats

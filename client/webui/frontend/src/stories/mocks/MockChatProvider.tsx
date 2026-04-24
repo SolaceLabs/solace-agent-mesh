@@ -74,6 +74,7 @@ const defaultMockChatContext: DefaultMockContextType = {
     showWorkingArtifacts: false,
     workingArtifactCount: 0,
     hasModelConfigWrite: false,
+    turnDividerIndex: null,
 
     // Background task monitoring
     backgroundTasks: [],

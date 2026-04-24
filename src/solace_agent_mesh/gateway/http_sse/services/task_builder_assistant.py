@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-from litellm import acompletion
+from litellm import acompletion, supports_response_schema
 from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
@@ -205,6 +205,7 @@ REMEMBER:
 - Suggest appropriate schedule types (cron for recurring, interval for fixed intervals)
 - Set ready_to_save to true when all required fields are complete
 - Be conversational and helpful
+- IMPORTANT: When telling the user to finalize, always say "Click 'Create'" (NOT "Save"). The button is labeled "Create".
 """
     
     def __init__(self, db: Optional[Session] = None, model_config: Optional[Dict[str, Any]] = None):
@@ -345,14 +346,23 @@ REMEMBER:
             ),
         })
         
-        # Call LLM with JSON mode
+        # Call LLM — only request JSON mode when the model supports it.
+        # Models accessed via an OpenAI-compatible proxy (e.g. openai/claude-*)
+        # often don't support response_format and return {} or empty content.
         try:
             completion_args = {
                 "model": self.model,
                 "messages": messages,
-                "response_format": {"type": "json_object"},
                 "temperature": 0.1,  # Low temperature for consistency
             }
+
+            try:
+                if supports_response_schema(model=self.model, custom_llm_provider=None):
+                    completion_args["response_format"] = {"type": "json_object"}
+                else:
+                    log.info("Model %s does not support response_schema; relying on system prompt for JSON output", self.model)
+            except Exception:
+                log.debug("Could not determine response_schema support for model %s; skipping JSON mode", self.model)
             
             if self.api_base:
                 completion_args["api_base"] = self.api_base
@@ -399,6 +409,33 @@ REMEMBER:
             
             task_updates = _validate_task_updates(parsed.get("task_updates", {}))
 
+            ready_to_save = bool(parsed.get("ready_to_save", False))
+            proposed_agent = task_updates.get("target_agent_name")
+            if proposed_agent and available_agents and proposed_agent not in available_agents:
+                import difflib
+
+                suggestions = difflib.get_close_matches(proposed_agent, available_agents, n=3, cutoff=0.4)
+                if suggestions:
+                    hint = f"Did you mean one of: {', '.join(suggestions)}?"
+                else:
+                    # Show up to five available agents so the user can pick one
+                    preview_list = ", ".join(available_agents[:5])
+                    more = " (and more)" if len(available_agents) > 5 else ""
+                    hint = f"Available agents include: {preview_list}{more}."
+
+                message = (
+                    f"I don't see `{proposed_agent}` in the agent registry for this "
+                    f"environment, so I can't wire the task up to it. {hint}"
+                )
+                # Drop the invalid name so the preview doesn't show it and the
+                # Create button stays disabled until a valid agent is chosen.
+                task_updates.pop("target_agent_name", None)
+                ready_to_save = False
+                log.info(
+                    "Task builder rejected hallucinated agent '%s'; suggested %s",
+                    proposed_agent, suggestions or "<none>",
+                )
+
             raw_confidence = parsed.get("confidence", 0.5)
             try:
                 confidence = max(0.0, min(1.0, float(raw_confidence)))
@@ -409,7 +446,7 @@ REMEMBER:
                 message=message,
                 task_updates=task_updates,
                 confidence=confidence,
-                ready_to_save=bool(parsed.get("ready_to_save", False)),
+                ready_to_save=ready_to_save,
             )
             
         except Exception as e:

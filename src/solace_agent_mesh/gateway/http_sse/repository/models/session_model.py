@@ -27,6 +27,7 @@ class SessionModel(Base):
     )
     deleted_at = Column(BigInteger, nullable=True)
     deleted_by = Column(String, nullable=True)
+    last_viewed_at = Column(BigInteger, nullable=True)
 
     # Relationship to chat tasks
     chat_tasks = relationship(

@@ -25,6 +25,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "OrderValidator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You validate orders.
@@ -80,6 +82,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "CustomerEnricher"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You enrich orders with customer data.
@@ -133,6 +137,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "DiscountCalculator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You calculate discounts based on customer tier.
@@ -186,6 +192,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "InventoryChecker"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You check inventory availability.
@@ -238,6 +246,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ItemProcessor"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You process individual order items.
@@ -295,6 +305,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "PriceCalculator"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You calculate order totals.
@@ -351,6 +363,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ManualApprover"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle manual order approval.
@@ -405,6 +419,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "AutoApprover"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle automatic order approval.
@@ -458,6 +474,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "ExpressShipper"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle express shipping.
@@ -507,6 +525,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "StandardShipper"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle standard shipping.
@@ -556,6 +576,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "EconomyShipper"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You handle economy shipping.
@@ -609,6 +631,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "NotificationSender"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You send order notifications.
@@ -664,6 +688,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "OrderFinalizer"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You create final order summaries.
@@ -732,6 +758,8 @@ apps:
       namespace: ${NAMESPACE}
       agent_name: "StatusChecker"
       model: *planning_model
+      model_provider: 
+        - "planning"
 
       instruction: |
         You check status for polling scenarios.

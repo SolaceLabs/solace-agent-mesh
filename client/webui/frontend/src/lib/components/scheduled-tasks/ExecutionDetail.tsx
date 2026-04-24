@@ -107,6 +107,9 @@ const formatScheduleExpression = (task: ScheduledTask) => {
     return task.scheduleExpression;
 };
 
+/** Statuses for which a chat session with content exists. */
+const CHAT_AVAILABLE_STATUSES = new Set(["completed", "failed"]);
+
 export const ExecutionDetail: React.FC<ExecutionDetailProps> = ({ execution, task, previewArtifact, onPreviewArtifact, onGoToChat }) => {
     if (!execution) {
         return (
@@ -116,6 +119,8 @@ export const ExecutionDetail: React.FC<ExecutionDetailProps> = ({ execution, tas
         );
     }
 
+    const chatAvailable = CHAT_AVAILABLE_STATUSES.has(execution.status);
+
     return (
         <div className="p-6">
             <div className="mx-auto max-w-4xl space-y-6">
@@ -123,10 +128,12 @@ export const ExecutionDetail: React.FC<ExecutionDetailProps> = ({ execution, tas
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold">Execution Details</h2>
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => onGoToChat(execution.id)}>
-                            <MessageCircle className="mr-1 h-4 w-4" />
-                            Go to Chat
-                        </Button>
+                        {chatAvailable && (
+                            <Button variant="ghost" size="sm" onClick={() => onGoToChat(execution.id)}>
+                                <MessageCircle className="mr-1 h-4 w-4" />
+                                Go to Chat
+                            </Button>
+                        )}
                         {getStatusBadge(execution.status)}
                     </div>
                 </div>
@@ -169,13 +176,15 @@ export const ExecutionDetail: React.FC<ExecutionDetailProps> = ({ execution, tas
                 <div className="space-y-2">
                     <Label className="text-(--color-secondaryText-wMain)">Response (Summary)</Label>
                     {renderResponse(execution)}
-                    <p className="text-xs text-(--secondary-text-wMain)">
-                        This is a truncated summary.{" "}
-                        <button className="underline hover:text-(--primary-text-wMain)" onClick={() => onGoToChat(execution.id)}>
-                            Go to Chat
-                        </button>{" "}
-                        for the full response with inline artifacts.
-                    </p>
+                    {chatAvailable && (
+                        <p className="text-xs text-(--secondary-text-wMain)">
+                            This is a truncated summary.{" "}
+                            <button className="underline hover:text-(--primary-text-wMain)" onClick={() => onGoToChat(execution.id)}>
+                                Go to Chat
+                            </button>{" "}
+                            for the full response with inline artifacts.
+                        </p>
+                    )}
                 </div>
 
                 {/* Artifacts */}

@@ -5,12 +5,13 @@
 export interface ModelConfig {
     id: string;
     alias: string;
-    provider: string;
-    modelName: string;
+    provider: string | null;
+    modelName: string | null;
     apiBase: string | null;
     authType: string | null;
     authConfig: Record<string, unknown>;
     modelParams: Record<string, unknown>;
+    maxInputTokens: number | null;
     description: string | null;
     createdBy: string;
     updatedBy: string;

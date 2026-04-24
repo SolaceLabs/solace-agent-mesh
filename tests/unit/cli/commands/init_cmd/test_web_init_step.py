@@ -15,87 +15,28 @@ class TestPerformWebInit:
     ):
         """Test successful web initialization with configuration data"""
         mock_echo = mocker.patch("click.echo")
-        
+
         # Simulate config data from web portal
         config_data = {
-            "llm_api_key": "test-api-key",
-            "llm_endpoint_url": "https://api.test.com",
-            "llm_model_name": "gpt-4",
             "broker_url": "ws://localhost:8008",
             "namespace": "test_namespace/",
         }
         mock_multiprocessing["dict"].update(config_data)
-        
+
         current_params = {"existing_param": "value"}
         result = perform_web_init(current_params)
-        
+
         # Verify config was merged
-        assert result["llm_service_api_key"] == "test-api-key"
-        assert result["llm_service_endpoint"] == "https://api.test.com"
+        assert result["broker_url"] == "ws://localhost:8008"
+        assert result["namespace"] == "test_namespace/"
         assert result["existing_param"] == "value"
-        
+
         # Verify process was started and joined
         mock_multiprocessing["process"].start.assert_called_once()
         mock_multiprocessing["process"].join.assert_called_once()
-        
+
         # Verify browser was opened
         mock_webbrowser.assert_called_once_with("http://127.0.0.1:5002")
-
-    def test_web_init_with_planning_and_general_models(
-        self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
-    ):
-        """Test web init with separate planning and general model names"""
-        mock_echo = mocker.patch("click.echo")
-        
-        config_data = {
-            "llm_service_planning_model_name": "gpt-4-planning",
-            "llm_service_general_model_name": "gpt-3.5-general",
-        }
-        mock_multiprocessing["dict"].update(config_data)
-        
-        result = perform_web_init({})
-        
-        assert result["llm_service_planning_model_name"] == "gpt-4-planning"
-        assert result["llm_service_general_model_name"] == "gpt-3.5-general"
-
-    def test_web_init_with_fallback_model_names(
-        self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
-    ):
-        """Test web init with fallback to single model name"""
-        mock_echo = mocker.patch("click.echo")
-        
-        config_data = {
-            "llm_model_name": "gpt-4-base",
-        }
-        mock_multiprocessing["dict"].update(config_data)
-        
-        result = perform_web_init({})
-        
-        # Both should fall back to the single model name
-        assert result["llm_service_planning_model_name"] == "gpt-4-base"
-        assert result["llm_service_general_model_name"] == "gpt-4-base"
-
-    def test_web_init_with_deprecated_model_names(
-        self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
-    ):
-        """Test web init with deprecated model name keys"""
-        mock_echo = mocker.patch("click.echo")
-        
-        config_data = {
-            "llm_planning_model_name": "old-planning",
-            "llm_general_model_name": "old-general",
-        }
-        mock_multiprocessing["dict"].update(config_data)
-        
-        result = perform_web_init({})
-        
-        # Should use deprecated keys as fallback
-        assert result["llm_service_planning_model_name"] == "old-planning"
-        assert result["llm_service_general_model_name"] == "old-general"
-        
-        # Deprecated keys should be removed
-        assert "llm_planning_model_name" not in result
-        assert "llm_general_model_name" not in result
 
     def test_web_init_no_config_data_received(
         self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
@@ -154,26 +95,6 @@ class TestPerformWebInit:
             "Could not automatically open browser" in str(call)
             for call in mock_echo.call_args_list
         )
-
-    def test_web_init_key_mapping_backwards_compatibility(
-        self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
-    ):
-        """Test key mapping for backwards compatibility"""
-        mock_echo = mocker.patch("click.echo")
-        
-        config_data = {
-            "llm_api_key": "old-key",
-            "llm_endpoint_url": "old-endpoint",
-            "llm_model_name": "old-model",
-        }
-        mock_multiprocessing["dict"].update(config_data)
-        
-        result = perform_web_init({})
-        
-        # Should map old keys to new keys
-        assert result["llm_service_api_key"] == "old-key"
-        assert result["llm_service_endpoint"] == "old-endpoint"
-        assert result["llm_service_model_name"] == "old-model"
 
     def test_web_init_preserves_existing_params(
         self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
@@ -250,25 +171,6 @@ class TestPerformWebInit:
         # Verify correct URL was used
         mock_wait_for_server.assert_called_once_with("http://127.0.0.1:5002")
         mock_webbrowser.assert_called_once_with("http://127.0.0.1:5002")
-
-    def test_web_init_with_all_model_name_variants(
-        self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server
-    ):
-        """Test priority of model name variants"""
-        mock_echo = mocker.patch("click.echo")
-        
-        # Test with all variants present - new keys should take priority
-        config_data = {
-            "llm_service_planning_model_name": "new-planning",
-            "llm_planning_model_name": "old-planning",
-            "llm_model_name": "base-model",
-        }
-        mock_multiprocessing["dict"].update(config_data)
-        
-        result = perform_web_init({})
-        
-        # New key should take priority
-        assert result["llm_service_planning_model_name"] == "new-planning"
 
     def test_web_init_messages_displayed(
         self, mocker, mock_multiprocessing, mock_webbrowser, mock_wait_for_server

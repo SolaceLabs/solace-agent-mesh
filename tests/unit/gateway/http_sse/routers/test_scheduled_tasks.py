@@ -20,6 +20,11 @@ from solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks import (
     enable_scheduled_task,
     disable_scheduled_task,
     update_scheduled_task,
+    run_scheduled_task_now,
+)
+from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
+    TaskAlreadyRunningError,
+    TaskNotFoundError,
 )
 from solace_agent_mesh.gateway.http_sse.services.scheduled_task_service import ScheduledTaskService
 
@@ -44,6 +49,8 @@ def _mock_execution(scheduled_task_id="task-1", a2a_task_id="a2a-123", **overrid
     execution.result_summary = None
     execution.error_message = None
     execution.retry_count = 0
+    execution.trigger_type = overrides.get("trigger_type", "scheduled")
+    execution.triggered_by = overrides.get("triggered_by", None)
     execution.artifacts = None
     execution.notifications_sent = None
     return execution
@@ -551,7 +558,7 @@ class TestEnableDisableTask:
 
         assert result.success is True
         mock_repo.enable_task.assert_called_once_with(mock_db, "task-1")
-        mock_scheduler_service.schedule_task.assert_awaited_once_with(enabled_task)
+        mock_scheduler_service.schedule_task.assert_awaited_once_with(enabled_task, fire_immediately=False)
 
     @pytest.mark.asyncio
     async def test_disable_unschedules_task(self):
@@ -746,3 +753,197 @@ class TestConfigSourceUpdateRestriction:
             )
 
         assert result.id == "task-cfg"
+
+
+# ---------------------------------------------------------------------------
+# TestRunScheduledTaskNow
+# ---------------------------------------------------------------------------
+
+
+class TestRunScheduledTaskNow:
+    """Tests for the ``run_scheduled_task_now`` ("Run Now") endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_triggers_task_for_owner(self):
+        """Happy path: owner triggers the task, scheduler is called with user id."""
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = task
+
+        user = {"id": "user-1", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+        mock_scheduler_service.trigger_task_now = AsyncMock(return_value="task-1")
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            result = await run_scheduled_task_now(
+                task_id="task-1",
+                db=mock_db,
+                user=user,
+                task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                scheduler_service=mock_scheduler_service,
+            )
+
+        assert result.success is True
+        assert result.task_id == "task-1"
+        mock_scheduler_service.trigger_task_now.assert_awaited_once_with(
+            "task-1", triggered_by="user-1"
+        )
+
+    @pytest.mark.asyncio
+    async def test_returns_404_for_missing_task(self):
+        """Returns 404 when the task doesn't exist in the repository."""
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = None
+
+        user = {"id": "user-1", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await run_scheduled_task_now(
+                    task_id="missing",
+                    db=mock_db,
+                    user=user,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                    user_config={},
+                    config_resolver=_mock_config_resolver(),
+                    scheduler_service=mock_scheduler_service,
+                )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_returns_409_when_already_running(self):
+        """Returns 409 when another execution is in-flight for the same task."""
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = task
+
+        user = {"id": "user-1", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+        mock_scheduler_service.trigger_task_now = AsyncMock(
+            side_effect=TaskAlreadyRunningError("task-1")
+        )
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await run_scheduled_task_now(
+                    task_id="task-1",
+                    db=mock_db,
+                    user=user,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                    user_config={},
+                    config_resolver=_mock_config_resolver(),
+                    scheduler_service=mock_scheduler_service,
+                )
+
+        assert exc_info.value.status_code == 409
+        assert "executing" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_returns_404_when_scheduler_reports_missing(self):
+        """If the scheduler races and finds the task missing, return 404."""
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = task
+
+        user = {"id": "user-1", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+        mock_scheduler_service.trigger_task_now = AsyncMock(
+            side_effect=TaskNotFoundError("task-1")
+        )
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await run_scheduled_task_now(
+                    task_id="task-1",
+                    db=mock_db,
+                    user=user,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                    user_config={},
+                    config_resolver=_mock_config_resolver(),
+                    scheduler_service=mock_scheduler_service,
+                )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_returns_403_for_non_owner(self):
+        """Non-owner (and non-admin) users cannot trigger another user's task."""
+        task = _mock_task(task_id="task-1", created_by="owner", user_id="owner")
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = task
+
+        user = {"id": "intruder", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await run_scheduled_task_now(
+                    task_id="task-1",
+                    db=mock_db,
+                    user=user,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                    user_config={},
+                    config_resolver=_mock_config_resolver(),
+                    scheduler_service=mock_scheduler_service,
+                )
+
+        # Router returns 404 for non-matching user_id via task_service.get_task,
+        # but non-owner on same namespace returns 403 via _check_task_ownership.
+        assert exc_info.value.status_code in (403, 404)
+
+    @pytest.mark.asyncio
+    async def test_returns_403_when_scheduling_permission_denied(self):
+        """Users without scheduling permission cannot trigger tasks."""
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        mock_repo = MagicMock()
+        mock_repo.find_by_id.return_value = task
+
+        user = {"id": "user-1", "roles": []}
+        mock_db = MagicMock()
+        mock_scheduler_service = MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduled_task_service.ScheduledTaskRepository",
+            return_value=mock_repo,
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await run_scheduled_task_now(
+                    task_id="task-1",
+                    db=mock_db,
+                    user=user,
+                    task_service=ScheduledTaskService(scheduler_service=mock_scheduler_service),
+                    user_config={},
+                    config_resolver=_mock_config_resolver(valid=False),
+                    scheduler_service=mock_scheduler_service,
+                )
+
+        assert exc_info.value.status_code == 403

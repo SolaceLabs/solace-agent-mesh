@@ -207,6 +207,7 @@ export function SharedChatProvider({ children, artifacts: initialArtifacts, ragD
             toggleShowWorkingArtifacts: () => {},
             workingArtifactCount: 0,
             hasModelConfigWrite: false,
+            turnDividerIndex: null,
             artifactsRefetch: async () => {},
             setArtifacts: () => {},
             taskIdInSidePanel,

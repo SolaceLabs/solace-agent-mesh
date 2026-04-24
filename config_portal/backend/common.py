@@ -8,9 +8,6 @@ INIT_DEFAULT = {
     "broker_username": "default",
     "broker_password": "default",
     "container_engine": "docker",
-    "llm_model_name": "openai/gpt-4o",
-    "llm_endpoint_url": "https://api.openai.com/v1",
-    "llm_api_key": "",
     "dev_mode": False,
     "add_webui_gateway": True,
     "webui_frontend_welcome_message": "",
@@ -30,7 +27,7 @@ DEFAULT_COMMUNICATION_TIMEOUT = 600
 
 AGENT_DEFAULTS = {
     "supports_streaming": True,
-    "model_type": "general",
+    "model_provider": "general",
     "instruction": "You are a helpful AI assistant named __AGENT_NAME__.",
     "artifact_handling_mode": "reference",
     "enable_embed_resolution": True,

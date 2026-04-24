@@ -14,7 +14,7 @@ export interface PasswordInputProps<T extends FieldValues = FieldValues> {
     rules?: Record<string, unknown>;
 }
 
-const STORED_VALUE_PLACEHOLDER = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
+const STORED_VALUE_PLACEHOLDER = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022";
 
 /**
  * Password input with show/hide toggle.
@@ -47,28 +47,26 @@ export const PasswordInput = <T extends FieldValues = FieldValues>({ name, contr
                             placeholder={effectivePlaceholder}
                             autoComplete="new-password"
                             disabled={disabled}
-                            className="pr-10"
+                            className={isEyeFunctional ? "pr-10" : undefined}
                             role="textbox"
                             onFocus={() => {
                                 setUserHasTouched(true);
                             }}
                         />
-                        <Button
-                            type="button"
-                            onClick={() => {
-                                if (isEyeFunctional) {
-                                    setShowPassword(prev => !prev);
-                                }
-                            }}
-                            disabled={disabled}
-                            variant="ghost"
-                            size="sm"
-                            className="pointer-events-auto absolute top-1/2 right-1 -translate-y-1/2"
-                            title={showPassword && isEyeFunctional ? "Hide password" : "Show password"}
-                            aria-label={showPassword && isEyeFunctional ? "Hide password" : "Show password"}
-                        >
-                            {showPassword && isEyeFunctional ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </Button>
+                        {isEyeFunctional && (
+                            <Button
+                                type="button"
+                                onClick={() => setShowPassword(prev => !prev)}
+                                disabled={disabled}
+                                variant="ghost"
+                                size="sm"
+                                className="pointer-events-auto absolute top-1/2 right-1 -translate-y-1/2"
+                                title={showPassword ? "Hide password" : "Show password"}
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </Button>
+                        )}
                     </div>
                 );
             }}

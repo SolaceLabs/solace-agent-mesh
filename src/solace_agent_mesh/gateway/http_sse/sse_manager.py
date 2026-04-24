@@ -5,10 +5,15 @@ Manages Server-Sent Event (SSE) connections for streaming task updates.
 import logging
 import asyncio
 import threading
+import time
 from typing import Dict, List, Any, Callable, Optional
 import json
 import datetime
 import math
+
+from sqlalchemy import text
+
+from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 
 from .sse_event_buffer import SSEEventBuffer
 from .persistent_sse_event_buffer import PersistentSSEEventBuffer
@@ -37,6 +42,10 @@ class SSEManager:
     ):
         self._connections: Dict[str, List[asyncio.Queue]] = {}
         self._event_buffer = event_buffer
+        # session_id → monotonic seconds of last updated_time touch. Used to
+        # throttle DB writes when a task streams many events back-to-back.
+        self._session_touch_cache: Dict[str, float] = {}
+        self._session_touch_cooldown_s: float = 1.0
         # Use a single threading lock for cross-event-loop synchronization
         self._lock = threading.Lock()
         self.log_identifier = "[SSEManager]"
@@ -44,6 +53,11 @@ class SSEManager:
         self._session_factory = session_factory
         self._background_task_cache: Dict[str, bool] = {}  # Cache to avoid repeated DB queries
         self._tasks_with_prior_connection: set = set()  # Track tasks that have had at least one SSE connection
+
+        # User-level notification queues for push events (e.g. scheduled task session created).
+        # Keyed by user_id → list of asyncio.Queue.
+        self._user_notification_queues: Dict[str, List[asyncio.Queue]] = {}
+        self._user_notification_lock = threading.Lock()
         
         # Initialize persistent buffer for background tasks
         # Hybrid mode enables RAM-first buffering
@@ -296,6 +310,41 @@ class SSEManager:
             session_id,
         )
 
+    def _touch_session_updated_time(self, session_id: str) -> None:
+        """Bump ``sessions.updated_time`` so the UI can surface an
+        unseen-updates dot while the user isn't actively viewing the
+        session. Without this, ``updated_time`` only advances via
+        client-initiated ``save_task`` — which never fires if the user
+        isn't on that session — so background work completes silently.
+
+        Throttled per-session by ``_session_touch_cooldown_s`` to avoid
+        hammering the DB during chatty tasks.
+        """
+        if not self._session_factory or not session_id:
+            return
+        now_mono = time.monotonic()
+        last = self._session_touch_cache.get(session_id, 0.0)
+        if now_mono - last < self._session_touch_cooldown_s:
+            return
+        self._session_touch_cache[session_id] = now_mono
+        try:
+            db = self._session_factory()
+            try:
+                db.execute(
+                    text("UPDATE sessions SET updated_time = :t WHERE id = :sid"),
+                    {"t": now_epoch_ms(), "sid": session_id},
+                )
+                db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            log.warning(
+                "%s Failed to touch updated_time for session %s: %s",
+                self.log_identifier,
+                session_id,
+                e,
+            )
+
     def get_persistent_buffer(self) -> PersistentSSEEventBuffer:
         """Get the persistent buffer instance."""
         return self._persistent_buffer
@@ -353,6 +402,12 @@ class SSEManager:
                     is_registered,
                     buffered,
                 )
+                # Mirror the buffered activity onto the session row so the
+                # Recent Chats sidebar can show an unseen-updates dot even
+                # when the user isn't currently viewing the session.
+                session_id = task_metadata.get("session_id") if isinstance(task_metadata, dict) else None
+                if session_id:
+                    self._touch_session_updated_time(session_id)
             elif is_registered:
                 # Fallback for registered tasks without metadata in cache
                 # This shouldn't happen in normal flow but provides safety
@@ -672,4 +727,98 @@ class SSEManager:
             self.log_identifier,
             closed_count,
             all_task_ids,
+        )
+
+        # Close user notification queues
+        with self._user_notification_lock:
+            for user_id, queues in self._user_notification_queues.items():
+                for q in queues:
+                    try:
+                        q.put_nowait(None)
+                    except Exception:
+                        pass
+            self._user_notification_queues.clear()
+
+    # ------------------------------------------------------------------
+    # User-level notification methods
+    # ------------------------------------------------------------------
+
+    def add_user_notification_queue(self, user_id: str, queue: asyncio.Queue) -> None:
+        """Register a notification queue for a user (called when SSE connects)."""
+        with self._user_notification_lock:
+            if user_id not in self._user_notification_queues:
+                self._user_notification_queues[user_id] = []
+            self._user_notification_queues[user_id].append(queue)
+        log.debug("%s Added notification queue for user %s", self.log_identifier, user_id)
+
+    def remove_user_notification_queue(self, user_id: str, queue: asyncio.Queue) -> None:
+        """Unregister a notification queue for a user (called when SSE disconnects)."""
+        with self._user_notification_lock:
+            queues = self._user_notification_queues.get(user_id, [])
+            try:
+                queues.remove(queue)
+            except ValueError:
+                pass
+            if not queues:
+                self._user_notification_queues.pop(user_id, None)
+        log.debug("%s Removed notification queue for user %s", self.log_identifier, user_id)
+
+    async def send_user_notification(
+        self, user_id: str, event_type: str, event_data: Dict[str, Any]
+    ) -> None:
+        """Push a notification event to all active SSE connections for a user.
+
+        This is used for server-initiated events such as scheduled task session
+        creation that need to reach the frontend without the frontend subscribing
+        to a specific task_id.
+        """
+        try:
+            serialized = json.dumps(self._sanitize_json(event_data), allow_nan=False)
+        except Exception as e:
+            log.error(
+                "%s Failed to serialize user notification for %s: %s",
+                self.log_identifier, user_id, e,
+            )
+            return
+
+        payload = {"event": event_type, "data": serialized}
+
+        with self._user_notification_lock:
+            queues = list(self._user_notification_queues.get(user_id, []))
+
+        if not queues:
+            log.debug(
+                "%s No notification queues for user %s, event dropped",
+                self.log_identifier, user_id,
+            )
+            return
+
+        broken: List[asyncio.Queue] = []
+        for q in queues:
+            try:
+                q.put_nowait(payload)
+            except asyncio.QueueFull:
+                broken.append(q)
+            except Exception:
+                broken.append(q)
+
+        if broken:
+            log.warning(
+                "%s Pruned %d broken/full notification queue(s) for user %s; "
+                "%s event dropped for those clients",
+                self.log_identifier, len(broken), user_id, event_type,
+            )
+            with self._user_notification_lock:
+                user_queues = self._user_notification_queues.get(user_id, [])
+                for q in broken:
+                    try:
+                        user_queues.remove(q)
+                    except ValueError:
+                        pass
+                if not user_queues:
+                    self._user_notification_queues.pop(user_id, None)
+
+        log.debug(
+            "%s Sent %s notification to %d/%d queues for user %s",
+            self.log_identifier, event_type, len(queues) - len(broken), len(queues), user_id,
         )

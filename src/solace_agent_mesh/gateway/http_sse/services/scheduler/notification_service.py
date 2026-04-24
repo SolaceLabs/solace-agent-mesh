@@ -234,16 +234,26 @@ class NotificationService:
     async def _send_sse_notification(self, config, payload, task):
         if not self.sse_manager:
             return
+
+        # Collect unique non-None user IDs to notify
+        notify_user_ids: set[str] = set()
         if task.user_id:
+            notify_user_ids.add(task.user_id)
+        if task.created_by:
+            notify_user_ids.add(task.created_by)
+
+        for uid in notify_user_ids:
             try:
-                await self.sse_manager.send_event(
-                    task_id=f"scheduled_{task.id}",
+                await self.sse_manager.send_user_notification(
+                    user_id=uid,
+                    event_type="session_created",
                     event_data=payload,
-                    event_type="scheduled_task_complete",
                 )
             except Exception as e:
-                log.error("%s Failed to send SSE notification: %s", self.log_prefix, e, exc_info=True)
-                raise
+                log.error(
+                    "%s Failed to send SSE notification to user %s: %s",
+                    self.log_prefix, uid, e, exc_info=True,
+                )
 
     async def _send_webhook_notification(self, config, payload, task):
         url = config.get("url")

@@ -46,11 +46,11 @@ export const Metadata = ({ metadata }: { metadata: Record<string, string | numbe
 };
 
 export interface FormFieldLayoutItemProps {
-    label: string;
+    label: React.ReactNode;
     required?: boolean;
     error?: { message?: string };
     warning?: string;
-    helpText?: string;
+    helpText?: React.ReactNode;
     statusIndicator?: React.ReactNode;
     children: React.ReactNode;
 }

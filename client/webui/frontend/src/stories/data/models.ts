@@ -18,6 +18,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -33,6 +34,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -48,6 +50,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -63,6 +66,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -78,6 +82,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -93,6 +98,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -108,6 +114,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -123,6 +130,7 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
     {
@@ -138,6 +146,62 @@ export const mockModelConfigs: ModelConfig[] = [
         createdBy: "system",
         updatedBy: "system",
         createdTime: Date.now(),
+        maxInputTokens: null,
+        updatedTime: Date.now(),
+    },
+];
+
+// ============================================================================
+// Mock data: Default models with unconfigured placeholders
+// ============================================================================
+
+export const mockModelConfigsWithUnconfiguredDefaults: ModelConfig[] = [
+    {
+        id: "1",
+        alias: "general",
+        provider: null,
+        modelName: null,
+        apiBase: null,
+        authType: "none",
+        authConfig: { type: "none" },
+        modelParams: {},
+        description: "Default model configuration created by the system",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        maxInputTokens: null,
+        updatedTime: Date.now(),
+    },
+    {
+        id: "2",
+        alias: "planning",
+        provider: null,
+        modelName: null,
+        apiBase: null,
+        authType: "none",
+        authConfig: { type: "none" },
+        modelParams: {},
+        description: "Default model configuration created by the system",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        maxInputTokens: null,
+        updatedTime: Date.now(),
+    },
+    {
+        id: "3",
+        alias: "image_gen",
+        provider: "openai",
+        modelName: "dall-e-3",
+        apiBase: "https://api.openai.com",
+        authType: "apikey",
+        authConfig: { type: "apikey" },
+        modelParams: {},
+        description: "Image generation model",
+        createdBy: "system",
+        updatedBy: "system",
+        createdTime: Date.now(),
+        maxInputTokens: null,
         updatedTime: Date.now(),
     },
 ];
@@ -159,5 +223,6 @@ export const anthropicModelConfig: ModelConfig = {
     createdBy: "admin@company.com",
     updatedBy: "admin@company.com",
     createdTime: 1704067200000, // 2024-01-01
+    maxInputTokens: null,
     updatedTime: 1710806400000, // 2024-03-19
 };

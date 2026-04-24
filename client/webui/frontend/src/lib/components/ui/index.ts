@@ -33,7 +33,8 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel, DropdownMenuSeparator } from "./dropdown-menu";
 export { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip";
 export { Separator } from "./separator";
-export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table";
+export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, SortableTableHead } from "./table";
+export { useSortableTable } from "./hooks/useSortableTable";
 export { type StepperConfigProps, type StepperDefineProps, type CircleStepIndicatorProps, type StepperVariant, type StepperLabelOrientation, defineStepper } from "./stepper";
 
 // Chat Components
@@ -43,6 +44,8 @@ export { ChatMessageList } from "./chat/chat-message-list";
 export { CHAT_STYLES } from "./chat/chatStyles";
 export { default as MessageLoading } from "./chat/message-loading";
 export { Badge } from "./badge";
+export { DatePicker } from "./date-picker";
+export { TimePicker } from "./time-picker";
 export { LifecycleBadge } from "./lifecycleBadge";
 export { NavItem, type NavItemProps } from "./navItem";
 

@@ -1,4 +1,4 @@
-"""Unit tests for model configuration seeder.
+"""Unit and integration tests for model configuration seeder.
 
 Tests the provider inference logic to ensure:
 - Known provider detection (OpenAI, Anthropic, Azure, Bedrock, Vertex, Google AI Studio)
@@ -6,15 +6,55 @@ Tests the provider inference logic to ensure:
 - Fallback to custom provider
 
 Also tests seeding from YAML config and environment variables.
+
+Integration tests use a real in-memory SQLite database with autoflush=False
+(matching production config) to catch issues like uncommitted records not being
+visible to subsequent queries within the same transaction.
 """
 
-import os
-from unittest.mock import Mock
+from contextlib import contextmanager
+
+import pytest
+from unittest.mock import Mock, patch
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from solace_agent_mesh.services.platform.services.model_configuration_seeder import (
     _infer_provider,
     _seed_from_models_config,
     _seed_from_env_vars,
+    seed_model_configurations,
 )
+from solace_agent_mesh.services.platform.models import ModelConfiguration
+from solace_agent_mesh.shared.database.base import Base
+
+_SEEDER_GETENV = "solace_agent_mesh.services.platform.services.model_configuration_seeder.os.getenv"
+
+# Simulated env vars for seeder tests. Tests can use this directly or pick a subset.
+_SEEDER_ENV = {
+    "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+    "LLM_SERVICE_PLANNING_MODEL_NAME": "gpt-4",
+    "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+    "LLM_SERVICE_API_KEY": "sk-test",
+    "IMAGE_MODEL_NAME": "dall-e-3",
+    "IMAGE_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+    "IMAGE_SERVICE_API_KEY": "sk-image",
+    "LLM_REPORT_MODEL_NAME": "gpt-4",
+}
+
+
+@contextmanager
+def mock_seeder_env(env_vars=None):
+    """Mock os.getenv in the seeder module to return values from env_vars dict.
+
+    If env_vars is None or empty, all getenv calls return "" (simulating no env vars set).
+    """
+    if env_vars:
+        side_effect = lambda key, default="": env_vars.get(key, default)
+        with patch(_SEEDER_GETENV, side_effect=side_effect):
+            yield
+    else:
+        with patch(_SEEDER_GETENV, return_value=""):
+            yield
 
 
 class TestInferProvider:
@@ -149,12 +189,10 @@ class TestSeedFromModelsConfig:
             },
         }
 
-        count = _seed_from_models_config(mock_db, models_config)
+        seeded = _seed_from_models_config(mock_db, models_config)
 
-        assert count == 3
+        assert seeded == {"gpt-4", "local-llm", "my-api"}
         assert mock_db.add.call_count == 3
-        # Note: Transaction ownership is with the caller (component startup)
-        # The seeding function only adds models, caller is responsible for commit
 
         # Verify each model type was seeded correctly
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
@@ -191,12 +229,10 @@ class TestSeedFromModelsConfig:
             },
         }
 
-        count = _seed_from_models_config(mock_db, models_config)
+        seeded = _seed_from_models_config(mock_db, models_config)
 
-        assert count == 3
+        assert seeded == {"multimodal", "gemini_pro", "gpt4"}
         assert mock_db.add.call_count == 3
-        # Note: Transaction ownership is with the caller (component startup)
-        # The seeding function only adds models, caller is responsible for commit
 
         added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
@@ -205,8 +241,8 @@ class TestSeedFromModelsConfig:
         assert multimodal.model_name == "gemini-2.5-flash"
         assert multimodal.provider == "google_ai_studio"
         assert multimodal.api_base == "https://generativelanguage.googleapis.com/v1"
-        assert multimodal.model_auth_type == "none"
-        assert multimodal.model_auth_config == {"type": "none"}
+        assert multimodal.model_auth_type == "apikey"
+        assert multimodal.model_auth_config == {"type": "apikey"}
         assert multimodal.model_params == {}
         assert multimodal.description  # Verify description is set (not null/empty)
 
@@ -215,6 +251,8 @@ class TestSeedFromModelsConfig:
         assert gemini_pro.model_name == "gemini-2.5-pro"
         assert gemini_pro.provider == "google_ai_studio"
         assert gemini_pro.api_base == "https://generativelanguage.googleapis.com/v1"
+        assert gemini_pro.model_auth_type == "apikey"
+        assert gemini_pro.model_auth_config == {"type": "apikey"}
         assert gemini_pro.description  # Verify description is set (not null/empty)
 
         # Dictionary entry still works
@@ -231,57 +269,190 @@ class TestSeedFromEnvVars:
         mock_db = Mock()
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        # Set env vars for multiple models (some complete, some partial)
-        os.environ["LLM_SERVICE_PLANNING_MODEL_NAME"] = "gpt-4"
-        os.environ["LLM_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["LLM_SERVICE_API_KEY"] = "sk-planning-key"
+        with mock_seeder_env(_SEEDER_ENV):
+            seeded = _seed_from_env_vars(mock_db)
 
-        os.environ["LLM_SERVICE_GENERAL_MODEL_NAME"] = "gpt-3.5-turbo"
-        os.environ["IMAGE_MODEL_NAME"] = "dall-e-3"
-        os.environ["IMAGE_SERVICE_ENDPOINT"] = "https://api.openai.com/v1"
-        os.environ["IMAGE_SERVICE_API_KEY"] = "sk-image-key"
+        # Should seed 4 models (planning, general, image_gen, report_gen)
+        assert seeded == {"planning", "general", "image_gen", "report_gen"}
+        assert mock_db.add.call_count == 4
 
-        os.environ["LLM_REPORT_MODEL_NAME"] = "gpt-4-turbo"
+        added_models = [call[0][0] for call in mock_db.add.call_args_list]
 
-        try:
-            count = _seed_from_env_vars(mock_db)
+        # Verify models were seeded with correct data
+        planning = next(m for m in added_models if m.alias == "planning")
+        assert planning.model_name == _SEEDER_ENV["LLM_SERVICE_PLANNING_MODEL_NAME"]
+        assert planning.model_auth_type == "apikey"
+        assert planning.model_auth_config["api_key"] == _SEEDER_ENV["LLM_SERVICE_API_KEY"]
+        assert planning.description  # Verify description is set (not null/empty)
 
-            # Should seed 4 models (planning, general, image_gen, report_gen)
-            assert count == 4
-            assert mock_db.add.call_count == 4
-            # Note: Transaction ownership is with the caller (component startup)
-        # The seeding function only adds models, caller is responsible for commit
+        general = next(m for m in added_models if m.alias == "general")
+        assert general.model_name == _SEEDER_ENV["LLM_SERVICE_GENERAL_MODEL_NAME"]
+        assert general.description  # Verify description is set (not null/empty)
 
-            added_models = [call[0][0] for call in mock_db.add.call_args_list]
+        image = next(m for m in added_models if m.alias == "image_gen")
+        assert image.model_name == _SEEDER_ENV["IMAGE_MODEL_NAME"]
+        assert image.description  # Verify description is set (not null/empty)
 
-            # Verify models were seeded with correct data
-            planning = next(m for m in added_models if m.alias == "planning")
-            assert planning.model_name == "gpt-4"
-            assert planning.model_auth_type == "apikey"
-            assert planning.model_auth_config["api_key"] == "sk-planning-key"
-            assert planning.description  # Verify description is set (not null/empty)
+        report = next(m for m in added_models if m.alias == "report_gen")
+        assert report.model_name == _SEEDER_ENV["LLM_REPORT_MODEL_NAME"]
+        assert report.description  # Verify description is set (not null/empty)
 
-            general = next(m for m in added_models if m.alias == "general")
-            assert general.model_name == "gpt-3.5-turbo"
-            assert general.description  # Verify description is set (not null/empty)
 
-            image = next(m for m in added_models if m.alias == "image_gen")
-            assert image.model_name == "dall-e-3"
-            assert image.description  # Verify description is set (not null/empty)
+@pytest.fixture
+def db_session():
+    """Create an in-memory SQLite session with autoflush=False (matching production)."""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = Session()
+    yield session
+    session.close()
 
-            report = next(m for m in added_models if m.alias == "report_gen")
-            assert report.model_name == "gpt-4-turbo"
-            assert report.description  # Verify description is set (not null/empty)
-        finally:
-            # Clean up env vars
-            for key in [
-                "LLM_SERVICE_PLANNING_MODEL_NAME",
-                "LLM_SERVICE_ENDPOINT",
-                "LLM_SERVICE_API_KEY",
-                "LLM_SERVICE_GENERAL_MODEL_NAME",
-                "IMAGE_MODEL_NAME",
-                "IMAGE_SERVICE_ENDPOINT",
-                "IMAGE_SERVICE_API_KEY",
-                "LLM_REPORT_MODEL_NAME",
-            ]:
-                os.environ.pop(key, None)
+
+class TestSeedIntegration:
+    """Integration tests using a real DB session with autoflush=False.
+
+    These tests verify that seed_model_configurations works correctly
+    end-to-end, including the interaction between seeding functions and
+    _ensure_default_aliases within a single uncommitted transaction.
+    """
+
+    def test_env_vars_seed_general_and_planning_no_duplicates(self, db_session):
+        """Env var seeding of general/planning must not conflict with _ensure_default_aliases.
+
+        Regression test: with autoflush=False, _ensure_default_aliases could not see
+        records added by _seed_from_env_vars in the same transaction, causing duplicate
+        alias inserts and IntegrityError on commit.
+        """
+        with mock_seeder_env({
+            "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_PLANNING_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+            "LLM_SERVICE_API_KEY": "sk-test",
+        }):
+            count = seed_model_configurations(db_session, models_config=None)
+        db_session.commit()
+
+        # general and planning seeded from env vars (not duplicated by _ensure_default_aliases)
+        assert count == 2
+
+        models = db_session.query(ModelConfiguration).all()
+        aliases = [m.alias for m in models]
+        assert aliases.count("general") == 1
+        assert aliases.count("planning") == 1
+
+        # Verify they have real data, not placeholder values
+        general = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "general"
+        ).first()
+        assert general.model_name == "gpt-4"
+        assert general.provider == "openai"
+
+    def test_env_vars_partial_seed_creates_placeholder_for_missing(self, db_session):
+        """When only general is set via env vars, planning gets a placeholder."""
+        with mock_seeder_env({
+            "LLM_SERVICE_GENERAL_MODEL_NAME": "gpt-4",
+            "LLM_SERVICE_ENDPOINT": "https://api.openai.com/v1",
+            "LLM_SERVICE_API_KEY": "sk-test",
+        }):
+            count = seed_model_configurations(db_session, models_config=None)
+        db_session.commit()
+
+        # general from env + planning placeholder
+        assert count == 2
+
+        general = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "general"
+        ).first()
+        assert general.model_name == "gpt-4"
+
+        planning = db_session.query(ModelConfiguration).filter(
+            ModelConfiguration.alias == "planning"
+        ).first()
+        assert planning.model_name == "undefined"  # PLACEHOLDER_VALUE
+
+    def test_no_env_vars_creates_placeholders(self, db_session):
+        """With no env vars and no config, both general and planning get placeholders."""
+        # Mock os.getenv in the seeder module so host env vars don't interfere
+        with mock_seeder_env():
+            count = seed_model_configurations(db_session, models_config=None)
+        db_session.commit()
+
+        assert count == 2
+
+        for alias in ["general", "planning"]:
+            model = db_session.query(ModelConfiguration).filter(
+                ModelConfiguration.alias == alias
+            ).first()
+            assert model is not None
+            assert model.model_name == "undefined"
+
+    def test_models_config_seeds_general_and_planning(self, db_session):
+        """YAML config seeding of general/planning must not conflict with _ensure_default_aliases."""
+        models_config = {
+            "general": {
+                "model": "gpt-4",
+                "api_base": "https://api.openai.com/v1",
+                "api_key": "sk-test",
+            },
+            "planning": {
+                "model": "gpt-4-turbo",
+                "api_base": "https://api.openai.com/v1",
+                "api_key": "sk-test",
+            },
+        }
+
+        count = seed_model_configurations(db_session, models_config=models_config)
+        db_session.commit()
+
+        assert count == 2
+
+        models = db_session.query(ModelConfiguration).all()
+        aliases = [m.alias for m in models]
+        assert aliases.count("general") == 1
+        assert aliases.count("planning") == 1
+
+    def test_existing_data_skips_seeding_but_ensures_defaults(self, db_session):
+        """When table already has data, skip bulk seed but still ensure defaults exist."""
+        from solace_agent_mesh.shared.database.id_generators import generate_uuidv7
+        from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
+
+        # Pre-populate with a non-default model
+        existing = ModelConfiguration(
+            id=generate_uuidv7(),
+            alias="custom_model",
+            provider="openai",
+            model_name="gpt-4",
+            model_auth_type="none",
+            model_auth_config={"type": "none"},
+            model_params={},
+            created_by="system",
+            updated_by="system",
+            created_time=now_epoch_ms(),
+            updated_time=now_epoch_ms(),
+        )
+        db_session.add(existing)
+        db_session.commit()
+
+        count = seed_model_configurations(db_session, models_config=None)
+        db_session.commit()
+
+        # custom_model + general placeholder + planning placeholder
+        assert count == 3
+
+        for alias in ["general", "planning"]:
+            model = db_session.query(ModelConfiguration).filter(
+                ModelConfiguration.alias == alias
+            ).first()
+            assert model is not None
+
+    def test_all_four_env_vars_seeded(self, db_session):
+        """All four env var mappings seed correctly without conflicts."""
+        with mock_seeder_env(_SEEDER_ENV):
+            count = seed_model_configurations(db_session, models_config=None)
+        db_session.commit()
+
+        assert count == 4
+
+        aliases = {m.alias for m in db_session.query(ModelConfiguration).all()}
+        assert aliases == {"general", "planning", "image_gen", "report_gen"}

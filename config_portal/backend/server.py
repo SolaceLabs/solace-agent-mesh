@@ -13,7 +13,6 @@ from .common import (
 from cli.utils import get_formatted_names
 
 import shutil
-import litellm
 from collections import defaultdict
 
 import logging
@@ -22,7 +21,6 @@ log = logging.getLogger("werkzeug")
 log.disabled = True
 cli_flask = sys.modules["flask.cli"]
 cli_flask.show_server_banner = lambda *x: None
-litellm.suppress_debug_info = True
 
 config_portal_host = "CONFIG_PORTAL_HOST"
 
@@ -70,18 +68,11 @@ def get_agent_field_definitions():
     )
     fields.append(
         {
-            "name": "model_type",
-            "label": "Model Type",
-            "type": "select",
-            "options": [
-                "planning",
-                "general",
-                "image_gen",
-                "report_gen",
-                "multimodal",
-                "gemini_pro",
-            ],
-            "default": AGENT_DEFAULTS["model_type"],
+            "name": "model_provider",
+            "label": "Model Provider",
+            "type": "text",
+            "default": AGENT_DEFAULTS["model_provider"],
+            "description": "Model provider alias defined in shared_config.yaml (e.g., general, planning).",
         }
     )
     fields.append(
@@ -515,38 +506,6 @@ def create_app(shared_config=None):
         except Exception as e:
             app.logger.error(f"Error in save_config: {e}", exc_info=True)
             return jsonify({"status": "error", "message": str(e)}), 500
-
-    @app.route("/api/test_llm_config", methods=["POST"])
-    def test_llm_config():
-        llm_config = request.json
-        if (
-            not llm_config.get("model")
-            or not llm_config.get("api_key")
-            or not llm_config.get("base_url")
-        ):
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": "Please provide all the required values",
-                    }
-                ),
-                400,
-            )
-        try:
-            response = litellm.completion(
-                model=llm_config.get("model"),
-                api_key=llm_config.get("api_key"),
-                base_url=llm_config.get("base_url"),
-                messages=[{"role": "user", "content": "Say OK"}],
-            )
-            message = response.get("choices")[0].get("message")
-            if message is not None:
-                return jsonify({"status": "success", "message": message.content}), 200
-            else:
-                raise ValueError("No response from LLM")
-        except Exception:
-            return jsonify({"status": "error", "message": "No response from LLM."}), 400
 
     @app.route("/api/runcontainer", methods=["POST"])
     def runcontainer():

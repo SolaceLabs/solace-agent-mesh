@@ -151,6 +151,8 @@ apps:
       display_name: "ABC Coffee Database Agent"
       supports_streaming: false
       model: *general_model
+      model_provider: 
+        - "general"
 
       instruction: |
         You are an expert SQL assistant for the ABC Coffee Co. database.

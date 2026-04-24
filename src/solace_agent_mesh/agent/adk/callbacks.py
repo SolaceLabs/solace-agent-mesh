@@ -2309,6 +2309,29 @@ def log_streaming_chunk_callback(
     return None
 
 
+def _sanitize_bytes_in_dict_inplace(obj):
+    """Recursively replace bytes values **in place** in a dict/list with a placeholder string.
+
+    Mutates *obj* directly — callers should not rely on a return value.
+
+    This is needed because LLM request dumps may contain inline_data with raw
+    bytes (e.g., from inline vision images) which cannot be JSON-serialized
+    for publishing over the Solace broker.
+    """
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(value, (bytes, bytearray)):
+                obj[key] = f"<binary data: {len(value)} bytes>"
+            elif isinstance(value, (dict, list)):
+                _sanitize_bytes_in_dict_inplace(value)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, (bytes, bytearray)):
+                obj[i] = f"<binary data: {len(item)} bytes>"
+            elif isinstance(item, (dict, list)):
+                _sanitize_bytes_in_dict_inplace(item)
+
+
 def solace_llm_invocation_callback(
     callback_context: CallbackContext,
     llm_request: LlmRequest,
@@ -2353,7 +2376,11 @@ def solace_llm_invocation_callback(
             model_name = model_name.get("model", "unknown")
         callback_context.state["model_name"] = model_name
 
-        llm_data = LlmInvocationData(request=llm_request.model_dump(exclude_none=True))
+        request_dump = llm_request.model_dump(exclude_none=True)
+        # Sanitize binary data (e.g., inline_data from images) to make it JSON-serializable.
+        # The raw bytes cannot be sent over the Solace broker in status events.
+        _sanitize_bytes_in_dict_inplace(request_dump)
+        llm_data = LlmInvocationData(request=request_dump)
         status_update_event = a2a.create_data_signal_event(
             task_id=logical_task_id,
             context_id=context_id,
@@ -2475,12 +2502,49 @@ def solace_llm_response_callback(
                 task_context = host_component.active_tasks.get(logical_task_id)
 
             if task_context:
+                # Resolve context-window for this model: admin UI value wins,
+                # LiteLLM registry is fallback, else None. The result is
+                # persisted on the task record so the gateway's indicator can
+                # render without cross-service lookups.
+                max_input_tokens: Optional[int] = None
+                try:
+                    agent_model = getattr(getattr(host_component, "adk_agent", None), "model", None)
+                    if agent_model is not None and hasattr(agent_model, "get_max_input_tokens"):
+                        max_input_tokens = agent_model.get_max_input_tokens()
+                    if log.isEnabledFor(logging.DEBUG):
+                        # Diagnostic-only path. Config dict keys are filtered
+                        # to exclude auth-adjacent names (api_key, token,
+                        # secret, credential, password) to avoid leaking
+                        # sensitive config shape into logs.
+                        component_model_cfg = host_component.get_config("model", None)
+                        if isinstance(component_model_cfg, dict):
+                            _SENSITIVE = ("key", "token", "secret", "credential", "password", "auth")
+                            cfg_keys = [
+                                k for k in component_model_cfg.keys()
+                                if not any(s in str(k).lower() for s in _SENSITIVE)
+                            ]
+                            cfg_max = component_model_cfg.get("max_input_tokens")
+                        else:
+                            cfg_keys = type(component_model_cfg).__name__
+                            cfg_max = None
+                        log.debug(
+                            "%s Resolved max_input_tokens=%s for model=%s (agent_model_type=%s, cfg_keys=%s, cfg_max=%s)",
+                            log_identifier,
+                            max_input_tokens,
+                            model_name,
+                            type(agent_model).__name__ if agent_model else "None",
+                            cfg_keys,
+                            cfg_max,
+                        )
+                except Exception:
+                    log.exception("%s Could not resolve max_input_tokens", log_identifier)
                 task_context.record_token_usage(
                     input_tokens=usage.prompt_token_count,
                     output_tokens=usage.candidates_token_count,
                     model=model_name,
                     source="agent",
                     cached_input_tokens=cached_tokens,
+                    max_input_tokens=max_input_tokens,
                 )
                 log.debug(
                     "%s Recorded token usage: input=%d, output=%d, cached=%d, model=%s",
@@ -3317,5 +3381,39 @@ async def audit_log_openapi_tool_execution_result(
                 "tool_uri": metadata['tool_uri'],
             },
         )
+
+    return None
+
+
+def apply_model_override_callback(
+    callback_context: CallbackContext,
+    llm_request: LlmRequest,
+    host_component: "SamAgentComponent",
+) -> Optional[LlmResponse]:
+    """Read model_override from A2A task metadata.
+
+    model_override is a full LiteLLM-ready config dict (same format as
+    ``ModelConfigService.get_by_alias(raw=True)``).  Applied via a
+    ``ContextVar`` that ``LiteLlm.generate_content_async`` consumes.
+    """
+    # Inline import to avoid circular dependency (callbacks ← setup → lite_llm)
+    from .models.lite_llm import set_model_override
+
+    a2a_context = callback_context.state.get("a2a_context")
+    if not a2a_context:
+        set_model_override(None)
+        return None
+
+    metadata = a2a_context.get("original_message_metadata") or {}
+
+    model_override = metadata.get("model_override")
+    if isinstance(model_override, dict) and model_override.get("model"):
+        set_model_override(model_override)
+        log.info(
+            "[Callback:ModelOverride] Set per-request model override: %s",
+            model_override["model"],
+        )
+    else:
+        set_model_override(None)
 
     return None

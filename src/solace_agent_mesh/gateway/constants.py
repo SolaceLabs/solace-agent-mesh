@@ -23,3 +23,7 @@ DEFAULT_MAX_PROJECT_SIZE_BYTES = 104857600  # 100MB - total project size limit
 # ===== FIELD LENGTH LIMITS =====
 
 DEFAULT_MAX_PROJECT_FILE_DESCRIPTION_LENGTH = 1000  # max characters for file/artifact descriptions
+
+# ===== TASK TIMEOUT =====
+
+DEFAULT_TASK_TIMEOUT_SECONDS = 300  # 5 minutes; max idle time on gateways waiting for agent activity before canceling a task (0 = disabled)

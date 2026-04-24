@@ -16,10 +16,10 @@ class ModelConfigurationResponse(CamelCaseModel):
 
     id: str = Field(..., description="Unique identifier for the model configuration")
     alias: str = Field(..., description="Model alias (e.g., 'gpt-4', 'claude-3')")
-    provider: str = Field(
-        ..., description="Model provider (e.g., 'openai', 'anthropic', 'bedrock')"
+    provider: Optional[str] = Field(
+        None, description="Model provider (e.g., 'openai', 'anthropic', 'bedrock')"
     )
-    model_name: str = Field(..., description="Full model name")
+    model_name: Optional[str] = Field(None, description="Full model name")
     api_base: Optional[str] = Field(
         None, description="API base URL (if using custom endpoint)"
     )
@@ -31,6 +31,9 @@ class ModelConfigurationResponse(CamelCaseModel):
     )
     model_params: Dict[str, Any] = Field(
         default_factory=dict, description="Model-specific parameters"
+    )
+    max_input_tokens: Optional[int] = Field(
+        None, description="Context window size (max input tokens). Null when not configured."
     )
     description: Optional[str] = Field(
         None, description="Description of this model configuration"

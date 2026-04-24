@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
-import { Button, EmptyState, Header } from "@/lib/components";
+import { Button, EmptyState, Header, PageLayout } from "@/lib/components";
 import { AgentMeshCards } from "@/lib/components/agents";
 import { WorkflowList } from "@/lib/components/workflows";
 import { ModelsView } from "@/lib/components/models";
@@ -20,6 +20,12 @@ export function AgentMeshPage() {
 
     // Read active tab from URL, default to "agents"
     const activeTab: AgentMeshTab = (searchParams.get("tab") as AgentMeshTab) || "agents";
+
+    useEffect(() => {
+        if (activeTab === "agents" || activeTab === "workflows") {
+            agentsRefetch();
+        }
+    }, [activeTab, agentsRefetch]);
 
     const setActiveTab = (tab: AgentMeshTab) => {
         if (tab === "agents") {
@@ -64,14 +70,14 @@ export function AgentMeshPage() {
     ];
 
     return (
-        <div className="flex h-full w-full flex-col">
+        <PageLayout>
             <Header
                 title="Agent Mesh"
                 tabs={tabs}
                 buttons={[
                     ...(activeTab === "models" && modelConfigUiEnabled
                         ? [
-                              <Button key="add-model" variant="ghost" title="Add Model" onClick={() => navigate("/models/new/edit")}>
+                              <Button key="add-model" variant="outline" title="Add Model" onClick={() => navigate("/models/new/edit")}>
                                   <Plus className="size-4" />
                                   Add Model
                               </Button>,
@@ -95,6 +101,6 @@ export function AgentMeshPage() {
                     {activeTab === "models" && <ModelsView />}
                 </div>
             )}
-        </div>
+        </PageLayout>
     );
 }

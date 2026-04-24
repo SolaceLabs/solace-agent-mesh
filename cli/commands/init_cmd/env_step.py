@@ -57,14 +57,13 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
     env_path = project_root / ".env"
     click.echo("Configuring .env file...")
 
-    # Check if AWS Bedrock provider is being used
+    # Check if a LLM provider was selected
     llm_provider = options.get("llm_provider", "")
-    is_aws_bedrock = llm_provider == "aws_bedrock"
 
     env_params_config = []
-    
-    # Add AWS Bedrock specific parameters if using AWS Bedrock
-    if is_aws_bedrock:
+
+    # Only add LLM parameters if a provider was selected
+    if llm_provider == "aws_bedrock":
         env_params_config.extend([
             (
                 "llm_model_name",
@@ -102,7 +101,7 @@ def create_env_file(project_root: Path, options: dict, skip_interactive: bool) -
                 "AWS_SESSION_TOKEN",
             ),
         ])
-    else:
+    elif llm_provider:
         # Add standard LLM parameters for non-Bedrock providers
         env_params_config.extend([
             (

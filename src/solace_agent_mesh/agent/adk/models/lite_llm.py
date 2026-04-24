@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import contextvars
+import copy
 import hashlib
 import json
 import logging
@@ -130,6 +131,33 @@ class ObservabilityContext:
         if self._owner_token is not None:
             ObservabilityContext._owner_id_var.reset(self._owner_token)
         return False  # Don't suppress exceptions
+
+
+# Per-request model override via ContextVar.
+# Set by the model_override callback (before_model chain) and consumed by
+# generate_content_async(). Each asyncio.Task gets its own copy, so
+# concurrent requests with different overrides are isolated.
+_model_override_var: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar(
+    "model_override_config", default=None
+)
+
+
+def set_model_override(config: Optional[Dict[str, Any]]) -> None:
+    """Set or clear the per-request model override for the current async task.
+
+    Pass a LiteLLM-ready config dict to override, or None to clear::
+
+        {"model": "openai/gpt-4o", "api_key": "sk-...", "api_base": "https://..."}
+
+    Managed by apply_model_override_callback (sets before every LLM call);
+    read by LiteLlm.generate_content_async().
+    """
+    _model_override_var.set(config)
+
+
+def get_model_override() -> Optional[Dict[str, Any]]:
+    """Return the per-request model override for the current async task, or None."""
+    return _model_override_var.get()
 
 
 class FunctionChunk(BaseModel):
@@ -269,13 +297,50 @@ def _content_to_message_param(
     tool_messages = []
     for part in content.parts:
         if part.function_response:
-            tool_messages.append(
-                ChatCompletionToolMessage(
-                    role="tool",
-                    tool_call_id=_truncate_tool_call_id(part.function_response.id),
-                    content=_safe_json_serialize(part.function_response.response),
+            response_data = part.function_response.response
+            # Check for inline vision image data URL in tool response.
+            # When load_artifact returns an image with enable_inline_vision,
+            # it includes a _vision_image_data_url key with a base64 data URL.
+            vision_data_url = None
+            if isinstance(response_data, dict):
+                vision_data_url = response_data.pop("_vision_image_data_url", None)
+
+            if vision_data_url:
+                # Tool response with vision image: send the text result as a
+                # normal tool message, then inject a user message with the image.
+                # This is the universally compatible approach — all LLM providers
+                # support image_url in user messages, but not all support it in
+                # tool messages (e.g., OpenAI gpt-4o-mini rejects it).
+                tool_messages.append(
+                    ChatCompletionToolMessage(
+                        role="tool",
+                        tool_call_id=_truncate_tool_call_id(part.function_response.id),
+                        content=_safe_json_serialize(response_data),
+                    )
                 )
-            )
+                tool_messages.append(
+                    ChatCompletionUserMessage(
+                        role="user",
+                        content=[
+                            ChatCompletionTextObject(
+                                type="text",
+                                text="[System: The tool returned the following image for your analysis]",
+                            ),
+                            ChatCompletionImageUrlObject(
+                                type="image_url",
+                                image_url={"url": vision_data_url},
+                            ),
+                        ],
+                    )
+                )
+            else:
+                tool_messages.append(
+                    ChatCompletionToolMessage(
+                        role="tool",
+                        tool_call_id=_truncate_tool_call_id(part.function_response.id),
+                        content=_safe_json_serialize(response_data),
+                    )
+                )
     if tool_messages:
         return tool_messages if len(tool_messages) > 1 else tool_messages[0]
 
@@ -366,7 +431,7 @@ def _get_content(
     return content_objects
 
 
-def _calculate_content_tokens(
+def calculate_content_tokens(
     content: types.Content,
     model: str = "gpt-4o"
 ) -> int:
@@ -451,6 +516,10 @@ def _calculate_content_tokens(
         video_tokens
     )
     return total
+
+
+# Backward-compatible alias for existing internal callers
+_calculate_content_tokens = calculate_content_tokens
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:
@@ -835,8 +904,8 @@ def _get_completion_inputs(
                 mapped_key = param_mapping.get(key, key)
                 generation_params[mapped_key] = config_dict[key]
 
-            if not generation_params:
-                generation_params = None
+        if not generation_params:
+            generation_params = None
 
     return messages, tools, response_format, generation_params
 
@@ -948,6 +1017,16 @@ class LiteLlm(BaseLlm):
     _thinking_config: Optional[Dict[str, Any]] = PrivateAttr(default=None) # Thinking/reasoning token config
     _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
     _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
+    # Explicit context-window size, typically sourced from the admin model-config
+    # UI via the bootstrap payload. Agents stamp this on every task record so the
+    # gateway's context-usage indicator can honour admin settings without reading
+    # the platform DB directly.
+    _max_input_tokens: Optional[int] = PrivateAttr(default=None)
+    # Tokens from the most recent completion. Lets callers that sit outside ADK's
+    # usage_metadata propagation (e.g. the session compactor, which loses usage
+    # on the returned Event) read the last call's spend. Written on every
+    # completion; callers read and clear via `pop_last_usage()`.
+    _last_usage: Optional[Dict[str, int]] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -967,7 +1046,7 @@ class LiteLlm(BaseLlm):
         # BaseLlm does not set extra="allow", so unknown fields cause validation errors.
         # These keys are handled by configure_model() instead.
         _non_pydantic_keys = [
-            "thinking", "cache_strategy",
+            "thinking", "cache_strategy", "max_input_tokens",
             "oauth_client_id", "oauth_client_secret", "oauth_token_url",
             "oauth_scope", "oauth_audience",
         ]
@@ -1082,6 +1161,15 @@ class LiteLlm(BaseLlm):
             copied_model_config.setdefault("num_retries", 3)
             copied_model_config.setdefault("timeout", 120)
         
+        # Extract admin-configured context window (optional). Store separately
+        # so it survives across reconfigures; not forwarded to LiteLLM as a
+        # completion kwarg.
+        configured_max_input = copied_model_config.pop("max_input_tokens", None)
+        try:
+            self._max_input_tokens = int(configured_max_input) if configured_max_input else None
+        except (TypeError, ValueError):
+            self._max_input_tokens = None
+
         cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
         copied_model_config.pop("cache_strategy", None)
         if cache_strategy not in VALID_CACHE_STRATEGIES:
@@ -1112,6 +1200,62 @@ class LiteLlm(BaseLlm):
     
         self._model_config = copied_model_config
         self._set_status("ready")
+
+    def pop_last_usage(self) -> Optional[Dict[str, int]]:
+        """Return and clear the most recent completion's token usage.
+
+        Intended for out-of-band callers (e.g. session compaction) that cannot
+        read usage_metadata from ADK's returned Event. Returns a dict with
+        `prompt_tokens` and `completion_tokens`, or None if no call has run
+        since the last pop.
+        """
+        usage = self._last_usage
+        self._last_usage = None
+        return usage
+
+    @staticmethod
+    def _lookup_litellm_max_input(name: str) -> Optional[int]:
+        """Return ``max_input_tokens`` from LiteLLM's registry for ``name``.
+
+        Any lookup failure is logged at debug — LiteLLM raises for unknown
+        models, which is an expected fallthrough in the registry-based
+        resolution chain and not noteworthy at info/warning.
+        """
+        try:
+            import litellm
+            info = litellm.get_model_info(name)
+            value = info.get("max_input_tokens") if isinstance(info, dict) else None
+            if value:
+                return int(value)
+        except Exception as e:
+            logger.debug("litellm.get_model_info(%s) failed: %s", name, e)
+        return None
+
+    def get_max_input_tokens(self) -> Optional[int]:
+        """Resolve this model's context window (max input tokens).
+
+        Order:
+          1. Admin-configured value from the model-config UI (bootstrap payload).
+          2. LiteLLM's built-in registry for well-known models.
+          3. Same registry lookup with the provider prefix stripped
+             (e.g. ``openai/gpt-4o`` → ``gpt-4o``).
+          4. None — caller should treat as unknown.
+
+        The result is typically stamped on per-task token records so the
+        gateway can render the context-usage indicator without cross-service DB
+        access.
+        """
+        if self._max_input_tokens:
+            return self._max_input_tokens
+        value = self._lookup_litellm_max_input(self.model)
+        if value is not None:
+            return value
+        if self.model and "/" in self.model:
+            bare = self.model.rsplit("/", 1)[-1]
+            value = self._lookup_litellm_max_input(bare)
+            if value is not None:
+                return value
+        return None
 
     def unconfigure_model(self):
         """Reset status to 'none' for hot-reload teardown.
@@ -1179,6 +1323,23 @@ class LiteLlm(BaseLlm):
             "stream_options": {"include_usage": True},
         }
         completion_args.update(self._model_config)
+
+        # Apply per-request model override if set by the callback chain.
+        # The ContextVar is managed by apply_model_override_callback which
+        # runs before every LLM call, so we just read here — no clearing.
+        override_config = get_model_override()
+        if override_config:
+            override_copy = copy.deepcopy(override_config)
+            override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
+            override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
+            logger.info(
+                "Applying per-request model override: model=%s (default was %s)",
+                override_copy.get("model", "unspecified"),
+                self._model_config.get("model", "unknown"),
+            )
+            completion_args.update(override_copy)
+
+        effective_model = completion_args.get("model", self.model)
 
         # Inject OAuth token if OAuth is configured
         if self._oauth_token_manager:
@@ -1254,8 +1415,8 @@ class LiteLlm(BaseLlm):
             fallback_index = 0
 
             # Create monitors for observability
-            gen_ai_monitor = GenAIMonitor.create(model=self.model)
-            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=self.model)).start()
+            gen_ai_monitor = GenAIMonitor.create(model=effective_model)
+            ttft_latency = MonitorLatency(GenAITTFTMonitor.create(model=effective_model)).start()
             ttft_recorded = False
 
             # Try with thinking params first; if the model doesn't support them,
@@ -1320,10 +1481,14 @@ class LiteLlm(BaseLlm):
                             # Update token labels and record metrics
                             gen_ai_monitor.set_prompt_tokens(chunk.prompt_tokens)
                             self._record_token_and_cost_metrics(
-                                self.model,
+                                effective_model,
                                 chunk.prompt_tokens,
                                 chunk.completion_tokens
                             )
+                            self._last_usage = {
+                                "prompt_tokens": int(chunk.prompt_tokens or 0),
+                                "completion_tokens": int(chunk.completion_tokens or 0),
+                            }
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1422,7 +1587,7 @@ class LiteLlm(BaseLlm):
                 yield aggregated_llm_response_with_tool_call
 
         else:
-            monitor = GenAIMonitor.create(model=self.model)
+            monitor = GenAIMonitor.create(model=effective_model)
 
             with MonitorLatency(monitor):
                 response = await self._acompletion_with_thinking_fallback(completion_args)
@@ -1434,10 +1599,14 @@ class LiteLlm(BaseLlm):
                     monitor.set_prompt_tokens(prompt_tokens)
                     # Record token and cost metrics
                     self._record_token_and_cost_metrics(
-                        self.model,
+                        effective_model,
                         prompt_tokens,
                         completion_tokens
                     )
+                    self._last_usage = {
+                        "prompt_tokens": int(prompt_tokens or 0),
+                        "completion_tokens": int(completion_tokens or 0),
+                    }
 
             yield _model_response_to_generate_content_response(response)
 
@@ -1452,6 +1621,13 @@ class LiteLlm(BaseLlm):
             prompt_tokens: Number of input tokens
             completion_tokens: Number of output tokens
         """
+        # Stamp the last-call usage side channel here (in addition to the
+        # streaming/non-streaming sites) so any call path that ends up here
+        # exposes its tokens via pop_last_usage().
+        self._last_usage = {
+            "prompt_tokens": int(prompt_tokens or 0),
+            "completion_tokens": int(completion_tokens or 0),
+        }
         try:
             # Read observability context (set by ObservabilityContext at entry points)
             component_name = ObservabilityContext._component_name_var.get() or "none"

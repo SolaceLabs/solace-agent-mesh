@@ -1,3 +1,5 @@
+import re
+
 import click
 from pathlib import Path
 
@@ -187,6 +189,16 @@ def create_webui_gateway_config(
         for placeholder, value in replacements.items():
             if value is not None:
                 modified_content = modified_content.replace(placeholder, str(value))
+
+        # If no LLM provider, strip the model anchor line (keep model_provider)
+        llm_provider = options.get("llm_provider", "")
+        if not llm_provider:
+            modified_content = re.sub(
+                r"^\s*model: \*general_model\n",
+                "",
+                modified_content,
+                flags=re.MULTILINE,
+            )
 
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         with open(destination_path, "w", encoding="utf-8") as f:

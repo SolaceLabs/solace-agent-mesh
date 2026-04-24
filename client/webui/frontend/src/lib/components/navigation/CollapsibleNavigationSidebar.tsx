@@ -3,9 +3,8 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
-import { useChatContext, useSessionStorage, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useSessionStorage } from "@/lib/hooks";
 import { SolaceIcon } from "@/lib/components/common/SolaceIcon";
-import { SharedChatsList } from "@/lib/components/chat/SharedChatsList";
 import { RecentChatsList } from "@/lib/components/chat/RecentChatsList";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 import { cn } from "@/lib/utils";
@@ -63,7 +62,6 @@ export const CollapsibleNavigationSidebar = ({
 }: CollapsibleNavigationSidebarProps) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const [internalCollapsed, setInternalCollapsed] = useSessionStorage("nav-collapsed", defaultCollapsed);
     const isCollapsed = controlledIsCollapsed ?? internalCollapsed;
@@ -305,8 +303,6 @@ export const CollapsibleNavigationSidebar = ({
                         );
                     })}
                 </div>
-                {/* Shared with me section - hidden when collapsed, renders nothing if no shared chats */}
-                {chatSharingEnabled && !isCollapsed && <SharedChatsList maxItems={5} />}
             </div>
 
             {/* Recent Chats */}
@@ -315,8 +311,7 @@ export const CollapsibleNavigationSidebar = ({
                     <div className="border-t border-(--secondary-w70)" />
                     <div className="mb-2 flex items-center justify-between pt-6 pr-6 pl-6">
                         <span className="text-sm font-bold text-(--darkSurface-textMuted)">Recent Chats</span>
-                        {/** Hard-code colours to avoid extra variables in the theme for a single usage, may reconsider if there is greater usage */}
-                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-[#679DB4] no-underline hover:text-[#E6EFF2]">
+                        <Link to="/recent-chats" className="cursor-pointer text-sm font-bold text-(--darkSurface-buttonText) no-underline hover:text-(--darkSurface-buttonTextHover)">
                             View All
                         </Link>
                     </div>
