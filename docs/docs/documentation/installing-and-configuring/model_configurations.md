@@ -97,6 +97,7 @@ To create a new model configuration from the UI:
 | **Authentication Type** | Yes | The authentication method for the provider |
 | **Auth Credentials** | Varies | Provider-specific credentials (API key, OAuth2 settings, AWS IAM, and so on) |
 | **Model Name** | Yes | The specific model to use. The drop-down list fetches available models from the provider using your credentials. If the fetch fails, you can type the model name manually |
+| **Max Input Tokens** | No | The model's maximum input token limit. Drives the chat context-usage indicator shown below the chat input. Check the model provider's documentation for the current value for this model version. Leave blank to fall back to the agent's `shared_config.yaml` value, then to the platform's built-in model registry for well-known models |
 
 4. Optionally expand **Advanced Settings** to configure:
 
@@ -105,7 +106,6 @@ To create a new model configuration from the UI:
 | **Temperature** | Controls randomness in responses (0-2). Lower values produce more deterministic output | Provider default |
 | **Max Tokens** | Maximum number of tokens in the response | Provider default |
 | **Prompt Caching Strategy** | Controls how system prompts and tool definitions are cached across LLM requests to reduce costs and latency. Cached content is reused by the provider instead of being reprocessed on each request. Options: **5 minutes** (short-lived cache), **1 hour** (extended cache), or **Disabled** (no caching). Not all providers support prompt caching—when unsupported, this setting is ignored | 5 minutes |
-| **Context Window (max input tokens)** | The model's maximum input token limit. Drives the chat context-usage indicator shown below the chat input. Leave blank to fall back to the agent's `shared_config.yaml` value, then to the platform's built-in model registry for well-known models | Unset |
 
    You can also add **vendor-specific LLM parameters** as custom key-value pairs. These are passed directly to the provider's API, allowing you to configure provider-specific options not covered by the preceding common settings (such as `top_p`, `frequency_penalty`, and `seed`). For available parameters, see your provider's API documentation.
 
@@ -219,11 +219,11 @@ The `model_provider` field accepts an alias or model ID in a form of a list. Whe
 
 ## Context Usage Indicator
 
-The chat UI shows a per-session context-usage indicator below the chat input. It tracks how much of the model's context window has been consumed by the current session and helps users anticipate when auto-compaction will kick in.
+The chat UI shows a per-session context-usage indicator below the chat input. It tracks how much of the model's context window has been consumed by the current session and helps users anticipate when auto-compaction will kick in or decide when to compact/compress manually.
 
 The indicator is only rendered when the model's context window is known. The platform resolves the limit in the following order:
 
-1. **Model Configuration** — the `Context Window (max input tokens)` value set in the Models UI, matched first by model name, then by alias.
+1. **Model Configuration** — the `Max Input Tokens` value set in the Models UI, matched first by model name, then by alias.
 2. **Agent-reported value** — if the agent's model configuration in `shared_config.yaml` sets `max_input_tokens`, that value is stamped on each completed task and used when no UI override exists:
 
    ```yaml
@@ -237,7 +237,7 @@ The indicator is only rendered when the model's context window is known. The pla
 
 3. **Built-in model registry** — for well-known models, the platform's model-info lookup provides the context window automatically.
 
-If none of these resolve, the indicator is hidden rather than displayed against a guessed limit. Set `Context Window` explicitly in the Models UI whenever you connect a Custom provider or a model LiteLLM does not recognize.
+If none of these resolve, the indicator is hidden rather than displayed against a guessed limit. Set `Max Input Tokens` explicitly in the Models UI whenever you connect a Custom provider or a model the registry does not recognize, and check the provider's documentation for the current value — providers publish this per model and can change it over time.
 
 ## Next Steps
 
