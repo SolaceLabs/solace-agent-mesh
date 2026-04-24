@@ -1137,7 +1137,7 @@ class TestCreateCompactionEvent:
             mock_summarizer.maybe_summarize_events.return_value = compaction_event
             
             # Call function
-            count, summary = await _create_compaction_event(
+            count, summary, _, _ = await _create_compaction_event(
                 component=component,
                 session=session,
                 compaction_threshold=0.5,
@@ -1251,7 +1251,7 @@ class TestCreateCompactionEvent:
             mock_summarizer.maybe_summarize_events.return_value = compaction_event
             
             # Call function
-            count, summary = await _create_compaction_event(
+            count, summary, _, _ = await _create_compaction_event(
                 component=component,
                 session=session,
                 compaction_threshold=0.5,

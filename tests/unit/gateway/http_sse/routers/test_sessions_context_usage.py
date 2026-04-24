@@ -172,19 +172,25 @@ class TestGetSessionContextUsage:
     ):
         """Token data comes from the gateway's tasks table (LLM-reported totals)."""
         mock_session = MagicMock()
-        mock_session.agent_id = "test-agent"
+        # Leave agent_id unset so the agent-scoped task filter is a no-op
+        # in this unit test (filter behavior is covered separately).
+        mock_session.agent_id = None
         mock_session_service.get_session_details.return_value = mock_session
 
         # Set up mock DB to return completed tasks with token data
         latest_task = MagicMock()
+        latest_task.id = "task-latest"
         latest_task.total_input_tokens = 5000
         latest_task.total_output_tokens = 800
         latest_task.total_cached_input_tokens = 200
+        latest_task.token_usage_details = None
 
         older_task = MagicMock()
+        older_task.id = "task-older"
         older_task.total_input_tokens = 3000
         older_task.total_output_tokens = 500
         older_task.total_cached_input_tokens = 100
+        older_task.token_usage_details = None
 
         query_mock = MagicMock()
         query_mock.filter.return_value = query_mock
@@ -445,7 +451,7 @@ class TestCompactSession:
 
             assert exc_info.value.status_code == 500
             assert "secret" not in exc_info.value.detail
-            assert exc_info.value.detail == "Failed to compact session"
+            assert exc_info.value.detail == "Failed to compress session"
 
     @pytest.mark.asyncio
     async def test_happy_path_compaction(

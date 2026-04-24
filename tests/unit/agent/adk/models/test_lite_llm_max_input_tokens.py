@@ -16,10 +16,14 @@ from solace_agent_mesh.agent.adk.models.lite_llm import LiteLlm
 
 
 def _make_instance(model: str, max_input_tokens=None) -> LiteLlm:
-    """Construct a minimally-wired LiteLlm without running its init."""
-    instance = LiteLlm.__new__(LiteLlm)
-    instance.model = model
-    instance._max_input_tokens = max_input_tokens
+    """Construct a minimally-wired LiteLlm without running its init.
+
+    Uses Pydantic v2's ``model_construct`` so required fields and the
+    ``__pydantic_fields_set__`` bookkeeping are set up without triggering
+    validators or the real ``__init__`` (which does expensive LiteLLM wiring).
+    """
+    instance = LiteLlm.model_construct(model=model)
+    object.__setattr__(instance, "_max_input_tokens", max_input_tokens)
     return instance
 
 
