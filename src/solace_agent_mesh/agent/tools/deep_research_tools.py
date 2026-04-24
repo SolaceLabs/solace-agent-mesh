@@ -985,6 +985,17 @@ Respond in JSON format:
 _PLAN_RESPONSE_TIMEOUT_SECONDS = 600
 
 
+def _is_webui_gateway(tool_context: ToolContext) -> bool:
+    """Whether the invoking gateway can render the interactive plan UI.
+
+    Placeholder: always True today. Gateway-type detection is currently handled
+    via the ``interactive_plan_verification`` config flag; this helper exists so
+    callers can migrate to a per-request check once that signal is plumbed
+    through the tool context.
+    """
+    return True
+
+
 def _plan_cache_key(user_id: str, plan_id: str) -> str:
     """Build the cache key used to exchange plan responses.
 
