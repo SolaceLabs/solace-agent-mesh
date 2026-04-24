@@ -979,6 +979,9 @@ Functions:
 -----------------------------------------------------------
 """
 
+_NON_COMPLETION_KEYS = frozenset({"cache_strategy", "thinking", "type"})
+"""Config keys used during initialization but not valid as litellm.completion() kwargs."""
+
 VALID_CACHE_STRATEGIES = ["none", "5m", "1h"]
 """
 Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
@@ -1114,6 +1117,22 @@ class LiteLlm(BaseLlm):
 
         return None
 
+    @staticmethod
+    def _sanitize_for_completion(config: dict) -> dict:
+        """Remove keys from a model config dict that are not valid litellm completion kwargs.
+
+        These keys are used during model initialization (cache strategy, thinking
+        tokens, OAuth) but must not be forwarded to litellm.completion().
+
+        Mutates and returns the dict.
+        """
+        for key in _NON_COMPLETION_KEYS:
+            config.pop(key, None)
+        for key in list(config):
+            if key.startswith("oauth_"):
+                config.pop(key)
+        return config
+
     @property
     def status(self) -> str:
         """Current model status: 'none', 'initializing', or 'ready'."""
@@ -1160,7 +1179,7 @@ class LiteLlm(BaseLlm):
         if copied_model_config.get("type") is None:
             copied_model_config.setdefault("num_retries", 3)
             copied_model_config.setdefault("timeout", 120)
-        
+
         # Extract admin-configured context window (optional). Store separately
         # so it survives across reconfigures; not forwarded to LiteLLM as a
         # completion kwarg.
@@ -1170,8 +1189,8 @@ class LiteLlm(BaseLlm):
         except (TypeError, ValueError):
             self._max_input_tokens = None
 
+        # Extracted via get(); removed later by _sanitize_for_completion()
         cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
-        copied_model_config.pop("cache_strategy", None)
         if cache_strategy not in VALID_CACHE_STRATEGIES:
             logger.warning(
                 "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
@@ -1182,22 +1201,24 @@ class LiteLlm(BaseLlm):
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 
-        # Extract thinking/reasoning token configuration if present
-        thinking_config = copied_model_config.pop("thinking", None)
+        # Extracted via get(); removed later by _sanitize_for_completion()
+        thinking_config = copied_model_config.get("thinking")
         if thinking_config and isinstance(thinking_config, dict):
             self._thinking_config = thinking_config
             logger.info("LiteLlm initialized with thinking config: %s", thinking_config)
         else:
             self._thinking_config = None
 
-        # Extract OAuth configuration if present
+        # OAuth keys extracted here; remaining oauth_* removed by _sanitize_for_completion()
         oauth_config = self._extract_oauth_config(copied_model_config)
         if oauth_config:
             self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
             logger.info("OAuth2 token manager initialized for model: %s", model_name)
         else:
             self._oauth_token_manager = None
-    
+
+        # Remove keys that aren't valid litellm completion kwargs
+        self._sanitize_for_completion(copied_model_config)
         self._model_config = copied_model_config
         self._set_status("ready")
 
@@ -1332,6 +1353,7 @@ class LiteLlm(BaseLlm):
             override_copy = copy.deepcopy(override_config)
             override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
             override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
+            self._sanitize_for_completion(override_copy)
             logger.info(
                 "Applying per-request model override: model=%s (default was %s)",
                 override_copy.get("model", "unspecified"),
