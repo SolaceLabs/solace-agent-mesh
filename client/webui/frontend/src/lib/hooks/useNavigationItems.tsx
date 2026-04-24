@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, Calendar } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, CalendarClock } from "lucide-react";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
@@ -40,6 +40,19 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
             });
         }
 
+        // Schedules sits at the top level directly below Projects.
+        if (schedulerEnabled) {
+            navItems.push({
+                id: "schedules",
+                label: "Schedules",
+                icon: CalendarClock,
+                route: "/scheduled-tasks",
+                routeMatch: "/scheduled-tasks",
+                tooltip: "Experimental Feature",
+                position: "top",
+            });
+        }
+
         // Build Assets section with children based on enabled features
         const assetsChildren: NavItemConfig[] = [];
 
@@ -61,17 +74,6 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
                 icon: Files,
                 route: "/artifacts",
                 routeMatch: "/artifacts",
-                tooltip: "Experimental Feature",
-            });
-        }
-
-        if (schedulerEnabled) {
-            assetsChildren.push({
-                id: "schedules",
-                label: "Schedules",
-                icon: Calendar,
-                route: "/schedules",
-                routeMatch: "/schedules",
                 tooltip: "Experimental Feature",
             });
         }
@@ -114,7 +116,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/prompts")) return "prompts";
         if (path.startsWith("/artifacts")) return "artifacts";
-        if (path.startsWith("/schedules")) return "schedules";
+        if (path.startsWith("/scheduled-tasks")) return "schedules";
         if (path.startsWith("/agents")) return "agents";
         return "chats";
     }, [location.pathname]);

@@ -5,8 +5,9 @@
 
 import { useState } from "react";
 import { RefreshCw, AlertCircle } from "lucide-react";
-import { useScheduledTasks, useEnableScheduledTask, useDisableScheduledTask, useDeleteScheduledTask } from "@/lib/api/scheduled-tasks";
+import { useScheduledTasks, useEnableScheduledTask, useDisableScheduledTask, useDeleteScheduledTask, useRunScheduledTaskNow } from "@/lib/api/scheduled-tasks";
 import { Button } from "@/lib/components/ui";
+import { useChatContext } from "@/lib/hooks";
 import type { ScheduledTask } from "@/lib/types/scheduled-tasks";
 import { TaskExecutionHistoryPage } from "./TaskExecutionHistoryPage";
 import { TaskTemplateBuilder } from "@/lib/components/scheduled-tasks/TaskTemplateBuilder";
@@ -20,6 +21,8 @@ export function ScheduledTasksPage() {
     const enableTaskMutation = useEnableScheduledTask();
     const disableTaskMutation = useDisableScheduledTask();
     const deleteTaskMutation = useDeleteScheduledTask();
+    const runNowMutation = useRunScheduledTaskNow();
+    const { addNotification } = useChatContext();
 
     const tasks = tasksResponse?.tasks ?? [];
 
@@ -75,6 +78,17 @@ export function ScheduledTasksPage() {
         setShowGenerateDialog(false);
         setBuilderInitialMode("ai-assisted");
         setShowBuilder(true);
+    };
+
+    const handleRunNow = async (task: ScheduledTask) => {
+        try {
+            await runNowMutation.mutateAsync(task.id);
+            addNotification(`"${task.name}" started — check execution history for results.`, "success");
+        } catch (err: unknown) {
+            // Prefer the server-provided detail when available (e.g. 409 "already running").
+            const message = (err instanceof Error && err.message) || "Failed to run task";
+            addNotification(`Run Now failed: ${message}`, "warning");
+        }
     };
 
     // Show task builder/editor as full page
@@ -169,6 +183,8 @@ export function ScheduledTasksPage() {
                         onDelete={handleDelete}
                         onToggleEnabled={handleToggleEnabled}
                         onViewExecutions={handleViewExecutions}
+                        onRunNow={handleRunNow}
+                        runNowPendingTaskId={runNowMutation.isPending ? ((runNowMutation.variables as string | undefined) ?? null) : null}
                     />
                 </div>
             )}

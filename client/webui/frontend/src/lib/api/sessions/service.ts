@@ -28,3 +28,7 @@ export const getPaginatedSessions = async (pageNumber: number = 1, pageSize: num
 export const getSessionChatTasks = async (sessionId: string) => {
     return api.webui.get(`/api/v1/sessions/${sessionId}/chat-tasks`);
 };
+
+export const markSessionViewed = async (sessionId: string): Promise<{ lastViewedAt: number }> => {
+    return api.webui.post(`/api/v1/sessions/${sessionId}/viewed`, {});
+};

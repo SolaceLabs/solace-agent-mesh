@@ -32,6 +32,9 @@ class ModelConfigurationResponse(CamelCaseModel):
     model_params: Dict[str, Any] = Field(
         default_factory=dict, description="Model-specific parameters"
     )
+    max_input_tokens: Optional[int] = Field(
+        None, description="Context window size (max input tokens). Null when not configured."
+    )
     description: Optional[str] = Field(
         None, description="Description of this model configuration"
     )

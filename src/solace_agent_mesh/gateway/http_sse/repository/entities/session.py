@@ -25,6 +25,7 @@ class Session(BaseModel):
     updated_time: int | None = None
     deleted_at: int | None = None
     deleted_by: str | None = None
+    last_viewed_at: int | None = None
 
     def update_name(self, new_name: str) -> None:
         """Update session name with validation."""

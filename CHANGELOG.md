@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.19.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.0...1.19.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* **DATAGO-131964:** Investigate delay and visibility issues for scheduled tasks in recent chats ([#1394](https://github.com/SolaceLabs/solace-agent-mesh/issues/1394)) ([79a2ae4](https://github.com/SolaceLabs/solace-agent-mesh/commit/79a2ae4c926a51185f2e8fb0eb8df8898959655e))
+
+
+### Documentation
+
+* **DATAGO-132664:** Restructure Teams gateway setup with Microsoft guide references ([#1437](https://github.com/SolaceLabs/solace-agent-mesh/issues/1437)) ([2487100](https://github.com/SolaceLabs/solace-agent-mesh/commit/24871002256ec0cda9584e7fca972c693fb51fdf))
+
 ## [1.19.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.18.40...1.19.0) (2026-04-21)
 
 
