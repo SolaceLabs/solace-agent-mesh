@@ -1,3 +1,3 @@
 # x-release-please-start-version
-__version__ = "1.19.1"
+__version__ = "1.20.0"
 # x-release-please-end

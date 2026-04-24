@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.1...1.20.0) (2026-04-24)
+
+
+### Features
+
+* **DATAGO-113923:** real-time context usage indicator in chat with multiple metrics ([#1236](https://github.com/SolaceLabs/solace-agent-mesh/issues/1236)) ([d2c25fc](https://github.com/SolaceLabs/solace-agent-mesh/commit/d2c25fc8083b0816fe5b1d50372db77de8a93b46))
+
 ## [1.19.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.0...1.19.1) (2026-04-23)
 
 
