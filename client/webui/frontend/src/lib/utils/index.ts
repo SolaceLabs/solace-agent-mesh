@@ -17,3 +17,4 @@ export * from "./agentUtils";
 export * from "./lruCache";
 export * from "./semaphore";
 export * from "./persistentCache";
+export * from "./sessionUnseen";

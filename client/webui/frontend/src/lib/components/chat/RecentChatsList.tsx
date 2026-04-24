@@ -1,13 +1,16 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, CalendarClock, Share2 } from "lucide-react";
 
-import { useRecentSessions } from "@/lib/api/sessions";
+import { useMarkSessionViewed, useRecentSessions } from "@/lib/api/sessions";
+import { useSharedWithMe } from "@/lib/api/share";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsChatSharingEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
+import type { SharedWithMeItem } from "@/lib/types/share";
+import { hasUnseenUpdates, toEpochMs } from "@/lib/utils";
 
 const sessionButtonStyles = cva(["flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
@@ -86,12 +89,48 @@ interface RecentChatsListProps {
     maxItems?: number;
 }
 
+type SessionEntry = { kind: "session"; timestamp: number; session: Session };
+type SharedEntry = { kind: "shared"; timestamp: number; shared: SharedWithMeItem };
+type Entry = SessionEntry | SharedEntry;
+
 export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
+    const chatSharingEnabled = useIsChatSharingEnabled();
 
     const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
+    const { data: sharedItems = [] } = useSharedWithMe();
+    const markViewedMutation = useMarkSessionViewed();
+
+    // Mark the active session as viewed whenever it's selected or its updatedTime advances.
+    // SSE can bump `updated_time` per streamed chunk (~1s), so gate with a ref to only
+    // fire when the viewed timestamp is actually behind the latest update we've acted on.
+    const lastMarkedViewedRef = useRef<Map<string, number>>(new Map());
+    useEffect(() => {
+        if (!sessionId) return;
+        const active = sessions.find(s => s.id === sessionId);
+        if (!active) return;
+        if (!hasUnseenUpdates(active)) return;
+        const updatedMs = toEpochMs(active.updatedTime);
+        if (!Number.isFinite(updatedMs)) return;
+        const lastMarked = lastMarkedViewedRef.current.get(active.id) ?? 0;
+        if (lastMarked >= updatedMs) return;
+        lastMarkedViewedRef.current.set(active.id, updatedMs);
+        markViewedMutation.mutate(active.id);
+        // Only depend on id + updatedTime to avoid re-firing on unrelated re-renders.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId, sessions.find(s => s.id === sessionId)?.updatedTime]);
+
+    const prevSessionRef = useRef<string | null>(sessionId);
+    useEffect(() => {
+        const prev = prevSessionRef.current;
+        if (prev && prev !== sessionId) {
+            markViewedMutation.mutate(prev);
+        }
+        prevSessionRef.current = sessionId;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId]);
 
     const taskToSessionRef = useRef<Map<string, string>>(new Map());
     const [taskMapVersion, setTaskMapVersion] = useState(0);
@@ -109,13 +148,39 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTaskId, taskMapVersion]);
 
-    const handleSessionClick = async (clickedSessionId: string) => {
+    const entries = useMemo<Entry[]>(() => {
+        const sessionEntries: Entry[] = sessions.map(session => ({
+            kind: "session",
+            timestamp: new Date(session.updatedTime).getTime() || 0,
+            session,
+        }));
+
+        const sharedEntries: Entry[] = chatSharingEnabled ? sharedItems.map(shared => ({ kind: "shared", timestamp: shared.sharedAt || 0, shared })) : [];
+
+        return [...sessionEntries, ...sharedEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, maxItems);
+    }, [sessions, sharedItems, chatSharingEnabled, maxItems]);
+
+    const handleSessionClick = async (clickedSession: Session) => {
         // Navigate to chat page first, then switch session
         navigate("/chat");
-        await handleSwitchSession(clickedSessionId);
+        await handleSwitchSession(clickedSession.id);
+        // Mark viewed AFTER switch completes — switching can trigger SSE
+        // replay / save_task calls that advance the session's updated_time
+        // by a few ms, so writing last_viewed_at first would leave us behind.
+        markViewedMutation.mutate(clickedSession.id);
     };
 
-    if (isLoading && sessions.length === 0 && persistenceEnabled) {
+    const handleSharedClick = async (item: SharedWithMeItem) => {
+        const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
+        if (isEditor && item.sessionId) {
+            navigate("/chat");
+            await handleSwitchSession(item.sessionId);
+        } else {
+            navigate(`/shared-chat/${item.shareId}`);
+        }
+    };
+
+    if (isLoading && entries.length === 0 && persistenceEnabled) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <Spinner />
@@ -123,7 +188,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         );
     }
 
-    if (sessions.length === 0) {
+    if (entries.length === 0) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <MessageCircle className="mb-2 h-6 w-6" />
@@ -134,18 +199,42 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
 
     return (
         <div className="flex flex-col">
-            {sessions.slice(0, maxItems).map(session => {
-                const displayName = session.name?.trim() || "New Chat";
+            {entries.map(entry => {
+                if (entry.kind === "session") {
+                    const { session } = entry;
+                    const displayName = session.name?.trim() || "New Chat";
+                    const isActive = session.id === sessionId;
+                    const hasUnseen = !isActive && hasUnseenUpdates(session);
+                    return (
+                        <Tooltip key={`session-${session.id}`}>
+                            <TooltipTrigger asChild>
+                                <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: isActive })}>
+                                    {session.source === "scheduler" ? <CalendarClock className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
+                                    <div className="min-w-0 flex-1">
+                                        <SessionName session={session} respondingSessionId={respondingSessionId} isActive={isActive} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
+                                    </div>
+                                    {hasUnseen && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{displayName}</TooltipContent>
+                        </Tooltip>
+                    );
+                }
+
+                const { shared } = entry;
                 return (
-                    <Tooltip key={session.id}>
+                    <Tooltip key={`shared-${shared.shareId}`}>
                         <TooltipTrigger asChild>
-                            <button onClick={() => handleSessionClick(session.id)} className={sessionButtonStyles({ active: session.id === sessionId })}>
+                            <button onClick={() => handleSharedClick(shared)} className={sessionButtonStyles({ active: false })}>
+                                <Share2 className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" aria-label="Shared with me" />
                                 <div className="min-w-0 flex-1">
-                                    <SessionName session={session} respondingSessionId={respondingSessionId} isActive={session.id === sessionId} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
+                                    <span className={sessionTextStyles({ active: false, animation: "none" })}>{shared.title}</span>
                                 </div>
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{displayName}</TooltipContent>
+                        <TooltipContent side="top">
+                            Shared by {shared.ownerEmail}: {shared.title}
+                        </TooltipContent>
                     </Tooltip>
                 );
             })}

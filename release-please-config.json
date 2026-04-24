@@ -67,7 +67,6 @@
   "pull-request-header": ":robot: I have created a release *beep* *boop*",
   "packages": {
     ".": {
-      "package-name": "solace-agent-mesh",
       "changelog-path": "CHANGELOG.md",
       "extra-files": ["cli/__init__.py"]
     }

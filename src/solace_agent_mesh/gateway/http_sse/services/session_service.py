@@ -217,6 +217,22 @@ class SessionService:
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
+    def mark_session_viewed(
+        self, db: DbSession, session_id: SessionId, user_id: UserId
+    ) -> int | None:
+        """Record that the user viewed this session.
+
+        Returns the new last_viewed_at epoch-ms, or None if the session does
+        not exist / is not accessible to this user.
+        """
+        if not self._is_valid_session_id(session_id):
+            raise ValueError("Invalid session ID")
+
+        viewed_at = now_epoch_ms()
+        session_repository = self._get_repositories(db)
+        ok = session_repository.mark_viewed(db, session_id, user_id, viewed_at)
+        return viewed_at if ok else None
+
     def delete_session_with_notifications(
         self, db: DbSession, session_id: SessionId, user_id: UserId
     ) -> bool:

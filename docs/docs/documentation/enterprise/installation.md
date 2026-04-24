@@ -158,7 +158,7 @@ After starting Solace Agent Mesh, configure your AI models from the **Models** p
 
 Replace the placeholder values with your actual configuration. You need to provide:
 
-- `<YOUR_BROKER_URL>`: The secured SMF URI for your Solace broker
+- `<YOUR_BROKER_URL>`: The secured Web Messaging URI for your Solace broker
 - `<YOUR_BROKER_VPN>`: The Message VPN name for your Solace service
 - `<YOUR_BROKER_USERNAME>`: The username for broker authentication
 - `<YOUR_BROKER_PASSWORD>`: The password for broker authentication
@@ -178,13 +178,13 @@ The `SOLACE_DEV_MODE="false"` environment variable tells the container to connec
 
     Open the connect with Python dropdown
 
-    Click Solace Python with smf as the protocol.
-    
-    Copy: 
+    Click Solace Python (Web Messaging) as the protocol.
+
+    Copy:
     - Username for SOLACE_BROKER_USERNAME,
     - Password for SOLACE_BROKER_PASSWORD,
     - Message VPN for SOLACE_BROKER_VPN
-    - Secured SMF URI for SOLACE_BROKER_URL
+    - Secured Web Messaging URI for SOLACE_BROKER_URL
 
     ![How to get credentials](../../../static/img/sam-enterprise-credentials.png)
 

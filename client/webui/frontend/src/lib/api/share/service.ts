@@ -23,6 +23,14 @@ import type {
 
 const SHARE_BASE = "/api/v1/share";
 
+/**
+ * Keys whose values are opaque payloads and must NOT have their inner
+ * keys case-converted. `full_payload` carries A2A JSON-RPC events whose
+ * snake_case fields (tool_args, tool_name, function_call_id, node_id, ...)
+ * are consumed as-is by taskVisualizerProcessor.
+ */
+const OPAQUE_VALUE_KEYS = new Set(["full_payload", "fullPayload"]);
+
 /** Recursively converts snake_case object keys to camelCase */
 function toCamelCase<T>(obj: unknown): T {
     if (Array.isArray(obj)) {
@@ -32,7 +40,7 @@ function toCamelCase<T>(obj: unknown): T {
         const result: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
             const camelKey = key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-            result[camelKey] = toCamelCase(value);
+            result[camelKey] = OPAQUE_VALUE_KEYS.has(key) ? value : toCamelCase(value);
         }
         return result as T;
     }

@@ -27,6 +27,7 @@ interface ComboBoxProps {
     allowCustomValue?: boolean;
     noItemsFoundText?: string;
     dropdownMaxHeight?: number;
+    "data-testid"?: string;
 }
 
 export const ComboBox = ({
@@ -42,6 +43,7 @@ export const ComboBox = ({
     allowCustomValue = false,
     noItemsFoundText = "No items found",
     dropdownMaxHeight = 240,
+    "data-testid": dataTestId,
 }: ComboBoxProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
@@ -219,6 +221,7 @@ export const ComboBox = ({
                 aria-invalid={invalid}
                 className={cn("w-full bg-(--background-w10) pr-10", invalid && "border-(--error-w100)")}
                 autoComplete="off"
+                data-testid={dataTestId}
             />
             {isLoading ? (
                 <Loader2 className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform animate-spin text-(--secondary-text-w50)" />

@@ -39,21 +39,30 @@ class ScheduledTaskRepository:
         session: DBSession,
         task_data: dict,
     ) -> ScheduledTaskModel:
-        """Create a new scheduled task with app-level uniqueness check."""
-        # Check for existing active task with same (namespace, name)
+        """Create a new scheduled task with uniqueness check.
+
+        Uniqueness is scoped to ``(namespace, name, user_id)``. Namespace-level
+        tasks (``user_id IS NULL``) are unique per ``(namespace, name)``.
+        """
+        task_user_id = task_data.get("user_id")
         with MonitorLatency(DBMonitor.query("scheduled_tasks")):
-            existing = session.execute(
-                select(ScheduledTaskModel).where(
-                    ScheduledTaskModel.namespace == task_data.get("namespace"),
-                    ScheduledTaskModel.name == task_data.get("name"),
-                    ScheduledTaskModel.deleted_at == None,
-                )
-            ).scalar_one_or_none()
+            query = select(ScheduledTaskModel).where(
+                ScheduledTaskModel.namespace == task_data.get("namespace"),
+                ScheduledTaskModel.name == task_data.get("name"),
+                ScheduledTaskModel.deleted_at == None,
+            )
+            if task_user_id is not None:
+                # User-level task: unique per (namespace, name, user_id)
+                query = query.where(ScheduledTaskModel.user_id == task_user_id)
+            else:
+                # Namespace-level task: unique per (namespace, name) where user_id IS NULL
+                query = query.where(ScheduledTaskModel.user_id == None)
+            existing = session.execute(query).scalar_one_or_none()
 
         if existing:
             raise ValueError(
                 f"An active scheduled task with name '{task_data['name']}' "
-                f"already exists in namespace '{task_data['namespace']}'"
+                f"already exists"
             )
 
         with MonitorLatency(DBMonitor.insert("scheduled_tasks")):

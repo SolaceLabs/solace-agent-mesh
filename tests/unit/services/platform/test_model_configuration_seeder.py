@@ -241,8 +241,8 @@ class TestSeedFromModelsConfig:
         assert multimodal.model_name == "gemini-2.5-flash"
         assert multimodal.provider == "google_ai_studio"
         assert multimodal.api_base == "https://generativelanguage.googleapis.com/v1"
-        assert multimodal.model_auth_type == "none"
-        assert multimodal.model_auth_config == {"type": "none"}
+        assert multimodal.model_auth_type == "apikey"
+        assert multimodal.model_auth_config == {"type": "apikey"}
         assert multimodal.model_params == {}
         assert multimodal.description  # Verify description is set (not null/empty)
 
@@ -251,6 +251,8 @@ class TestSeedFromModelsConfig:
         assert gemini_pro.model_name == "gemini-2.5-pro"
         assert gemini_pro.provider == "google_ai_studio"
         assert gemini_pro.api_base == "https://generativelanguage.googleapis.com/v1"
+        assert gemini_pro.model_auth_type == "apikey"
+        assert gemini_pro.model_auth_config == {"type": "apikey"}
         assert gemini_pro.description  # Verify description is set (not null/empty)
 
         # Dictionary entry still works

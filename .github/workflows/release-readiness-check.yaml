@@ -211,19 +211,24 @@ jobs:
       - name: Run SonarQube hotspot checker
         id: sonarqube
         continue-on-error: true
-        uses: docker://ghcr.io/solacedev/maas-build-actions:latest
         env:
           SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
           SONARQUBE_PROJECT_MAIN_BRANCH: "main"
           SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
           SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
-        with:
-          entrypoint: /bin/sh
-          args: >
-            -c ". $VIRTUAL_ENV/bin/activate &&
-            cd $ACTIONS_PATH/sonarqube-hotspot-checker &&
-            python sonarqube_checker.py
-            "
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          DOCKER_CONFIG=$(mktemp -d "${RUNNER_TEMP}/docker-config.XXXXXX")
+          export DOCKER_CONFIG
+          trap 'docker logout ghcr.io > /dev/null 2>&1 || true; rm -rf "${DOCKER_CONFIG}"' EXIT
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker run --rm \
+            -e SONARQUBE_PROJECT_KEY \
+            -e SONARQUBE_PROJECT_MAIN_BRANCH \
+            -e SONARQUBE_QUERY_TOKEN \
+            -e SONARQUBE_HOTSPOTS_API_URL \
+            ghcr.io/${OWNER}/maas-build-actions:latest \
+            /bin/sh -c '. $VIRTUAL_ENV/bin/activate && cd $ACTIONS_PATH/sonarqube-hotspot-checker && python sonarqube_checker.py'
 
       - name: Capture SonarQube status
         id: capture
@@ -279,7 +284,6 @@ jobs:
           guardian-key: ${{ secrets.GUARDIAN_API_TOKEN || secrets.GUARDIAN_API_KEY }}
           product-version: ${{ needs.resolve-context.outputs.clean_version }}
           fail-on-blocked: "true"
-          upload-logs: "true"
 
       - name: Capture Guardian status
         id: capture

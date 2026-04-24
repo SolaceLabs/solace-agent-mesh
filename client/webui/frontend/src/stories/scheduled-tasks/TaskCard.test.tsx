@@ -65,35 +65,34 @@ describe("TaskCard", () => {
         expect(screen.getByText("Generate a daily summary report")).toBeInTheDocument();
     });
 
-    it("shows correct status badge - active (green class)", () => {
+    it("shows correct status indicator - active (green dot)", () => {
         renderTaskCard({ status: "active" });
-        const badge = screen.getByText("Active");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("success");
+        const label = screen.getByText("Active");
+        expect(label).toBeInTheDocument();
+        const dot = label.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("success");
     });
 
-    it("shows correct status badge - paused (yellow/warning class)", () => {
+    it("shows correct status indicator - paused (warning dot)", () => {
         renderTaskCard({ status: "paused" });
-        const badge = screen.getByText("Paused");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("warning");
+        const labels = screen.getAllByText("Paused");
+        const label = labels.find(el => el.className.includes("font-medium"));
+        expect(label).toBeInTheDocument();
+        const dot = label!.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("warning");
     });
 
-    it("shows correct status badge - error (red class)", () => {
+    it("shows correct status indicator - error (red dot)", () => {
         renderTaskCard({ status: "error" });
-        const badge = screen.getByText("Error");
-        expect(badge).toBeInTheDocument();
-        expect(badge.className).toContain("error");
+        const label = screen.getByText("Error");
+        expect(label).toBeInTheDocument();
+        const dot = label.previousElementSibling as HTMLElement | null;
+        expect(dot?.className).toContain("error");
     });
 
     it("shows schedule description from formatSchedule", () => {
         renderTaskCard();
         expect(screen.getByText("Daily at 09:00")).toBeInTheDocument();
-    });
-
-    it("shows target agent name", () => {
-        renderTaskCard({ targetAgentName: "my-special-agent" });
-        expect(screen.getByText(/my-special-agent/)).toBeInTheDocument();
     });
 
     it("shows 'Config' badge when source is 'config'", () => {
@@ -122,16 +121,16 @@ describe("TaskCard", () => {
 
         expect(screen.getByText("Edit Task")).toBeInTheDocument();
         expect(screen.getByText("View Execution History")).toBeInTheDocument();
-        expect(screen.getByText("Disable Task")).toBeInTheDocument();
+        expect(screen.getByText("Pause Task")).toBeInTheDocument();
         expect(screen.getByText("Delete Task")).toBeInTheDocument();
     });
 
-    it("shows 'Enable Task' when task is disabled", () => {
+    it("shows 'Resume Task' when task is disabled", () => {
         renderTaskCard({ enabled: false });
         const menuTrigger = screen.getByRole("button", { name: /actions/i });
         fireEvent.click(menuTrigger);
 
-        expect(screen.getByText("Enable Task")).toBeInTheDocument();
+        expect(screen.getByText("Resume Task")).toBeInTheDocument();
     });
 
     it("calls onToggleEnabled with correct task when Enable/Disable is clicked", () => {
@@ -141,7 +140,7 @@ describe("TaskCard", () => {
 
         const menuTrigger = screen.getByRole("button", { name: /actions/i });
         fireEvent.click(menuTrigger);
-        fireEvent.click(screen.getByText("Disable Task"));
+        fireEvent.click(screen.getByText("Pause Task"));
 
         expect(onToggleEnabled).toHaveBeenCalledWith(task);
     });
@@ -194,13 +193,62 @@ describe("TaskCard", () => {
         expect(selectedCard).not.toBeInTheDocument();
     });
 
-    it("shows Agent prefix for agent target type", () => {
-        renderTaskCard({ targetType: "agent", targetAgentName: "test-agent" });
-        expect(screen.getByText(/Agent: test-agent/)).toBeInTheDocument();
-    });
+    describe("Run Now menu item", () => {
+        it("shows 'Run Now' when onRunNow is provided for a cron task", () => {
+            renderTaskCard({ scheduleType: "cron" }, { onRunNow: vi.fn() });
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            expect(screen.getByText("Run Now")).toBeInTheDocument();
+        });
 
-    it("shows Workflow prefix for workflow target type", () => {
-        renderTaskCard({ targetType: "workflow", targetAgentName: "test-workflow" });
-        expect(screen.getByText(/Workflow: test-workflow/)).toBeInTheDocument();
+        it("shows 'Run Now' for interval tasks", () => {
+            renderTaskCard({ scheduleType: "interval", scheduleExpression: "30m" }, { onRunNow: vi.fn() });
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            expect(screen.getByText("Run Now")).toBeInTheDocument();
+        });
+
+        it("hides 'Run Now' for one_time tasks (they are terminal)", () => {
+            renderTaskCard({ scheduleType: "one_time", scheduleExpression: "2030-01-01T00:00:00Z" }, { onRunNow: vi.fn() });
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            expect(screen.queryByText("Run Now")).not.toBeInTheDocument();
+        });
+
+        it("hides 'Run Now' for config-sourced tasks (read-only)", () => {
+            renderTaskCard({ source: "config" }, { onRunNow: vi.fn() });
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            expect(screen.queryByText("Run Now")).not.toBeInTheDocument();
+        });
+
+        it("hides 'Run Now' entirely when onRunNow is not provided", () => {
+            renderTaskCard();
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            expect(screen.queryByText("Run Now")).not.toBeInTheDocument();
+        });
+
+        it("calls onRunNow with the task when the menu item is selected", () => {
+            const onRunNow = vi.fn();
+            const task = createMockTask();
+            render(<TaskCard task={task} {...defaultProps} onRunNow={onRunNow} />);
+
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            fireEvent.click(screen.getByText("Run Now"));
+
+            expect(onRunNow).toHaveBeenCalledWith(task);
+        });
+
+        it("renders as disabled and shows 'Running…' when isRunNowPending is true", () => {
+            const onRunNow = vi.fn();
+            renderTaskCard({}, { onRunNow, isRunNowPending: true });
+            const menuTrigger = screen.getByRole("button", { name: /actions/i });
+            fireEvent.click(menuTrigger);
+            const item = screen.getByText("Running…").closest("[role='menuitem']");
+            expect(item).toBeInTheDocument();
+            expect(item).toHaveAttribute("data-disabled");
+        });
     });
 });

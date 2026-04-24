@@ -99,7 +99,7 @@ const MappingValue: React.FC<{
     }
 
     if (typeof value === "object") {
-        const entries = Object.entries(value as Record<string, unknown>);
+        const entries = value ? Object.entries(value as Record<string, unknown>) : [];
         if (entries.length === 0) {
             return <span className="text-(--secondary-text-wMain)">{"{}"}</span>;
         }
@@ -126,7 +126,7 @@ const MappingValue: React.FC<{
  * InputMappingViewer - Displays input mapping
  */
 const InputMappingViewer: React.FC<InputMappingViewerProps> = ({ mapping, onHighlightNodes, knownNodeIds, onNavigateToNode }) => {
-    const entries = Object.entries(mapping);
+    const entries = mapping ? Object.entries(mapping) : [];
 
     if (entries.length === 0) {
         return <div className="rounded-lg border border-dashed p-4 text-center text-sm text-(--secondary-text-wMain)">No input mapping defined</div>;

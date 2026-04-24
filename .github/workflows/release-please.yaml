@@ -40,17 +40,24 @@ jobs:
           manifest-file: .release-please-manifest.json
 
       - name: Add commit author as reviewer on release PR
+        continue-on-error: true
         if: ${{ steps.release.outputs.pr && !steps.release.outputs.release_created }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+          RELEASE_PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           set -euo pipefail
+
+          PR_NUMBER="$(echo "$RELEASE_PR_JSON" | jq -r '.number')"
+          if [[ -z "$PR_NUMBER" || "$PR_NUMBER" == "null" ]]; then
+            echo "Could not extract PR number from release-please output, skipping."
+            exit 0
+          fi
 
           COMMIT_AUTHOR="$(gh api repos/${{ github.repository }}/commits/${{ github.sha }} --jq '.author.login')"
 
           if [[ -z "$COMMIT_AUTHOR" || "$COMMIT_AUTHOR" == "null" ]]; then
-            echo "Could not determine commit author for `${{ github.sha }}`, skipping reviewer assignment."
+            echo "Could not determine commit author for ${{ github.sha }}, skipping reviewer assignment."
             exit 0
           fi
 
@@ -60,6 +67,10 @@ jobs:
   post-process-release:
     name: Build and Attach Release Assets
     needs: create-release
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     if: ${{ needs.create-release.outputs.release_created == 'true' }}
     uses: ./.github/workflows/release-post-process.yml
     with:
@@ -84,7 +95,6 @@ jobs:
           wait-for-completion: "true"
           wait-for-completion-timeout: "2h"
           wait-for-completion-interval: "1m"
-          display-workflow-run-url: "true"
           workflow-logs: "output"
           inputs: >-
             {"version":"${{ needs.create-release.outputs.version }}","skip_docker_push":false,"push_latest":true}

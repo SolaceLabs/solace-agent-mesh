@@ -46,12 +46,12 @@ export const CreateTaskCard: React.FC<CreateTaskCardProps> = ({ onManualCreate, 
 
                 <div className="flex w-full max-w-[240px] flex-col gap-3">
                     <Button onClick={onAIAssisted} variant="outline" className="w-full">
-                        <Sparkles />
+                        <Sparkles className="mr-2 h-4 w-4" />
                         Build with AI
                     </Button>
 
                     <Button onClick={onManualCreate} variant="ghost" className="w-full">
-                        <Plus />
+                        <Plus className="mr-2 h-4 w-4" />
                         Create Manually
                     </Button>
                 </div>
