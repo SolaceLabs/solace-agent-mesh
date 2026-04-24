@@ -430,7 +430,6 @@ Configure identical access credentials for both buckets in your Helm values.
 ## Additional Resources
 
 - [Kubernetes Quick Start](./quickstart-kubernetes.md) - Quick evaluation setup
-- [Production Kubernetes Installation](./production-kubernetes.md) - Production deployment
-- [Kubernetes Deployment Guide](../deploying/kubernetes/kubernetes-deployment-guide.md) - Infrastructure requirements
+- [Production Kubernetes Installation](./production-kubernetes.md) - Production deployment and infrastructure requirements
 - [RBAC Setup Guide](./rbac-setup-guide.md) - Access control configuration
 - [Single Sign-On](./single-sign-on.md) - Authentication setup

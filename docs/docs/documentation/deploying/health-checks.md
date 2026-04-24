@@ -330,6 +330,6 @@ broker:
 ## Related Documentation
 
 - [solace-ai-connector Health Checks](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/health_checks.md) - Underlying health check implementation
-- [Kubernetes Deployment Guide](./kubernetes/kubernetes-deployment-guide.md) - Detailed Kubernetes deployment instructions
+- [Production Kubernetes Installation](../enterprise/production-kubernetes.md) - Kubernetes deployment with health check configuration
 - [Logging Configuration](./logging.md) - Configure logging for health check debugging
 - [Monitoring Your Agent Mesh](./observability.md) - Comprehensive observability features

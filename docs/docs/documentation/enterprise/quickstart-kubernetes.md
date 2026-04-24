@@ -18,24 +18,9 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 - Embedded SeaweedFS object storage
 - All accessed via `kubectl port-forward` (no Ingress/LoadBalancer)
 
-:::info Chart v2.0.0 Changes
-If upgrading from chart v1.x, note the breaking changes:
-- Default values changed (embedded components now enabled by default)
-- Sample values files removed (consolidated into inline values.yaml documentation)
-- Service account and secret naming changed
-- Image configuration restructured
-
-See the upgrade notice in the Helm release notes for migration guidance.
-:::
-
 ## Prerequisites
 
-### Infrastructure Requirements
-
-**Kubernetes Cluster:**
-- Kubernetes version 1.20 or later
-- Standard worker nodes (VMs or bare metal)
-- **Not supported:** Serverless nodes (AWS Fargate, GKE Autopilot, Azure Virtual Nodes)
+### Kubernetes Cluster Requirements
 
 **Minimum Node Requirements:**
 
@@ -59,20 +44,19 @@ For the best quickstart experience, use **6 vCPU / 8 GiB RAM** nodes to accommod
 - **ARM64 (better price/performance):** AWS `m8g.xlarge`, Azure `Standard_D4ps_v6`, GCP `c4a-standard-4`
 - **x86_64:** AWS `m8i.xlarge`, Azure `Standard_D4s_v6`, GCP `n2-standard-4`
 
-**Storage Requirements:**
+**Cluster Requirements:**
+- Kubernetes version 1.20 or later
 
-Embedded persistence requires SSD-backed storage for acceptable performance:
+### Storage Requirements
 
-| Component | Volume Size | Storage Class |
-|-----------|-------------|---------------|
-| PostgreSQL | 30 GiB | SSD-backed (gp3, Premium_LRS, pd-ssd) |
-| SeaweedFS | 50 GiB | SSD-backed (gp3, Premium_LRS, pd-ssd) |
+Embedded persistence requires SSD-backed storage for acceptable performance.
 
-:::warning Storage Class Configuration
-- Use `volumeBindingMode: WaitForFirstConsumer` to avoid cross-zone scheduling failures
-- Ensure `reclaimPolicy: Retain` if you need data persistence across Helm uninstall/reinstall
-- Standard HDD storage will cause agent timeouts - use SSD-backed storage classes
-:::
+**Volume Requirements:**
+
+| Component | Volume Size |
+|-----------|-------------|
+| **PostgreSQL** | 30 GiB |
+| **SeaweedFS** | 50 GiB |
 
 **Recommended Storage Classes by Provider:**
 
@@ -82,11 +66,18 @@ Embedded persistence requires SSD-backed storage for acceptable performance:
 | **Azure AKS** | `Premium_LRS` | Azure Zoned Premium SSD |
 | **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
 
-**Command-Line Tools:**
+:::warning Storage Class Configuration
+- Use SSD-backed storage classes (not HDD) to avoid agent timeouts
+- Default StorageClasses often have `reclaimPolicy: Delete` - uninstalling Helm will permanently delete your data
+:::
+
+### Command-Line Tools
+
 - `kubectl` configured to access your cluster
 - Helm 3.0 or later
 
-**Optional (for evaluation):**
+### Optional for Evaluation
+
 - LLM service API key (OpenAI, Azure OpenAI, etc.) - can be configured post-install via UI
 
 ## Step 1: Add Helm Repository

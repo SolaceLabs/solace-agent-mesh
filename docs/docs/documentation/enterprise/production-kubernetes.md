@@ -76,15 +76,15 @@ Default resource requests and limits for core components (excluding sidecar over
 |-----------|-------------|-------------|-----------|-------------|-----------|-----------|
 | **Agent Mesh** | Core services, Orchestrator, WebUI | 1000m | 2000m | 1024 MiB | 2048 MiB | Burstable |
 | **Deployer** | Manages agent/gateway deployments | 100m | 200m | 256 MiB | 512 MiB | Burstable |
-| **Agent** (per instance) | Runtime for each deployed agent | 175m | 200m | 625 MiB | 768 MiB | Burstable |
+| **Agent** (per instance) | Runtime for each deployed agent | 1000m | 2000m | 1024 MiB | 2048 MiB | Burstable |
 
 **Capacity Planning:**
 
 Budget the following per concurrent agent you plan to deploy:
-- **Memory Request:** 625 MiB
-- **Memory Limit:** 768 MiB
-- **CPU Request:** 175m (0.175 vCPU)
-- **CPU Limit:** 200m (0.2 vCPU)
+- **Memory Request:** 1024 MiB (1 GiB)
+- **Memory Limit:** 2048 MiB (2 GiB)
+- **CPU Request:** 1000m (1 vCPU)
+- **CPU Limit:** 2000m (2 vCPU)
 
 ### External Services (Required)
 
@@ -174,7 +174,6 @@ The following outbound connectivity is required:
 
 For production Kubernetes deployments, configure Solace broker queue templates to prevent message buildup and startup issues. See [Queue Template Configuration for Kubernetes](#queue-template-configuration-for-kubernetes) in Step 2 for detailed setup instructions.
 
-For detailed infrastructure guidance, see the [Kubernetes Deployment Guide](/docs/documentation/deploying/kubernetes/kubernetes-deployment-guide).
 
 ## Architecture Overview
 
@@ -182,19 +181,60 @@ For detailed infrastructure guidance, see the [Kubernetes Deployment Guide](/doc
 
 ## Step 1: Infrastructure Preparation
 
-<!-- Content: Cluster setup, node requirements -->
+Prepare your Kubernetes cluster infrastructure before deploying SAM.
 
 ### Cluster Sizing
 
-<!-- Content: Production cluster sizing recommendations -->
+**Production Cluster Requirements:**
+
+For production deployments using external components (no embedded broker/persistence), plan for the following baseline resources:
+
+- **Minimum per node:** 2 vCPU / 8 GiB RAM
+- **Recommended per node:** 4 vCPU / 16 GiB RAM
+
+**Per-Agent Capacity Planning:**
+
+Budget the following per concurrent agent:
+- CPU Request: 175m
+- CPU Limit: 200m
+- Memory Request: 625 MiB
+- Memory Limit: 768 MiB
+
+**Node Instance Examples:**
+
+| Specification | ARM64 (Recommended) | x86_64 |
+|---------------|---------------------|--------|
+| **Recommended** (4 vCPU / 16 GiB) | AWS `m8g.xlarge`<br/>Azure `Standard_D4ps_v6`<br/>GCP `c4a-standard-4` | AWS `m8i.xlarge`<br/>Azure `Standard_D4s_v6`<br/>GCP `n2-standard-4` |
+| **Minimum** (2 vCPU / 8 GiB) | AWS `m8g.large`<br/>Azure `Standard_D2ps_v6`<br/>GCP `c4a-standard-2` | AWS `m8i.large`<br/>Azure `Standard_D2s_v6`<br/>GCP `n2-standard-2` |
+
+:::tip ARM64 Recommended
+ARM64 instances (AWS Graviton, Azure Cobalt, Google Axion) offer better price/performance. If listed instances are unavailable in your region, choose the next closest equivalent (e.g., `m7g.large` instead of `m8g.large`).
+:::
+
+### Node Pool Topology (Multi-AZ Clusters)
+
+:::info Stateless Workloads
+When using external persistence (recommended for production), all SAM workloads are stateless and do not have multi-AZ topology constraints. This section is only relevant if you're using embedded persistence for dev/staging environments on production-grade clusters.
+:::
+
+In multi-AZ clusters (EKS, AKS, GKE), when using embedded persistence (`global.persistence.enabled: true`), one node pool must be provisioned per availability zone due to volume affinity constraints.
+
+**Simplest Approach:**
+
+Provision SAM in **one availability zone only** to avoid multi-AZ complexity.
+
+**Official Cloud Provider Guidance:**
+- **AKS:** [Cluster Autoscaler Documentation](https://learn.microsoft.com/en-us/azure/aks/cluster-autoscaler?tabs=azure-cli#re-enable-the-cluster-autoscaler-on-a-node-pool)
+- **EKS:** [Managed Node Groups](https://docs.aws.amazon.com/eks/latest/userguide/managed-node-groups.html#managed-node-group-concepts)
+- **GKE:** Follow the same pattern for simplicity and consistency
+
+**Why This Matters:**
+
+StatefulSets with persistent volumes (PostgreSQL, SeaweedFS) are bound to specific zones. When nodes span multiple AZs without proper node pool configuration, pod scheduling can fail if the PVC and node are in different zones.
 
 ### Network Configuration
 
 <!-- Content: Network policies, ingress, load balancers -->
-
-### Storage Classes
-
-<!-- Content: PVC requirements, storage class configuration -->
 
 ## Step 2: External Dependencies
 
