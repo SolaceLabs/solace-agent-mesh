@@ -1,5 +1,5 @@
 name: CI
-
+run-name: "CI (`${{ github.event_name == 'push' && 'main' || (contains(github.event.pull_request.head.ref, 'release-please') && 'Release-Please PR' || format('PR `#{0}`', github.event.pull_request.number)) || '' }}`)"
 on:
   push:
     branches:
@@ -10,8 +10,8 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-main-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.head.ref, 'release-please')  }}
 
 jobs:
   detect-context:
