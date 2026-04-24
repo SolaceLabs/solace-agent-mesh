@@ -219,70 +219,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         closePreview,
     });
 
-    // Get the authenticated user's ID for background task monitoring
-    const authenticatedUserId = getCurrentUserId();
-
-    const {
-        backgroundTasks,
-        notifications: backgroundNotifications,
-        registerBackgroundTask,
-        unregisterBackgroundTask,
-        updateTaskTimestamp,
-        isTaskRunningInBackground,
-        checkTaskStatus,
-    } = useBackgroundTaskMonitor({
-        userId: authenticatedUserId,
-        currentSessionId: sessionId,
-        onTaskCompleted: useCallback(
-            async (taskId: string, taskSessionId: string) => {
-                // Only show notification if user is NOT currently viewing the session where the task completed
-                // This reduces noise when the user is already on the chat page seeing the results
-                if (currentSessionIdRef.current !== taskSessionId) {
-                    addNotification("Background task completed", "success");
-                }
-
-                // Trigger session list refresh to update background task indicators
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                        new CustomEvent("background-task-completed", {
-                            detail: { taskId },
-                        })
-                    );
-                    // Also trigger general session list refresh
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
-
-                // Trigger title generation for the completed background task
-                await autoGenerateTitleForTask(taskId, backgroundTasksRef.current);
-            },
-            [addNotification, autoGenerateTitleForTask]
-        ),
-        onTaskFailed: useCallback(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            (taskId: string, error: string, _taskSessionId: string) => {
-                // Always show error dialog for failed tasks, regardless of current session
-                // Errors are important and should not be silently ignored
-                setError({ title: "Background Task Failed", error });
-
-                // Trigger session list refresh to update background task indicators
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                        new CustomEvent("background-task-completed", {
-                            detail: { taskId },
-                        })
-                    );
-                    // Also trigger general session list refresh
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
-            },
-            [setError]
-        ),
-    });
-
-    useEffect(() => {
-        backgroundTasksRef.current = backgroundTasks;
-    }, [backgroundTasks]);
-
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
         async (taskData: { task_id: string; user_message?: string; message_bubbles: any[]; task_metadata?: any }, overrideSessionId?: string): Promise<boolean> => {
@@ -618,6 +554,63 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
+
+    // Background task monitoring
+    const authenticatedUserId = getCurrentUserId();
+    const {
+        backgroundTasks,
+        notifications: backgroundNotifications,
+        registerBackgroundTask,
+        unregisterBackgroundTask,
+        updateTaskTimestamp,
+        isTaskRunningInBackground,
+        checkTaskStatus,
+    } = useBackgroundTaskMonitor({
+        userId: authenticatedUserId,
+        currentSessionId: sessionId,
+        onTaskCompleted: useCallback(
+            async (taskId: string, taskSessionId: string) => {
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("background-task-completed", { detail: { taskId } }));
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+
+                // Same-session: polling fired because SSE was stale — refresh chat.
+                if (currentSessionIdRef.current === taskSessionId) {
+                    await loadSessionTasks(taskSessionId);
+                } else {
+                    addNotification("Background task completed", "success");
+                }
+
+                await autoGenerateTitleForTask(taskId, backgroundTasksRef.current);
+            },
+            [addNotification, autoGenerateTitleForTask, loadSessionTasks]
+        ),
+        onTaskFailed: useCallback(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            (taskId: string, error: string, _taskSessionId: string) => {
+                // Always show error dialog for failed tasks, regardless of current session
+                // Errors are important and should not be silently ignored
+                setError({ title: "Background Task Failed", error });
+
+                // Trigger session list refresh to update background task indicators
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("background-task-completed", {
+                            detail: { taskId },
+                        })
+                    );
+                    // Also trigger general session list refresh
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+            },
+            [setError]
+        ),
+    });
+
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
+    }, [backgroundTasks]);
 
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
@@ -1192,9 +1185,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const deleteSession = useCallback(
         async (sessionIdToDelete: string) => {
+            // Optimistically unregister background tasks for this session to stop polling
+            const orphanedTaskIds = backgroundTasksRef.current.filter(t => t.sessionId === sessionIdToDelete).map(t => t.taskId);
+            for (const taskId of orphanedTaskIds) {
+                unregisterBackgroundTask(taskId);
+            }
+
             try {
                 await api.webui.delete(`/api/v1/sessions/${sessionIdToDelete}`);
                 addNotification("Session deleted.", "success");
+
                 if (sessionIdToDelete === sessionId) {
                     handleNewSession();
                 }
@@ -1206,7 +1206,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setError({ title: "Chat Deletion Failed", error: getErrorMessage(error, "Failed to delete session.") });
             }
         },
-        [addNotification, handleNewSession, sessionId, setError]
+        [addNotification, handleNewSession, sessionId, setError, unregisterBackgroundTask]
     );
 
     // Artifact Display and Cache Management
@@ -1765,49 +1765,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             window.removeEventListener("session-updated", handleSessionUpdated);
         };
     }, [sessionId, projects, setActiveProject]);
-
-    useEffect(() => {
-        // Listen for background task completion events
-        // When a background task completes, reload the session if it's currently active
-        // If the user is on a different session, the buffer stays until they switch back
-        // (buffer cleanup happens after replay + save)
-        const handleBackgroundTaskCompleted = async (event: Event) => {
-            const customEvent = event as CustomEvent;
-            const { taskId: completedTaskId } = customEvent.detail;
-
-            // Find the completed task
-            const completedTask = backgroundTasksRef.current.find(t => t.taskId === completedTaskId);
-            if (completedTask) {
-                console.log(`[ChatProvider] Background task ${completedTaskId} completed for session ${completedTask.sessionId}`);
-
-                // Only replay if the user is currently viewing the session where the task completed
-                if (currentSessionIdRef.current === completedTask.sessionId) {
-                    console.log(`[ChatProvider] User is on same session - will replay buffered events after delay`);
-                    // Wait a bit to ensure any pending operations complete
-                    setTimeout(async () => {
-                        // Try to replay buffered events first (new single-path approach)
-                        // This ensures embeds and templates are properly resolved through the frontend's SSE processing
-                        const replayedSuccessfully = await replayBufferedEvents(completedTaskId);
-
-                        if (!replayedSuccessfully) {
-                            // Fall back to loading from chat_tasks if no buffered events
-                            console.log(`[ChatProvider] No buffered events, falling back to loadSessionTasks`);
-                            await loadSessionTasks(completedTask.sessionId);
-                        }
-                    }, 1500); // Delay to ensure save completes
-                } else {
-                    // User is on a different session - buffer stays until they switch back to that session
-                    // When they switch back, handleSwitchSession will detect buffered events and replay them
-                    console.log(`[ChatProvider] User is on different session (${currentSessionIdRef.current}) - buffer preserved for later replay when they switch back to ${completedTask.sessionId}`);
-                }
-            }
-        };
-
-        window.addEventListener("background-task-completed", handleBackgroundTaskCompleted);
-        return () => {
-            window.removeEventListener("background-task-completed", handleBackgroundTaskCompleted);
-        };
-    }, [loadSessionTasks, replayBufferedEvents]);
 
     useEffect(() => {
         // When the active project changes, reset the chat view to a clean slate
