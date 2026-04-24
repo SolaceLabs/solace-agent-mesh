@@ -486,9 +486,6 @@ class DeepResearchPlanData(BaseModel):
     sources: list[str] = Field(
         default_factory=list, description="Sources to search (e.g., web, kb)"
     )
-    auto_approve_seconds: int = Field(
-        default=60, description="Countdown seconds for auto-approve"
-    )
 
 
 class DeepResearchReportData(BaseModel):

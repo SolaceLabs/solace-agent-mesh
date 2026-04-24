@@ -77,8 +77,10 @@ async def submit_plan_response(
             detail="Cache service not available",
         )
 
-    # Store the response in cache for the deep research tool to pick up
-    cache_key = f"deep_research_plan_{payload.plan_id}"
+    # Store the response in cache for the deep research tool to pick up.
+    # Namespacing the key by user_id ensures a client can only write to its
+    # own plan slot, even if it happens to know another user's plan_id.
+    cache_key = f"deep_research_plan:{user_id}:{payload.plan_id}"
     response_data = {
         "action": payload.action,
         "steps": payload.steps,

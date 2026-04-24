@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 import { MarkdownRenderer } from "@/lib/components/chat/preview/Renderers";
 import { stripReportMetadataSections, isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
@@ -13,7 +13,7 @@ interface DeepResearchReportContentProps {
     onContentLoaded?: (content: string) => void;
 }
 
-export const DeepResearchReportContent: React.FC<DeepResearchReportContentProps> = ({ artifact, sessionId, ragData, onContentLoaded }) => {
+export const DeepResearchReportContent = ({ artifact, sessionId, ragData, onContentLoaded }: DeepResearchReportContentProps) => {
     const [content, setContent] = useState<string | null>(null);
     const [loadedFilename, setLoadedFilename] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);

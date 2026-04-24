@@ -979,18 +979,19 @@ Respond in JSON format:
         return queries
 
 
-def _is_webui_gateway(tool_context: ToolContext) -> bool:
+# Hard cap on how long the agent will block waiting for a user plan response
+# before giving up. Keeps non-interactive or abandoned sessions from hanging
+# the tool indefinitely.
+_PLAN_RESPONSE_TIMEOUT_SECONDS = 600
+
+
+def _plan_cache_key(user_id: str, plan_id: str) -> str:
+    """Build the cache key used to exchange plan responses.
+
+    Namespacing by user_id prevents a client that happens to know another
+    user's plan_id from writing a response into that user's slot.
     """
-    Check if the current gateway supports interactive verification.
-    
-    Currently always returns True to enable the verification step.
-    The auto-approve timeout ensures the tool doesn't block indefinitely
-    even if the frontend doesn't respond.
-    
-    TODO: In the future, detect gateway type from a2a_context to skip
-    verification for non-interactive gateways (Teams, Slack, MCP).
-    """
-    return True
+    return f"deep_research_plan:{user_id}:{plan_id}"
 
 
 async def _send_plan_verification(
@@ -1002,7 +1003,6 @@ async def _send_plan_verification(
     max_iterations: int,
     max_runtime_seconds: int,
     sources: List[str],
-    auto_approve_seconds: int,
     tool_context: ToolContext
 ) -> None:
     """Send research plan verification signal to frontend via SSE."""
@@ -1040,7 +1040,6 @@ async def _send_plan_verification(
             max_iterations=max_iterations,
             max_runtime_seconds=max_runtime_seconds,
             sources=sources,
-            auto_approve_seconds=auto_approve_seconds
         )
         
         log.info("%s Sending plan verification: plan_id=%s, title='%s', %d steps",
@@ -1059,7 +1058,6 @@ async def _send_plan_verification(
 
 async def _wait_for_plan_response(
     plan_id: str,
-    auto_approve_seconds: int,
     steps: List[str],
     tool_context: ToolContext
 ) -> Dict[str, Any]:
@@ -1079,19 +1077,21 @@ async def _wait_for_plan_response(
         if not host_component or not hasattr(host_component, 'cache_service') or not host_component.cache_service:
             log.warning("%s No cache service available, auto-approving plan", log_identifier)
             return {"action": "start", "steps": steps}
-        
-        cache_key = f"deep_research_plan_{plan_id}"
+
+        a2a_context = tool_context.state.get("a2a_context") or {}
+        user_id = a2a_context.get("user_id") if isinstance(a2a_context, dict) else None
+        if not user_id:
+            log.warning("%s No user_id on a2a_context, auto-approving plan", log_identifier)
+            return {"action": "start", "steps": steps}
+
+        cache_key = _plan_cache_key(str(user_id), plan_id)
         poll_interval = 0.5  # seconds
+        elapsed = 0.0
 
-        # Auto-approve timeout disabled - poll indefinitely until user responds.
-        # To re-enable auto-approve, uncomment the timeout logic below:
-        # timeout = auto_approve_seconds + 5  # Extra buffer for network latency
-        # elapsed = 0.0
+        log.info("%s Waiting for plan response: plan_id=%s (timeout=%ds)",
+                log_identifier, plan_id, _PLAN_RESPONSE_TIMEOUT_SECONDS)
 
-        log.info("%s Waiting for plan response: plan_id=%s (blocking until user responds)",
-                log_identifier, plan_id)
-        
-        while True:
+        while elapsed < _PLAN_RESPONSE_TIMEOUT_SECONDS:
             response = host_component.cache_service.get_data(cache_key)
             if response:
                 host_component.cache_service.remove_data(cache_key)
@@ -1099,13 +1099,16 @@ async def _wait_for_plan_response(
                         log_identifier, response.get("action", "unknown"))
                 return response
             await asyncio.sleep(poll_interval)
-            # Auto-approve timeout (disabled):
-            # elapsed += poll_interval
-            # if elapsed >= timeout:
-            #     log.info("%s Plan verification timed out after %ds, auto-approving",
-            #             log_identifier, auto_approve_seconds)
-            #     return {"action": "start", "steps": steps}
-        
+            elapsed += poll_interval
+
+        log.warning("%s Plan verification timed out after %ds, cancelling",
+                log_identifier, _PLAN_RESPONSE_TIMEOUT_SECONDS)
+        return {
+            "action": "cancel",
+            "reason": "timeout",
+            "timeout_seconds": _PLAN_RESPONSE_TIMEOUT_SECONDS,
+        }
+
     except Exception as e:
         log.error("%s Error waiting for plan response: %s, auto-approving", log_identifier, str(e))
         return {"action": "start", "steps": steps}
@@ -2012,21 +2015,21 @@ async def deep_research(
         await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
         
         # === VERIFICATION STEP ===
-        # Check if verification is needed (WebUI gateway + not skipped via config)
-        is_webui = _is_webui_gateway(tool_context)
-        skip_verification = config.get("skip_verification", False)
-        
-        if is_webui and not skip_verification:
+        # Interactive plan verification is opt-in via config. Enable for gateways
+        # that can render and respond to plan signals (e.g. WebUI); leave disabled
+        # for non-interactive surfaces (Slack, Teams, MCP) where the prompt would
+        # never be answered and the tool would block until timeout.
+        interactive_verification = bool(config.get("interactive_plan_verification", False))
+
+        if interactive_verification:
             # Only generate plan steps when verification is actually needed
             plan_steps = await _generate_research_plan(research_question, queries, tool_context, tool_config)
             log.info("%s Generated %d plan steps for verification", log_identifier, len(plan_steps))
             
             plan_id = str(uuid.uuid4())
-            auto_approve_seconds = int(config.get("auto_approve_seconds", 60))
-            
-            log.info("%s Sending plan verification to frontend: plan_id=%s, auto_approve=%ds",
-                    log_identifier, plan_id, auto_approve_seconds)
-            
+
+            log.info("%s Sending plan verification to frontend: plan_id=%s", log_identifier, plan_id)
+
             # Send plan to frontend for user review
             await _send_plan_verification(
                 plan_id=plan_id,
@@ -2037,19 +2040,26 @@ async def deep_research(
                 max_iterations=max_iterations,
                 max_runtime_seconds=max_runtime_seconds or 0,
                 sources=sources,
-                auto_approve_seconds=auto_approve_seconds,
                 tool_context=tool_context
             )
-            
-            # Wait for user response (blocks until user responds or timeout)
+
+            # Wait for user response (blocks until user responds or hard timeout)
             verification_result = await _wait_for_plan_response(
                 plan_id=plan_id,
-                auto_approve_seconds=auto_approve_seconds,
                 steps=plan_steps,
                 tool_context=tool_context
             )
             
             if verification_result.get("action") == "cancel":
+                if verification_result.get("reason") == "timeout":
+                    log.info("%s Research cancelled: plan verification timed out", log_identifier)
+                    return {
+                        "status": "cancelled",
+                        "message": (
+                            f"Research was cancelled because the plan was not confirmed "
+                            f"within {verification_result.get('timeout_seconds')} seconds."
+                        ),
+                    }
                 log.info("%s Research cancelled by user", log_identifier)
                 return {
                     "status": "cancelled",
@@ -2067,10 +2077,7 @@ async def deep_research(
             
             log.info("%s Plan approved, proceeding with research", log_identifier)
         else:
-            if not is_webui:
-                log.info("%s Non-WebUI gateway detected, skipping verification", log_identifier)
-            else:
-                log.info("%s Verification skipped via config", log_identifier)
+            log.info("%s Interactive plan verification disabled, skipping", log_identifier)
         
         # Reset start time after verification (don't count verification wait time)
         start_time = time.time()
