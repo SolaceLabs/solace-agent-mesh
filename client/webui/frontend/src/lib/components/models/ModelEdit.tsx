@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm, FormProvider, Controller } from "react-hook-form";
-import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { ComboBox, Input, Textarea, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { AccordionCard } from "@/lib/components/ui/accordion-card";
-import { Plus } from "lucide-react";
+import { Plus, CircleHelp } from "lucide-react";
 import { TestConnectionSection } from "./TestConnectionSection";
 
 import type { ModelConfig } from "@/lib/api/models";
@@ -286,6 +286,7 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
 
             setValue("modelName", modelName);
             setValue("apiBase", modelToEdit.apiBase || "");
+            setValue("maxInputTokens", modelToEdit.maxInputTokens != null ? String(modelToEdit.maxInputTokens) : "");
             setValue("authType", modelToEdit.authType || "apikey");
             setValue("description", modelToEdit.description || "");
 
@@ -550,6 +551,48 @@ export const ModelEdit = ({ isNew, modelToEdit, onSave, onDirtyStateChange, mode
                                                 />
                                             );
                                         }}
+                                    />
+                                </FormFieldLayoutItem>
+
+                                {/* Context window override — specific to the selected model.
+                                    Placed after connection details so it's clear this applies to *this* model,
+                                    not a global default. */}
+                                <FormFieldLayoutItem
+                                    label={
+                                        <span className="inline-flex items-center gap-1.5">
+                                            Max Input Tokens
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button type="button" className="text-(--secondary-text-wMain) hover:text-(--primary-text-wMain)" aria-label="Max Input Tokens help">
+                                                        <CircleHelp className="size-3.5" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="right" className="max-w-80" style={{ textWrap: "wrap", display: "table" }}>
+                                                    <p>
+                                                        Drives the chat context-usage indicator so users can see how much of the window they&apos;ve consumed and trigger compaction before it overflows. This doesn&apos;t change what the provider
+                                                        accepts — it only changes what the usage indicator displays.
+                                                    </p>
+                                                    <p className="mt-2">If left blank, the indicator falls back to LiteLLM&apos;s built-in registry, then to the agent&apos;s configured value, and finally hides if nothing is known.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </span>
+                                    }
+                                    error={errors.maxInputTokens as { message?: string }}
+                                    helpText="Check the model provider's documentation for the current context window limit for this model version."
+                                >
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="e.g. 200000"
+                                        {...register("maxInputTokens", {
+                                            validate: value => {
+                                                if (value == null || value === "") return true;
+                                                const n = Number(value);
+                                                if (!Number.isFinite(n) || n < 1) return "Must be a positive integer";
+                                                return true;
+                                            },
+                                        })}
+                                        aria-invalid={!!errors.maxInputTokens}
                                     />
                                 </FormFieldLayoutItem>
 

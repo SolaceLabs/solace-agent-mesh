@@ -298,6 +298,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }, []);
 
     const loadTaskFromBackend = useCallback(async (taskId: string): Promise<TaskFE | null> => {
+        // Manual-compaction notifications are stored in the chat_tasks table, not
+        // the A2A tasks table, so they have no task-event history to load. Skip
+        // the backend call to avoid a guaranteed 404.
+        if (taskId.startsWith("manual-compaction-")) {
+            return null;
+        }
         try {
             const data = await api.webui.get(`/api/v1/tasks/${taskId}/events`);
 

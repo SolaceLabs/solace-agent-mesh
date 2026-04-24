@@ -94,6 +94,7 @@ export interface ModelFormData {
     vertexProject?: string;
     vertexLocation?: string;
     customParams?: Array<{ key: string; value: string }>;
+    maxInputTokens?: string;
     [key: string]: unknown;
 }
 
@@ -557,6 +558,10 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         modelName = `openai/${modelName}`;
     }
 
+    const maxInputTokensRaw = data.maxInputTokens;
+    const maxInputTokensNum = maxInputTokensRaw != null && maxInputTokensRaw !== "" ? Number(maxInputTokensRaw) : null;
+    const maxInputTokens = maxInputTokensNum != null && Number.isFinite(maxInputTokensNum) && maxInputTokensNum >= 1 ? Math.floor(maxInputTokensNum) : null;
+
     return {
         alias: data.alias.trim(),
         provider: data.provider,
@@ -566,6 +571,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         authType: data.authType,
         authConfig,
         modelParams,
+        maxInputTokens,
     };
 }
 

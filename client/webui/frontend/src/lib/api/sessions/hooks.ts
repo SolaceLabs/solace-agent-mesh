@@ -1,8 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "./keys";
 import * as sessionService from "./service";
+import { getSessionContextUsage, compactSession } from "./context-usage";
+import type { CompactSessionRequest, CompactSessionResponse, ContextUsage } from "@/lib/types";
+import { fetchModelConfigs } from "@/lib/api/models/service";
+import type { ModelConfig } from "@/lib/api/models/types";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
 
 /**
@@ -91,6 +95,80 @@ export function useRenameSessionWithAI() {
     return useMutation({
         mutationFn: async (sessionId: string) => {
             return sessionService.getSessionChatTasks(sessionId);
+        },
+    });
+}
+
+/**
+ * Hook to fetch context window usage for a session. Returns null data silently
+ * on fetch failure so the indicator can hide rather than surface an error.
+ *
+ * The context-window limit (`maxInputTokens`) is composed client-side from
+ * two sources, in priority order:
+ *   1. Platform-service `model_configurations` table (authoritative when set)
+ *   2. Whatever the gateway returns (agent-stamped value or LiteLLM registry)
+ */
+export function useSessionContextUsage(sessionId: string | undefined, agentName?: string) {
+    const usageQuery = useQuery<ContextUsage | null>({
+        queryKey: sessionId ? sessionKeys.contextUsage(sessionId, agentName) : ["sessions", "context-usage", "disabled"],
+        queryFn: async () => {
+            if (!sessionId) return null;
+            try {
+                return await getSessionContextUsage(sessionId, undefined, agentName);
+            } catch (err) {
+                if (process.env.NODE_ENV === "development") {
+                    console.warn("useSessionContextUsage: failed to fetch usage", err);
+                }
+                return null;
+            }
+        },
+        enabled: !!sessionId,
+    });
+
+    // Cached long — model configs change rarely. Swallow errors so deployments
+    // without a reachable platform service (e.g. community standalone with
+    // the platform endpoint disabled) simply fall back to the gateway's value.
+    const modelsQuery = useQuery<ModelConfig[]>({
+        queryKey: ["platform", "models", "for-context-usage"],
+        queryFn: async () => {
+            try {
+                return await fetchModelConfigs();
+            } catch {
+                return [];
+            }
+        },
+        staleTime: 5 * 60 * 1000,
+        enabled: !!sessionId,
+    });
+
+    const merged = useMemo<ContextUsage | null>(() => {
+        const usage = usageQuery.data;
+        if (!usage) return usage ?? null;
+        // Match by modelName first (the raw name agents emit into
+        // token_usage_details.by_model), then by alias. Only consider rows
+        // with a configured max_input_tokens — duplicates on the same
+        // model_name with NULL values must not win.
+        const configuredMax = modelsQuery.data?.find(m => m.maxInputTokens != null && (m.modelName === usage.model || m.alias === usage.model))?.maxInputTokens ?? null;
+        const effectiveMax = configuredMax ?? usage.maxInputTokens;
+        const usagePercentage = effectiveMax && usage.currentContextTokens > 0 ? Math.min(100, Math.round((usage.currentContextTokens / effectiveMax) * 1000) / 10) : 0;
+        return { ...usage, maxInputTokens: effectiveMax, usagePercentage };
+    }, [usageQuery.data, modelsQuery.data]);
+
+    return { ...usageQuery, data: merged };
+}
+
+/**
+ * Mutation to manually compact a session. Invalidates the session's chat tasks
+ * (so the backend-persisted compaction_notification task renders) and context
+ * usage (so the post-compaction drop is reflected).
+ */
+export function useCompactSession(sessionId: string) {
+    const queryClient = useQueryClient();
+    return useMutation<CompactSessionResponse, Error, CompactSessionRequest | undefined>({
+        mutationFn: (request?: CompactSessionRequest) => compactSession(sessionId, request),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: sessionKeys.chatTasks(sessionId) });
+            queryClient.invalidateQueries({ queryKey: [...sessionKeys.detail(sessionId), "context-usage"] });
         },
     });
 }
