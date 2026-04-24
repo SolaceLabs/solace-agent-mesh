@@ -5,13 +5,15 @@
  */
 import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
 import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { artifactKeys } from "@/lib/api/artifacts/keys";
+import { queryClient } from "@/lib/providers/QueryClient";
 import { StoryProvider } from "../mocks/StoryProvider";
 
 expect.extend(matchers);
@@ -44,20 +46,36 @@ vi.mock("@/lib/hooks", async () => {
     };
 });
 
-// Control what AttachArtifactDialog shows so tests can pick refs by name.
-let mockDialogArtifacts: ArtifactWithSession[] = [];
-vi.mock("@/lib/api/artifacts", async () => {
-    const actual = await vi.importActual<typeof import("@/lib/api/artifacts")>("@/lib/api/artifacts");
-    return {
-        ...actual,
-        useAllArtifacts: () => ({
-            data: mockDialogArtifacts,
-            isLoading: false,
-            hasMore: false,
-            loadMore: () => {},
-            isLoadingMore: false,
-        }),
-    };
+// Seed the shared React Query cache so AttachArtifactDialog's
+// `useAllArtifacts` resolves without touching the network. Vitest mock
+// hoisting can't reliably replace transitive hook imports in this config,
+// so pre-populating the query cache is the stable way to stand up a
+// dialog with known artifacts.
+function seedArtifacts(artifacts: ArtifactWithSession[]) {
+    // transformArtifacts in useAllArtifacts expects the raw API shape
+    // (camelCase: mimeType, lastModified, sessionId, etc.), not the
+    // already-transformed ArtifactWithSession shape that the dialog consumes.
+    const raw = artifacts.map(a => ({
+        filename: a.filename,
+        size: a.size,
+        mimeType: a.mime_type,
+        lastModified: a.last_modified,
+        uri: a.uri,
+        sessionId: a.sessionId,
+        sessionName: a.sessionName,
+        projectId: a.projectId ?? null,
+        projectName: a.projectName,
+        source: a.source ?? null,
+        tags: a.tags ?? null,
+    }));
+    queryClient.setQueryData([...artifactKeys.lists(), { search: undefined }], {
+        pages: [{ artifacts: raw, nextPage: null, totalCount: raw.length }],
+        pageParams: [1],
+    });
+}
+
+afterEach(() => {
+    queryClient.clear();
 });
 
 // ---------------------------------------------------------------------------
@@ -304,6 +322,14 @@ async function attachArtifactsViaDialog(filenames: string[]) {
         await userEvent.click(await screen.findByText(name));
     }
     await userEvent.click(screen.getByRole("button", { name: new RegExp(`^attach ${filenames.length}$`, "i") }));
+
+    // Radix Dialog pins `pointer-events: none` on body while the dialog is
+    // mounted. In jsdom the cleanup is async — wait for the dialog to fully
+    // unmount before the next user interaction.
+    await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    document.body.style.pointerEvents = "";
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +338,7 @@ async function attachArtifactsViaDialog(filenames: string[]) {
 
 describe("ChatInputArea — artifact reference envelope", () => {
     test("submit produces a File with application/x-artifact-reference MIME and JSON body", async () => {
-        mockDialogArtifacts = [makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt", mime_type: "text/plain" })];
+        seedArtifacts([makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt", mime_type: "text/plain" })]);
         const handleSubmit = vi.fn().mockResolvedValue(undefined);
 
         renderComponent({ handleSubmit, isResponding: false });
@@ -335,7 +361,13 @@ describe("ChatInputArea — artifact reference envelope", () => {
         expect(envelope).toBeDefined();
         expect(envelope!.name).toBe("ref.txt");
 
-        const body = JSON.parse(await envelope!.text());
+        const envelopeText = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsText(envelope!);
+        });
+        const body = JSON.parse(envelopeText);
         expect(body).toEqual({
             isArtifactReference: true,
             uri: "artifact://sess-1/ref.txt",
@@ -351,7 +383,7 @@ describe("ChatInputArea — artifact reference envelope", () => {
 
 describe("ChatInputArea — selectedArtifactRefs restore on submit failure", () => {
     test("restores the attached artifact card when handleSubmit rejects", async () => {
-        mockDialogArtifacts = [makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt" })];
+        seedArtifacts([makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt" })]);
         const handleSubmit = vi.fn().mockRejectedValue(new Error("Network error"));
 
         renderComponent({ handleSubmit, isResponding: false });
@@ -377,7 +409,7 @@ describe("ChatInputArea — selectedArtifactRefs restore on submit failure", () 
     });
 
     test("does not clobber newly-attached artifacts if the user attached a different ref during the async gap", async () => {
-        mockDialogArtifacts = [makeArtifact({ filename: "original.txt", uri: "artifact://sess-1/original.txt" }), makeArtifact({ filename: "new.txt", uri: "artifact://sess-1/new.txt" })];
+        seedArtifacts([makeArtifact({ filename: "original.txt", uri: "artifact://sess-1/original.txt" }), makeArtifact({ filename: "new.txt", uri: "artifact://sess-1/new.txt" })]);
         let rejectFn: (err: Error) => void;
         const handleSubmit = vi.fn().mockImplementation(
             () =>
