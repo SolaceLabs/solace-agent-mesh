@@ -92,7 +92,8 @@ Production deployments **must** use managed external services. Embedded componen
 
 **Database:**
 - PostgreSQL 17+ (AWS RDS, Azure Database for PostgreSQL, Cloud SQL, etc.)
-- Standard username/password authentication via Kubernetes Secret
+- Admin credentials with `SUPERUSER` privileges (recommended) or minimum `CREATEROLE` and `CREATEDB`
+- SAM's init container uses admin credentials to automatically create users and databases
 - See [Session Storage](/docs/documentation/installing-and-configuring/session-storage) for configuration
 
 **Object Storage:**
@@ -468,25 +469,173 @@ broker:
 
 **Configure External Datastores:**
 
+Configure PostgreSQL database and object storage. The `applicationPassword` is **required** - this single password will be used for all database users created by SAM (webui, orchestrator, platform, and all agents).
+
+:::warning Password Rotation Limitation
+Once database users are created for a given `namespaceId`, the `applicationPassword` cannot be changed. To change passwords, you must either use a new `namespaceId` (creates new databases/users) or manually update passwords directly in the database.
+:::
+
+**Provider-Specific Configuration Examples:**
+
+**AWS RDS + S3:**
+
 ```yaml
 dataStores:
   database:
-    host: "your-postgres-host.rds.amazonaws.com"
+    protocol: "postgresql+psycopg2"
+    host: "mydb.abc123.us-east-1.rds.amazonaws.com"
     port: "5432"
     adminUsername: "postgres"
-    adminPassword: "your-admin-password"
-    applicationPassword: "your-app-password"
+    adminPassword: "your-rds-password"
+    applicationPassword: "your-secure-app-password"  # REQUIRED
   
   objectStorage:
     type: "s3"
   
   s3:
-    bucketName: "sam-artifacts"
-    connectorSpecBucketName: "sam-artifacts"
-    accessKey: "your-access-key"
-    secretKey: "your-secret-key"
+    endpointUrl: "https://s3.us-east-1.amazonaws.com"
+    bucketName: "my-sam-artifacts"
+    connectorSpecBucketName: "my-sam-connector-specs"
+    accessKey: "AKIAIOSFODNN7EXAMPLE"
+    secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     region: "us-east-1"
 ```
+
+**Supabase with Connection Pooler:**
+
+If using Supabase with the connection pooler (required for IPv4 networks):
+
+```yaml
+dataStores:
+  database:
+    protocol: "postgresql+psycopg2"
+    host: "aws-1-us-east-1.pooler.supabase.com"
+    port: "5432"
+    adminUsername: "postgres"
+    adminPassword: "your-supabase-postgres-password"
+    applicationPassword: "your-secure-app-password"
+    supabaseTenantId: "your-project-id"  # Extract from connection string
+  
+  s3:
+    endpointUrl: "https://your-project-id.storage.supabase.co/storage/v1/s3"
+    bucketName: "your-bucket-name"
+    connectorSpecBucketName: "your-connector-specs-bucket-name"
+    accessKey: "your-supabase-s3-access-key"
+    secretKey: "your-supabase-s3-secret-key"
+```
+
+:::info Supabase Direct Connection
+If using Supabase's Direct Connection with IPv4 addon, omit the `supabaseTenantId` field.
+:::
+
+**NeonDB:**
+
+```yaml
+dataStores:
+  database:
+    protocol: "postgresql+psycopg2"
+    host: "ep-cool-name-123456.us-east-2.aws.neon.tech"
+    port: "5432"
+    adminUsername: "neondb_owner"
+    adminPassword: "your-neon-password"
+    applicationPassword: "your-secure-app-password"
+  
+  s3:
+    endpointUrl: "https://s3.amazonaws.com"
+    bucketName: "my-sam-artifacts"
+    connectorSpecBucketName: "my-sam-connector-specs"
+    accessKey: "your-access-key"
+    secretKey: "your-secret-key"
+```
+
+**Azure Blob Storage:**
+
+Option 1: Using account name and key:
+
+```yaml
+dataStores:
+  objectStorage:
+    type: "azure"
+  
+  database:
+    protocol: "postgresql+psycopg2"
+    host: "your-postgres-host"
+    port: "5432"
+    adminUsername: "postgres"
+    adminPassword: "your-db-password"
+    applicationPassword: "your-secure-app-password"
+  
+  azure:
+    accountName: "mystorageaccount"
+    accountKey: "your-azure-storage-account-key"
+    containerName: "my-sam-artifacts"
+    connectorSpecContainerName: "my-sam-connector-specs"
+```
+
+Option 2: Using connection string:
+
+```yaml
+  azure:
+    connectionString: "DefaultEndpointsProtocol=https;AccountName=mystorageaccount;AccountKey=...;EndpointSuffix=core.windows.net"
+    containerName: "my-sam-artifacts"
+    connectorSpecContainerName: "my-sam-connector-specs"
+```
+
+**Google Cloud Storage:**
+
+```yaml
+dataStores:
+  objectStorage:
+    type: "gcs"
+  
+  database:
+    protocol: "postgresql+psycopg2"
+    host: "your-postgres-host"
+    port: "5432"
+    adminUsername: "postgres"
+    adminPassword: "your-db-password"
+    applicationPassword: "your-secure-app-password"
+  
+  gcs:
+    project: "my-gcp-project"
+    credentialsJson: '{"type":"service_account","project_id":"my-gcp-project",...}'
+    bucketName: "my-sam-artifacts"
+    connectorSpecBucketName: "my-sam-connector-specs"
+```
+
+**Workload Identity (Recommended for Cloud):**
+
+Workload identity allows SAM pods to authenticate with cloud storage using the pod's Kubernetes service account, eliminating static credentials (access keys, account keys, JSON key files).
+
+Enable workload identity:
+
+```yaml
+dataStores:
+  objectStorage:
+    type: "s3"  # or "azure" or "gcs"
+    workloadIdentity:
+      enabled: true
+```
+
+Annotate the SAM service account:
+
+```yaml
+samDeployment:
+  serviceAccount:
+    annotations:
+      # AWS IRSA:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-sam-role"
+      # OR Azure Workload Identity:
+      azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000000"
+      # OR GCP Workload Identity:
+      iam.gke.io/gcp-service-account: "my-sa@my-project.iam.gserviceaccount.com"
+```
+
+**Per-Provider Setup (High-Level):**
+
+- **AWS IRSA:** Create IAM role with S3 permissions, associate with K8s service account, omit `accessKey`/`secretKey`
+- **Azure Workload Identity:** Create managed identity with Storage Blob Data Contributor role, establish federated credential, omit `accountKey`/`connectionString`
+- **GCP Workload Identity:** Create GCP service account with Storage Object Admin, bind to K8s service account, omit `credentialsJson`
 
 **Enable Authorization and OIDC:**
 

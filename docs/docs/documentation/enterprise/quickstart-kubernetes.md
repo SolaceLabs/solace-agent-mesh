@@ -53,8 +53,8 @@ Embedded persistence requires SSD-backed storage for acceptable performance.
 
 **Volume Requirements:**
 
-| Component | Volume Size |
-|-----------|-------------|
+| Component | Volume Size (Default) |
+|-----------|----------------------|
 | **PostgreSQL** | 30 GiB |
 | **SeaweedFS** | 50 GiB |
 
@@ -66,9 +66,42 @@ Embedded persistence requires SSD-backed storage for acceptable performance.
 | **Azure AKS** | `Premium_LRS` | Azure Zoned Premium SSD |
 | **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
 
-:::warning Storage Class Configuration
-- Use SSD-backed storage classes (not HDD) to avoid agent timeouts
-- Default StorageClasses often have `reclaimPolicy: Delete` - uninstalling Helm will permanently delete your data
+**Storage Class Configuration (Optional):**
+
+Override the default StorageClass or volume size:
+
+```yaml
+persistence-layer:
+  postgresql:
+    persistence:
+      storageClassName: "gp3"  # Override default
+      size: "50Gi"  # Override default 10Gi
+  seaweedfs:
+    persistence:
+      storageClassName: "gp3"
+      size: "100Gi"  # Override default 20Gi
+```
+
+**Image Registry Configuration:**
+
+By default, all images (including embedded components) pull from Solace's GCR registry (`gcr.io/gcp-maas-prod`). This requires an image pull secret.
+
+**Default Embedded Component Images:**
+
+| Component | Repository | Tag | Full Image Reference |
+|-----------|------------|-----|---------------------|
+| **PostgreSQL** | `postgres` | `18.0-trixie` | `gcr.io/gcp-maas-prod/postgres:18.0-trixie` |
+| **SeaweedFS** | `chrislusf/seaweedfs` | `3.97` | `gcr.io/gcp-maas-prod/chrislusf/seaweedfs:3.97` |
+| **Solace Broker** | `solace-pubsub-enterprise` | `10.25.0.193-multi-arch` | `gcr.io/gcp-maas-prod/solace-pubsub-enterprise:10.25.0.193-multi-arch` |
+
+The chart inherits `global.imageRegistry` for all components automatically. No additional configuration needed unless using a custom registry.
+
+:::warning Important Caveats
+- **PVCs persist after uninstall:** When you run `helm uninstall`, PersistentVolumeClaims are NOT automatically deleted (prevents accidental data loss). To clean up: `kubectl delete pvc -l app.kubernetes.io/namespace-id=<your-namespace-id>`
+- **Single instance only:** Bundled persistence deploys single-instance databases with no HA or automatic failover
+- **No automatic backups:** You are responsible for implementing backup strategies
+- **Storage Class Configuration:** Use SSD-backed storage classes (not HDD) to avoid agent timeouts
+- **Data loss on uninstall:** Default StorageClasses often have `reclaimPolicy: Delete` - uninstalling Helm will permanently delete your data unless you use `reclaimPolicy: Retain`
 :::
 
 ### Command-Line Tools
