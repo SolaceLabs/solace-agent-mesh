@@ -219,62 +219,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         closePreview,
     });
 
-    // Get the authenticated user's ID for background task monitoring
-    const authenticatedUserId = getCurrentUserId();
-
-    const {
-        backgroundTasks,
-        notifications: backgroundNotifications,
-        registerBackgroundTask,
-        unregisterBackgroundTask,
-        updateTaskTimestamp,
-        isTaskRunningInBackground,
-        checkTaskStatus,
-    } = useBackgroundTaskMonitor({
-        userId: authenticatedUserId,
-        currentSessionId: sessionId,
-        onTaskCompleted: useCallback(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            async (taskId: string, _taskSessionId: string) => {
-                // The hook only fires this callback for tasks whose session the user is
-                // not currently viewing; SSE handles same-session completion.
-                addNotification("Background task completed", "success");
-
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("background-task-completed", { detail: { taskId } }));
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
-
-                await autoGenerateTitleForTask(taskId, backgroundTasksRef.current);
-            },
-            [addNotification, autoGenerateTitleForTask]
-        ),
-        onTaskFailed: useCallback(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            (taskId: string, error: string, _taskSessionId: string) => {
-                // Always show error dialog for failed tasks, regardless of current session
-                // Errors are important and should not be silently ignored
-                setError({ title: "Background Task Failed", error });
-
-                // Trigger session list refresh to update background task indicators
-                if (typeof window !== "undefined") {
-                    window.dispatchEvent(
-                        new CustomEvent("background-task-completed", {
-                            detail: { taskId },
-                        })
-                    );
-                    // Also trigger general session list refresh
-                    window.dispatchEvent(new CustomEvent("new-chat-session"));
-                }
-            },
-            [setError]
-        ),
-    });
-
-    useEffect(() => {
-        backgroundTasksRef.current = backgroundTasks;
-    }, [backgroundTasks]);
-
     // Helper function to save task data to backend
     const saveTaskToBackend = useCallback(
         async (taskData: { task_id: string; user_message?: string; message_bubbles: any[]; task_metadata?: any }, overrideSessionId?: string): Promise<boolean> => {
@@ -610,6 +554,63 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         },
         [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
     );
+
+    // Background task monitoring
+    const authenticatedUserId = getCurrentUserId();
+    const {
+        backgroundTasks,
+        notifications: backgroundNotifications,
+        registerBackgroundTask,
+        unregisterBackgroundTask,
+        updateTaskTimestamp,
+        isTaskRunningInBackground,
+        checkTaskStatus,
+    } = useBackgroundTaskMonitor({
+        userId: authenticatedUserId,
+        currentSessionId: sessionId,
+        onTaskCompleted: useCallback(
+            async (taskId: string, taskSessionId: string) => {
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("background-task-completed", { detail: { taskId } }));
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+
+                // Same-session: polling fired because SSE was stale — refresh chat.
+                if (currentSessionIdRef.current === taskSessionId) {
+                    await loadSessionTasks(taskSessionId);
+                } else {
+                    addNotification("Background task completed", "success");
+                }
+
+                await autoGenerateTitleForTask(taskId, backgroundTasksRef.current);
+            },
+            [addNotification, autoGenerateTitleForTask, loadSessionTasks]
+        ),
+        onTaskFailed: useCallback(
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            (taskId: string, error: string, _taskSessionId: string) => {
+                // Always show error dialog for failed tasks, regardless of current session
+                // Errors are important and should not be silently ignored
+                setError({ title: "Background Task Failed", error });
+
+                // Trigger session list refresh to update background task indicators
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(
+                        new CustomEvent("background-task-completed", {
+                            detail: { taskId },
+                        })
+                    );
+                    // Also trigger general session list refresh
+                    window.dispatchEvent(new CustomEvent("new-chat-session"));
+                }
+            },
+            [setError]
+        ),
+    });
+
+    useEffect(() => {
+        backgroundTasksRef.current = backgroundTasks;
+    }, [backgroundTasks]);
 
     // Session State
     const [sessionName, setSessionName] = useState<string | null>(null);
