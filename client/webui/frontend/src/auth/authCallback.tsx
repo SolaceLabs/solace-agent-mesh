@@ -9,12 +9,12 @@ function AuthCallback() {
         const refreshToken = params.get("refresh_token");
 
         if (samAccessToken) {
-            localStorage.setItem("sam_access_token", samAccessToken);
+            sessionStorage.setItem("sam_access_token", samAccessToken);
         }
         if (accessToken) {
-            localStorage.setItem("access_token", accessToken);
+            sessionStorage.setItem("access_token", accessToken);
             if (refreshToken) {
-                localStorage.setItem("refresh_token", refreshToken);
+                sessionStorage.setItem("refresh_token", refreshToken);
             }
             // Redirect to the main application page
             window.location.href = "/";
