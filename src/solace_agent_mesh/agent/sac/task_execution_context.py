@@ -42,6 +42,10 @@ class TaskExecutionContext:
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self.total_cached_input_tokens: int = 0
+        # Prompt tokens from the most recent agent LLM call — represents the
+        # peak context window occupancy for this task, unlike total_input_tokens
+        # which sums across every turn and inflates with each peer delegation.
+        self.last_input_tokens: int = 0
         self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
         self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
 
@@ -260,6 +264,8 @@ class TaskExecutionContext:
             self.total_input_tokens += input_tokens
             self.total_output_tokens += output_tokens
             self.total_cached_input_tokens += cached_input_tokens
+            if source == "agent":
+                self.last_input_tokens = input_tokens
 
             # Track by model
             if model not in self.token_usage_by_model:
@@ -301,6 +307,7 @@ class TaskExecutionContext:
                 "total_output_tokens": self.total_output_tokens,
                 "total_cached_input_tokens": self.total_cached_input_tokens,
                 "total_tokens": self.total_input_tokens + self.total_output_tokens,
+                "last_input_tokens": self.last_input_tokens,
                 "by_model": dict(self.token_usage_by_model),
                 "by_source": dict(self.token_usage_by_source),
             }
