@@ -154,15 +154,40 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 ## Step 6: Configuring Image Pull Secrets
 
-<!-- Content: Creating and configuring image pull secrets -->
+Your private registry requires authentication. The chart provides two mutually exclusive options — choose one:
 
-### Create Image Pull Secret
+### Option 1: Pass a Credentials File (`global.imagePullKey`)
 
-<!-- Content: kubectl create secret commands -->
+If your private registry provides a credentials file in Kubernetes dockerconfigjson format, pass it directly to Helm. The chart automatically creates the pull secret and injects it into all pod specs:
 
-### Registry-Specific Image Pull Secrets
+```bash
+helm install sam solace/solace-agent-mesh \
+  --namespace sam \
+  --set-file global.imagePullKey=registry-credentials.json \
+  -f airgap-overrides.yaml
+```
 
-<!-- Content: Examples for different registries -->
+The credentials file must be in dockerconfigjson format:
+
+```json
+{
+  ".dockerconfigjson": "<base64-encoded-auth>"
+}
+```
+
+### Option 2: Reference a Pre-Created Secret (`global.imagePullSecrets`)
+
+If you have already created a Kubernetes image pull secret (common with enterprise registries such as Harbor or Artifactory), reference it by name in your `airgap-overrides.yaml`:
+
+```yaml
+global:
+  imagePullSecrets:
+    - name: your-registry-secret
+```
+
+:::warning Mutually Exclusive
+`global.imagePullKey` and `global.imagePullSecrets` cannot be used together. Providing both will cause the Helm installation to fail with a clear error.
+:::
 
 ## Step 7: Configuring values.yaml for Air-Gapped
 
@@ -178,11 +203,9 @@ Create an airgap overrides file (`airgap-overrides.yaml`) with the following set
 global:
   # Redirect all images to your private registry
   imageRegistry: registry.internal.example.com/sam
-  
-  # Image pull secrets for your private registry
-  imagePullSecrets:
-    - name: your-registry-secret
 ```
+
+For registry authentication, see [Step 6: Configuring Image Pull Secrets](#step-6-configuring-image-pull-secrets).
 
 **Enable Bundled Agent Charts:**
 
