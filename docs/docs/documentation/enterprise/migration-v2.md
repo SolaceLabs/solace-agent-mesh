@@ -487,4 +487,4 @@ If you encounter migration issues:
 
 - [Kubernetes Quick Start](./quickstart-kubernetes.md) - Updated for v2.0.0
 - [Production Kubernetes Installation](./production-kubernetes.md) - Production configuration examples
-- [Airgap Kubernetes Installation](./airgap-kubernetes.md) - Airgap deployment guidance
+- [Air-Gapped Kubernetes Installation](./airgap-kubernetes.md) - Air-gapped deployment guidance

@@ -1,24 +1,24 @@
 ---
-title: Airgap Kubernetes Installation
+title: Air-Gapped Kubernetes Installation
 sidebar_position: 7
 ---
 
-# Airgap Kubernetes Installation
+# Air-Gapped Kubernetes Installation
 
-This guide covers deploying Agent Mesh Enterprise (SAM) to Kubernetes clusters in airgapped environments using Helm charts.
+This guide covers deploying Agent Mesh Enterprise (SAM) to Kubernetes clusters in air-gapped environments using Helm charts.
 
 :::info
 For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-kubernetes.md) or [Production Kubernetes Installation](./production-kubernetes.md).
 :::
 
-## What is an Airgap Deployment?
+## What is an Air-Gapped Deployment?
 
-An airgap deployment runs in an environment with no direct internet connectivity. All container images, dependencies, and artifacts must be pre-loaded into private registries within the isolated network. This approach ensures compliance with security policies while maintaining full SAM functionality.
+An air-gapped deployment runs in an environment with no direct internet connectivity. All container images, dependencies, and artifacts must be pre-loaded into private registries within the isolated network. This approach ensures compliance with security policies while maintaining full SAM functionality.
 
-Airgap installations are common in regulated industries such as financial services, government, and healthcare where security policies require complete network isolation.
+Air-gapped installations are common in regulated industries such as financial services, government, and healthcare where security policies require complete network isolation.
 
 :::info
-Airgap deployments require advance planning for image distribution, dependency management, and component configuration. Review this entire guide before beginning your installation.
+Air-gapped deployments require advance planning for image distribution, dependency management, and component configuration. Review this entire guide before beginning your installation.
 :::
 
 ## Prerequisites
@@ -27,19 +27,19 @@ Airgap deployments require advance planning for image distribution, dependency m
 
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
 - A system with internet access for downloading the SAM delivery bundle
-- Transfer capability to move files into your airgapped environment (USB drives, secure file transfer, etc.)
+- Transfer capability to move files into your air-gapped environment (USB drives, secure file transfer, etc.)
 
 ### Infrastructure Requirements
 
-Airgap deployments have the same infrastructure requirements as [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites), plus the following airgap-specific requirements:
+Air-gapped deployments have the same infrastructure requirements as [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites), plus the following air-gapped-specific requirements:
 
-**Airgap-Specific Requirements:**
-- A private container registry accessible from your airgapped cluster (Harbor, Artifactory, ECR, ACR, GCR, etc.)
+**Air-Gapped-Specific Requirements:**
+- A private container registry accessible from your air-gapped cluster (Harbor, Artifactory, ECR, ACR, GCR, etc.)
 - Registry credentials with push/pull permissions
-- Ability to transfer files into the airgapped environment (USB, secure file transfer, etc.)
+- Ability to transfer files into the air-gapped environment (USB, secure file transfer, etc.)
 - System with internet access for downloading the SAM delivery bundle
 
-**Within Airgapped Network:**
+**Within Air-Gapped Network:**
 - Kubernetes cluster (version 1.20 or later) with standard worker nodes
 - Private container registry (all SAM images must be mirrored)
 - Solace event broker (external recommended for production)
@@ -50,9 +50,9 @@ Airgap deployments have the same infrastructure requirements as [Production Kube
 
 For detailed infrastructure requirements (node sizing, compute resources, storage classes), see [Production Prerequisites](./production-kubernetes.md#production-prerequisites).
 
-## Understanding the Airgap Installation Process
+## Understanding the Air-Gapped Installation Process
 
-<!-- Content: Overview of the airgap installation workflow -->
+<!-- Content: Overview of the air-gapped installation workflow -->
 
 ## Step 1: Obtaining the SAM Delivery Bundle
 
@@ -150,7 +150,7 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 ## Step 5: Creating Kubernetes Namespace
 
-<!-- Content: Namespace creation for airgap -->
+<!-- Content: Namespace creation for air-gapped -->
 
 ## Step 6: Configuring Image Pull Secrets
 
@@ -164,11 +164,11 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 <!-- Content: Examples for different registries -->
 
-## Step 7: Configuring values.yaml for Airgap
+## Step 7: Configuring values.yaml for Air-Gapped
 
 <!-- Content: Comprehensive values.yaml configuration -->
 
-### Minimal Airgap Configuration
+### Minimal Air-Gapped Configuration
 
 Create an airgap overrides file (`airgap-overrides.yaml`) with the following settings:
 
@@ -198,9 +198,9 @@ samDeployment:
 ```yaml
 global:
   broker:
-    embedded: false  # Use external Solace broker in airgapped network
+    embedded: false  # Use external Solace broker in air-gapped network
   persistence:
-    enabled: false   # Use external datastores in airgapped network
+    enabled: false   # Use external datastores in air-gapped network
 
 broker:
   url: "tcps://broker.internal.example.com:55443"
@@ -212,16 +212,16 @@ dataStores:
 
 :::info Remote vs Local Agent Charts
 - **Remote mode** (`localCharts.enabled: false`): Agent charts fetched from `samDeployment.agentDeployer.chartBaseUrl`
-- **Airgap mode** (`localCharts.enabled: true`): Agent charts bundled within the installation
+- **Air-gapped mode** (`localCharts.enabled: true`): Agent charts bundled within the installation
 :::
 
-### Production Airgap Configuration
+### Production Air-Gapped Configuration
 
-<!-- Content: Production settings for airgap -->
+<!-- Content: Production settings for air-gapped -->
 
 ## Step 8: Installing SAM with Helm
 
-Install SAM in your airgapped environment with your custom overrides:
+Install SAM in your air-gapped environment with your custom overrides:
 
 ```bash
 helm install sam ./solace-agent-mesh-chart.tgz \
@@ -250,7 +250,7 @@ Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not th
 
 ### Configure RBAC
 
-<!-- Content: RBAC setup for airgap -->
+<!-- Content: RBAC setup for air-gapped -->
 
 ### Set Up Ingress
 
@@ -268,7 +268,7 @@ Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not th
 
 <!-- Content: Confirm pods use private registry -->
 
-Verify that all pods are using images from your private registry and that airgap mode (bundled agent charts) is active.
+Verify that all pods are using images from your private registry and that air-gapped mode (bundled agent charts) is active.
 
 ### Test Agent Deployment
 
@@ -278,43 +278,43 @@ Verify that all pods are using images from your private registry and that airgap
 
 <!-- Content: Confirm no external egress -->
 
-## Airgap-Specific Considerations
+## Air-Gapped-Specific Considerations
 
-<!-- Content: Airgap specific considerations overview -->
+<!-- Content: Air-gapped specific considerations overview -->
 
 ### Components Requiring External Connectivity
 
-The following SAM components require internet access or external service connectivity to function. In airgapped environments, you must provide alternative solutions:
+The following SAM components require internet access or external service connectivity to function. In air-gapped environments, you must provide alternative solutions:
 
 ### Solace Broker Configuration
 
-Configure your external Solace broker within the airgapped network.
+Configure your external Solace broker within the air-gapped network.
 
 **Queue Template Configuration:**
 
-For Kubernetes deployments, configure durable queues with message TTL. See [Queue Template Configuration for Kubernetes](./production-kubernetes.md#queue-template-configuration-for-kubernetes) in the Production guide for detailed setup instructions. The same configuration applies to airgap deployments.
+For Kubernetes deployments, configure durable queues with message TTL. See [Queue Template Configuration for Kubernetes](./production-kubernetes.md#queue-template-configuration-for-kubernetes) in the Production guide for detailed setup instructions. The same configuration applies to air-gapped deployments.
 
 #### Bedrock Knowledge Base Tool
 
-<!-- Content: Bedrock tool airgap configuration -->
+<!-- Content: Bedrock tool air-gapped configuration -->
 
 #### Slack Gateway Adapter
 
-<!-- Content: Slack gateway airgap configuration -->
+<!-- Content: Slack gateway air-gapped configuration -->
 
 #### Teams Gateway Adapter
 
-<!-- Content: Teams gateway airgap configuration -->
+<!-- Content: Teams gateway air-gapped configuration -->
 
 ### LLM Service Configuration
 
-In airgapped environments, ensure your LLM service endpoint is accessible from within the isolated network.
+In air-gapped environments, ensure your LLM service endpoint is accessible from within the isolated network.
 
 **Configuration Options:**
 
 **Option 1: Post-Install via Model Config UI**
 
-On first login to the Console UI, you'll be prompted to configure your LLM provider. Ensure the LLM endpoint is accessible from your airgapped network.
+On first login to the Console UI, you'll be prompted to configure your LLM provider. Ensure the LLM endpoint is accessible from your air-gapped network.
 
 **Option 2: Pre-Configure via values.yaml**
 
@@ -328,30 +328,30 @@ llmService:
   generalModel: "gpt-4o"
 ```
 
-**LLM Deployment Options in Airgap:**
-- Self-hosted LLM within the airgapped network
+**LLM Deployment Options in Air-Gapped:**
+- Self-hosted LLM within the air-gapped network
 - Azure OpenAI with private endpoints
 - AWS Bedrock with VPC endpoints
 - Internal LLM proxy service
 
 ### Storage Services
 
-Configure S3-compatible object storage accessible within your airgapped network.
+Configure S3-compatible object storage accessible within your air-gapped network.
 
 **Storage Requirements:**
 
 1. **Artifact Storage** - For user files, session data, and artifacts
 2. **OpenAPI Connector Specs Storage** (if using OpenAPI Connectors)
 
-**Airgap-Specific Considerations:**
+**Air-Gapped-Specific Considerations:**
 
-Unlike internet-connected deployments, airgap environments cannot use public S3 buckets. Both artifact storage and connector specs storage must be accessible within the airgapped network using internal S3-compatible storage or cloud storage with private endpoints.
+Unlike internet-connected deployments, air-gapped environments cannot use public S3 buckets. Both artifact storage and connector specs storage must be accessible within the air-gapped network using internal S3-compatible storage or cloud storage with private endpoints.
 
-#### OpenAPI Connector Specs in Airgap
+#### OpenAPI Connector Specs in Air-Gapped
 
 **Key Difference from Internet-Connected Deployments:**
 
-In internet-connected environments, the connector specs bucket uses public read access. In airgap environments, you must configure authenticated access for agents:
+In internet-connected environments, the connector specs bucket uses public read access. In air-gapped environments, you must configure authenticated access for agents:
 
 ```yaml
 dataStores:
@@ -371,9 +371,24 @@ dataStores:
 
 Configure identical access credentials for both buckets in your Helm values.
 
+### Custom CA Certificates
+
+Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
+
+SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates-for-internal-infrastructure) in the Production guide for complete setup instructions.
+
+The same configuration applies to air-gapped deployments:
+
+```yaml
+samDeployment:
+  customCA:
+    enabled: true
+    configMapName: "truststore"
+```
+
 ## Security Best Practices
 
-<!-- Content: Security for airgap deployments -->
+<!-- Content: Security for air-gapped deployments -->
 
 ### Network Policies
 
@@ -381,15 +396,15 @@ Configure identical access credentials for both buckets in your Helm values.
 
 ### Secret Management
 
-<!-- Content: Secret management in airgap -->
+<!-- Content: Secret management in air-gapped -->
 
 ### Monitoring and Auditing
 
-<!-- Content: Monitoring for airgap -->
+<!-- Content: Monitoring for air-gapped -->
 
-## Troubleshooting Airgap Installations
+## Troubleshooting Air-Gapped Installations
 
-<!-- Content: Common airgap issues -->
+<!-- Content: Common air-gapped issues -->
 
 ### Image Pull Failures
 
@@ -407,7 +422,7 @@ Configure identical access credentials for both buckets in your Helm values.
 
 <!-- Content: Troubleshooting storage issues -->
 
-## Updating Airgap Kubernetes Deployments
+## Updating Air-Gapped Kubernetes Deployments
 
 <!-- Content: Update procedures -->
 
@@ -417,7 +432,7 @@ Configure identical access credentials for both buckets in your Helm values.
 
 ### Performing Rolling Update
 
-<!-- Content: Helm upgrade for airgap -->
+<!-- Content: Helm upgrade for air-gapped -->
 
 ### Rollback Procedure
 

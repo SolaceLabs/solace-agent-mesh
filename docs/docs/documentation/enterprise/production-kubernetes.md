@@ -8,7 +8,7 @@ sidebar_position: 5
 Deploy SAM Enterprise on Kubernetes for production with full configuration, high availability, and security.
 
 :::info
-For quick evaluation, see the [Kubernetes Quick Start](./quickstart-kubernetes.md). For airgapped environments, see the [Airgap Kubernetes Installation](./airgap-kubernetes.md).
+For quick evaluation, see the [Kubernetes Quick Start](./quickstart-kubernetes.md). For air-gapped environments, see the [Air-Gapped Kubernetes Installation](./airgap-kubernetes.md).
 :::
 
 ## Production vs Quick Start
@@ -673,6 +673,131 @@ ingress:
 **LLM Configuration (Optional):**
 - LLM can be configured post-install via the Model Config UI
 - Alternatively, pre-configure in values.yaml under `llmService.*`
+
+**Custom CA Certificates (For Internal Infrastructure):**
+
+If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses self-signed or private CA certificates, configure SAM to trust them.
+
+**When needed:**
+- Solace broker with custom CA
+- OIDC provider (Keycloak, etc.) with custom CA
+- LLM service with custom CA
+- Any internal endpoint using private certificates
+
+**Prerequisites:**
+
+:::warning Certificate Requirements
+- Use the **CA certificate** (issuer), not the server certificate
+- Certificate must include **SAN (Subject Alternative Name)** extension
+- File must have **`.crt` extension** (REQUIRED)
+- PEM format with `-----BEGIN CERTIFICATE-----` headers
+:::
+
+**Verify SAN Extension:**
+
+Before creating the ConfigMap, verify your CA certificate includes SAN:
+
+```bash
+openssl x509 -in ca-cert.pem -noout -text | grep -A1 "Subject Alternative Name"
+```
+
+Expected output:
+```
+X509v3 Subject Alternative Name:
+    DNS:mybroker.messaging.solace.cloud
+```
+
+**Certificate Format Conversion (if needed):**
+
+If your certificate is not in PEM format:
+
+```bash
+# DER (binary) to PEM
+openssl x509 -inform der -in ca.der -out ca.crt
+
+# PKCS#7 bundle → PEM (extracts all CA certs)
+openssl pkcs7 -print_certs -in ca.p7b -out ca.crt
+
+# PKCS#12 (.pfx / .p12) → PEM (CA certs only, no private keys)
+openssl pkcs12 -in ca.pfx -out ca.crt -nokeys -cacerts
+```
+
+**Configuration Steps:**
+
+**Step 1: Prepare CA bundle**
+
+Ensure file has `.crt` extension:
+
+```bash
+cp ca-cert.pem ca-cert.crt
+```
+
+**Step 2: Create Kubernetes ConfigMap**
+
+Single CA certificate:
+
+```bash
+kubectl create configmap truststore \
+  --from-file=ca.crt=/path/to/your-ca.crt \
+  -n <namespace>
+```
+
+Multiple CA certificates:
+
+```bash
+kubectl create configmap truststore \
+  --from-file=ca1.crt=/path/to/ca1.crt \
+  --from-file=ca2.crt=/path/to/ca2.crt \
+  --from-file=ca3.crt=/path/to/ca3.crt \
+  -n <namespace>
+```
+
+:::tip Multiple CAs
+If you have multiple CAs (e.g., broker CA, Keycloak CA, LLM CA), pass each as a separate `--from-file` flag. All keys must end in `.crt`.
+:::
+
+**Step 3: Enable in Helm values**
+
+Add to your `production-overrides.yaml`:
+
+```yaml
+samDeployment:
+  customCA:
+    enabled: true
+    configMapName: "truststore"  # Optional: default is "truststore"
+```
+
+**Step 4: Install or upgrade**
+
+```bash
+helm upgrade sam solace/solace-agent-mesh \
+  -n <namespace> \
+  -f production-overrides.yaml
+```
+
+The chart will automatically inject a `ca-merge` init container that merges your CA bundle with the system trust store.
+
+**Updating CA Certificates:**
+
+To rotate or update certificates:
+
+```bash
+# Delete old ConfigMap
+kubectl delete configmap truststore -n <namespace>
+
+# Create new ConfigMap
+kubectl create configmap truststore \
+  --from-file=ca.crt=/path/to/new-ca.crt \
+  -n <namespace>
+
+# Restart deployment
+kubectl rollout restart deployment/sam-solace-agent-mesh-core -n <namespace>
+```
+
+**Important Notes:**
+- If ConfigMap doesn't exist when pod starts, SAM falls back to system CA bundle silently (no error raised)
+- Pod restart is always required for CA changes (no hot reload)
+- ConfigMap name can be customized via `customCA.configMapName` if `truststore` conflicts with existing resources
 
 :::info Embedded vs External Components
 Production deployments must use external components. Embedded PostgreSQL, SeaweedFS, and Solace broker lack high availability, backup/restore, and proper resource limits.
