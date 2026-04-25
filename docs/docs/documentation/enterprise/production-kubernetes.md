@@ -1003,235 +1003,235 @@ Complete reference for all configuration options in the SAM Helm chart.
 
 ### Global Configuration
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `global.broker.embedded` | Deploy embedded single-node Solace event broker alongside SAM. For production, set to `false` and configure external broker. | boolean | `true` |
-| `global.persistence.enabled` | Deploy bundled persistence with in-cluster PostgreSQL and SeaweedFS. For production, set to `false` and configure external datastores. | boolean | `true` |
-| `global.persistence.namespaceId` | Unique identifier for SAM database/user scoping. Must be unique per SAM installation to avoid topic collisions. | string | `"solace-agent-mesh"` |
-| `global.imageRegistry` | Container registry for all images. For air-gapped environments, set to your internal registry. | string | `"gcr.io/gcp-maas-prod"` |
-| `global.imagePullSecrets` | Image pull secrets applied to ALL pods (core, agent-deployer, postgresql, seaweedfs, broker). Required when using private registry. | list | `[]` |
-| `global.imagePullKey` | Docker config JSON for private registry authentication. Mutually exclusive with `imagePullSecrets`. Use with `--set-file global.imagePullKey=credentials.json` | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `global.broker.embedded` | bool | `true` | Deploy embedded single-node Solace event broker alongside SAM. For production, set to `false` and configure external broker. |
+| `global.persistence.enabled` | bool | `true` | Deploy bundled persistence with in-cluster PostgreSQL and SeaweedFS. For production, set to `false` and configure external datastores. |
+| `global.persistence.namespaceId` | string | `"solace-agent-mesh"` | Unique identifier for SAM database/user scoping. Must be unique per SAM installation to avoid topic collisions. |
+| `global.imageRegistry` | string | `"gcr.io/gcp-maas-prod"` | Container registry for all images. For air-gapped environments, set to your internal registry. |
+| `global.imagePullSecrets` | list | `[]` | Image pull secrets applied to ALL pods (core, agent-deployer, postgresql, seaweedfs, broker). Required when using private registry. |
+| `global.imagePullKey` | string | `""` | Docker config JSON for private registry authentication. Mutually exclusive with `imagePullSecrets`. Use with `--set-file global.imagePullKey=credentials.json` |
 
 ### Validations
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `validations.clusterResourceChecks` | Template-time cluster resource existence checks. Looks up referenced Secrets, ConfigMaps, StorageClass, IngressClass before install. Set to `false` if service account lacks `get` RBAC on cluster resources. | boolean | `true` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `validations.clusterResourceChecks` | bool | `true` | Template-time cluster resource existence checks. Looks up referenced Secrets, ConfigMaps, StorageClass, IngressClass before install. Set to `false` if service account lacks `get` RBAC on cluster resources. |
 
 ### SAM Core Configuration
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `sam.communityMode` | Disable SAM enterprise features (internal use only) | boolean | `false` |
-| `sam.frontendServerUrl` | Frontend URL for accessing SAM. For port-forward, use `http://localhost:8000`. For production with Ingress, set to `""` (enables auto-detection). For LoadBalancer, set to external URL. | string | `"http://localhost:8000"` |
-| `sam.platformServiceUrl` | Platform service URL. For port-forward, use `http://localhost:8080`. For production with Ingress, set to `""` (enables auto-detection). | string | `"http://localhost:8080"` |
-| `sam.cors.allowedOriginRegex` | CORS regex pattern for allowed origins. Default allows any localhost:port. For production, set to `""`. | string | `"https?://(localhost\|127\\.0\\.0\\.1)(:\\d+)?"` |
-| `sam.authorization.enabled` | Enforce RBAC authorization via OIDC. Default: `false` (all users have admin access). For production, set to `true` and configure oauthProvider/authenticationRbac. | boolean | `false` |
-| `sam.dnsName` | External DNS name for SAM. Not required for port-forward or Ingress. For LoadBalancer/NodePort, set to your external DNS name. | string | `""` |
-| `sam.sessionSecretKey` | Secure session key. Auto-generates on first install if empty, stable across upgrades. For production, explicitly set for reproducibility. | string | `""` |
-| `sam.oauthProvider.oidc.issuer` | OIDC issuer URL for authentication | string | `""` |
-| `sam.oauthProvider.oidc.clientId` | OIDC client ID | string | `""` |
-| `sam.oauthProvider.oidc.clientSecret` | OIDC client secret | string | `""` |
-| `sam.authenticationRbac.customRoles` | Custom role definitions with fine-grained scopes | object | `{}` |
-| `sam.authenticationRbac.users` | Static user role assignments | list | See default users in values.yaml |
-| `sam.authenticationRbac.idpClaims.enabled` | Enable dynamic role assignment from IDP claims | boolean | `false` |
-| `sam.authenticationRbac.idpClaims.oidcProvider` | OIDC provider name for IDP claims | string | `"oidc"` |
-| `sam.authenticationRbac.idpClaims.claimKey` | Claim key containing group/role information | string | `"groups"` |
-| `sam.authenticationRbac.idpClaims.mappings` | Map IDP claim values to SAM roles | object | `{}` |
-| `sam.authenticationRbac.defaultRoles` | Default roles assigned when no explicit role match found | list | `["sam_user"]` |
-| `sam.taskLogging.enabled` | Enable SAM logging during task execution | boolean | `true` |
-| `sam.taskLogging.logStatusUpdates` | Log status updates during tasks | boolean | `true` |
-| `sam.taskLogging.logArtifactEvents` | Log artifact events | boolean | `false` |
-| `sam.taskLogging.logFileParts` | Log file parts | boolean | `true` |
-| `sam.taskLogging.maxFilePartSizeBytes` | Maximum file part size for logging | integer | `10240` |
-| `sam.taskLogging.hybridBuffer.enabled` | Enable hybrid buffer for logging | boolean | `true` |
-| `sam.taskLogging.hybridBuffer.flushThreshold` | Flush threshold for hybrid buffer | integer | `10` |
-| `sam.featureEnablement.awsBedrockEnabled` | Enable AWS Bedrock integration | boolean | `true` |
-| `sam.featureEnablement.backgroundTasks` | Enable background tasks feature | boolean | `true` |
-| `sam.featureEnablement.binaryArtifactPreview` | Enable binary artifact preview | boolean | `true` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `sam.communityMode` | bool | `false` | Disable SAM enterprise features (internal use only) |
+| `sam.frontendServerUrl` | string | `"http://localhost:8000"` | Frontend URL for accessing SAM. For port-forward, use `http://localhost:8000`. For production with Ingress, set to `""` (enables auto-detection). For LoadBalancer, set to external URL. |
+| `sam.platformServiceUrl` | string | `"http://localhost:8080"` | Platform service URL. For port-forward, use `http://localhost:8080`. For production with Ingress, set to `""` (enables auto-detection). |
+| `sam.cors.allowedOriginRegex` | string | "https?://(localhost&#124;127\\.0\\.0\\.1)(:\\d+)?" | CORS regex pattern for allowed origins. Default allows any localhost:port. For production, set to `""`. |
+| `sam.authorization.enabled` | bool | `false` | Enforce RBAC authorization via OIDC. Default: `false` (all users have admin access). For production, set to `true` and configure oauthProvider/authenticationRbac. |
+| `sam.dnsName` | string | `""` | External DNS name for SAM. Not required for port-forward or Ingress. For LoadBalancer/NodePort, set to your external DNS name. |
+| `sam.sessionSecretKey` | string | `""` | Secure session key. Auto-generates on first install if empty, stable across upgrades. For production, explicitly set for reproducibility. |
+| `sam.oauthProvider.oidc.issuer` | string | `""` | OIDC issuer URL for authentication |
+| `sam.oauthProvider.oidc.clientId` | string | `""` | OIDC client ID |
+| `sam.oauthProvider.oidc.clientSecret` | string | `""` | OIDC client secret |
+| `sam.authenticationRbac.customRoles` | object | `{}` | Custom role definitions with fine-grained scopes |
+| `sam.authenticationRbac.users` | list | See default users in values.yaml | Static user role assignments |
+| `sam.authenticationRbac.idpClaims.enabled` | bool | `false` | Enable dynamic role assignment from IDP claims |
+| `sam.authenticationRbac.idpClaims.oidcProvider` | string | `"oidc"` | OIDC provider name for IDP claims |
+| `sam.authenticationRbac.idpClaims.claimKey` | string | `"groups"` | Claim key containing group/role information |
+| `sam.authenticationRbac.idpClaims.mappings` | object | `{}` | Map IDP claim values to SAM roles |
+| `sam.authenticationRbac.defaultRoles` | list | `["sam_user"]` | Default roles assigned when no explicit role match found |
+| `sam.taskLogging.enabled` | bool | `true` | Enable SAM logging during task execution |
+| `sam.taskLogging.logStatusUpdates` | bool | `true` | Log status updates during tasks |
+| `sam.taskLogging.logArtifactEvents` | bool | `false` | Log artifact events |
+| `sam.taskLogging.logFileParts` | bool | `true` | Log file parts |
+| `sam.taskLogging.maxFilePartSizeBytes` | int | `10240` | Maximum file part size for logging |
+| `sam.taskLogging.hybridBuffer.enabled` | bool | `true` | Enable hybrid buffer for logging |
+| `sam.taskLogging.hybridBuffer.flushThreshold` | int | `10` | Flush threshold for hybrid buffer |
+| `sam.featureEnablement.awsBedrockEnabled` | bool | `true` | Enable AWS Bedrock integration |
+| `sam.featureEnablement.backgroundTasks` | bool | `true` | Enable background tasks feature |
+| `sam.featureEnablement.binaryArtifactPreview` | bool | `true` | Enable binary artifact preview |
 
 ### Broker Configuration (External)
 
 Configure external Solace Event Broker. For production, set `global.broker.embedded: false` and configure these values.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `broker.url` | Solace broker connection URL (e.g., `tcps://broker.messaging.solace.cloud:55443` or `wss://...:443`) | string | `""` |
-| `broker.clientUsername` | Broker username for authentication | string | `""` |
-| `broker.password` | Broker password | string | `""` |
-| `broker.vpn` | Broker VPN name | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `broker.url` | string | `""` | Solace broker connection URL (e.g., `tcps://broker.messaging.solace.cloud:55443` or `wss://...:443`) |
+| `broker.clientUsername` | string | `""` | Broker username for authentication |
+| `broker.password` | string | `""` | Broker password |
+| `broker.vpn` | string | `""` | Broker VPN name |
 
 ### LLM Service Configuration
 
 Configure LLM service here or via SAM UI after installation. All fields are optional.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `llmService.llmServiceEndpoint` | LLM API endpoint (e.g., `https://api.openai.com/v1`) | string | N/A (optional) |
-| `llmService.llmServiceApiKey` | API key for LLM service | string | N/A (optional) |
-| `llmService.planningModel` | Model name for planning tasks (e.g., `gpt-4o`) | string | N/A (optional) |
-| `llmService.generalModel` | Model name for general tasks (e.g., `gpt-4o`) | string | N/A (optional) |
-| `llmService.reportModel` | Model name for reports (optional) | string | N/A (optional) |
-| `llmService.imageModel` | Model name for image generation (e.g., `dall-e-3`, optional) | string | N/A (optional) |
-| `llmService.transcriptionModel` | Model name for audio transcription (e.g., `whisper-1`, optional) | string | N/A (optional) |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `llmService.llmServiceEndpoint` | string | N/A (optional) | LLM API endpoint (e.g., `https://api.openai.com/v1`) |
+| `llmService.llmServiceApiKey` | string | N/A (optional) | API key for LLM service |
+| `llmService.planningModel` | string | N/A (optional) | Model name for planning tasks (e.g., `gpt-4o`) |
+| `llmService.generalModel` | string | N/A (optional) | Model name for general tasks (e.g., `gpt-4o`) |
+| `llmService.reportModel` | string | N/A (optional) | Model name for reports (optional) |
+| `llmService.imageModel` | string | N/A (optional) | Model name for image generation (e.g., `dall-e-3`, optional) |
+| `llmService.transcriptionModel` | string | N/A (optional) | Model name for audio transcription (e.g., `whisper-1`, optional) |
 
 ### Environment Variables
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `extraSecretEnvironmentVars` | Load credentials from existing Kubernetes Secrets. List of objects with `envName`, `secretName`, `secretKey` fields. | list | `[]` |
-| `environmentVariables` | Inject custom environment variables into SAM core containers. Use for feature flags and custom configuration. | object | Feature flags enabled |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `extraSecretEnvironmentVars` | list | `[]` | Load credentials from existing Kubernetes Secrets. List of objects with `envName`, `secretName`, `secretKey` fields. |
+| `environmentVariables` | object | Feature flags enabled | Inject custom environment variables into SAM core containers. Use for feature flags and custom configuration. |
 
 ### Network Configuration - Service
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `service.type` | Kubernetes service type. For production, use `ClusterIP` with Ingress, or `LoadBalancer`/`NodePort` for direct access. | string | `"ClusterIP"` |
-| `service.annotations` | Service annotations for cloud-specific load balancer configuration | object | `{}` |
-| `service.nodePorts.http` | NodePort for HTTP WebUI (30000-32767). Only used if `service.type: NodePort` | string | `""` |
-| `service.nodePorts.https` | NodePort for HTTPS WebUI (30000-32767) | string | `""` |
-| `service.nodePorts.auth` | NodePort for Auth Service (30000-32767) | string | `""` |
-| `service.nodePorts.platformHttp` | NodePort for Platform API HTTP (30000-32767) | string | `""` |
-| `service.nodePorts.platformHttps` | NodePort for Platform API HTTPS (30000-32767) | string | `""` |
-| `service.tls.enabled` | Enable TLS/SSL for LoadBalancer/NodePort (pod-level TLS termination). Not needed for Ingress. | boolean | `false` |
-| `service.tls.existingSecret` | Reference existing kubernetes.io/tls secret for TLS | string | `""` |
-| `service.tls.cert` | TLS certificate (inline). Use `--set-file service.tls.cert=/path/to/tls.crt` | string | `""` |
-| `service.tls.key` | TLS key (inline). Use `--set-file service.tls.key=/path/to/tls.key` | string | `""` |
-| `service.tls.passphrase` | TLS key passphrase | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `service.type` | string | `"ClusterIP"` | Kubernetes service type. For production, use `ClusterIP` with Ingress, or `LoadBalancer`/`NodePort` for direct access. |
+| `service.annotations` | object | `{}` | Service annotations for cloud-specific load balancer configuration |
+| `service.nodePorts.http` | string | `""` | NodePort for HTTP WebUI (30000-32767). Only used if `service.type: NodePort` |
+| `service.nodePorts.https` | string | `""` | NodePort for HTTPS WebUI (30000-32767) |
+| `service.nodePorts.auth` | string | `""` | NodePort for Auth Service (30000-32767) |
+| `service.nodePorts.platformHttp` | string | `""` | NodePort for Platform API HTTP (30000-32767) |
+| `service.nodePorts.platformHttps` | string | `""` | NodePort for Platform API HTTPS (30000-32767) |
+| `service.tls.enabled` | bool | `false` | Enable TLS/SSL for LoadBalancer/NodePort (pod-level TLS termination). Not needed for Ingress. |
+| `service.tls.existingSecret` | string | `""` | Reference existing kubernetes.io/tls secret for TLS |
+| `service.tls.cert` | string | `""` | TLS certificate (inline). Use `--set-file service.tls.cert=/path/to/tls.crt` |
+| `service.tls.key` | string | `""` | TLS key (inline). Use `--set-file service.tls.key=/path/to/tls.key` |
+| `service.tls.passphrase` | string | `""` | TLS key passphrase |
 
 ### Network Configuration - Ingress
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `ingress.enabled` | Enable Ingress for HTTP/HTTPS routing. For production, set to `true`. | boolean | `false` |
-| `ingress.className` | Ingress controller class name (e.g., `nginx`, `alb`, `traefik`, `gce`) | string | `""` |
-| `ingress.annotations` | Ingress annotations (vary by controller). Examples in values.yaml for NGINX, ALB. | object | `{}` |
-| `ingress.autoConfigurePaths` | Automatically configure all required ingress paths (platform API, auth, webui). Recommended. | boolean | `true` |
-| `ingress.host` | Hostname for ingress. Leave empty for ALB (accepts all hostnames). Required for NGINX/other name-based controllers. | string | `""` |
-| `ingress.hosts` | Manual hosts/paths configuration. Only used when `autoConfigurePaths: false`. | list | `[]` |
-| `ingress.tls` | TLS configuration for ingress. Entries trigger HTTPS URL generation (required for OIDC redirects). | list | `[]` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `ingress.enabled` | bool | `false` | Enable Ingress for HTTP/HTTPS routing. For production, set to `true`. |
+| `ingress.className` | string | `""` | Ingress controller class name (e.g., `nginx`, `alb`, `traefik`, `gce`) |
+| `ingress.annotations` | object | `{}` | Ingress annotations (vary by controller). Examples in values.yaml for NGINX, ALB. |
+| `ingress.autoConfigurePaths` | bool | `true` | Automatically configure all required ingress paths (platform API, auth, webui). Recommended. |
+| `ingress.host` | string | `""` | Hostname for ingress. Leave empty for ALB (accepts all hostnames). Required for NGINX/other name-based controllers. |
+| `ingress.hosts` | list | `[]` | Manual hosts/paths configuration. Only used when `autoConfigurePaths: false`. |
+| `ingress.tls` | list | `[]` | TLS configuration for ingress. Entries trigger HTTPS URL generation (required for OIDC redirects). |
 
 ### Persistence - External Datastores
 
 Configure external PostgreSQL database and object storage. For production, set `global.persistence.enabled: false` and configure these values.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `dataStores.database.protocol` | Database protocol | string | `"postgresql+psycopg2"` |
-| `dataStores.database.host` | PostgreSQL hostname (e.g., `mydb.us-east-1.rds.amazonaws.com`) | string | `""` |
-| `dataStores.database.port` | PostgreSQL port | string | `"5432"` |
-| `dataStores.database.adminUsername` | PostgreSQL admin user (used to create SAM application users) | string | `""` |
-| `dataStores.database.adminPassword` | PostgreSQL admin password | string | `""` |
-| `dataStores.database.applicationPassword` | Shared password for all SAM database users (webui, orchestrator, platform, agents). **Required** for external persistence. | string | `""` |
-| `dataStores.database.supabaseTenantId` | Supabase project ID. Required when using Supabase connection pooler. | string | `""` |
-| `dataStores.objectStorage.type` | Object storage type: `s3`, `azure`, or `gcs` | string | `"s3"` |
-| `dataStores.objectStorage.workloadIdentity.enabled` | Enable cloud-native auth (AWS IRSA, Azure WI, GCP WI) instead of access keys | boolean | `false` |
-| `dataStores.s3.endpointUrl` | S3 endpoint URL. Leave empty for AWS S3. Set for MinIO or other S3-compatible stores. | string | `""` |
-| `dataStores.s3.bucketName` | S3 bucket for artifact storage | string | `""` |
-| `dataStores.s3.connectorSpecBucketName` | S3 bucket for connector specs (can be same as bucketName) | string | `""` |
-| `dataStores.s3.accessKey` | S3 access key ID. Omit when using workload identity. | string | `""` |
-| `dataStores.s3.secretKey` | S3 secret access key. Omit when using workload identity. | string | `""` |
-| `dataStores.s3.region` | AWS S3 region | string | `"us-east-1"` |
-| `dataStores.azure.accountName` | Azure storage account name | string | `""` |
-| `dataStores.azure.accountKey` | Azure storage account key. Omit when using workload identity. | string | `""` |
-| `dataStores.azure.connectionString` | Azure storage connection string. Alternative to accountName/accountKey. | string | `""` |
-| `dataStores.azure.containerName` | Azure Blob container for artifacts | string | `""` |
-| `dataStores.azure.connectorSpecContainerName` | Azure Blob container for connector specs | string | `""` |
-| `dataStores.gcs.project` | GCP project ID | string | `""` |
-| `dataStores.gcs.credentialsJson` | GCS service account JSON credentials. Omit when using workload identity. | string | `""` |
-| `dataStores.gcs.bucketName` | GCS bucket for artifacts | string | `""` |
-| `dataStores.gcs.connectorSpecBucketName` | GCS bucket for connector specs | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `dataStores.database.protocol` | string | `"postgresql+psycopg2"` | Database protocol |
+| `dataStores.database.host` | string | `""` | PostgreSQL hostname (e.g., `mydb.us-east-1.rds.amazonaws.com`) |
+| `dataStores.database.port` | string | `"5432"` | PostgreSQL port |
+| `dataStores.database.adminUsername` | string | `""` | PostgreSQL admin user (used to create SAM application users) |
+| `dataStores.database.adminPassword` | string | `""` | PostgreSQL admin password |
+| `dataStores.database.applicationPassword` | string | `""` | Shared password for all SAM database users (webui, orchestrator, platform, agents). **Required** for external persistence. |
+| `dataStores.database.supabaseTenantId` | string | `""` | Supabase project ID. Required when using Supabase connection pooler. |
+| `dataStores.objectStorage.type` | string | `"s3"` | Object storage type: `s3`, `azure`, or `gcs` |
+| `dataStores.objectStorage.workloadIdentity.enabled` | bool | `false` | Enable cloud-native auth (AWS IRSA, Azure WI, GCP WI) instead of access keys |
+| `dataStores.s3.endpointUrl` | string | `""` | S3 endpoint URL. Leave empty for AWS S3. Set for MinIO or other S3-compatible stores. |
+| `dataStores.s3.bucketName` | string | `""` | S3 bucket for artifact storage |
+| `dataStores.s3.connectorSpecBucketName` | string | `""` | S3 bucket for connector specs (can be same as bucketName) |
+| `dataStores.s3.accessKey` | string | `""` | S3 access key ID. Omit when using workload identity. |
+| `dataStores.s3.secretKey` | string | `""` | S3 secret access key. Omit when using workload identity. |
+| `dataStores.s3.region` | string | `"us-east-1"` | AWS S3 region |
+| `dataStores.azure.accountName` | string | `""` | Azure storage account name |
+| `dataStores.azure.accountKey` | string | `""` | Azure storage account key. Omit when using workload identity. |
+| `dataStores.azure.connectionString` | string | `""` | Azure storage connection string. Alternative to accountName/accountKey. |
+| `dataStores.azure.containerName` | string | `""` | Azure Blob container for artifacts |
+| `dataStores.azure.connectorSpecContainerName` | string | `""` | Azure Blob container for connector specs |
+| `dataStores.gcs.project` | string | `""` | GCP project ID |
+| `dataStores.gcs.credentialsJson` | string | `""` | GCS service account JSON credentials. Omit when using workload identity. |
+| `dataStores.gcs.bucketName` | string | `""` | GCS bucket for artifacts |
+| `dataStores.gcs.connectorSpecBucketName` | string | `""` | GCS bucket for connector specs |
 
 ### SAM Deployment
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `samDeployment.serviceAccount.name` | Service account name. Auto-generates `{release}-solace-agent-mesh-core-sa` when empty. Set explicitly for workload identity. | string | `""` |
-| `samDeployment.serviceAccount.annotations` | Service account annotations for workload identity (AWS IRSA, Azure WI, GCP WI) | object | `{}` |
-| `samDeployment.imagePullSecret` | Image pull secret attached to SAM service accounts. Using `global.imagePullSecrets` is preferred. | string | `""` |
-| `samDeployment.image.registry` | Overrides `global.imageRegistry` for SAM image only | string | `""` |
-| `samDeployment.image.repository` | SAM application image repository | string | `"solace-agent-mesh-enterprise"` |
-| `samDeployment.image.tag` | SAM application image tag | string | `"1.143.0"` |
-| `samDeployment.image.digest` | SAM image digest. Takes precedence over tag when set. | string | `""` |
-| `samDeployment.image.pullPolicy` | Image pull policy | string | `"IfNotPresent"` |
-| `samDeployment.agentDeployer.image.registry` | Overrides `global.imageRegistry` for agent deployer image only | string | `""` |
-| `samDeployment.agentDeployer.image.repository` | Agent deployer image repository | string | `"sam-agent-deployer"` |
-| `samDeployment.agentDeployer.image.tag` | Agent deployer image tag | string | `"1.8.2"` |
-| `samDeployment.agentDeployer.image.digest` | Agent deployer image digest | string | `""` |
-| `samDeployment.agentDeployer.image.pullPolicy` | Agent deployer pull policy | string | `"IfNotPresent"` |
-| `samDeployment.agentDeployer.version` | Agent deployer version identifier | string | `"k8s-2.0.0"` |
-| `samDeployment.agentDeployer.chartVersion` | Agent chart version | string | `"2.0.0"` |
-| `samDeployment.dbInit.image.registry` | Database init container image registry override | string | `""` |
-| `samDeployment.dbInit.image.repository` | Database init container image | string | `"postgres"` |
-| `samDeployment.dbInit.image.tag` | Database init container tag | string | `"18.0-trixie"` |
-| `samDeployment.dbInit.image.digest` | Database init image digest | string | `""` |
-| `samDeployment.dbInit.image.pullPolicy` | Database init pull policy | string | `"IfNotPresent"` |
-| `samDeployment.customCA.enabled` | Enable custom CA certificate injection via ConfigMap | boolean | `false` |
-| `samDeployment.customCA.configMapName` | ConfigMap name containing custom CA certificates (`.crt` files) | string | `"truststore"` |
-| `samDeployment.rollout.strategy` | Deployment rollout strategy | string | `"RollingUpdate"` |
-| `samDeployment.podSecurityContext.runAsUser` | Pod security context user ID | integer | `10001` |
-| `samDeployment.podSecurityContext.fsGroup` | Pod security context filesystem group ID | integer | `10002` |
-| `samDeployment.securityContext.allowPrivilegeEscalation` | Allow privilege escalation | boolean | `false` |
-| `samDeployment.securityContext.runAsUser` | Container runs as user ID | integer | `999` |
-| `samDeployment.securityContext.runAsGroup` | Container runs as group ID | integer | `999` |
-| `samDeployment.securityContext.runAsNonRoot` | Enforce non-root container | boolean | `true` |
-| `samDeployment.nodeSelector` | Node selector for pod placement | object | `{}` |
-| `samDeployment.tolerations` | Tolerations for pod scheduling | list | `[]` |
-| `samDeployment.annotations` | Deployment annotations | object | `{}` |
-| `samDeployment.podAnnotations` | Pod annotations | object | `{}` |
-| `samDeployment.podLabels` | Pod labels | object | `{}` |
-| `samDeployment.resources.sam.requests.cpu` | CPU request for SAM core container | string | `"1000m"` |
-| `samDeployment.resources.sam.requests.memory` | Memory request for SAM core container | string | `"1024Mi"` |
-| `samDeployment.resources.sam.limits.cpu` | CPU limit for SAM core container | string | `"2000m"` |
-| `samDeployment.resources.sam.limits.memory` | Memory limit for SAM core container | string | `"2048Mi"` |
-| `samDeployment.resources.agentDeployer.requests.cpu` | CPU request for agent deployer container | string | `"100m"` |
-| `samDeployment.resources.agentDeployer.requests.memory` | Memory request for agent deployer container | string | `"256Mi"` |
-| `samDeployment.resources.agentDeployer.limits.cpu` | CPU limit for agent deployer container | string | `"200m"` |
-| `samDeployment.resources.agentDeployer.limits.memory` | Memory limit for agent deployer container | string | `"512Mi"` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `samDeployment.serviceAccount.name` | string | `""` | Service account name. Auto-generates `{release}-solace-agent-mesh-core-sa` when empty. Set explicitly for workload identity. |
+| `samDeployment.serviceAccount.annotations` | object | `{}` | Service account annotations for workload identity (AWS IRSA, Azure WI, GCP WI) |
+| `samDeployment.imagePullSecret` | string | `""` | Image pull secret attached to SAM service accounts. Using `global.imagePullSecrets` is preferred. |
+| `samDeployment.image.registry` | string | `""` | Overrides `global.imageRegistry` for SAM image only |
+| `samDeployment.image.repository` | string | `"solace-agent-mesh-enterprise"` | SAM application image repository |
+| `samDeployment.image.tag` | string | `"1.143.0"` | SAM application image tag |
+| `samDeployment.image.digest` | string | `""` | SAM image digest. Takes precedence over tag when set. |
+| `samDeployment.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
+| `samDeployment.agentDeployer.image.registry` | string | `""` | Overrides `global.imageRegistry` for agent deployer image only |
+| `samDeployment.agentDeployer.image.repository` | string | `"sam-agent-deployer"` | Agent deployer image repository |
+| `samDeployment.agentDeployer.image.tag` | string | `"1.8.2"` | Agent deployer image tag |
+| `samDeployment.agentDeployer.image.digest` | string | `""` | Agent deployer image digest |
+| `samDeployment.agentDeployer.image.pullPolicy` | string | `"IfNotPresent"` | Agent deployer pull policy |
+| `samDeployment.agentDeployer.version` | string | `"k8s-2.0.0"` | Agent deployer version identifier |
+| `samDeployment.agentDeployer.chartVersion` | string | `"2.0.0"` | Agent chart version |
+| `samDeployment.dbInit.image.registry` | string | `""` | Database init container image registry override |
+| `samDeployment.dbInit.image.repository` | string | `"postgres"` | Database init container image |
+| `samDeployment.dbInit.image.tag` | string | `"18.0-trixie"` | Database init container tag |
+| `samDeployment.dbInit.image.digest` | string | `""` | Database init image digest |
+| `samDeployment.dbInit.image.pullPolicy` | string | `"IfNotPresent"` | Database init pull policy |
+| `samDeployment.customCA.enabled` | bool | `false` | Enable custom CA certificate injection via ConfigMap |
+| `samDeployment.customCA.configMapName` | string | `"truststore"` | ConfigMap name containing custom CA certificates (`.crt` files) |
+| `samDeployment.rollout.strategy` | string | `"RollingUpdate"` | Deployment rollout strategy |
+| `samDeployment.podSecurityContext.runAsUser` | int | `10001` | Pod security context user ID |
+| `samDeployment.podSecurityContext.fsGroup` | int | `10002` | Pod security context filesystem group ID |
+| `samDeployment.securityContext.allowPrivilegeEscalation` | bool | `false` | Allow privilege escalation |
+| `samDeployment.securityContext.runAsUser` | int | `999` | Container runs as user ID |
+| `samDeployment.securityContext.runAsGroup` | int | `999` | Container runs as group ID |
+| `samDeployment.securityContext.runAsNonRoot` | bool | `true` | Enforce non-root container |
+| `samDeployment.nodeSelector` | object | `{}` | Node selector for pod placement |
+| `samDeployment.tolerations` | list | `[]` | Tolerations for pod scheduling |
+| `samDeployment.annotations` | object | `{}` | Deployment annotations |
+| `samDeployment.podAnnotations` | object | `{}` | Pod annotations |
+| `samDeployment.podLabels` | object | `{}` | Pod labels |
+| `samDeployment.resources.sam.requests.cpu` | string | `"1000m"` | CPU request for SAM core container |
+| `samDeployment.resources.sam.requests.memory` | string | `"1024Mi"` | Memory request for SAM core container |
+| `samDeployment.resources.sam.limits.cpu` | string | `"2000m"` | CPU limit for SAM core container |
+| `samDeployment.resources.sam.limits.memory` | string | `"2048Mi"` | Memory limit for SAM core container |
+| `samDeployment.resources.agentDeployer.requests.cpu` | string | `"100m"` | CPU request for agent deployer container |
+| `samDeployment.resources.agentDeployer.requests.memory` | string | `"256Mi"` | Memory request for agent deployer container |
+| `samDeployment.resources.agentDeployer.limits.cpu` | string | `"200m"` | CPU limit for agent deployer container |
+| `samDeployment.resources.agentDeployer.limits.memory` | string | `"512Mi"` | Memory limit for agent deployer container |
 
 ### SAM Doctor (Pre-Flight Validation)
 
 Run sam-doctor before install/upgrade to validate configuration. For production, consider enabling to catch configuration issues early.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `samDoctor.enabled` | Run sam-doctor validation before install/upgrade | boolean | `true` |
-| `samDoctor.failOnError` | Block install/upgrade on validation failure. Set to `false` to always proceed. | boolean | `true` |
-| `samDoctor.timeoutSeconds` | Hook job timeout in seconds | integer | `120` |
-| `samDoctor.tlsDnsName` | DNS name for TLS certificate validation. Defaults to `sam.dnsName` if not set. | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `samDoctor.enabled` | bool | `true` | Run sam-doctor validation before install/upgrade |
+| `samDoctor.failOnError` | bool | `true` | Block install/upgrade on validation failure. Set to `false` to always proceed. |
+| `samDoctor.timeoutSeconds` | int | `120` | Hook job timeout in seconds |
+| `samDoctor.tlsDnsName` | string | `""` | DNS name for TLS certificate validation. Defaults to `sam.dnsName` if not set. |
 
 ### Bundled Components - Persistence Layer
 
 Configure embedded PostgreSQL and SeaweedFS. Only used when `global.persistence.enabled: true`. Not recommended for production.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `persistence-layer.postgresql.serviceAccountName` | Service account for PostgreSQL pod | string | `""` |
-| `persistence-layer.postgresql.commonLabels` | Common labels applied to PostgreSQL resources | object | `{"app.kubernetes.io/service": "database"}` |
-| `persistence-layer.postgresql.imagePullSecrets` | Image pull secrets for PostgreSQL image (merged with `global.imagePullSecrets`) | list | `[]` |
-| `persistence-layer.postgresql.image.registry` | Overrides `global.imageRegistry` for PostgreSQL image | string | `""` |
-| `persistence-layer.postgresql.image.repository` | PostgreSQL image repository | string | `"postgres"` |
-| `persistence-layer.postgresql.image.tag` | PostgreSQL image tag | string | `"18.0-trixie"` |
-| `persistence-layer.postgresql.image.digest` | PostgreSQL image digest | string | `""` |
-| `persistence-layer.seaweedfs.serviceAccountName` | Service account for SeaweedFS pod | string | `""` |
-| `persistence-layer.seaweedfs.commonLabels` | Common labels applied to SeaweedFS resources | object | `{"app.kubernetes.io/service": "s3"}` |
-| `persistence-layer.seaweedfs.imagePullSecrets` | Image pull secrets for SeaweedFS image (merged with `global.imagePullSecrets`) | list | `[]` |
-| `persistence-layer.seaweedfs.image.registry` | Overrides `global.imageRegistry` for SeaweedFS image | string | `""` |
-| `persistence-layer.seaweedfs.image.repository` | SeaweedFS image repository | string | `"chrislusf/seaweedfs"` |
-| `persistence-layer.seaweedfs.image.tag` | SeaweedFS image tag | string | `"3.97"` |
-| `persistence-layer.seaweedfs.image.digest` | SeaweedFS image digest | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `persistence-layer.postgresql.serviceAccountName` | string | `""` | Service account for PostgreSQL pod |
+| `persistence-layer.postgresql.commonLabels` | object | `{"app.kubernetes.io/service": "database"}` | Common labels applied to PostgreSQL resources |
+| `persistence-layer.postgresql.imagePullSecrets` | list | `[]` | Image pull secrets for PostgreSQL image (merged with `global.imagePullSecrets`) |
+| `persistence-layer.postgresql.image.registry` | string | `""` | Overrides `global.imageRegistry` for PostgreSQL image |
+| `persistence-layer.postgresql.image.repository` | string | `"postgres"` | PostgreSQL image repository |
+| `persistence-layer.postgresql.image.tag` | string | `"18.0-trixie"` | PostgreSQL image tag |
+| `persistence-layer.postgresql.image.digest` | string | `""` | PostgreSQL image digest |
+| `persistence-layer.seaweedfs.serviceAccountName` | string | `""` | Service account for SeaweedFS pod |
+| `persistence-layer.seaweedfs.commonLabels` | object | `{"app.kubernetes.io/service": "s3"}` | Common labels applied to SeaweedFS resources |
+| `persistence-layer.seaweedfs.imagePullSecrets` | list | `[]` | Image pull secrets for SeaweedFS image (merged with `global.imagePullSecrets`) |
+| `persistence-layer.seaweedfs.image.registry` | string | `""` | Overrides `global.imageRegistry` for SeaweedFS image |
+| `persistence-layer.seaweedfs.image.repository` | string | `"chrislusf/seaweedfs"` | SeaweedFS image repository |
+| `persistence-layer.seaweedfs.image.tag` | string | `"3.97"` | SeaweedFS image tag |
+| `persistence-layer.seaweedfs.image.digest` | string | `""` | SeaweedFS image digest |
 
 ### Bundled Components - Embedded Broker
 
 Configure embedded Solace PubSub+ broker. Only used when `global.broker.embedded: true`. Not recommended for production.
 
-| Parameter | Description | Type | Default |
-|-----------|-------------|------|---------|
-| `embeddedBroker.imagePullSecrets` | Image pull secrets for broker image (merged with `global.imagePullSecrets`) | list | `[]` |
-| `embeddedBroker.image.registry` | Overrides `global.imageRegistry` for broker image | string | `""` |
-| `embeddedBroker.image.repository` | Solace broker image repository | string | `"solace-pubsub-enterprise"` |
-| `embeddedBroker.image.tag` | Solace broker image tag | string | `"10.25.0.193-multi-arch"` |
-| `embeddedBroker.image.digest` | Solace broker image digest | string | `""` |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `embeddedBroker.imagePullSecrets` | list | `[]` | Image pull secrets for broker image (merged with `global.imagePullSecrets`) |
+| `embeddedBroker.image.registry` | string | `""` | Overrides `global.imageRegistry` for broker image |
+| `embeddedBroker.image.repository` | string | `"solace-pubsub-enterprise"` | Solace broker image repository |
+| `embeddedBroker.image.tag` | string | `"10.25.0.193-multi-arch"` | Solace broker image tag |
+| `embeddedBroker.image.digest` | string | `""` | Solace broker image digest |
 
 ---
 
