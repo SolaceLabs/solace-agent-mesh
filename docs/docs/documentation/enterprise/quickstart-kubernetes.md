@@ -84,7 +84,7 @@ persistence-layer:
 
 **Image Registry Configuration:**
 
-By default, all images (including embedded components) pull from Solace's GCR registry (`gcr.io/gcp-maas-prod`). This requires an image pull secret.
+By default, all images (including embedded components) pull from Solace's GCR registry (`gcr.io/gcp-maas-prod`). This requires a GCR credentials file provided by Solace.
 
 **Default Embedded Component Images:**
 
@@ -95,6 +95,28 @@ By default, all images (including embedded components) pull from Solace's GCR re
 | **Solace Broker** | `solace-pubsub-enterprise` | `10.25.0.193-multi-arch` | `gcr.io/gcp-maas-prod/solace-pubsub-enterprise:10.25.0.193-multi-arch` |
 
 The chart inherits `global.imageRegistry` for all components automatically. No additional configuration needed unless using a custom registry.
+
+**GCR Credentials File:**
+
+Solace provides a JSON credentials file for authenticating with the GCR registry. Before using it, verify the file is in the expected dockerconfigjson format:
+
+```json
+{
+  ".dockerconfigjson": "<base64-encoded-auth>"
+}
+```
+
+Pass this file to Helm using `--set-file` — the chart automatically creates the pull secret and injects it into all pod specs:
+
+```bash
+helm install sam solace/solace-agent-mesh \
+  --namespace sam \
+  --set-file global.imagePullKey=sam-pull-credentials.json
+```
+
+:::info
+`global.imagePullKey` and `global.imagePullSecrets` are mutually exclusive. Use `imagePullKey` to let the chart manage the pull secret automatically, or `imagePullSecrets` to reference a pre-created secret — not both.
+:::
 
 :::warning Important Caveats
 - **PVCs persist after uninstall:** When you run `helm uninstall`, PersistentVolumeClaims are NOT automatically deleted (prevents accidental data loss). To clean up: `kubectl delete pvc -l app.kubernetes.io/namespace-id=<your-namespace-id>`
@@ -123,13 +145,15 @@ The chart inherits `global.imageRegistry` for all components automatically. No a
 
 ## Step 3: Install with Zero Configuration
 
-Install SAM with zero required configuration:
+Install SAM using the GCR credentials file downloaded from Solace Cloud:
 
 ```bash
-helm install sam solace/solace-agent-mesh --namespace sam
+helm install sam solace/solace-agent-mesh \
+  --namespace sam \
+  --set-file global.imagePullKey=sam-pull-credentials.json
 ```
 
-No values file needed - the chart defaults are optimized for quickstart evaluation.
+The chart defaults are optimized for quickstart evaluation — no values file needed beyond the credentials.
 
 **What gets deployed** (chart defaults):
 
