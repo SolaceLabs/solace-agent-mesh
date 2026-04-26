@@ -195,9 +195,7 @@ global:
 
 ### Minimal Air-Gapped Configuration
 
-Create an airgap overrides file (`airgap-overrides.yaml`) with the following settings:
-
-**Configure Private Registry:**
+The only required change for an air-gapped deployment is pointing to your private registry. Create an `airgap-overrides.yaml` with:
 
 ```yaml
 global:
@@ -207,35 +205,12 @@ global:
 
 For registry authentication, see [Step 6: Configuring Image Pull Secrets](#step-6-configuring-image-pull-secrets).
 
-**Enable Bundled Agent Charts:**
+This is sufficient for **evaluation** — embedded broker and persistence are used by default, just as in the [Kubernetes Quick Start](./quickstart-kubernetes.md).
 
-```yaml
-samDeployment:
-  agentDeployer:
-    localCharts:
-      enabled: true  # Use bundled agent chart instead of remote
-```
+For **production** air-gapped deployments, also configure external components — see [Core Configuration](./production-kubernetes.md#core-configuration) in the Production guide.
 
-**Disable Embedded Components (use external):**
-
-```yaml
-global:
-  broker:
-    embedded: false  # Use external Solace broker in air-gapped network
-  persistence:
-    enabled: false   # Use external datastores in air-gapped network
-
-broker:
-  url: "tcps://broker.internal.example.com:55443"
-  # ... other broker config
-
-dataStores:
-  # ... external datastore config
-```
-
-:::info Remote vs Local Agent Charts
-- **Remote mode** (`localCharts.enabled: false`): Agent charts fetched from `samDeployment.agentDeployer.chartBaseUrl`
-- **Air-gapped mode** (`localCharts.enabled: true`): Agent charts bundled within the installation
+:::info Bundled Agent Charts
+The SAM Helm chart always bundles the agent chart (as `sam-agent-{version}.tgz`). No additional configuration is required to enable local chart support for air-gapped deployments — it works out of the box.
 :::
 
 ### Production Air-Gapped Configuration
