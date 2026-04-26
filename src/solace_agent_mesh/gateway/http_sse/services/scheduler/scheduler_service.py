@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.middleware.config_resolver import AUTH_MODE_SCHEDULED
 from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
@@ -1043,7 +1044,7 @@ class SchedulerService:
             gateway_context = {
                 "gateway_id": self.gateway_id,
                 "gateway_app_config": {},
-                "auth_mode": "scheduled",
+                "auth_mode": AUTH_MODE_SCHEDULED,
                 "scheduling_user_id": effective_user,
             }
             user_config = await config_resolver.resolve_user_config(
@@ -1051,19 +1052,20 @@ class SchedulerService:
             )
             user_config["user_profile"] = user_identity
             log.info(
-                "[SchedulerService:%s] Resolved user config for '%s' (auth_mode=scheduled) "
+                "[SchedulerService:%s] Resolved user config for '%s' (auth_mode=%s) "
                 "with %d enterprise capabilities",
                 self.instance_id,
                 effective_user,
+                AUTH_MODE_SCHEDULED,
                 len(user_config.get("_enterprise_capabilities", [])),
             )
             return user_config
         except Exception as e:
             log.warning(
                 "[SchedulerService:%s] Failed to resolve user config for '%s' "
-                "(auth_mode=scheduled): %s. Peer-agent calls that require "
+                "(auth_mode=%s): %s. Peer-agent calls that require "
                 "user-delegated credentials will fail.",
-                self.instance_id, effective_user, e,
+                self.instance_id, effective_user, AUTH_MODE_SCHEDULED, e,
             )
             return None
 
