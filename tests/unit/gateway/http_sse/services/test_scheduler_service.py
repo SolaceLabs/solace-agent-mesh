@@ -1593,3 +1593,195 @@ class TestIntervalFireImmediately:
         assert isinstance(trigger, _DateTrigger)
         # run_date stays at the declared time
         assert trigger.run_date.year == 2099
+
+
+# ===========================================================================
+# _resolve_user_config_for_task
+# ===========================================================================
+
+class TestResolveUserConfigForTask:
+    """Tests for ``_resolve_user_config_for_task``.
+
+    The shape of the values passed to ``ConfigResolver.resolve_user_config``
+    is on the RBAC-adjacent path: a wrong ``gateway_id`` once caused enterprise
+    role lookups to silently miss, and a non-email value in
+    ``user_info["email"]`` would silently mis-scope downstream agents that
+    key behavior off the user's email (e.g. the Salesforce agent's
+    ``_get_user_email``). These tests pin the contract.
+    """
+
+    @staticmethod
+    def _patch_resolver(returned_config=None):
+        """Build a patcher for ``MiddlewareRegistry.get_config_resolver``.
+
+        Returns the AsyncMock that captures ``resolve_user_config`` call args
+        so the test can introspect what the scheduler passed.
+        """
+        resolver = MagicMock()
+        resolver.resolve_user_config = AsyncMock(
+            return_value=returned_config if returned_config is not None else {}
+        )
+        return resolver, patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.MiddlewareRegistry.get_config_resolver",
+            return_value=resolver,
+        )
+
+    @pytest.mark.asyncio
+    async def test_uses_host_gateway_id_not_synthetic(self):
+        """``gateway_id`` must be the host gateway id so RBAC config lookups
+        hit the same authorization service the user is enrolled in."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver, patcher = self._patch_resolver()
+        with patcher:
+            await service._resolve_user_config_for_task("alice@example.com", "alice@example.com")
+
+        _, gateway_context, _ = resolver.resolve_user_config.call_args.args
+        assert gateway_context["gateway_id"] == "webui_backend"
+        assert not gateway_context["gateway_id"].startswith("scheduler_")
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_synthetic_gateway_id_when_not_threaded(self):
+        """Legacy callers that don't pass ``gateway_id`` get a synthetic id
+        based on instance_id, preserving the prior behavior."""
+        from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
+            SchedulerService,
+        )
+
+        @contextmanager
+        def factory():
+            yield MagicMock()
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.ResultHandler"
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.NotificationService"
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.AsyncIOScheduler"
+        ):
+            service = SchedulerService(
+                session_factory=factory,
+                namespace="ns1",
+                instance_id="inst-xyz",
+                publish_func=MagicMock(),
+                core_a2a_service=MagicMock(),
+                config={},
+                # gateway_id intentionally omitted
+            )
+
+        assert service.gateway_id == "scheduler_inst-xyz"
+
+    @pytest.mark.asyncio
+    async def test_signals_auth_mode_scheduled(self):
+        """The resolver must receive ``auth_mode="scheduled"`` so an
+        enterprise implementation can route to the no-request code path
+        (load stored credentials, refresh tokens, etc.) rather than trying
+        to read ``request.state.user``."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver, patcher = self._patch_resolver()
+        with patcher:
+            await service._resolve_user_config_for_task("alice@example.com", "alice@example.com")
+
+        _, gateway_context, _ = resolver.resolve_user_config.call_args.args
+        assert gateway_context["auth_mode"] == "scheduled"
+        assert gateway_context["scheduling_user_id"] == "alice@example.com"
+
+    @pytest.mark.asyncio
+    async def test_user_identity_carries_email_when_user_id_is_email(self):
+        """When the user_id is an email, both ``user_identity`` and
+        ``user_info`` must carry it. Downstream agents (e.g. Salesforce)
+        walk ``_user_identity["user_info"]["email"]``."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver, patcher = self._patch_resolver()
+        with patcher:
+            await service._resolve_user_config_for_task("alice@example.com", "creator@example.com")
+
+        user_identity, _, _ = resolver.resolve_user_config.call_args.args
+        assert user_identity["id"] == "alice@example.com"
+        assert user_identity["email"] == "alice@example.com"
+        assert user_identity["user_info"]["email"] == "alice@example.com"
+        assert user_identity["user_info"]["auth_method"] == "scheduled"
+        assert user_identity["user_info"]["authenticated"] is True
+
+    @pytest.mark.asyncio
+    async def test_email_omitted_when_user_id_is_not_email(self):
+        """Critical: a non-email user_id (UUID, "system-scheduler", session id)
+        must NOT land in ``user_info["email"]``. Better to fail-fast in the
+        downstream agent ("email not available") than to silently mis-scope
+        per-user behavior with a non-email string."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver, patcher = self._patch_resolver()
+        with patcher:
+            await service._resolve_user_config_for_task("system-scheduler", None)
+
+        user_identity, _, _ = resolver.resolve_user_config.call_args.args
+        assert user_identity["id"] == "system-scheduler"
+        assert "email" not in user_identity
+        assert "email" not in user_identity["user_info"]
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_resolver_failure(self):
+        """If the resolver raises, the scheduler must not crash — it returns
+        None and logs a warning. Downstream callers proceed without
+        user_config (peer-agent calls that need user-delegated creds will
+        fail loudly at the agent, not silently here)."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver = MagicMock()
+        resolver.resolve_user_config = AsyncMock(side_effect=RuntimeError("boom"))
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service.MiddlewareRegistry.get_config_resolver",
+            return_value=resolver,
+        ):
+            result = await service._resolve_user_config_for_task("alice@example.com", None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_falls_back_through_user_id_then_created_by_then_system(self):
+        """Effective user precedence: user_id → created_by → 'system-scheduler'."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        for user_id, created_by, expected in [
+            ("alice@example.com", "bob@example.com", "alice@example.com"),
+            (None, "bob@example.com", "bob@example.com"),
+            (None, None, "system-scheduler"),
+            ("", "", "system-scheduler"),
+        ]:
+            resolver, patcher = self._patch_resolver()
+            with patcher:
+                await service._resolve_user_config_for_task(user_id, created_by)
+            user_identity, gateway_context, _ = resolver.resolve_user_config.call_args.args
+            assert user_identity["id"] == expected, (
+                f"user_id={user_id!r}, created_by={created_by!r} → "
+                f"expected {expected!r}, got {user_identity['id']!r}"
+            )
+            assert gateway_context["scheduling_user_id"] == expected
+
+    @pytest.mark.asyncio
+    async def test_attaches_user_profile_to_returned_config(self):
+        """The resolved config must carry ``user_profile`` so downstream
+        code can read the scheduling user's identity even after the resolver
+        has merged it with capability scopes."""
+        service, _ = _build_scheduler_service()
+        service.gateway_id = "webui_backend"
+
+        resolver, patcher = self._patch_resolver(
+            returned_config={"_enterprise_capabilities": ["agent:Salesforce:invoke"]}
+        )
+        with patcher:
+            result = await service._resolve_user_config_for_task("alice@example.com", None)
+
+        assert result is not None
+        assert result["user_profile"]["id"] == "alice@example.com"
+        assert result["user_profile"]["email"] == "alice@example.com"
+        assert result["_enterprise_capabilities"] == ["agent:Salesforce:invoke"]

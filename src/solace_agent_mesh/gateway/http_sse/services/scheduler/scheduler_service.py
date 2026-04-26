@@ -1015,12 +1015,19 @@ class SchedulerService:
             # walk _user_identity["user_info"]["email"] to scope per-user
             # behavior; without these fields the agent fails with
             # "User email not available. Cannot load schema."
-            is_email = isinstance(effective_user, str) and "@" in effective_user
-            user_email = effective_user if is_email else None
+            # Only populate email when the identity actually looks like one.
+            # Downstream agents (e.g. the Salesforce agent's _get_user_email)
+            # treat a missing key as "no email available" and fail cleanly;
+            # handing them a non-email value (UUID, "system-scheduler", etc.)
+            # would silently produce wrong behavior.
+            user_email = (
+                effective_user
+                if isinstance(effective_user, str) and "@" in effective_user
+                else None
+            )
             user_info = {
                 "id": effective_user,
                 "user_id": effective_user,
-                "email": user_email or effective_user,
                 "name": effective_user,
                 "authenticated": True,
                 "auth_method": "scheduled",
@@ -1028,9 +1035,11 @@ class SchedulerService:
             user_identity = {
                 "id": effective_user,
                 "name": effective_user,
-                "email": user_email or effective_user,
                 "user_info": user_info,
             }
+            if user_email:
+                user_info["email"] = user_email
+                user_identity["email"] = user_email
             gateway_context = {
                 "gateway_id": self.gateway_id,
                 "gateway_app_config": {},
