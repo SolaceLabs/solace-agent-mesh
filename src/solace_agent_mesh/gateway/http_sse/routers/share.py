@@ -5,7 +5,7 @@ API routes for share link functionality.
 import logging
 import os
 import re as _re
-from typing import Optional, List
+from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session as DBSession
@@ -33,6 +33,7 @@ from ..repository.models.share_model import (
     ForkSharedChatResponse,
 )
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse
+from ..services.scheduler.session_resolver import resolve_execution_context
 
 log = logging.getLogger(__name__)
 
@@ -629,27 +630,39 @@ async def get_shared_artifact_content(
         # Use the session_id and user_id from the share link (original owner)
         session_id = share_link.session_id
         owner_user_id = share_link.user_id
-        
+
         # Get project_id from the session
         from ..repository.session_repository import SessionRepository
         session_repo = SessionRepository()
         session = session_repo.find_user_session(db, session_id, owner_user_id)
         project_id = session.project_id if session else None
-        
+
+        # For scheduled-task chats, the chat session_id is per-execution but
+        # artifacts live under the stable task-level session. Resolve and pin
+        # to the version captured by this execution.
+        storage_session_id, execution_artifact_info = resolve_execution_context(session_id)
+        if storage_session_id is None:
+            storage_session_id = session_id
+        load_version: Any = "latest"
+        if execution_artifact_info and filename in execution_artifact_info:
+            pinned = execution_artifact_info[filename]
+            if pinned is not None:
+                load_version = pinned
+
         # Get app_name from the component
         app_name = component.get_config("name", "A2A_WebUI_App")
-        
+
         # Load the artifact content
         from ....agent.utils.artifact_helpers import load_artifact_content_or_metadata
-        
+
         # Try loading from session first, then from project if that fails
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
             user_id=owner_user_id,
-            session_id=session_id,
+            session_id=storage_session_id,
             filename=filename,
-            version="latest",
+            version=load_version,
             load_metadata_only=False,
             return_raw_bytes=True,
         )
