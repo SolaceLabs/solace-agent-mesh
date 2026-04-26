@@ -75,7 +75,7 @@ class TestModelConfigurationAPI:
             expected_fields = {
                 "id", "alias", "provider", "modelName", "apiBase", "authType",
                 "authConfig", "modelParams", "description", "createdBy",
-                "updatedBy", "createdTime", "updatedTime"
+                "updatedBy", "createdTime", "updatedTime", "maxInputTokens"
             }
             assert set(data.keys()) == expected_fields
 

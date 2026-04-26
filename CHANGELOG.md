@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.20.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.0...1.20.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **DATAGO-131321:** enhance visualizer step cards ([#1452](https://github.com/SolaceLabs/solace-agent-mesh/issues/1452)) ([091f987](https://github.com/SolaceLabs/solace-agent-mesh/commit/091f9876982e958f8119e5a3c94e2307e8d70bef))
+* **DATAGO-131500:** Resolve model override for agent's own model alias ([#1438](https://github.com/SolaceLabs/solace-agent-mesh/issues/1438)) ([44e5dce](https://github.com/SolaceLabs/solace-agent-mesh/commit/44e5dceb7d39131c36a4be57f353754f72499aa2))
+* **DATAGO-133094:** reducing status calls ([#1442](https://github.com/SolaceLabs/solace-agent-mesh/issues/1442)) ([18ef571](https://github.com/SolaceLabs/solace-agent-mesh/commit/18ef571ec27411e34e5690fd531bd9dd050ff143))
+* **DATAGO-133559:** Context usage indicator inflates after tasks with peer delegation ([#1453](https://github.com/SolaceLabs/solace-agent-mesh/issues/1453)) ([9658450](https://github.com/SolaceLabs/solace-agent-mesh/commit/96584509304ea2834b199c0be2ab0d8415643514))
+
+## [1.20.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.1...1.20.0) (2026-04-24)
+
+
+### Features
+
+* **DATAGO-113923:** real-time context usage indicator in chat with multiple metrics ([#1236](https://github.com/SolaceLabs/solace-agent-mesh/issues/1236)) ([d2c25fc](https://github.com/SolaceLabs/solace-agent-mesh/commit/d2c25fc8083b0816fe5b1d50372db77de8a93b46))
+
+## [1.19.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.0...1.19.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* **DATAGO-131964:** Investigate delay and visibility issues for scheduled tasks in recent chats ([#1394](https://github.com/SolaceLabs/solace-agent-mesh/issues/1394)) ([79a2ae4](https://github.com/SolaceLabs/solace-agent-mesh/commit/79a2ae4c926a51185f2e8fb0eb8df8898959655e))
+
+
+### Documentation
+
+* **DATAGO-132664:** Restructure Teams gateway setup with Microsoft guide references ([#1437](https://github.com/SolaceLabs/solace-agent-mesh/issues/1437)) ([2487100](https://github.com/SolaceLabs/solace-agent-mesh/commit/24871002256ec0cda9584e7fca972c693fb51fdf))
+
 ## [1.19.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.18.40...1.19.0) (2026-04-21)
 
 

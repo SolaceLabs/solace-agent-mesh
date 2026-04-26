@@ -94,6 +94,7 @@ export interface ModelFormData {
     vertexProject?: string;
     vertexLocation?: string;
     customParams?: Array<{ key: string; value: string }>;
+    maxInputTokens?: string;
     [key: string]: unknown;
 }
 
@@ -394,6 +395,44 @@ export const ALL_PROVIDERS: ModelProvider[] = Object.values(PROVIDER_CONFIGS)
         return a.label.localeCompare(b.label);
     });
 
+export type CustomParamValue = string | number | boolean | null;
+
+// Custom-parameter values are entered as strings but may represent numbers, booleans,
+// or null. We use JSON-literal semantics (like YAML/TOML): unquoted `500` → number,
+// quoted `"500"` → string; same for `true`/`"true"`, `null`/`"null"`. Objects and
+// arrays are not supported — if JSON.parse yields one, we treat the input as a plain string.
+export function coerceCustomParamValue(input: string): CustomParamValue {
+    try {
+        const parsed = JSON.parse(input);
+        if (parsed === null || typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean") {
+            return parsed;
+        }
+        return input;
+    } catch {
+        return input;
+    }
+}
+
+// Inverse of coerceCustomParamValue: produce a form-display string that, when fed back
+// through coerceCustomParamValue, yields the same value. Strings that happen to look
+// like scalar JSON literals (e.g. "500", "true") are quoted so they round-trip as strings.
+// Strings that look like JSON objects/arrays are left as-is — coerce treats those as strings.
+export function formatCustomParamValue(value: CustomParamValue): string {
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            const parsedIsScalar = parsed === null || typeof parsed === "string" || typeof parsed === "number" || typeof parsed === "boolean";
+            if (parsedIsScalar) {
+                return JSON.stringify(value);
+            }
+        } catch {
+            // plain string — display as-is
+        }
+        return value;
+    }
+    return JSON.stringify(value);
+}
+
 /**
  * Build model params and auth config from form data.
  * Shared between save and test connection flows.
@@ -433,7 +472,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
     if (data.customParams && Array.isArray(data.customParams)) {
         data.customParams.forEach((param: { key: string; value: string }) => {
             if (param.key.trim()) {
-                modelParams[param.key] = param.value;
+                modelParams[param.key] = coerceCustomParamValue(param.value);
             }
         });
     }
@@ -519,6 +558,10 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         modelName = `openai/${modelName}`;
     }
 
+    const maxInputTokensRaw = data.maxInputTokens;
+    const maxInputTokensNum = maxInputTokensRaw != null && maxInputTokensRaw !== "" ? Number(maxInputTokensRaw) : null;
+    const maxInputTokens = maxInputTokensNum != null && Number.isFinite(maxInputTokensNum) && maxInputTokensNum >= 1 ? Math.floor(maxInputTokensNum) : null;
+
     return {
         alias: data.alias.trim(),
         provider: data.provider,
@@ -528,6 +571,7 @@ export function buildModelPayload(data: ModelFormData, dirtyFields?: Partial<Rec
         authType: data.authType,
         authConfig,
         modelParams,
+        maxInputTokens,
     };
 }
 

@@ -2502,12 +2502,49 @@ def solace_llm_response_callback(
                 task_context = host_component.active_tasks.get(logical_task_id)
 
             if task_context:
+                # Resolve context-window for this model: admin UI value wins,
+                # LiteLLM registry is fallback, else None. The result is
+                # persisted on the task record so the gateway's indicator can
+                # render without cross-service lookups.
+                max_input_tokens: Optional[int] = None
+                try:
+                    agent_model = getattr(getattr(host_component, "adk_agent", None), "model", None)
+                    if agent_model is not None and hasattr(agent_model, "get_max_input_tokens"):
+                        max_input_tokens = agent_model.get_max_input_tokens()
+                    if log.isEnabledFor(logging.DEBUG):
+                        # Diagnostic-only path. Config dict keys are filtered
+                        # to exclude auth-adjacent names (api_key, token,
+                        # secret, credential, password) to avoid leaking
+                        # sensitive config shape into logs.
+                        component_model_cfg = host_component.get_config("model", None)
+                        if isinstance(component_model_cfg, dict):
+                            _SENSITIVE = ("key", "token", "secret", "credential", "password", "auth")
+                            cfg_keys = [
+                                k for k in component_model_cfg.keys()
+                                if not any(s in str(k).lower() for s in _SENSITIVE)
+                            ]
+                            cfg_max = component_model_cfg.get("max_input_tokens")
+                        else:
+                            cfg_keys = type(component_model_cfg).__name__
+                            cfg_max = None
+                        log.debug(
+                            "%s Resolved max_input_tokens=%s for model=%s (agent_model_type=%s, cfg_keys=%s, cfg_max=%s)",
+                            log_identifier,
+                            max_input_tokens,
+                            model_name,
+                            type(agent_model).__name__ if agent_model else "None",
+                            cfg_keys,
+                            cfg_max,
+                        )
+                except Exception:
+                    log.exception("%s Could not resolve max_input_tokens", log_identifier)
                 task_context.record_token_usage(
                     input_tokens=usage.prompt_token_count,
                     output_tokens=usage.candidates_token_count,
                     model=model_name,
                     source="agent",
                     cached_input_tokens=cached_tokens,
+                    max_input_tokens=max_input_tokens,
                 )
                 log.debug(
                     "%s Recorded token usage: input=%d, output=%d, cached=%d, model=%s",

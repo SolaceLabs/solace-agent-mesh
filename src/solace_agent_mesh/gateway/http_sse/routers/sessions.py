@@ -2,9 +2,12 @@ import asyncio
 import json
 import logging
 import re
+import time
+import uuid
 from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ....common.utils.embeds import (
@@ -14,7 +17,7 @@ from ....common.utils.embeds import (
 )
 from ....common.utils.embeds.types import ResolutionMode
 from ....common.utils.templates import resolve_template_blocks_in_string
-from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_config_resolver, get_user_config
+from ..dependencies import get_session_business_service, get_db, get_title_generation_service, get_shared_artifact_service, get_sac_component, get_config_resolver, get_user_config, get_adk_session_service
 from ..services.session_service import SessionService
 from solace_agent_mesh.shared.api.auth_utils import get_current_user
 from solace_agent_mesh.shared.api.pagination import DataResponse, PaginatedResponse, PaginationParams
@@ -1162,4 +1165,646 @@ async def trigger_title_generation(
         ) from e
 
 
+# =============================================================================
+# Context Usage & Manual Compaction Endpoints
+# =============================================================================
 
+# Fallback model used for token counting when neither the request nor the
+# component config specifies a model.  Callers should prefer the component's
+# configured model (component.model_config) over this constant.
+DEFAULT_MODEL = "claude-sonnet-4-5"
+
+
+class ContextUsageResponse(BaseModel):
+    """Response model for session context window usage."""
+    session_id: str = Field(alias="sessionId")
+    current_context_tokens: int = Field(alias="currentContextTokens")
+    prompt_tokens: int = Field(alias="promptTokens")
+    completion_tokens: int = Field(alias="completionTokens")
+    cached_tokens: int = Field(default=0, alias="cachedTokens")
+    max_input_tokens: Optional[int] = Field(default=None, alias="maxInputTokens")
+    usage_percentage: float = Field(alias="usagePercentage")
+    model: str
+    total_events: int = Field(alias="totalEvents")
+    total_messages: int = Field(default=0, alias="totalMessages")
+    total_tasks: int = Field(default=0, alias="totalTasks")
+    has_compaction: bool = Field(alias="hasCompaction")
+
+    model_config = {"populate_by_name": True}
+
+
+class CompactSessionRequest(BaseModel):
+    """Request model for manual session compaction."""
+    model: Optional[str] = Field(None, description="LLM model name for token counting and summarization")
+    compaction_percentage: float = Field(
+        default=0.25,
+        ge=0.1,
+        le=0.9,
+        description="Percentage of conversation to compact (0.1 - 0.9)",
+    )
+
+
+class CompactSessionResponse(BaseModel):
+    """Response model for session compaction."""
+    events_compacted: int = Field(alias="eventsCompacted")
+    summary: str
+    remaining_events: int = Field(alias="remainingEvents")
+    remaining_tokens: int = Field(alias="remainingTokens")
+
+    model_config = {"populate_by_name": True}
+
+
+def _lookup_configured_context_limit(db: Session, model_name: str) -> Optional[int]:
+    """Resolve the admin-configured context window for a model name.
+
+    Matches against `model_configurations.model_name` first (the raw string the
+    agent reports in `token_usage_details.by_model`), then `alias`. Returns the
+    first non-null `max_input_tokens` — multiple rows can share a `model_name`
+    (several aliases pointing at the same underlying model), so rows with a
+    NULL limit must not shadow rows that have one configured.
+
+    Only resolves in community-standalone deployments where the gateway DB
+    and the platform DB are the same. In enterprise deployments the two DBs
+    are separate, this table isn't reachable from the gateway session, and
+    the client composes the limit from `/api/v1/platform/models` instead.
+    """
+    try:
+        from ....services.platform.models.model_configuration import ModelConfiguration
+    except ImportError:
+        return None
+    try:
+        row = (
+            db.query(ModelConfiguration.max_input_tokens)
+            .filter(ModelConfiguration.model_name == model_name)
+            .filter(ModelConfiguration.max_input_tokens.isnot(None))
+            .first()
+        )
+        if row:
+            return row[0]
+        row = (
+            db.query(ModelConfiguration.max_input_tokens)
+            .filter(ModelConfiguration.alias == model_name)
+            .filter(ModelConfiguration.max_input_tokens.isnot(None))
+            .first()
+        )
+        if row:
+            return row[0]
+    except SQLAlchemyError as e:
+        # Expected in enterprise (table lives in the platform DB) — logged at
+        # WARN the first time per process so it is visible but not noisy.
+        _warn_missing_model_configurations_once(e)
+    return None
+
+
+_model_configurations_warn_logged = False
+
+
+def _warn_missing_model_configurations_once(exc: Exception) -> None:
+    global _model_configurations_warn_logged
+    if _model_configurations_warn_logged:
+        log.debug("ModelConfiguration lookup unavailable: %s", exc)
+        return
+    _model_configurations_warn_logged = True
+    log.warning(
+        "model_configurations not reachable from the gateway DB — falling back. "
+        "In enterprise this is expected; the UI composes the limit from the "
+        "platform service. Underlying error: %s",
+        exc,
+    )
+
+
+def _get_model_context_limit(
+    model_name: str,
+    db: Optional[Session] = None,
+    stamped: Optional[int] = None,
+) -> Optional[int]:
+    """Get model context window limit.
+
+    Resolution order:
+      1. Admin-configured value in `model_configurations.max_input_tokens`
+         (matched by `model_name` then `alias`), when a DB session is provided.
+      2. Stamped value recorded by the agent in `token_usage_details.by_model`
+         (sourced from the agent's shared_config.yaml `max_input_tokens`).
+      3. LiteLLM's registry — try the full name, then strip any provider prefix
+         (e.g. "openai/gpt-4o" → "gpt-4o").
+      4. None — lets the frontend hide the indicator rather than show a wrong
+         denominator.
+    """
+    if db is not None:
+        configured = _lookup_configured_context_limit(db, model_name)
+        if configured:
+            return configured
+
+    if stamped:
+        return stamped
+
+    from litellm import get_model_info
+
+    def _try_lookup(name: str) -> Optional[int]:
+        try:
+            info = get_model_info(name)
+            return info.get("max_input_tokens")
+        except Exception:
+            return None
+
+    result = _try_lookup(model_name)
+    if result is not None:
+        return result
+
+    if "/" in model_name:
+        bare_name = model_name.rsplit("/", 1)[-1]
+        result = _try_lookup(bare_name)
+        if result is not None:
+            log.debug("Resolved max_input_tokens for %s via bare name %s", model_name, bare_name)
+            return result
+
+    log.debug("Could not determine max_input_tokens for model %s", model_name)
+    return None
+
+
+@router.get(
+    "/sessions/{session_id}/context-usage",
+    response_model=ContextUsageResponse,
+    response_model_by_alias=True,
+)
+async def get_session_context_usage(
+    session_id: str,
+    model: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    component=Depends(get_sac_component),
+):
+    """
+    Get context window usage for a session.
+
+    Returns the current token count, model context limit, and usage percentage.
+    Uses the gateway's own tasks and chat_tasks tables as the source of truth
+    for token data (LLM-reported totals from completed tasks).
+    """
+    user_id = user.get("id")
+
+    try:
+        # Validate session exists and belongs to user
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+        # Resolve the model to use for context limit lookup:
+        # 1. Explicit model from request query param
+        # 2. Model configured on the gateway component
+        # 3. Hardcoded fallback constant
+        component_model = None
+        if hasattr(component, "model_config") and isinstance(component.model_config, dict):
+            component_model = component.model_config.get("model")
+        resolved_default_model = component_model or DEFAULT_MODEL
+        effective_model = model or resolved_default_model
+
+        prompt_tokens = 0
+        completion_tokens = 0
+        cached_tokens = 0
+
+        from ..repository.models import ChatTaskModel, TaskEventModel, TaskModel
+        from sqlalchemy import desc
+
+        # Exclude manual-compaction rows — they're system notifications (the
+        # accordion), not user/agent exchanges, and would skew the task and
+        # message counts shown in the chat panel.
+        chat_task_count = (
+            db.query(ChatTaskModel)
+            .filter(
+                ChatTaskModel.session_id == session_id,
+                ChatTaskModel.user_id == user_id,
+                ~ChatTaskModel.id.like("manual-compaction-%"),
+            )
+            .count()
+        )
+        total_tasks = chat_task_count
+        total_messages = chat_task_count * 2
+
+        # Peer subtasks (a2a_subtask_*) share this gateway session_id for
+        # observability but represent a different agent's internal work. Their
+        # token counts must not feed the current-agent context indicator, and
+        # their later start_time would otherwise trick the agent-switch filter
+        # below into treating the peer as the "current agent" whenever a peer
+        # completion is the most-recent row in the session.
+        completed_tasks = (
+            db.query(TaskModel)
+            .filter(
+                TaskModel.session_id == session_id,
+                TaskModel.user_id == user_id,
+                TaskModel.total_input_tokens.isnot(None),
+                ~TaskModel.id.like("a2a_subtask_%"),
+            )
+            .order_by(desc(TaskModel.start_time))
+            .all()
+        )
+
+        # Filter tasks to the session's active agent — ADK sessions are keyed by
+        # (app_name, user_id, session_id), so switching agents mid-session starts a
+        # fresh context window. Tokens accumulated under the previous agent must not
+        # leak into the new agent's indicator.
+        if completed_tasks:
+            task_ids = [t.id for t in completed_tasks]
+            request_events = (
+                db.query(TaskEventModel)
+                .filter(
+                    TaskEventModel.task_id.in_(task_ids),
+                    TaskEventModel.direction == "request",
+                )
+                .order_by(TaskEventModel.task_id, TaskEventModel.created_time.asc())
+                .all()
+            )
+            first_request_by_task: dict[str, TaskEventModel] = {}
+            for ev in request_events:
+                first_request_by_task.setdefault(ev.task_id, ev)
+
+            def _task_agent(task_id: str) -> Optional[str]:
+                ev = first_request_by_task.get(task_id)
+                if not ev or not ev.payload:
+                    return None
+                try:
+                    metadata = ev.payload.get("params", {}).get("message", {}).get("metadata", {})
+                    return metadata.get("workflow_name") or metadata.get("agent_name")
+                except AttributeError:
+                    return None
+
+            # Find the most recent real (non-compaction) task's agent — that's the
+            # ADK session currently active for this gateway session.
+            current_agent: Optional[str] = None
+            for t in completed_tasks:
+                if (t.id or "").startswith("compaction-cost-"):
+                    continue
+                current_agent = _task_agent(t.id)
+                if current_agent:
+                    break
+            if current_agent is None:
+                current_agent = gateway_session.agent_id
+
+            if current_agent:
+                # Compaction-cost rows are synthetic (no task events, no agent
+                # metadata) and belong to the session, not a specific agent — keep
+                # them so their token usage contributes to the cumulative totals.
+                completed_tasks = [
+                    t
+                    for t in completed_tasks
+                    if t.id.startswith("compaction-cost-") or _task_agent(t.id) == current_agent
+                ]
+
+        current_tokens = 0
+
+        if completed_tasks:
+            latest = completed_tasks[0]
+            # promptTokens = cumulative input across ALL completed tasks
+            prompt_tokens = sum(t.total_input_tokens or 0 for t in completed_tasks)
+            # completionTokens = cumulative output across ALL completed tasks
+            completion_tokens = sum(t.total_output_tokens or 0 for t in completed_tasks)
+
+            # If the most recent row is a synthetic compaction-cost row, the
+            # authoritative post-compaction context size is stored in its
+            # ``token_usage_details.post_compaction_remaining_tokens``. Model
+            # / cached-tokens metadata comes from the latest REAL task to
+            # avoid reading stubbed fields on the synthetic row.
+            real_latest = next(
+                (t for t in completed_tasks if not (t.id or "").startswith("compaction-cost-")),
+                latest,
+            )
+            if (latest.id or "").startswith("compaction-cost-"):
+                details = latest.token_usage_details or {}
+                current_tokens = int(details.get("post_compaction_remaining_tokens") or 0)
+            else:
+                # Context window occupancy = the last agent LLM call's prompt
+                # tokens, not the cumulative sum across turns. total_input_tokens
+                # inflates with every peer delegation (each follow-up turn adds
+                # the full growing context to the sum) and doesn't reflect what
+                # actually fills the window. Fall back to total_input_tokens
+                # only for historical rows written before last_input_tokens was
+                # tracked.
+                details = latest.token_usage_details or {}
+                last_input = details.get("last_input_tokens")
+                current_tokens = int(last_input) if last_input else (latest.total_input_tokens or 0)
+
+            cached_tokens = real_latest.total_cached_input_tokens or 0
+
+            # Prefer the model actually used by the latest task over the gateway's
+            # own model config — the agent may run a different model than the
+            # gateway (and different agents in the same session may differ).
+            # Query-param `model` still wins (explicit caller override).
+            if not model:
+                by_model = (real_latest.token_usage_details or {}).get("by_model") or {}
+                valid_entries = [kv for kv in by_model.items() if isinstance(kv[1], dict)]
+                if valid_entries:
+                    dominant = max(valid_entries, key=lambda kv: kv[1].get("input_tokens", 0))
+                    effective_model = dominant[0]
+
+        stamped_limit: Optional[int] = None
+        if completed_tasks:
+            real_latest_for_limit = next(
+                (t for t in completed_tasks if not (t.id or "").startswith("compaction-cost-")),
+                completed_tasks[0],
+            )
+            by_model = (real_latest_for_limit.token_usage_details or {}).get("by_model") or {}
+            entry = by_model.get(effective_model)
+            if isinstance(entry, dict):
+                raw = entry.get("max_input_tokens")
+                try:
+                    stamped_limit = int(raw) if raw else None
+                except (TypeError, ValueError):
+                    stamped_limit = None
+
+        max_input_tokens = _get_model_context_limit(effective_model, db=db, stamped=stamped_limit)
+        usage_pct = (
+            min(100.0, round((current_tokens / max_input_tokens) * 100, 1))
+            if max_input_tokens and current_tokens > 0
+            else 0.0
+        )
+
+        return ContextUsageResponse(
+            sessionId=session_id,
+            currentContextTokens=current_tokens,
+            promptTokens=prompt_tokens,
+            completionTokens=completion_tokens,
+            cachedTokens=cached_tokens,
+            maxInputTokens=max_input_tokens,
+            usagePercentage=usage_pct,
+            model=effective_model,
+            totalEvents=0,
+            totalMessages=total_messages,
+            totalTasks=total_tasks,
+            hasCompaction=False,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error getting context usage for session %s: %s", session_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get context usage",
+        )
+
+
+async def _publish_and_await_compaction(
+    component,
+    session_id: str,
+    user_id: str,
+    app_name: str,
+    compaction_percentage: float,
+) -> dict:
+    """Publish a session.compact_request and await the matching response.
+
+    Returns the raw ``result`` dict on success. Raises ``HTTPException`` on
+    publish failure or timeout. Always cleans up the correlation entry on
+    failure paths.
+    """
+    correlation_id = uuid.uuid4().hex
+    future = component.register_compaction_future(
+        correlation_id, expected_agent_id=app_name
+    )
+
+    published = component.sam_events.publish_session_compact_request(
+        session_id=session_id,
+        user_id=user_id,
+        agent_id=app_name,
+        gateway_id=component.gateway_id,
+        correlation_id=correlation_id,
+        compaction_percentage=compaction_percentage,
+    )
+    if not published:
+        component._compaction_futures.pop(correlation_id, None)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to publish compaction request.",
+        )
+
+    try:
+        result = await asyncio.wait_for(future, timeout=60.0)
+    except asyncio.TimeoutError:
+        component._compaction_futures.pop(correlation_id, None)
+        raise HTTPException(
+            status_code=status.HTTP_408_REQUEST_TIMEOUT,
+            detail="Compaction request timed out. The agent may be unavailable.",
+        )
+
+    result["_correlation_id"] = correlation_id
+    return result
+
+
+def _map_compaction_error(session_id: str, result: dict) -> None:
+    """Translate an unsuccessful compaction ``result`` into an HTTPException.
+
+    The agent's raw ``error_message`` is logged for diagnostics but never
+    returned to the client — we map it to a canned user-facing message to
+    avoid leaking internal details.
+    """
+    error_msg = result.get("error_message", "Compaction failed")
+    log.info("Compaction unsuccessful for session %s: %s", session_id, error_msg)
+    lowered = error_msg.lower() if isinstance(error_msg, str) else ""
+    if "not enough" in lowered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not enough conversation history to compress yet.",
+        )
+    if "not found" in lowered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session has no conversation history to compress.",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Failed to compress session",
+    )
+
+
+def _persist_compaction_cost_task(
+    db: Session,
+    session_id: str,
+    user_id: str,
+    correlation_id: str,
+    result: dict,
+) -> None:
+    """Persist a synthetic ``compaction-cost-*`` TaskModel row.
+
+    Rolls the summarizer's own LLM token usage into the session's cumulative
+    prompt/completion counters AND records the post-compaction context window
+    size on the synthetic row (under ``token_usage_details``), never by
+    overwriting the real task's historical ``total_input_tokens`` (which
+    analytics/billing depend on). The reader derives ``currentContextTokens``
+    from this synthetic row when it is the most recent row in the session.
+    """
+    from ..repository.models import TaskModel
+    from sqlalchemy import desc
+
+    comp_in = int(result.get("compaction_prompt_tokens") or 0)
+    comp_out = int(result.get("compaction_completion_tokens") or 0)
+    remaining_tokens = result.get("remaining_tokens")
+    if not (comp_in or comp_out or remaining_tokens is not None):
+        return
+
+    latest_task = (
+        db.query(TaskModel)
+        .filter(
+            TaskModel.session_id == session_id,
+            TaskModel.user_id == user_id,
+            TaskModel.total_input_tokens.isnot(None),
+        )
+        .order_by(desc(TaskModel.start_time))
+        .first()
+    )
+    if latest_task is None:
+        return
+
+    try:
+        details: dict = {}
+        if remaining_tokens is not None:
+            details["post_compaction_remaining_tokens"] = int(remaining_tokens)
+        # Place the synthetic row just AFTER the latest real task so the
+        # reader picks it up as "latest" for context-size purposes (sum()
+        # over input tokens still includes compaction cost).
+        synthetic_start = max(
+            (latest_task.start_time or 0) + 1,
+            int(time.time() * 1000),
+        )
+        synthetic_task = TaskModel(
+            id=f"compaction-cost-{correlation_id}",
+            user_id=user_id,
+            session_id=session_id,
+            start_time=synthetic_start,
+            end_time=synthetic_start,
+            status="completed",
+            total_input_tokens=comp_in,
+            total_output_tokens=comp_out,
+            token_usage_details=details or None,
+        )
+        db.add(synthetic_task)
+        db.commit()
+    except Exception as synth_err:
+        db.rollback()
+        log.warning(
+            "Failed to persist compaction token usage for session %s: %s",
+            session_id,
+            synth_err,
+        )
+
+
+def _persist_compaction_notification(
+    session_service: SessionService,
+    db: Session,
+    session_id: str,
+    user_id: str,
+    correlation_id: str,
+    summary: str,
+) -> None:
+    """Persist a compaction_notification chat task for session reload.
+
+    Matches the auto-compaction path (which persists via the A2A task-event
+    pipeline). Manual compaction runs outside any task context, so we
+    synthesize a chat task directly here.
+    """
+    if not summary:
+        return
+    try:
+        message_id = f"manual-compaction-{correlation_id}"
+        bubble = {
+            "id": message_id,
+            "type": "agent",
+            "text": "",
+            "parts": [
+                {
+                    "kind": "data",
+                    "data": {
+                        "type": "compaction_notification",
+                        "summary": summary,
+                        "is_background": False,
+                    },
+                }
+            ],
+        }
+        session_service.save_task(
+            db=db,
+            task_id=message_id,
+            session_id=session_id,
+            user_id=user_id,
+            user_message=None,
+            message_bubbles=json.dumps([bubble]),
+        )
+    except Exception as save_err:
+        log.warning(
+            "Failed to persist manual compaction notification for session %s: %s",
+            session_id,
+            save_err,
+        )
+
+
+@router.post(
+    "/sessions/{session_id}/compact",
+    response_model=CompactSessionResponse,
+    response_model_by_alias=True,
+)
+async def compact_session(
+    session_id: str,
+    request: CompactSessionRequest = Body(default=CompactSessionRequest()),
+    agent_name: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    session_service: SessionService = Depends(get_session_business_service),
+    component=Depends(get_sac_component),
+):
+    """
+    Manually compact a session's conversation history.
+
+    Publishes a session.compact_request SAM event to the agent, which performs
+    the actual compaction using its own services (FilteringSessionService,
+    SessionCompactionState lock, LLM summarization). The gateway waits for
+    a session.compact_response event with the results.
+    """
+    user_id = user.get("id")
+
+    try:
+        gateway_session = session_service.get_session_details(db, session_id, user_id)
+        if not gateway_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+            )
+
+        app_name = agent_name or gateway_session.agent_id
+        if not app_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No agent associated with this session. Provide agent_name parameter.",
+            )
+
+        result = await _publish_and_await_compaction(
+            component, session_id, user_id, app_name, request.compaction_percentage
+        )
+        correlation_id = result.pop("_correlation_id")
+
+        if not result.get("success"):
+            _map_compaction_error(session_id, result)
+
+        _persist_compaction_cost_task(db, session_id, user_id, correlation_id, result)
+        _persist_compaction_notification(
+            session_service,
+            db,
+            session_id,
+            user_id,
+            correlation_id,
+            result.get("summary") or "",
+        )
+
+        return CompactSessionResponse(
+            eventsCompacted=result.get("events_compacted", 0),
+            summary=result.get("summary", ""),
+            remainingEvents=result.get("remaining_events", 0),
+            remainingTokens=result.get("remaining_tokens", 0),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error compacting session %s: %s", session_id, e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to compact session",
+        )
