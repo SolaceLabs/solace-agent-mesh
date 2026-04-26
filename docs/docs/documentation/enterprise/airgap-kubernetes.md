@@ -60,7 +60,56 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 ### Bundle Contents
 
-<!-- Content: List what's in the bundle -->
+The SAM delivery bundle contains everything needed for an air-gapped Kubernetes deployment — no internet access required after downloading.
+
+**Bundle structure:**
+
+```
+bundle/
+├── amd64/
+│   ├── postgres.tar.gz
+│   ├── sam-agent-deployer.tar.gz
+│   ├── seaweedfs.tar.gz
+│   ├── solace-agent-mesh-enterprise.tar.gz
+│   └── solace-pubsub-enterprise.tar.gz
+├── arm64/
+│   ├── postgres.tar.gz
+│   ├── sam-agent-deployer.tar.gz
+│   ├── seaweedfs.tar.gz
+│   ├── solace-agent-mesh-enterprise.tar.gz
+│   └── solace-pubsub-enterprise.tar.gz
+├── charts/
+│   ├── solace-agent-mesh-<version>.tgz
+│   └── sam-agent-<version>.tgz
+├── bom.yaml
+└── bom-quickStart.yaml
+```
+
+**Container images** (available for both `amd64` and `arm64`):
+
+| Image | Description |
+|-------|-------------|
+| `solace-agent-mesh-enterprise` | SAM core application |
+| `sam-agent-deployer` | Manages agent and gateway deployments |
+| `postgres` | Embedded PostgreSQL (evaluation only) |
+| `seaweedfs` | Embedded S3-compatible storage (evaluation only) |
+| `solace-pubsub-enterprise` | Embedded Solace event broker (evaluation only) |
+
+**Helm charts:**
+
+| Chart | Description |
+|-------|-------------|
+| `solace-agent-mesh-<version>.tgz` | Main SAM Helm chart |
+| `sam-agent-<version>.tgz` | Agent sub-chart |
+
+**BOM files:**
+
+| File | Use case | Images included |
+|------|----------|-----------------|
+| `bom.yaml` | Production (external broker + datastores) | SAM core images only (`solace-agent-mesh-enterprise`, `sam-agent-deployer`) |
+| `bom-quickStart.yaml` | Evaluation (embedded broker + datastores) | All images including `solace-pubsub-enterprise`, `postgres`, `seaweedfs` |
+
+Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification.
 
 ### Verifying Bundle Integrity
 
@@ -92,41 +141,25 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 ## Step 3: Loading Container Images
 
-<!-- Content: Image pre-loading procedures -->
+All container images are included in the bundle for both `amd64` and `arm64` architectures — no public registry access required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
 
-### Loading Images from Bundle
+The registry path structure matters: when you set `global.imageRegistry` in `values.yaml`, the chart constructs image references as `<registry>/<repository>:<tag>`. Ensure your pushed images are reachable under those paths.
 
-<!-- Content: How to load images from tar files -->
+:::tip Example: docker load → tag → push
+One common approach using the Docker CLI:
 
-### Retagging for Your Private Registry
+```bash
+docker load -i bundle/amd64/solace-agent-mesh-enterprise.tar.gz
+docker tag solace-agent-mesh-enterprise:<version> your-registry.internal/solace-agent-mesh-enterprise:<version>
+docker push your-registry.internal/solace-agent-mesh-enterprise:<version>
+```
 
-<!-- Content: Retagging requirements -->
-
-### Pushing Images to Private Registry
-
-<!-- Content: How to push images -->
+Repeat for each image in the bundle. Exact tags are listed in `bom.yaml`.
+:::
 
 ### Registry-Specific Examples
 
-#### Harbor
-
-<!-- Content: Harbor-specific commands -->
-
-#### Artifactory
-
-<!-- Content: Artifactory-specific commands -->
-
-#### AWS Elastic Container Registry (ECR)
-
-<!-- Content: ECR-specific commands -->
-
-#### Azure Container Registry (ACR)
-
-<!-- Content: ACR-specific commands -->
-
-#### Google Artifact Registry
-
-<!-- Content: GCR-specific commands -->
+<!-- Content: Registry-specific authentication and push commands -->
 
 ### Verifying Image Availability
 
