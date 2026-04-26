@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.1...1.20.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* **DATAGO-133775:** Fix authentication failure for scheduled SAM reports against Salesforce ([#1456](https://github.com/SolaceLabs/solace-agent-mesh/issues/1456)) ([cd39424](https://github.com/SolaceLabs/solace-agent-mesh/commit/cd3942425033cf3a7dc5a820064e9b3e5d1e7891))
+
 ## [1.20.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.0...1.20.1) (2026-04-25)
 
 
