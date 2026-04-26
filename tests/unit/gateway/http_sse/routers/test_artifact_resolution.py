@@ -1,8 +1,13 @@
 """Unit tests for scheduled task artifact resolution helpers.
 
 Tests cover:
-- ``_is_execution_session`` — session ID classification
-- ``_resolve_execution_context`` — combined storage session + artifact info lookup
+- ``is_execution_session`` — session ID classification
+- ``resolve_execution_context`` — combined storage session + artifact info lookup
+
+These helpers live in ``services.scheduler.session_resolver`` and are
+re-exported (under underscore-aliased names) by ``routers.artifacts``,
+``routers.share``, and ``services.share_service``. The tests import directly
+from the source module so the dependency is obvious to readers and reviewers.
 """
 
 from contextlib import contextmanager
@@ -10,9 +15,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from solace_agent_mesh.gateway.http_sse.routers.artifacts import (
-    _is_execution_session,
-    _resolve_execution_context,
+from solace_agent_mesh.gateway.http_sse.services.scheduler.session_resolver import (
+    is_execution_session as _is_execution_session,
+    resolve_execution_context as _resolve_execution_context,
 )
 
 # Patch targets for the lazy imports inside _get_execution_from_db
