@@ -109,69 +109,11 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _is_execution_session(session_id: str | None) -> bool:
-    """Return True if session_id is a per-execution scheduled session (not task-level)."""
-    return bool(
-        session_id
-        and session_id.startswith("scheduled_")
-        and not session_id.startswith("scheduled_task_")
-    )
-
-
-def _get_execution_from_db(session_id: str, caller: str):
-    """Look up the scheduled execution record for an execution session.
-
-    Returns the execution ORM object, or ``None`` if the session is not an
-    execution session or the lookup fails.
-    """
-    if not _is_execution_session(session_id):
-        return None
-
-    try:
-        from ..repository.scheduled_task_repository import ScheduledTaskRepository
-        from ..dependencies import SessionLocal
-
-        if SessionLocal is None:
-            return None
-
-        repo = ScheduledTaskRepository()
-        with SessionLocal() as db:
-            return repo.find_execution_by_session_id(db, session_id)
-    except Exception as e:
-        log.warning("[%s] Failed to look up execution for %s: %s", caller, session_id, e)
-        return None
-
-
-def _resolve_execution_context(session_id: str) -> tuple[str | None, dict[str, int | None] | None]:
-    """Resolve both the stable storage session and artifact version info in a single DB lookup.
-
-    For per-execution scheduled sessions (``scheduled_{execution_id}``), this
-    fetches the execution record once and derives:
-    1. The stable storage session (``scheduled_task_{task_id}``) where artifacts live.
-    2. The artifact name → pinned version mapping from the execution's manifest.
-
-    Returns:
-        (stable_session_id, artifact_info) — either or both may be ``None``
-        if the session is not an execution session or the lookup fails.
-    """
-    execution = _get_execution_from_db(session_id, "_resolve_execution_context")
-    if not execution:
-        return None, None
-
-    stable_id = f"scheduled_task_{execution.scheduled_task_id}"
-    log.debug("[_resolve_execution_context] Mapped %s -> %s", session_id, stable_id)
-
-    artifact_info: dict[str, int | None] | None = None
-    if execution.artifacts:
-        info: dict[str, int | None] = {}
-        for art in execution.artifacts:
-            if isinstance(art, dict):
-                name = art.get("name") or art.get("filename")
-                if name:
-                    info[name] = art.get("version")
-        artifact_info = info if info else None
-
-    return stable_id, artifact_info
+from ..services.scheduler.session_resolver import (
+    get_execution_from_db as _get_execution_from_db,
+    is_execution_session as _is_execution_session,
+    resolve_execution_context as _resolve_execution_context,
+)
 
 
 def _user_owns_execution_session(session_id: str, user_id: str) -> bool:
