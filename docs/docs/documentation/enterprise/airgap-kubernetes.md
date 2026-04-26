@@ -269,7 +269,27 @@ Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not th
 
 ### Verify All Pods are Running
 
-<!-- Content: How to check pod status -->
+Wait for all pods to be ready:
+
+```bash
+kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
+```
+
+Press `Ctrl-C` once all pods show `Running` status.
+
+### First Login
+
+**With OIDC configured:**
+
+On first login you will be redirected to your identity provider. Before logging in, ensure your OIDC callback URI is registered with your provider:
+
+```
+https://<your-sam-domain>/callback
+```
+
+**Without OIDC:**
+
+On first login you'll be prompted to configure your LLM API key via the Model Configuration UI. Ensure your LLM endpoint is accessible from within the air-gapped network.
 
 ### Configure RBAC
 
@@ -285,7 +305,16 @@ Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not th
 
 ### Health Check Endpoints
 
-<!-- Content: How to check health endpoints -->
+Verify SAM is healthy after installation:
+
+```bash
+curl -s https://<your-sam-domain>/health
+curl -s https://<your-sam-domain>/api/v1/platform/health
+```
+
+Both endpoints should return a successful response.
+
+For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 
 ### Validate Image Sources
 

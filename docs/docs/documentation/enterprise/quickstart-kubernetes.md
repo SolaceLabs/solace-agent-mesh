@@ -167,13 +167,17 @@ The chart defaults are optimized for quickstart evaluation — no values file ne
 
 ## Step 4: Wait for Installation to Complete
 
-<!-- Content: How to monitor installation progress -->
-<!-- Content: kubectl commands to watch pods -->
-<!-- Content: How to verify all pods are ready -->
+Wait for all pods to be ready:
+
+```bash
+kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
+```
+
+Press `Ctrl-C` once all pods show `Running` status.
 
 ## Step 5: Access the WebUI
 
-Set up port forwarding to access SAM locally:
+Port-forward the Console UI:
 
 ```bash
 kubectl port-forward -n sam svc/sam-solace-agent-mesh-core 8000:80 8080:8080
@@ -213,10 +217,6 @@ llmService:
 ```
 See the [RBAC Setup Guide](./rbac-setup-guide.md) for `enterprise_config.yaml` configuration.
 :::
-
-## Step 6: Send Your First Message
-
-<!-- Content: Verification via chat -->
 
 ## Testing Your Installation
 
@@ -269,21 +269,14 @@ See [Production Kubernetes Installation](./production-kubernetes.md) for complet
 
 ## Troubleshooting
 
-### Health Checks
-
-Verify SAM components are healthy:
+If something looks wrong after accessing the Console, verify SAM is healthy:
 
 ```bash
-# After port-forward is running (kubectl port-forward -n sam svc/sam-solace-agent-mesh-core 8000:80 8080:8080)
-
-# Check WebUI health
 curl -s http://localhost:8000/health
-
-# Check Platform API health
 curl -s http://localhost:8080/api/v1/platform/health
 ```
 
-Both endpoints should return successful responses when SAM is running correctly.
+Both endpoints should return a successful response when SAM is running correctly.
 
 For detailed health check configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 

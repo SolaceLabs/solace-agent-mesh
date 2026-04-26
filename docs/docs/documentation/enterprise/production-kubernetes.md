@@ -871,6 +871,20 @@ The chart's default `values.yaml` contains comprehensive inline documentation fo
 - ✓ **TLS**: Certificates configured
 - ✓ **Ingress/LoadBalancer**: External access enabled
 
+### First Login
+
+**With OIDC configured:**
+
+On first login you will be redirected to your identity provider. Before logging in, ensure your OIDC callback URI is registered with your provider:
+
+```
+https://<your-sam-domain>/callback
+```
+
+**Without OIDC:**
+
+On first login you'll be prompted to configure your LLM API key via the Model Configuration UI.
+
 ### Configure Authentication
 
 <!-- Content: SSO setup -->
@@ -899,14 +913,11 @@ Perform comprehensive validation before going live.
 
 SAM provides HTTP health check endpoints that integrate with Kubernetes probes for automated lifecycle management. Configure startup, readiness, and liveness probes in your deployment manifests to enable graceful deployments and automatic recovery from failures.
 
-**Verify health endpoints:**
+**Verify health endpoints** (replace with your actual domain):
 
 ```bash
-# Check WebUI health
-kubectl exec -n sam deployment/sam-solace-agent-mesh-core -- curl -s http://localhost:80/health
-
-# Check Platform API health
-kubectl exec -n sam deployment/sam-solace-agent-mesh-core -- curl -s http://localhost:8080/api/v1/platform/health
+curl -s https://sam.example.com/health
+curl -s https://sam.example.com/api/v1/platform/health
 ```
 
 For detailed probe configuration options and examples, see [Health Checks](/docs/documentation/deploying/health-checks).
