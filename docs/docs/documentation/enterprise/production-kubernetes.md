@@ -443,11 +443,13 @@ If you get a 403 Forbidden error, check your bucket policy. If you get 404 Not F
 
 <!-- Content: Production values.yaml -->
 
-### Core Configuration
-
 Create a production overrides file (`production-overrides.yaml`) based on the comprehensive inline documentation in the chart's `values.yaml`.
 
-**Disable Embedded Components:**
+:::info Embedded vs External Components
+Production deployments must use external components. Embedded PostgreSQL, SeaweedFS, and Solace broker lack high availability, backup/restore, and proper resource limits.
+:::
+
+### Disable Embedded Components
 
 ```yaml
 global:
@@ -457,7 +459,7 @@ global:
     enabled: false   # Use external datastores
 ```
 
-**Configure External Solace Broker:**
+### External Broker Configuration
 
 ```yaml
 broker:
@@ -467,17 +469,15 @@ broker:
   vpn: "your-vpn"
 ```
 
-**Configure External Datastores:**
+### External Datastores
 
-Configure PostgreSQL database and object storage. The `applicationPassword` is **required** - this single password will be used for all database users created by SAM (webui, orchestrator, platform, and all agents).
+Configure PostgreSQL database and object storage. The `applicationPassword` is **required** — this single password will be used for all database users created by SAM (webui, orchestrator, platform, and all agents).
 
 :::warning Password Rotation Limitation
 Once database users are created for a given `namespaceId`, the `applicationPassword` cannot be changed. To change passwords, you must either use a new `namespaceId` (creates new databases/users) or manually update passwords directly in the database.
 :::
 
-**Provider-Specific Configuration Examples:**
-
-**AWS RDS + S3:**
+#### AWS RDS + S3
 
 ```yaml
 dataStores:
@@ -501,7 +501,7 @@ dataStores:
     region: "us-east-1"
 ```
 
-**Supabase with Connection Pooler:**
+#### Supabase
 
 If using Supabase with the connection pooler (required for IPv4 networks):
 
@@ -528,7 +528,7 @@ dataStores:
 If using Supabase's Direct Connection with IPv4 addon, omit the `supabaseTenantId` field.
 :::
 
-**NeonDB:**
+#### NeonDB
 
 ```yaml
 dataStores:
@@ -548,9 +548,9 @@ dataStores:
     secretKey: "your-secret-key"
 ```
 
-**Azure Blob Storage:**
+#### Azure Blob Storage
 
-Option 1: Using account name and key:
+Option 1 — account name and key:
 
 ```yaml
 dataStores:
@@ -572,7 +572,7 @@ dataStores:
     connectorSpecContainerName: "my-sam-connector-specs"
 ```
 
-Option 2: Using connection string:
+Option 2 — connection string:
 
 ```yaml
   azure:
@@ -581,7 +581,7 @@ Option 2: Using connection string:
     connectorSpecContainerName: "my-sam-connector-specs"
 ```
 
-**Google Cloud Storage:**
+#### Google Cloud Storage
 
 ```yaml
 dataStores:
@@ -603,11 +603,9 @@ dataStores:
     connectorSpecBucketName: "my-sam-connector-specs"
 ```
 
-**Workload Identity (Recommended for Cloud):**
+### Workload Identity
 
 Workload identity allows SAM pods to authenticate with cloud storage using the pod's Kubernetes service account, eliminating static credentials (access keys, account keys, JSON key files).
-
-Enable workload identity:
 
 ```yaml
 dataStores:
@@ -615,11 +613,7 @@ dataStores:
     type: "s3"  # or "azure" or "gcs"
     workloadIdentity:
       enabled: true
-```
 
-Annotate the SAM service account:
-
-```yaml
 samDeployment:
   serviceAccount:
     annotations:
@@ -631,13 +625,12 @@ samDeployment:
       iam.gke.io/gcp-service-account: "my-sa@my-project.iam.gserviceaccount.com"
 ```
 
-**Per-Provider Setup (High-Level):**
-
+Per-provider setup (high-level):
 - **AWS IRSA:** Create IAM role with S3 permissions, associate with K8s service account, omit `accessKey`/`secretKey`
 - **Azure Workload Identity:** Create managed identity with Storage Blob Data Contributor role, establish federated credential, omit `accountKey`/`connectionString`
 - **GCP Workload Identity:** Create GCP service account with Storage Object Admin, bind to K8s service account, omit `credentialsJson`
 
-**Enable Authorization and OIDC:**
+### Authorization and OIDC
 
 ```yaml
 sam:
@@ -651,7 +644,7 @@ sam:
       clientSecret: "your-client-secret"
 ```
 
-**Configure Ingress:**
+### Ingress
 
 ```yaml
 ingress:
@@ -665,26 +658,23 @@ ingress:
         - sam.example.com
 ```
 
-**Secret Management:**
+### Secret Management
+
 - `SESSION_SECRET_KEY` is auto-generated if not provided
 - Once generated, it is preserved across upgrades to prevent session invalidation
 - For production, explicitly set it for consistency: `sam.sessionSecretKey: "your-secret-key"`
 
-**LLM Configuration (Optional):**
+### LLM Configuration
+
 - LLM can be configured post-install via the Model Config UI
 - Alternatively, pre-configure in values.yaml under `llmService.*`
 
-**Custom CA Certificates (For Internal Infrastructure):**
+### Custom CA Certificates
 
-If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses self-signed or private CA certificates, configure SAM to trust them.
-
-**When needed:**
+If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses self-signed or private CA certificates, configure SAM to trust them. Applies to:
 - Solace broker with custom CA
 - OIDC provider (Keycloak, etc.) with custom CA
 - LLM service with custom CA
-- Any internal endpoint using private certificates
-
-**Prerequisites:**
 
 :::warning Certificate Requirements
 - Use the **CA certificate** (issuer), not the server certificate
@@ -693,72 +683,47 @@ If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses
 - PEM format with `-----BEGIN CERTIFICATE-----` headers
 :::
 
-**Verify SAN Extension:**
-
 Before creating the ConfigMap, verify your CA certificate includes SAN:
 
 ```bash
 openssl x509 -in ca-cert.pem -noout -text | grep -A1 "Subject Alternative Name"
 ```
 
-Expected output:
-```
-X509v3 Subject Alternative Name:
-    DNS:mybroker.messaging.solace.cloud
-```
-
-**Certificate Format Conversion (if needed):**
-
-If your certificate is not in PEM format:
+If your certificate is not in PEM format, convert first:
 
 ```bash
-# DER (binary) to PEM
+# DER → PEM
 openssl x509 -inform der -in ca.der -out ca.crt
 
-# PKCS#7 bundle → PEM (extracts all CA certs)
+# PKCS#7 → PEM
 openssl pkcs7 -print_certs -in ca.p7b -out ca.crt
 
-# PKCS#12 (.pfx / .p12) → PEM (CA certs only, no private keys)
+# PKCS#12 → PEM (CA certs only)
 openssl pkcs12 -in ca.pfx -out ca.crt -nokeys -cacerts
 ```
 
-**Configuration Steps:**
-
-**Step 1: Prepare CA bundle**
-
-Ensure file has `.crt` extension:
+**Step 1:** Prepare CA bundle — ensure file has `.crt` extension:
 
 ```bash
 cp ca-cert.pem ca-cert.crt
 ```
 
-**Step 2: Create Kubernetes ConfigMap**
-
-Single CA certificate:
+**Step 2:** Create Kubernetes ConfigMap:
 
 ```bash
+# Single CA
 kubectl create configmap truststore \
   --from-file=ca.crt=/path/to/your-ca.crt \
   -n <namespace>
-```
 
-Multiple CA certificates:
-
-```bash
+# Multiple CAs — each key must end in .crt
 kubectl create configmap truststore \
   --from-file=ca1.crt=/path/to/ca1.crt \
   --from-file=ca2.crt=/path/to/ca2.crt \
-  --from-file=ca3.crt=/path/to/ca3.crt \
   -n <namespace>
 ```
 
-:::tip Multiple CAs
-If you have multiple CAs (e.g., broker CA, Keycloak CA, LLM CA), pass each as a separate `--from-file` flag. All keys must end in `.crt`.
-:::
-
-**Step 3: Enable in Helm values**
-
-Add to your `production-overrides.yaml`:
+**Step 3:** Enable in `production-overrides.yaml`:
 
 ```yaml
 samDeployment:
@@ -767,7 +732,7 @@ samDeployment:
     configMapName: "truststore"  # Optional: default is "truststore"
 ```
 
-**Step 4: Install or upgrade**
+**Step 4:** Install or upgrade — the chart injects a `ca-merge` init container that merges your CA bundle with the system trust store:
 
 ```bash
 helm upgrade sam solace/solace-agent-mesh \
@@ -775,49 +740,11 @@ helm upgrade sam solace/solace-agent-mesh \
   -f production-overrides.yaml
 ```
 
-The chart will automatically inject a `ca-merge` init container that merges your CA bundle with the system trust store.
+To rotate or update certificates: delete the ConfigMap, create a new one, then restart the deployment with `kubectl rollout restart deployment/sam-solace-agent-mesh-core -n <namespace>`.
 
-**Updating CA Certificates:**
-
-To rotate or update certificates:
-
-```bash
-# Delete old ConfigMap
-kubectl delete configmap truststore -n <namespace>
-
-# Create new ConfigMap
-kubectl create configmap truststore \
-  --from-file=ca.crt=/path/to/new-ca.crt \
-  -n <namespace>
-
-# Restart deployment
-kubectl rollout restart deployment/sam-solace-agent-mesh-core -n <namespace>
-```
-
-**Important Notes:**
-- If ConfigMap doesn't exist when pod starts, SAM falls back to system CA bundle silently (no error raised)
+- If ConfigMap doesn't exist at pod start, SAM falls back to the system CA bundle silently
 - Pod restart is always required for CA changes (no hot reload)
-- ConfigMap name can be customized via `customCA.configMapName` if `truststore` conflicts with existing resources
-
-:::info Embedded vs External Components
-Production deployments must use external components. Embedded PostgreSQL, SeaweedFS, and Solace broker lack high availability, backup/restore, and proper resource limits.
-:::
-
-### High Availability Configuration
-
-<!-- Content: Multi-replica, PDB, affinity -->
-
-### Security Configuration
-
-<!-- Content: RBAC, pod security, network policies -->
-
-### Resource Limits
-
-<!-- Content: Production resource requests/limits -->
-
-### Monitoring Configuration
-
-<!-- Content: Prometheus, logging integration -->
+- ConfigMap name can be customized via `customCA.configMapName` if `truststore` conflicts
 
 ## Step 4: Pre-Installation Validation
 
@@ -897,14 +824,6 @@ See [Single Sign-On](./single-sign-on.md) for detailed OAuth/OIDC provider setup
 
 See [RBAC Setup Guide](./rbac-setup-guide.md) for detailed access control configuration.
 
-### Set Up Ingress
-
-<!-- Content: Ingress configuration for production -->
-
-### Configure Monitoring
-
-<!-- Content: Monitoring setup -->
-
 ## Step 7: Production Validation
 
 Perform comprehensive validation before going live.
@@ -921,46 +840,6 @@ curl -s https://sam.example.com/api/v1/platform/health
 ```
 
 For detailed probe configuration options and examples, see [Health Checks](/docs/documentation/deploying/health-checks).
-
-### Health Checks
-
-<!-- Content: Health endpoint validation -->
-
-### Load Testing
-
-<!-- Content: Basic load testing -->
-
-### Disaster Recovery Testing
-
-<!-- Content: Backup/restore validation -->
-
-## Production Operations
-
-<!-- Content: Day 2 operations -->
-
-### Backup & Restore
-
-<!-- Content: Backup procedures -->
-
-### Updates & Upgrades
-
-<!-- Content: Production upgrade procedures -->
-
-### Monitoring & Alerting
-
-<!-- Content: Production monitoring setup -->
-
-### Troubleshooting
-
-<!-- Content: Production troubleshooting -->
-
-## Security Hardening
-
-<!-- Content: Production security best practices -->
-
-## Performance Tuning
-
-<!-- Content: Production performance optimization -->
 
 ## Upgrading from Quick Start
 
