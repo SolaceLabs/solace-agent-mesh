@@ -111,35 +111,7 @@ bundle/
 
 Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification.
 
-### Verifying Bundle Integrity
-
-<!-- Content: Checksum verification instructions -->
-
-### Understanding the Bill of Materials
-
-<!-- Content: Document BOM/dependency manifest format -->
-
-### Extract the Bundle
-
-<!-- Content: How to extract and prepare bundle -->
-
-## Step 2: Preparing Your Private Registry
-
-<!-- Content: Overview of registry setup -->
-
-### Supported Registry Types
-
-<!-- Content: List compatible private registries -->
-
-### Registry Authentication
-
-<!-- Content: How to authenticate to your registry -->
-
-### Certificate Authority Configuration
-
-<!-- Content: CA configuration for private registries with self-signed certs -->
-
-## Step 3: Loading Container Images
+## Step 2: Loading Container Images
 
 All container images are included in the bundle for both `amd64` and `arm64` architectures — no public registry access required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
 
@@ -157,35 +129,7 @@ docker push your-registry.internal/solace-agent-mesh-enterprise:<version>
 Repeat for each image in the bundle. Exact tags are listed in `bom.yaml`.
 :::
 
-### Registry-Specific Examples
-
-<!-- Content: Registry-specific authentication and push commands -->
-
-### Verifying Image Availability
-
-<!-- Content: How to verify all images are loaded correctly -->
-
-## Step 4: Verifying Dependencies Using the BOM
-
-<!-- Content: Dependency verification -->
-
-### Automated Verification
-
-<!-- Content: Using verification scripts if available -->
-
-### Manual Verification
-
-<!-- Content: How to manually verify against BOM -->
-
-### Identifying Missing Components
-
-<!-- Content: How to identify missing images or components -->
-
-## Step 5: Creating Kubernetes Namespace
-
-<!-- Content: Namespace creation for air-gapped -->
-
-## Step 6: Configuring Image Pull Secrets
+## Step 3: Configuring Image Pull Secrets
 
 Your private registry requires authentication. The chart provides two mutually exclusive options — choose one:
 
@@ -222,11 +166,7 @@ global:
 `global.imagePullKey` and `global.imagePullSecrets` cannot be used together. Providing both will cause the Helm installation to fail with a clear error.
 :::
 
-## Step 7: Configuring values.yaml for Air-Gapped
-
-<!-- Content: Comprehensive values.yaml configuration -->
-
-### Minimal Air-Gapped Configuration
+## Step 4: Configuring values.yaml for Air-Gapped
 
 The only required change for an air-gapped deployment is pointing to your private registry. Create an `airgap-overrides.yaml` with:
 
@@ -236,7 +176,7 @@ global:
   imageRegistry: registry.internal.example.com/sam
 ```
 
-For registry authentication, see [Step 6: Configuring Image Pull Secrets](#step-6-configuring-image-pull-secrets).
+For registry authentication, see [Step 3: Configuring Image Pull Secrets](#step-3-configuring-image-pull-secrets).
 
 This is sufficient for **evaluation** — embedded broker and persistence are used by default, just as in the [Kubernetes Quick Start](./quickstart-kubernetes.md).
 
@@ -246,11 +186,7 @@ For **production** air-gapped deployments, also configure external components �
 The SAM Helm chart always bundles the agent chart (as `sam-agent-{version}.tgz`). No additional configuration is required to enable local chart support for air-gapped deployments — it works out of the box.
 :::
 
-### Production Air-Gapped Configuration
-
-<!-- Content: Production settings for air-gapped -->
-
-## Step 8: Installing SAM with Helm
+## Step 5: Installing SAM with Helm
 
 Install SAM in your air-gapped environment with your custom overrides:
 
@@ -263,15 +199,9 @@ helm install sam ./solace-agent-mesh-chart.tgz \
 
 Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not the remote Helm repository.
 
-### Dry Run Installation
+For dry-run validation and monitoring installation progress, see [Step 5: Installation](./production-kubernetes.md#step-5-installation) in the Production guide — the same approaches apply.
 
-<!-- Content: How to validate config before applying -->
-
-### Monitor Installation Progress
-
-<!-- Content: How to watch installation progress -->
-
-## Step 9: Post-Installation Configuration
+## Step 6: Post-Installation Configuration
 
 <!-- Content: Post-install configuration steps -->
 
@@ -287,27 +217,13 @@ Press `Ctrl-C` once all pods show `Running` status.
 
 ### First Login
 
-**With OIDC configured:**
+For first login guidance (OIDC redirect vs LLM prompt), see [First Login](./production-kubernetes.md#first-login) in the Production guide.
 
-On first login you will be redirected to your identity provider. Before logging in, ensure your OIDC callback URI is registered with your provider:
+:::info Air-Gapped Note
+Ensure your LLM endpoint and OIDC provider are accessible from within the air-gapped network before logging in.
+:::
 
-```
-https://<your-sam-domain>/callback
-```
-
-**Without OIDC:**
-
-On first login you'll be prompted to configure your LLM API key via the Model Configuration UI. Ensure your LLM endpoint is accessible from within the air-gapped network.
-
-### Configure RBAC
-
-<!-- Content: RBAC setup for air-gapped -->
-
-### Set Up Ingress
-
-<!-- Content: Internal ingress setup -->
-
-## Step 10: Validation and Testing
+## Step 7: Validation and Testing
 
 <!-- Content: Validation procedures -->
 
@@ -330,14 +246,6 @@ For detailed probe configuration, see [Health Checks](/docs/documentation/deploy
 
 Verify that all pods are using images from your private registry and that air-gapped mode (bundled agent charts) is active.
 
-### Test Agent Deployment
-
-<!-- Content: Deploy test agent to validate -->
-
-### Network Isolation Verification
-
-<!-- Content: Confirm no external egress -->
-
 ## Air-Gapped-Specific Considerations
 
 <!-- Content: Air-gapped specific considerations overview -->
@@ -353,18 +261,6 @@ Configure your external Solace broker within the air-gapped network.
 **Queue Template Configuration:**
 
 For Kubernetes deployments, configure durable queues with message TTL. See [Queue Template Configuration for Kubernetes](./production-kubernetes.md#queue-template-configuration-for-kubernetes) in the Production guide for detailed setup instructions. The same configuration applies to air-gapped deployments.
-
-#### Bedrock Knowledge Base Tool
-
-<!-- Content: Bedrock tool air-gapped configuration -->
-
-#### Slack Gateway Adapter
-
-<!-- Content: Slack gateway air-gapped configuration -->
-
-#### Teams Gateway Adapter
-
-<!-- Content: Teams gateway air-gapped configuration -->
 
 ### LLM Service Configuration
 
@@ -445,62 +341,6 @@ samDeployment:
     enabled: true
     configMapName: "truststore"
 ```
-
-## Security Best Practices
-
-<!-- Content: Security for air-gapped deployments -->
-
-### Network Policies
-
-<!-- Content: Network policy examples -->
-
-### Secret Management
-
-<!-- Content: Secret management in air-gapped -->
-
-### Monitoring and Auditing
-
-<!-- Content: Monitoring for air-gapped -->
-
-## Troubleshooting Air-Gapped Installations
-
-<!-- Content: Common air-gapped issues -->
-
-### Image Pull Failures
-
-<!-- Content: Troubleshooting image pull errors -->
-
-### Dependency Resolution Failures
-
-<!-- Content: Troubleshooting missing dependencies -->
-
-### Certificate Trust Issues
-
-<!-- Content: Troubleshooting TLS/cert problems -->
-
-### Storage Connectivity Problems
-
-<!-- Content: Troubleshooting storage issues -->
-
-## Updating Air-Gapped Kubernetes Deployments
-
-<!-- Content: Update procedures -->
-
-### Preparing for Updates
-
-<!-- Content: Pre-update checklist -->
-
-### Performing Rolling Update
-
-<!-- Content: Helm upgrade for air-gapped -->
-
-### Rollback Procedure
-
-<!-- Content: How to rollback -->
-
-## Reference
-
-<!-- Content: Complete configuration templates -->
 
 ## Additional Resources
 
