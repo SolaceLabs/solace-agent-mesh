@@ -1,6 +1,6 @@
 ---
 title: OpenAPI Tools
-sidebar_position: 16
+sidebar_position: 20
 ---
 
 import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';

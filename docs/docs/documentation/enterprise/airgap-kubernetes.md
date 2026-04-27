@@ -1,6 +1,6 @@
 ---
 title: Air-Gapped Kubernetes Installation
-sidebar_position: 7
+sidebar_position: 6
 ---
 
 # Air-Gapped Kubernetes Installation
@@ -331,7 +331,7 @@ Configure identical access credentials for both buckets in your Helm values.
 
 Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
 
-SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates-for-internal-infrastructure) in the Production guide for complete setup instructions.
+SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
 
 The same configuration applies to air-gapped deployments:
 

@@ -1,6 +1,6 @@
 ---
 title: Migration to Chart v2.0.0
-sidebar_position: 14
+sidebar_position: 7
 ---
 
 # Migration to Chart v2.0.0
@@ -37,6 +37,19 @@ Chart v2.0.0 restructures the Helm chart for a quickstart-first experience with 
 5. **Sample Values Files Removed** - Consolidated into comprehensive inline documentation
 6. **Bundled Persistence VCT Labels** - One-time StatefulSet migration required (if using bundled persistence from ≤v1.1.0)
 7. **Image Pull Policy Changed** - Default changed from `Always` to `IfNotPresent`
+
+## What's New in v2.0.0
+
+In addition to the breaking changes below, v2.0.0 introduces the following new capabilities:
+
+| Feature | Description | Values Key |
+|---------|-------------|------------|
+| **GCR Pull Secret Automation** | Pass a dockerconfigjson credentials file via `--set-file` and the chart automatically creates the image pull secret and injects it into all pod specs — no manual `kubectl create secret` step required. Mutually exclusive with `global.imagePullSecrets`. See [GCR Credentials File](./quickstart-kubernetes.md#gcr-credentials-file) and [Air-Gapped: Step 3](./airgap-kubernetes.md#step-3-configuring-image-pull-secrets). | `global.imagePullKey` |
+| **Custom CA Certificates** | Inject custom or self-signed CA certificates for internal infrastructure (broker, OIDC provider, LLM service) via a Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates). | `samDeployment.customCA` |
+| **Embedded Solace Broker** | Deploy a single-node Solace PubSub+ broker in-cluster for evaluation — no external broker required. See [Kubernetes Quick Start](./quickstart-kubernetes.md). | `global.broker.embedded` |
+| **SAM Doctor Pre-flight Checks** | Pre-install/pre-upgrade Helm hook that validates broker, database, object storage, TLS, and OIDC configuration before any workload pods are created — misconfigurations surface as a clear error instead of `CrashLoopBackOff`. Disabled by default (`samDoctor.enabled: false`); requires the enterprise image to include `sam_doctor`. See [SAM Doctor](./production-kubernetes.md#sam-doctor-pre-flight-validation). | `samDoctor.enabled` |
+| **JSON Schema Validation** | `values.schema.json` is now shipped with the chart — Helm rejects invalid configuration at `helm lint`, `helm install`, `helm upgrade`, and `helm template` with clear error messages. Also enforces conditional rules (e.g., external datastore credentials required when `global.persistence.enabled: false`). | Built-in |
+| **Cluster Resource Checks** | At `helm install`/`upgrade` time, validates that referenced Secrets, ConfigMaps, StorageClass, and IngressClass actually exist in the cluster — reports all missing resources in one aggregated error instead of letting pods fail with `ImagePullBackOff` or PVCs get stuck `Pending`. No-op during `helm template`/`--dry-run=client`. | `validations.clusterResourceChecks` |
 
 ## Migration Timeline
 
@@ -146,22 +159,20 @@ Default service account names are now auto-generated as `{release}-solace-agent-
 
 ### 3. Secrets and ConfigMaps Restructured
 
-The monolithic secret and configmap have been split into focused resources for better security and organization.
+The monolithic secret and configmap have been split into multiple focused resources for better security and organization.
 
 **Old Resources (v1.x):**
 - `solace-agent-mesh-secret` (single monolithic secret)
 - `solace-agent-mesh-config` (single monolithic configmap)
 
 **New Resources (v2.0.0):**
-- **Secrets:**
-  - `{release}-solace-agent-mesh-secret-auth`
-  - `{release}-solace-agent-mesh-secret-core`
-  - `{release}-solace-agent-mesh-secret-database`
-  - `{release}-solace-agent-mesh-secret-storage`
-- **ConfigMaps:**
-  - `{release}-solace-agent-mesh-core-env`
-  - `{release}-solace-agent-mesh-orchestrator`
-  - `{release}-solace-agent-mesh-webui`
+
+All resources follow the naming pattern `{release}-solace-agent-mesh-{component}`. To see the exact names in your deployment:
+
+```bash
+kubectl get secrets -n <namespace> -l app.kubernetes.io/instance=<release>
+kubectl get configmaps -n <namespace> -l app.kubernetes.io/instance=<release>
+```
 
 **Migration Action:**
 - Pods will automatically pick up the new secret and configmap names

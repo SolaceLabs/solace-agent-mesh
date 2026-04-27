@@ -1,6 +1,6 @@
 ---
 title: Secure User Delegated Access
-sidebar_position: 15
+sidebar_position: 18
 ---
 
 This guide walks you through configuring Secure User Delegated Access for Agent Mesh Enterprise. You will learn how to enable users to authenticate with remote MCP tools using their own credentials through OAuth2, providing enhanced security and user-specific access control.

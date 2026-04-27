@@ -22,7 +22,7 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 ### Kubernetes Cluster Requirements
 
-**Minimum Node Requirements:**
+#### Minimum Node Requirements
 
 The table below shows resource requirements for embedded broker mode (quickstart). These values account for all SAM components plus embedded PostgreSQL, SeaweedFS, and Solace broker.
 
@@ -58,7 +58,7 @@ Embedded persistence requires SSD-backed storage for acceptable performance.
 | **PostgreSQL** | 30 GiB |
 | **SeaweedFS** | 50 GiB |
 
-**Recommended Storage Classes by Provider:**
+#### Recommended Storage Classes by Provider
 
 | Provider | Storage Class | Notes |
 |----------|--------------|-------|
@@ -66,7 +66,7 @@ Embedded persistence requires SSD-backed storage for acceptable performance.
 | **Azure AKS** | `Premium_LRS` | Azure Zoned Premium SSD |
 | **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
 
-**Storage Class Configuration (Optional):**
+#### Storage Class Configuration
 
 Override the default StorageClass or volume size:
 
@@ -82,11 +82,11 @@ persistence-layer:
       size: "100Gi"  # Override default 20Gi
 ```
 
-**Image Registry Configuration:**
+### Image Registry Configuration
 
 By default, all images (including embedded components) pull from Solace's GCR registry (`gcr.io/gcp-maas-prod`). This requires a GCR credentials file provided by Solace.
 
-**Default Embedded Component Images:**
+#### Default Embedded Component Images
 
 | Component | Repository | Tag | Full Image Reference |
 |-----------|------------|-----|---------------------|
@@ -96,7 +96,7 @@ By default, all images (including embedded components) pull from Solace's GCR re
 
 The chart inherits `global.imageRegistry` for all components automatically. No additional configuration needed unless using a custom registry.
 
-**GCR Credentials File:**
+#### GCR Credentials File
 
 Solace provides a JSON credentials file for authenticating with the GCR registry. Before using it, verify the file is in the expected dockerconfigjson format:
 
@@ -135,15 +135,7 @@ helm install sam solace/solace-agent-mesh \
 
 - LLM service API key (OpenAI, Azure OpenAI, etc.) - can be configured post-install via UI
 
-## Step 1: Add Helm Repository
-
-<!-- Content: Helm repo setup -->
-
-## Step 2: Create Namespace
-
-<!-- Content: Namespace creation -->
-
-## Step 3: Install with Zero Configuration
+## Step 1: Install with Zero Configuration
 
 Install SAM using the GCR credentials file downloaded from Solace Cloud:
 
@@ -165,7 +157,7 @@ The chart defaults are optimized for quickstart evaluation — no values file ne
 - **OIDC authentication**: Disabled (no login required)
 - **Session secret**: Auto-generated and preserved across upgrades
 
-## Step 4: Wait for Installation to Complete
+## Step 2: Wait for Installation to Complete
 
 Wait for all pods to be ready:
 
@@ -175,7 +167,7 @@ kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
 
 Press `Ctrl-C` once all pods show `Running` status.
 
-## Step 5: Access the WebUI
+## Step 3: Access the WebUI
 
 Port-forward the Console UI:
 
@@ -197,30 +189,14 @@ http://localhost:8000
 
 On first login, the **Model Configuration UI** will prompt you to configure your LLM provider.
 
-**Your Zero-to-Hero Journey** (6 steps):
+#### Getting Started with SAM
 
 1. **Access the Console UI**
-2. **Configure your LLM model** via the UI prompt (or skip to explore)
+2. **Configure your LLM model** via the UI prompt
 3. **Send your first chat message** to the orchestrator
 4. **Build a custom agent** via Agent Builder
 5. **Deploy your agent**
 6. **Chat with your deployed agent**
-
-:::tip Alternative: Pre-configure via values.yaml
-Configure LLM in your values file before installation:
-```yaml
-llmService:
-  llmServiceEndpoint: "https://api.openai.com/v1"
-  llmServiceApiKey: "your-api-key"
-  planningModel: "gpt-4o"
-  generalModel: "gpt-4o"
-```
-See the [RBAC Setup Guide](./rbac-setup-guide.md) for `enterprise_config.yaml` configuration.
-:::
-
-## Testing Your Installation
-
-<!-- Content: Quick tests -->
 
 ## What's Next?
 
@@ -241,31 +217,11 @@ Refer to the main [Enterprise documentation](./enterprise.md) for detailed featu
 
 ### Moving to Production
 
-When ready for production, upgrade using `helm upgrade` with production overrides:
-
-```bash
-helm upgrade sam solace/solace-agent-mesh \
-  --namespace sam \
-  -f production-overrides.yaml
-```
-
-Create a `production-overrides.yaml` file with production settings. The main `values.yaml` contains comprehensive inline documentation for all options.
-
-**Production Readiness Checklist** (items to address before production use):
-
-- ☐ **Disable embedded broker** - Set `global.broker.embedded: false` and configure external Solace broker
-- ☐ **Disable embedded persistence** - Set `global.persistence.enabled: false` and configure external PostgreSQL and S3
-- ☐ **Configure durable queues** - Set `USE_TEMPORARY_QUEUES: "false"` and configure Queue Template on Solace broker
-- ☐ **Enable authorization** - Set `sam.authorization.enabled: true`
-- ☐ **Configure OAuth/OIDC provider** - Set `sam.oauthProvider.oidc.*` fields
-- ☐ **Enable Ingress or LoadBalancer** - Set `ingress.enabled: true` or `service.type: LoadBalancer`
-- ☐ **Configure TLS certificates** - Set `service.tls.*` or `ingress.tls.*`
+When ready for production, see the [Production Kubernetes Installation](./production-kubernetes.md) guide for complete deployment guidance, including external broker and datastore configuration, authorization, TLS, and the upgrade path from this quickstart.
 
 :::danger Embedded Components Not for Production
 The embedded PostgreSQL, SeaweedFS, and Solace broker are designed for evaluation only. They lack high availability, backup/restore capabilities, and proper resource limits for production workloads.
 :::
-
-See [Production Kubernetes Installation](./production-kubernetes.md) for complete production deployment guidance.
 
 ## Troubleshooting
 

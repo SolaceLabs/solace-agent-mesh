@@ -1,6 +1,6 @@
 ---
-title: Installing Agent Mesh Enterprise
-sidebar_position: 13
+title: Docker Installation
+sidebar_position: 9
 ---
 
 This guide walks you through installing and running Agent Mesh Enterprise using Docker. You will download the enterprise image, load it into Docker, and launch a container configured for either development or production use.
