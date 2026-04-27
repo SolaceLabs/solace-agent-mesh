@@ -72,7 +72,7 @@ class WebUIBackendApp(BaseGatewayApp):
             "name": "sse_max_queue_size",
             "required": False,
             "type": "integer",
-            "default": 200,
+            "default": 1000,
             "description": "Maximum size of the SSE connection queues. Adjust based on expected load.",
         },
         {
