@@ -369,6 +369,14 @@ class FilteringSessionService(BaseSessionService):
         """
         self._wrapped = wrapped_service
 
+    def __getattr__(self, name: str) -> Any:
+        # Forward backend-specific attributes (e.g. DatabaseSessionService's
+        # database_session_factory, which enterprise's SecretSessionManager
+        # reaches in for) that aren't part of BaseSessionService. Only fires
+        # on lookup miss, so the explicit wrapper methods above still take
+        # precedence and add their filtering/retry behaviour.
+        return getattr(self._wrapped, name)
+
     async def get_session(
         self,
         *,
@@ -490,6 +498,14 @@ class RetryingSessionService(BaseSessionService):
 
     def __init__(self, wrapped_service: BaseSessionService):
         self._wrapped = wrapped_service
+
+    def __getattr__(self, name: str) -> Any:
+        # Forward backend-specific attributes (e.g. DatabaseSessionService's
+        # database_session_factory, which enterprise's SecretSessionManager
+        # reaches in for) that aren't part of BaseSessionService. Only fires
+        # on lookup miss, so the explicit wrapper methods above still take
+        # precedence and add their retry behaviour.
+        return getattr(self._wrapped, name)
 
     async def get_session(
         self,
