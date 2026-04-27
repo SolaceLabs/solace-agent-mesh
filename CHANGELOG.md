@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.2...1.20.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* **DATAGO-133911:** SSE event replay silently disabled — gateway logs "Database not configured" despite SQL session_service ([#1458](https://github.com/SolaceLabs/solace-agent-mesh/issues/1458)) ([abb5c6c](https://github.com/SolaceLabs/solace-agent-mesh/commit/abb5c6cf603fa263918e8653b67cd6b51de82557))
+* **DATAGO-133916 :** extract_content_from_artifact spends 10-14 min per call summarising 35-66KB JSON ([#1460](https://github.com/SolaceLabs/solace-agent-mesh/issues/1460)) ([80ac170](https://github.com/SolaceLabs/solace-agent-mesh/commit/80ac170e84d784f892ccb1cb5e480a027b7ded93))
+
 ## [1.20.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.1...1.20.2) (2026-04-26)
 
 
