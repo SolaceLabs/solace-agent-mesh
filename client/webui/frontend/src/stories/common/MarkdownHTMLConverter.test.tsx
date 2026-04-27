@@ -10,42 +10,39 @@ expect.extend(matchers);
 const renderMd = (md: string) => render(<MarkdownHTMLConverter>{md}</MarkdownHTMLConverter>);
 
 describe("MarkdownHTMLConverter — GFM task lists", () => {
-    test("replaces unchecked checkbox <input> with a styled span (transparent, currentColor border, dimmed)", () => {
+    test("keeps the native checkbox input and applies theming + non-interactive attrs (unchecked)", () => {
         const { container } = renderMd("- [ ] Open task");
 
-        // Native input must be gone
-        expect(container.querySelector("input[type=checkbox]")).toBeNull();
+        const input = container.querySelector("input[type=checkbox]");
+        expect(input).not.toBeNull();
+        expect(input!.hasAttribute("checked")).toBe(false);
 
-        // A styled span takes its place
-        const li = container.querySelector("li");
-        const span = li?.querySelector("span");
-        expect(span).not.toBeNull();
+        // `disabled` must be dropped so the browser's accent-color applies;
+        // interactivity is suppressed via pointer-events / tabindex / aria.
+        expect(input!.hasAttribute("disabled")).toBe(false);
+        expect(input!.getAttribute("tabindex")).toBe("-1");
+        expect(input!.getAttribute("aria-disabled")).toBe("true");
 
-        const style = span!.getAttribute("style") ?? "";
-        expect(style).toContain("background-color: transparent");
-        // jsdom may serialize the inherited color keyword either as "currentcolor"
-        // or omit it (since it's the default), so just assert the 1px solid border.
-        expect(style).toMatch(/border:\s*1px solid/);
-        expect(style).toContain("opacity: 0.6");
-        // No checkmark image when unchecked
-        expect(style).not.toContain("background-image: url");
+        const cls = input!.getAttribute("class") ?? "";
+        expect(cls).toContain("size-3.5");
+        expect(cls).toContain("shrink-0");
+        expect(cls).toContain("accent-(--primary-wMain)");
+        expect(cls).toContain("pointer-events-none");
     });
 
-    test("replaces checked checkbox <input> with filled primary span and embedded check SVG", () => {
+    test("keeps the native checkbox input with the checked attribute (checked)", () => {
         const { container } = renderMd("- [x] Done task");
 
-        expect(container.querySelector("input[type=checkbox]")).toBeNull();
+        const input = container.querySelector("input[type=checkbox]");
+        expect(input).not.toBeNull();
+        expect(input!.hasAttribute("checked")).toBe(true);
 
-        const span = container.querySelector("li span");
-        expect(span).not.toBeNull();
+        expect(input!.hasAttribute("disabled")).toBe(false);
+        expect(input!.getAttribute("tabindex")).toBe("-1");
+        expect(input!.getAttribute("aria-disabled")).toBe("true");
 
-        const style = span!.getAttribute("style") ?? "";
-        expect(style).toContain("background-color: var(--primary-wMain)");
-        expect(style).toContain("border: 1px solid var(--primary-wMain)");
-        expect(style).toContain("opacity: 1");
-        expect(style).toContain("background-image: url");
-        // Sanity-check the inline checkmark SVG is the one we emit (white fill)
-        expect(style).toContain("fill='white'");
+        const cls = input!.getAttribute("class") ?? "";
+        expect(cls).toContain("accent-(--primary-wMain)");
     });
 
     test("drops the disc bullet on a <ul> whose <li>s start with a checkbox", () => {
@@ -105,14 +102,18 @@ describe("MarkdownHTMLConverter — GFM task lists", () => {
     test("handles mixed checked/unchecked items in a single list", () => {
         const { container } = renderMd("- [x] done\n- [ ] todo");
 
-        const spans = container.querySelectorAll("li span");
-        expect(spans.length).toBe(2);
+        const inputs = container.querySelectorAll("li input[type=checkbox]");
+        expect(inputs.length).toBe(2);
 
-        const [first, second] = Array.from(spans).map(s => s.getAttribute("style") ?? "");
-        expect(first).toContain("background-color: var(--primary-wMain)");
-        expect(first).toContain("background-image: url");
+        const [first, second] = Array.from(inputs);
+        expect(first.hasAttribute("checked")).toBe(true);
+        expect(second.hasAttribute("checked")).toBe(false);
 
-        expect(second).toContain("background-color: transparent");
-        expect(second).not.toContain("background-image: url");
+        // Both inputs share the same theming classes regardless of checked state.
+        for (const el of [first, second]) {
+            expect(el.hasAttribute("disabled")).toBe(false);
+            const cls = el.getAttribute("class") ?? "";
+            expect(cls).toContain("accent-(--primary-wMain)");
+        }
     });
 });
