@@ -178,8 +178,6 @@ For production Kubernetes deployments, configure Solace broker queue templates t
 
 ## Architecture Overview
 
-<!-- Content: Production K8s architecture diagram -->
-
 ## Step 1: Infrastructure Preparation
 
 Prepare your Kubernetes cluster infrastructure before deploying SAM.
@@ -234,8 +232,6 @@ Provision SAM in **one availability zone only** to avoid multi-AZ complexity.
 StatefulSets with persistent volumes (PostgreSQL, SeaweedFS) are bound to specific zones. When nodes span multiple AZs without proper node pool configuration, pod scheduling can fail if the PVC and node are in different zones.
 
 ### Network Configuration
-
-<!-- Content: Network policies, ingress, load balancers -->
 
 ## Step 2: External Dependencies
 
@@ -326,8 +322,6 @@ For more details on queue configuration, see [Queue Template Configuration](/doc
 Configure external object storage for artifacts and session data.
 
 ### Certificate Management
-
-<!-- Content: TLS cert setup with cert-manager or manual -->
 
 ### S3 Buckets for OpenAPI Connector Specs
 
@@ -440,8 +434,6 @@ curl https://my-connector-specs-bucket.s3.amazonaws.com/test-spec.yaml
 If you get a 403 Forbidden error, check your bucket policy. If you get 404 Not Found, the bucket is correctly configured (just no files uploaded yet).
 
 ## Step 3: Helm Chart Configuration
-
-<!-- Content: Production values.yaml -->
 
 Create a production overrides file (`production-overrides.yaml`) based on the comprehensive inline documentation in the chart's `values.yaml`.
 
@@ -788,8 +780,6 @@ The chart's default `values.yaml` contains comprehensive inline documentation fo
 
 ## Step 6: Post-Installation Configuration
 
-<!-- Content: Post-install setup -->
-
 **Verify Production Readiness:**
 
 - ✓ **Persistence**: External PostgreSQL and S3 (not embedded)
@@ -814,13 +804,9 @@ On first login you'll be prompted to configure your LLM API key via the Model Co
 
 ### Configure Authentication
 
-<!-- Content: SSO setup -->
-
 See [Single Sign-On](./single-sign-on.md) for detailed OAuth/OIDC provider setup.
 
 ### Configure Authorization
-
-<!-- Content: RBAC setup -->
 
 See [RBAC Setup Guide](./rbac-setup-guide.md) for detailed access control configuration.
 

@@ -64,10 +64,6 @@ All users upgrading from v1.2.x must address:
 
 ### 1. localCharts and chartBaseUrl Keys Removed
 
-:::danger Schema Validation Failure
-If either `samDeployment.agentDeployer.localCharts` or `samDeployment.agentDeployer.chartBaseUrl` is present in your values file, `helm upgrade` will fail immediately at schema validation — before making any cluster changes. Remove them before upgrading.
-:::
-
 In v2.0.0, the agent chart is always bundled inside the main chart. These keys no longer exist in the schema.
 
 **Old values (v1.2.x) — remove these:**
@@ -286,31 +282,6 @@ Chart v2.0.0 changes several default values to optimize for quickstart evaluatio
 | `service.type` | `LoadBalancer` | `ClusterIP` | Requires port-forward for access |
 | `service.tls.enabled` | `true` | `false` | Disables TLS |
 | `samDeployment.image.pullPolicy` | `Always` | `IfNotPresent` | Reduces registry load |
-
-**Migration Action:**
-
-:::danger Resource Impact
-The new defaults deploy embedded PostgreSQL, SeaweedFS, and Solace broker, consuming additional cluster resources. Existing deployments with explicit values are NOT affected.
-:::
-
-If you were relying on the v1.x defaults, you must now **explicitly set** production values:
-
-```yaml
-global:
-  broker:
-    embedded: false
-  persistence:
-    enabled: false
-
-sam:
-  authorization:
-    enabled: true
-
-service:
-  type: LoadBalancer
-  tls:
-    enabled: true
-```
 
 ### 8. Sample Values Files Removed
 

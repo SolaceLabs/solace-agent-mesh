@@ -17,10 +17,6 @@ An air-gapped deployment runs in an environment with no direct internet connecti
 
 Air-gapped installations are common in regulated industries such as financial services, government, and healthcare where security policies require complete network isolation.
 
-:::info
-Air-gapped deployments require advance planning for image distribution, dependency management, and component configuration. Review this entire guide before beginning your installation.
-:::
-
 ## Prerequisites
 
 ### Required Access
@@ -31,32 +27,25 @@ Air-gapped deployments require advance planning for image distribution, dependen
 
 ### Infrastructure Requirements
 
-Air-gapped deployments have the same infrastructure requirements as [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites), plus the following air-gapped-specific requirements:
+Air-gapped deployments have the same infrastructure requirements as your target deployment type — see [Kubernetes Quick Start](./quickstart-kubernetes.md#prerequisites) for evaluation or [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites) for production — plus the following air-gapped-specific requirements:
 
 **Air-Gapped-Specific Requirements:**
 - A private container registry accessible from your air-gapped cluster (Harbor, Artifactory, ECR, ACR, GCR, etc.)
 - Registry credentials with push/pull permissions
-- Ability to transfer files into the air-gapped environment (USB, secure file transfer, etc.)
-- System with internet access for downloading the SAM delivery bundle
 
 **Within Air-Gapped Network:**
 - Kubernetes cluster (version 1.20 or later) with standard worker nodes
-- Private container registry (all SAM images must be mirrored)
 - Solace event broker (external recommended for production)
 - PostgreSQL 17+ database (for production)
 - S3-compatible object storage (for production)
 - LLM service endpoint (self-hosted or via internal proxy)
-- Identity Provider (IdP) accessible within the network (for OIDC/SSO)
+- Identity Provider (IdP) accessible within the network (for production deployments with OIDC/SSO enabled)
 
 For detailed infrastructure requirements (node sizing, compute resources, storage classes), see [Production Prerequisites](./production-kubernetes.md#production-prerequisites).
 
 ## Understanding the Air-Gapped Installation Process
 
-<!-- Content: Overview of the air-gapped installation workflow -->
-
 ## Step 1: Obtaining the SAM Delivery Bundle
-
-<!-- Content: How to download bundle from Solace Product Portal -->
 
 ### Bundle Contents
 
@@ -91,7 +80,7 @@ bundle/
 |-------|-------------|
 | `solace-agent-mesh-enterprise` | SAM core application |
 | `sam-agent-deployer` | Manages agent and gateway deployments |
-| `postgres` | Embedded PostgreSQL (evaluation only) |
+| `postgres` | Database init container (schema initialization on every deployment) and embedded PostgreSQL database (evaluation only) |
 | `seaweedfs` | Embedded S3-compatible storage (evaluation only) |
 | `solace-pubsub-enterprise` | Embedded Solace event broker (evaluation only) |
 
@@ -162,10 +151,6 @@ global:
     - name: your-registry-secret
 ```
 
-:::warning Mutually Exclusive
-`global.imagePullKey` and `global.imagePullSecrets` cannot be used together. Providing both will cause the Helm installation to fail with a clear error.
-:::
-
 ## Step 4: Configuring values.yaml for Air-Gapped
 
 The only required change for an air-gapped deployment is pointing to your private registry. Create an `airgap-overrides.yaml` with:
@@ -180,40 +165,34 @@ For registry authentication, see [Step 3: Configuring Image Pull Secrets](#step-
 
 This is sufficient for **evaluation** — embedded broker and persistence are used by default, just as in the [Kubernetes Quick Start](./quickstart-kubernetes.md).
 
-For **production** air-gapped deployments, also configure external components — see [Core Configuration](./production-kubernetes.md#core-configuration) in the Production guide.
-
-:::info Bundled Agent Charts
-The SAM Helm chart always bundles the agent chart (as `sam-agent-{version}.tgz`). No additional configuration is required to enable local chart support for air-gapped deployments — it works out of the box.
-:::
+For **production** air-gapped deployments, also configure external components — see [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
 
 ## Step 5: Installing SAM with Helm
+
+For dry-run validation before installing, see [Step 4: Pre-Installation Validation](./production-kubernetes.md#step-4-pre-installation-validation) in the Production guide — the same approaches apply.
 
 Install SAM in your air-gapped environment with your custom overrides:
 
 ```bash
-helm install sam ./solace-agent-mesh-chart.tgz \
+helm install sam /../bundle/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   -f airgap-overrides.yaml
 ```
 
-Note: Use the local chart archive (`.tgz`) from your SAM delivery bundle, not the remote Helm repository.
-
-For dry-run validation and monitoring installation progress, see [Step 5: Installation](./production-kubernetes.md#step-5-installation) in the Production guide — the same approaches apply.
-
 ## Step 6: Post-Installation Configuration
-
-<!-- Content: Post-install configuration steps -->
 
 ### Verify All Pods are Running
 
-Wait for all pods to be ready:
+**For evaluation** — see [Step 2: Wait for Installation to Complete](./quickstart-kubernetes.md#step-2-wait-for-installation-to-complete) in the Quick Start guide.
 
-```bash
-kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
-```
+**For production** — see [Step 6: Post-Installation Configuration](./production-kubernetes.md#step-6-post-installation-configuration) in the Production guide.
 
-Press `Ctrl-C` once all pods show `Running` status.
+### Access the WebUI
+
+**For evaluation** — see [Step 3: Access the WebUI](./quickstart-kubernetes.md#step-3-access-the-webui) in the Quick Start guide.
+
+**For production** — access is via Ingress or LoadBalancer as configured in your `airgap-overrides.yaml`.
 
 ### First Login
 
@@ -223,11 +202,7 @@ For first login guidance (OIDC redirect vs LLM prompt), see [First Login](./prod
 Ensure your LLM endpoint and OIDC provider are accessible from within the air-gapped network before logging in.
 :::
 
-## Step 7: Validation and Testing
-
-<!-- Content: Validation procedures -->
-
-### Health Check Endpoints
+### Health Checks
 
 Verify SAM is healthy after installation:
 
@@ -236,19 +211,24 @@ curl -s https://<your-sam-domain>/health
 curl -s https://<your-sam-domain>/api/v1/platform/health
 ```
 
-Both endpoints should return a successful response.
-
-For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
-
-### Validate Image Sources
-
-<!-- Content: Confirm pods use private registry -->
-
-Verify that all pods are using images from your private registry and that air-gapped mode (bundled agent charts) is active.
+Both endpoints should return a successful response. For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 
 ## Air-Gapped-Specific Considerations
 
-<!-- Content: Air-gapped specific considerations overview -->
+### Custom CA Certificates
+
+Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
+
+SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
+
+The same configuration applies to air-gapped deployments:
+
+```yaml
+samDeployment:
+  customCA:
+    enabled: true
+    configMapName: "truststore"
+```
 
 ### Components Requiring External Connectivity
 
@@ -326,21 +306,6 @@ dataStores:
 **No Public Access Required:** Agents authenticate to download connector specs using the same credentials as artifact storage.
 
 Configure identical access credentials for both buckets in your Helm values.
-
-### Custom CA Certificates
-
-Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
-
-SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
-
-The same configuration applies to air-gapped deployments:
-
-```yaml
-samDeployment:
-  customCA:
-    enabled: true
-    configMapName: "truststore"
-```
 
 ## Additional Resources
 

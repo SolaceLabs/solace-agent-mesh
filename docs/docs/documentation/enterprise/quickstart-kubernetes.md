@@ -185,8 +185,6 @@ http://localhost:8000
 
 ### First-Time Model Configuration
 
-<!-- Content: How to configure LLM endpoint, API key, and model -->
-
 On first login, the **Model Configuration UI** will prompt you to configure your LLM provider.
 
 #### Getting Started with SAM
