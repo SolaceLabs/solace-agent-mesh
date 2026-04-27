@@ -161,7 +161,7 @@ async def test_excluded_payload_skips_all_streams_included_payload_reaches_them(
     enqueued = stream["sse_queue"].get_nowait()
     assert enqueued["event"] == "a2a_message"
     parsed = json.loads(enqueued["data"])
-    assert parsed["full_payload"] is included_payload
+    assert parsed["full_payload"] == included_payload
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -239,4 +239,4 @@ async def test_serialization_failure_skips_streams_and_continues_loop():
     assert stream["sse_queue"].qsize() == 1
     delivered = stream["sse_queue"].get_nowait()
     parsed = json.loads(delivered["data"])
-    assert parsed["full_payload"] is good_payload
+    assert parsed["full_payload"] == good_payload
