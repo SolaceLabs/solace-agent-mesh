@@ -145,6 +145,25 @@ class ExecutorBasedTool(DynamicTool):
         """Return the parameter name for ToolContextFacade injection."""
         return self._ctx_facade_param_name
 
+    def update_from_init(
+        self,
+        description: Optional[str] = None,
+        parameters_schema: Optional[adk_types.Schema] = None,
+        ctx_facade_param_name: Optional[str] = None,
+    ) -> None:
+        """Update tool metadata from an init response.
+
+        Called after the STR worker responds with enriched schema from
+        --schema discovery. Updates description, parameters, and context
+        facade parameter name so the LLM sees the real tool signature.
+        """
+        if description is not None:
+            self._description = description
+        if parameters_schema is not None:
+            self._schema = parameters_schema
+        if ctx_facade_param_name is not None:
+            self._ctx_facade_param_name = ctx_facade_param_name
+
     async def init(
         self,
         component: "SamAgentComponent",
