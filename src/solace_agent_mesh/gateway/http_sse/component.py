@@ -42,27 +42,27 @@ class _CompactionFutureEntry(TypedDict):
     expected_agent_id: str | None
 
 
-def _payload_excluded_from_visualization(payload: Any) -> bool:
-    """Mirror of routers.visualization._include_for_visualization but operating
-    on the raw payload dict before SSE serialization, so we can skip fan-out
-    entirely instead of building+dumping+parsing for every subscriber."""
+def _should_include_for_visualization(payload: Any) -> bool:
+    """Inspect the raw payload dict before SSE serialization so excluded
+    messages can be short-circuited instead of building+dumping+parsing
+    them for every subscriber."""
     if not isinstance(payload, dict):
-        return False
+        return True
     params = payload.get("params")
     if not isinstance(params, dict):
-        return False
+        return True
     message = params.get("message")
     if not isinstance(message, dict):
-        return False
+        return True
     metadata = message.get("metadata")
     if not isinstance(metadata, dict):
-        return False
+        return True
     setting = metadata.get("visualization")
-    if isinstance(setting, str):
-        return setting.lower() == "false"
     if isinstance(setting, bool):
-        return setting is False
-    return False
+        return setting is not False
+    if isinstance(setting, str):
+        return setting.lower() != "false"
+    return True
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -1070,10 +1070,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         continue
 
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
-                    event_details_for_owner = self._infer_visualization_event_details(
+                    event_details = self._infer_visualization_event_details(
                         topic, payload_dict
                     )
-                    task_id_for_context = event_details_for_owner.get("task_id")
+                    task_id_for_context = event_details.get("task_id")
                     message_owner_id = None
                     if task_id_for_context:
                         root_task_id = task_id_for_context.split(":", 1)[0]
@@ -1115,7 +1115,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         message_owner_id,
                                         task_id_for_context,
                                     )
-                    if _payload_excluded_from_visualization(payload_dict):
+                    if not _should_include_for_visualization(payload_dict):
                         continue
 
                     # Build + serialize once per A2A message; the resulting bytes
@@ -1127,26 +1127,25 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         "event_type": "a2a_message",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "solace_topic": topic,
-                        "direction": event_details_for_owner["direction"],
-                        "source_entity": event_details_for_owner["source_entity"],
-                        "target_entity": event_details_for_owner["target_entity"],
-                        "message_id": event_details_for_owner["message_id"],
-                        "task_id": event_details_for_owner["task_id"],
-                        "payload_summary": event_details_for_owner["payload_summary"],
+                        "direction": event_details["direction"],
+                        "source_entity": event_details["source_entity"],
+                        "target_entity": event_details["target_entity"],
+                        "message_id": event_details["message_id"],
+                        "task_id": event_details["task_id"],
+                        "payload_summary": event_details["payload_summary"],
                         "full_payload": payload_dict,
-                        "debug_type": event_details_for_owner["debug_type"],
+                        "debug_type": event_details["debug_type"],
                     }
                     try:
                         viz_msg = {
                             "event": "a2a_message",
                             "data": json.dumps(viz_event_payload),
                         }
-                    except Exception as ser_err:
-                        log.error(
-                            "%s Failed to serialize viz message for topic %s: %s",
+                    except (TypeError, ValueError):
+                        log.exception(
+                            "%s Failed to serialize viz message for topic %s",
                             log_id_prefix,
                             topic,
-                            ser_err,
                         )
                         continue
 
