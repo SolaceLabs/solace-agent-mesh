@@ -1014,6 +1014,28 @@ Based on analyzing the CSV data, I found 102 records containing 'Employee' in th
     )
 
     extracted_content_str = ""
+    # Surface a "starting" progress update so the user sees the agent is working
+    # during the long internal LLM call (typically 30-300s). Without this, the
+    # tool is opaque between tool_invocation_start and tool_result.
+    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
+    if a2a_context and hasattr(host_component, "_publish_agent_status_signal_update"):
+        try:
+            artifact_kb = (
+                len(source_artifact_content_bytes) // 1024
+                if source_artifact_content_bytes else 0
+            )
+            await host_component._publish_agent_status_signal_update(
+                f"Extracting content from `{filename}` "
+                f"(~{artifact_kb}KB)... this can take 1-3 minutes for larger artifacts.",
+                a2a_context,
+            )
+        except Exception as e:
+            log.debug(
+                "%s Failed to publish extract-start status update: %s",
+                log_identifier,
+                e,
+            )
+
     # Override the per-call HTTP timeout and disable client-side retries for the
     # internal LLM call. The agent's main LiteLlm carries timeout=120s in its
     # _model_config, which is too short for extraction prompts that legitimately
