@@ -1,5 +1,5 @@
 export { api, getErrorFromResponse, refreshToken, scheduleProactiveRefresh, cancelProactiveRefresh } from "./client";
-export { useAllArtifacts } from "./artifacts/hooks";
+export * from "./artifacts";
 export * from "./features";
 export * from "./people";
 export * from "./projects";
