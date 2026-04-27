@@ -1868,7 +1868,31 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
 extract_content_from_artifact_tool_def = BuiltinTool(
     name="extract_content_from_artifact",
     implementation=extract_content_from_artifact,
-    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact. IMPORTANT: If the tool returns an error status (e.g., 'error_encoding_failed', 'error_artifact_not_found'), you MUST relay this error to the user - do NOT attempt to generate or fabricate data. The tool will return a 'message_to_llm' field explaining the error.",
+    description=(
+        "Use an internal LLM to summarise, paraphrase, or qualitatively extract "
+        "information from a TEXT-BASED artifact (PDF, Markdown, plain text, "
+        "transcripts, HTML, source code, meeting notes, prose-style content). "
+        "Also handles supported binary types (e.g. images) when configured. "
+        "Each call makes one LLM request which may take 30s to several minutes "
+        "depending on artifact size and the LLM's generation rate.\n\n"
+        "USE WHEN: the goal is qualitative on unstructured/natural-language "
+        "content — e.g. \"summarise the meeting notes\", \"extract action items "
+        "from the transcript\", \"find references to product X in the doc\", "
+        "\"describe what is in this image\".\n\n"
+        "DO NOT USE for STRUCTURED data (JSON, CSV, TSV, YAML, XML, JSON Lines, "
+        "API response payloads, tabular query results). Running an LLM over "
+        "structured data to count/filter/aggregate fields is slow, wastes "
+        "tokens, and is unreliable compared to deterministic parsing. For "
+        "structured data, prefer (in order): a domain-specific tool that "
+        "already returns the field you need, query_data_with_sql for tabular "
+        "files when available, or load_artifact and reason over the parsed "
+        "content directly.\n\n"
+        "IMPORTANT: If the tool returns an error status (e.g. "
+        "'error_encoding_failed', 'error_artifact_not_found', "
+        "'error_llm_call_failed'), you MUST relay this error to the user - do "
+        "NOT attempt to generate or fabricate data. The tool returns a "
+        "'message_to_llm' field explaining the error."
+    ),
     category="artifact_management",
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1882,7 +1906,16 @@ extract_content_from_artifact_tool_def = BuiltinTool(
             ),
             "extraction_goal": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
+                description=(
+                    "Natural-language instruction describing the qualitative "
+                    "extraction or transformation to perform on the artifact "
+                    "(e.g. 'summarise the meeting notes', 'list action items', "
+                    "'find every mention of product X with surrounding context'). "
+                    "Avoid goals that ask for exhaustive structured output over "
+                    "many records (e.g. 'for each of the 200 rows, extract every "
+                    "field') — those should use deterministic parsing or "
+                    "query_data_with_sql instead. May contain embeds."
+                ),
             ),
             "version": adk_types.Schema(
                 type=adk_types.Type.STRING,
