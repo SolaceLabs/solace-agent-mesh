@@ -18,25 +18,17 @@ Chart v2.0.0 introduces several breaking changes to configuration structure, def
 | Your Situation | Action Required |
 |---------------|-----------------|
 | **New installation (never used v1.x)** | ✅ No action - skip this guide |
-| **Upgrading from v1.2.x** | ⚠️ **CRITICAL** - Must update image configuration before upgrade |
-| **Upgrading from v1.1.0 or earlier with bundled persistence** | ⚠️ **CRITICAL** - Must migrate StatefulSets |
+| **Upgrading from v1.2.x** | ⚠️ **CRITICAL** - Multiple required changes before upgrade (see below) |
+| **Using `localCharts` or `chartBaseUrl` in values** | ❌ **SCHEMA FAILURE** - Must remove before upgrade or `helm upgrade` fails immediately |
+| **Session key not explicitly set** | ⚠️ **CRITICAL** - Extract old value first or all users are logged out |
+| **Using embedded PostgreSQL/SeaweedFS** | ⚠️ **CRITICAL** - Must run `kubectl annotate` before upgrade or PostgreSQL fails to restart |
 | **Using external references (External Secrets, ArgoCD, etc.)** | ⚠️ Required - Update secret/configmap names |
-| **Using sample values files** | ⚠️ Required - Migrate to custom override files |
+| **Using `samDeployment.imagePullSecret`** | ⚠️ Required - Move to `global.imagePullSecrets` |
+| **Using cloud workload identity (IRSA, GKE WI, Azure WI)** | ⚠️ Required - Update IAM trust policy to new SA name |
+| **Using bundled persistence and upgrading from ≤v1.1.0** | ⚠️ **CRITICAL** - Must migrate StatefulSets before upgrade |
 | **Relying on v1.x defaults** | ⚠️ Required - Explicitly set production values |
 
-**Most critical issue:** Upgrading from v1.2.x without updating image configuration will cause immediate pod failures with `ImagePullBackOff`. See [Image Configuration Restructured](#1-image-configuration-restructured) before upgrading.
-
-## Overview of Changes
-
-Chart v2.0.0 restructures the Helm chart for a quickstart-first experience with the following major changes:
-
-1. **Image Configuration Restructured** - Image registry and repository are now separate fields (⚠️ **CRITICAL**)
-2. **Service Account Naming Changed** - Auto-generated names instead of hardcoded defaults
-3. **Secrets and ConfigMaps Restructured** - Monolithic resources split into focused components
-4. **Default Values Changed** - Optimized for quickstart evaluation with embedded components
-5. **Sample Values Files Removed** - Consolidated into comprehensive inline documentation
-6. **Bundled Persistence VCT Labels** - One-time StatefulSet migration required (if using bundled persistence from ≤v1.1.0)
-7. **Image Pull Policy Changed** - Default changed from `Always` to `IfNotPresent`
+**Most critical issues for v1.2.x upgrades:** `localCharts`/`chartBaseUrl` removal causes schema failure, `sam.sessionSecretKey` change logs out all users, and the `ServiceAccount` annotate step is required for embedded persistence. See the full breaking changes below.
 
 ## What's New in v2.0.0
 
@@ -55,19 +47,48 @@ In addition to the breaking changes below, v2.0.0 introduces the following new c
 
 ### From v1.1.0 and Earlier
 
-If upgrading from v1.1.0 or earlier, you may also need to address:
-- [Bundled Persistence VCT Labels](#6-bundled-persistence-vct-labels-migration) (if using bundled persistence)
+If upgrading from v1.1.0 or earlier with bundled persistence, also address:
+- [Bundled Persistence VCT Labels](#9-bundled-persistence-vct-labels)
 
 ### From v1.2.x to v2.0.0
 
 All users upgrading from v1.2.x must address:
-- [Image Configuration Restructured](#1-image-configuration-restructured)
-- [Default Values Changed](#4-default-values-changed)
-- [Image Pull Policy Changed](#7-image-pull-policy-change)
+- [localCharts and chartBaseUrl Keys Removed](#1-localcharts-and-chartbaseurl-keys-removed)
+- [Image Configuration Restructured](#2-image-configuration-restructured)
+- [Session Key Secret Location Changed](#3-session-key-secret-location-changed)
+- [Service Account Naming Changed](#4-service-account-naming-changed) (+ `kubectl annotate` if using embedded persistence)
+- [Default Values Changed](#7-default-values-changed)
+- [Image Pull Policy Changed](#10-image-pull-policy-change)
 
 ## Breaking Changes Detail
 
-### 1. Image Configuration Restructured
+### 1. localCharts and chartBaseUrl Keys Removed
+
+:::danger Schema Validation Failure
+If either `samDeployment.agentDeployer.localCharts` or `samDeployment.agentDeployer.chartBaseUrl` is present in your values file, `helm upgrade` will fail immediately at schema validation — before making any cluster changes. Remove them before upgrading.
+:::
+
+In v2.0.0, the agent chart is always bundled inside the main chart. These keys no longer exist in the schema.
+
+**Old values (v1.2.x) — remove these:**
+```yaml
+samDeployment:
+  agentDeployer:
+    chartBaseUrl: "https://..."
+    localCharts:
+      enabled: true
+      mountPath: "/opt/helm-charts"
+```
+
+Also update the version fields:
+```yaml
+samDeployment:
+  agentDeployer:
+    version: "k8s-2.0.0"   # was k8s-1.2.x
+    chartVersion: "2.0.0"   # was 1.2.x
+```
+
+### 2. Image Configuration Restructured
 
 :::warning Critical - Pods Will Fail Without This Change
 All users upgrading from v1.2.x must update their values file before running `helm upgrade`. The default `repository` value in v1.2.x included the registry hostname (`gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise`). In v2.0.0, the chart prepends `global.imageRegistry` to `repository` automatically — upgrading without updating your values will produce a double-prefixed image reference that Kubernetes cannot pull, and pods will go into `ImagePullBackOff` immediately.
@@ -137,27 +158,98 @@ Every image should show the correct registry prefix exactly once (e.g., `gcr.io/
 
 **Step 3:** Proceed with the upgrade (see [Upgrade Command](#upgrade-command) section).
 
-### 2. Service Account Naming Changed
+### 3. Session Key Secret Location Changed
+
+:::danger All Users Logged Out Without This Step
+In v1.2.x the session key was stored in `<release>-environment`. In v2.0.0 it moves to a new secret with a different name. On first upgrade, the chart cannot find the old value and generates a new random key — instantly logging out all active users.
+:::
+
+**If `sam.sessionSecretKey` was already set explicitly in your v1.2.x values:** carry it forward unchanged. No action needed.
+
+**If it was not set explicitly**, extract the value before upgrading:
+
+```bash
+kubectl get secret <release>-environment -n <namespace> \
+  -o go-template='{{index .data "SESSION_SECRET_KEY" | base64decode}}{{"\n"}}'
+```
+
+Then set it explicitly in your v2.0.0 values:
+
+```yaml
+sam:
+  sessionSecretKey: "<value from above>"
+```
+
+### 4. Service Account Naming Changed
 
 Default service account names are now auto-generated as `{release}-solace-agent-mesh-{component}-sa` instead of the previous hardcoded `solace-agent-mesh-sa`.
 
 **Old Behavior (v1.x):**
-- Service account: `solace-agent-mesh-sa` (hardcoded)
+- Single shared SA: `solace-agent-mesh-sa` (used by core, agent-deployer, PostgreSQL, SeaweedFS, and agent pods)
 
 **New Behavior (v2.0.0):**
-- Service account: `{release}-solace-agent-mesh-core-sa` (auto-generated from release name)
-- Example: If release name is `sam`, SA name is `sam-solace-agent-mesh-core-sa`
+- Core SA: `{release}-solace-agent-mesh-core-sa` (auto-generated)
+- The old `solace-agent-mesh-sa` is deleted by Helm during upgrade
 
-**Migration Action:**
-- If you need to preserve the old service account name, explicitly set it:
-  ```yaml
-  samDeployment:
-    serviceAccount:
-      name: solace-agent-mesh-sa
-  ```
-- Update any external references to the service account (e.g., IAM role bindings, workload identity)
+#### Pre-Upgrade: Protect the Shared ServiceAccount (Embedded Persistence Only)
 
-### 3. Secrets and ConfigMaps Restructured
+:::warning Required for Embedded PostgreSQL/SeaweedFS Users
+If you use embedded persistence (`global.persistence.enabled: true`), run this command **before** `helm upgrade`. If skipped, Helm deletes `solace-agent-mesh-sa` during the upgrade — PostgreSQL and SeaweedFS cannot restart and running agent pods lose their SA reference.
+:::
+
+```bash
+kubectl annotate serviceaccount solace-agent-mesh-sa \
+  -n <namespace> \
+  "helm.sh/resource-policy=keep"
+```
+
+After annotating, keep these values explicitly in your v2.0.0 values file so PostgreSQL and SeaweedFS continue using the preserved SA:
+
+```yaml
+persistence-layer:
+  postgresql:
+    serviceAccountName: solace-agent-mesh-sa
+  seaweedfs:
+    serviceAccountName: solace-agent-mesh-sa
+```
+
+The SA is no longer tracked by Helm after the upgrade but existing pods continue using it.
+
+#### Workload Identity Users (IRSA / GKE WI / Azure WI)
+
+If you have an IAM trust policy attached to `solace-agent-mesh-sa` for cloud storage access, update it to the new core SA name **before upgrading**. Find the new name with:
+
+```bash
+helm template <release> <chart> -f values-2.0.0.yaml \
+  | grep "kind: ServiceAccount" -A5 | grep " name:"
+```
+
+#### External Reference Update
+- Update any external IAM/RBAC bindings if they reference `solace-agent-mesh-sa` for the core pod (not needed if you are preserving it for embedded persistence)
+
+### 5. Pull Secret Migration
+
+In v1.2.x, pull secrets were attached to the shared `solace-agent-mesh-sa` ServiceAccount. In v2.0.0, core and agent-deployer pods use new auto-generated ServiceAccounts with no pull secret attached.
+
+**Old values (v1.2.x):**
+```yaml
+samDeployment:
+  imagePullSecret: "my-reg-secret"
+```
+
+**New values (v2.0.0):**
+```yaml
+global:
+  imagePullSecrets:
+    - "my-reg-secret"
+
+samDeployment:
+  imagePullSecret: ""  # clear the old field
+```
+
+Alternatively, use `global.imagePullKey` with `--set-file` to let the chart create the secret automatically. See [GCR Credentials File](./quickstart-kubernetes.md#gcr-credentials-file).
+
+### 6. Secrets and ConfigMaps Restructured
 
 The monolithic secret and configmap have been split into multiple focused resources for better security and organization.
 
@@ -182,7 +274,7 @@ kubectl get configmaps -n <namespace> -l app.kubernetes.io/instance=<release>
   - Custom scripts or operators reading SAM secrets/configmaps
   - Backup/restore automation referencing old names
 
-### 4. Default Values Changed
+### 7. Default Values Changed
 
 Chart v2.0.0 changes several default values to optimize for quickstart evaluation.
 
@@ -220,7 +312,7 @@ service:
     enabled: true
 ```
 
-### 5. Sample Values Files Removed
+### 8. Sample Values Files Removed
 
 Sample values files in `samples/values/` have been removed and consolidated into comprehensive inline documentation within the main `values.yaml`.
 
@@ -240,13 +332,13 @@ Sample values files in `samples/values/` have been removed and consolidated into
 - Reference the inline documentation in `values.yaml` for all configuration options
 - See [Production Kubernetes Installation](./production-kubernetes.md) for examples
 
-### 6. Bundled Persistence VCT Labels Migration
+### 9. Bundled Persistence VCT Labels
 
-:::warning Only for Bundled Persistence Users
+:::warning Only for Bundled Persistence Users Upgrading from ≤v1.1.0
 This section only applies if you are using **bundled persistence** (`global.persistence.enabled: true`) and upgrading from chart version ≤1.1.0. External persistence users and new installations are **not affected**.
 :::
 
-Starting with chart versions after 1.1.0, the bundled persistence layer uses minimal VolumeClaimTemplate (VCT) labels for StatefulSets. This change prevents upgrade failures when labels change over time, but requires a one-time migration for existing deployments.
+Starting with chart versions after 1.1.0, the bundled persistence layer uses minimal VolumeClaimTemplate (VCT) labels for StatefulSets. This prevents upgrade failures when labels change over time, but requires a one-time migration for existing deployments.
 
 **Why this matters:** Kubernetes StatefulSet VCT labels are immutable. Without migration, upgrades will fail with:
 ```
@@ -254,15 +346,11 @@ StatefulSet.apps "xxx-postgresql" is invalid: spec: Forbidden: updates to statef
 for fields other than 'replicas', 'ordinals', 'template', 'updateStrategy'... are forbidden
 ```
 
-**Migration Procedure:**
-
-**Step 1:** Delete StatefulSets while preserving data (PVCs are retained):
+**Step 1:** Delete StatefulSets while preserving data (`--cascade=orphan` retains PVCs):
 
 ```bash
 kubectl delete sts <release>-postgresql <release>-seaweedfs --cascade=orphan -n <namespace>
 ```
-
-The `--cascade=orphan` flag ensures pods and PVCs remain intact.
 
 **Step 2:** Upgrade the Helm release:
 
@@ -275,16 +363,13 @@ helm upgrade <release> solace/solace-agent-mesh \
 **Step 3:** Verify the upgrade succeeded and data is intact:
 
 ```bash
-# Check pods are running
 kubectl get pods -l app.kubernetes.io/instance=<release> -n <namespace>
-
-# Verify PVCs are still bound
 kubectl get pvc -l app.kubernetes.io/instance=<release> -n <namespace>
 ```
 
-The new StatefulSets are created with minimal VCT labels and automatically reattach to the existing PVCs, preserving all your data.
+The new StatefulSets automatically reattach to the existing PVCs, preserving all data.
 
-### 7. Image Pull Policy Change
+### 10. Image Pull Policy Change
 
 The default `pullPolicy` for all images has changed from `Always` to `IfNotPresent`.
 
@@ -328,85 +413,74 @@ samDeployment:
 
 ## Migration Checklist
 
-Before upgrading to chart v2.0.0:
+### Phase 1: Update Values File
 
-- [ ] **Backup your current deployment**
-  - Export current values: `helm get values <release> -n <namespace> > current-values.yaml`
-  - Backup secrets and configmaps
-  - Document current service account names
+- [ ] [Remove localCharts and chartBaseUrl](#1-localcharts-and-chartbaseurl-keys-removed)
+- [ ] [Restructure image configuration](#2-image-configuration-restructured)
+- [ ] [Preserve session key](#3-session-key-secret-location-changed)
+- [ ] [Migrate pull secret](#5-pull-secret-migration)
+- [ ] [Apply default value overrides](#7-default-values-changed) (broker, persistence, authorization)
+- [ ] [Migrate from sample values files](#8-sample-values-files-removed) (if applicable)
+- [ ] [Review image pull policy](#10-image-pull-policy-change)
+- [ ] [Validate values file](#upgrade-command) (catches schema errors before touching the cluster)
+
+### Phase 2: Prepare the Cluster
+
+- [ ] **Backup current deployment**
+  - Export values: `helm get values <release> -n <namespace> > current-values.yaml`
   - If using bundled persistence, verify PVC backup strategy
 
-- [ ] **Update image configuration** (CRITICAL)
-  - Split `image.repository` into `global.imageRegistry` + `image.repository`
-  - Remove registry hostname from repository fields
-  - Validate with `helm template` to check for double-prefix issue
-  - Review all image references in your values file
+- [ ] [Migrate StatefulSet VCT labels](#9-bundled-persistence-vct-labels) (bundled persistence + upgrading from ≤v1.1.0 only)
+- [ ] [Annotate shared ServiceAccount](#pre-upgrade-protect-the-shared-serviceaccount-embedded-persistence-only) (embedded persistence users only)
+- [ ] [Update workload identity trust policy](#workload-identity-users-irsa--gke-wi--azure-wi) (IRSA/GKE WI/Azure WI users only)
+- [ ] [Update external references](#6-secrets-and-configmaps-restructured) (External Secrets Operator, ArgoCD/Flux, backup scripts)
 
-- [ ] **Review image pull policy**
-  - If using mutable tags (e.g., `latest`), explicitly set `pullPolicy: Always`
-  - If using immutable tags, no action needed
+### Phase 3: Upgrade and Verify
 
-- [ ] **Bundled persistence migration** (if applicable)
-  - Only if using `global.persistence.enabled: true` and upgrading from ≤v1.1.0
-  - Plan StatefulSet deletion and recreation window
-  - Verify PVCs will not be deleted (use `--cascade=orphan`)
-
-- [ ] **Review service account naming**
-  - Decide: keep old name (explicit) or migrate to new auto-generated name
-  - Update external IAM/RBAC bindings if needed
-
-- [ ] **Update external references**
-  - Check External Secrets Operator configurations
-  - Check ArgoCD/Flux patches
-  - Check backup/restore scripts
-  - Check monitoring/alerting rules
-
-- [ ] **Review default value changes**
-  - Explicitly set production values if you were relying on v1.x defaults
-  - Confirm embedded components won't strain cluster resources
-
-- [ ] **Migrate from sample values files**
-  - Create custom override files based on `values.yaml` inline docs
-  - Remove references to `samples/values/*.yaml`
-
-- [ ] **Test in non-production first**
-  - Perform upgrade in dev/staging environment
-  - Validate all integrations work with new resource names
-  - Test RBAC/OIDC authentication if enabled
-  - Verify pods start successfully (check for ImagePullBackOff)
+- [ ] Run `helm upgrade` (see [Upgrade Command](#upgrade-command))
+- [ ] Confirm running agents (`sam-agent-*`) were unaffected — they continue on the old agent chart throughout
+- [ ] Verify pods start successfully (check for `ImagePullBackOff`)
+- [ ] Test RBAC/OIDC authentication
 
 ## Upgrade Command
 
 After completing the migration checklist:
 
-**Step 1: Validate configuration (CRITICAL)**
+**Step 1: Validate the values file (catches schema errors before touching the cluster)**
 
 ```bash
-# Validate that image references are correct (no double-prefix)
-helm template <release> solace/solace-agent-mesh \
-  -f your-values.yaml \
+helm template <release> <chart> -n <namespace> -f values-2.0.0.yaml > /dev/null
+```
+
+Also verify image references have no double-prefix:
+
+```bash
+helm template <release> <chart> -f values-2.0.0.yaml \
   | grep "image:" | sort -u
 ```
 
-Verify output shows each image with registry prefix exactly once:
 - ✅ Correct: `gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
 - ❌ Wrong: `gcr.io/gcp-maas-prod/gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
 
 **Step 2: Review what will change (if using helm-diff plugin)**
 
 ```bash
-helm diff upgrade <release> solace/solace-agent-mesh \
+helm diff upgrade <release> <chart> \
   --namespace <namespace> \
-  -f your-values.yaml
+  -f values-2.0.0.yaml
 ```
 
-**Step 3: Perform the upgrade**
+**Step 3: Run the upgrade**
 
 ```bash
-helm upgrade <release> solace/solace-agent-mesh \
+helm upgrade <release> <chart> \
   --namespace <namespace> \
-  -f your-values.yaml
+  -f values-2.0.0.yaml
 ```
+
+:::info Running Agents Are Unaffected
+`helm upgrade` on the main chart does not touch `sam-agent-*` pods. They continue running on the old agent chart throughout the upgrade with no intervention required. After the upgrade, new agents use the 2.0.0 agent chart. Existing agents can be redeployed from the SAM UI to pick up the new version.
+:::
 
 **Step 4: Verify the upgrade**
 
@@ -419,6 +493,9 @@ kubectl get pods -l app.kubernetes.io/instance=<release> -n <namespace>
 
 # Check for ImagePullBackOff errors
 kubectl get pods -l app.kubernetes.io/instance=<release> -n <namespace> | grep -i "ImagePullBackOff\|ErrImagePull"
+
+# Confirm new secrets were created
+kubectl get secrets -n <namespace> | grep -E "core-secrets|database|storage"
 ```
 
 ## Troubleshooting Migration Issues
@@ -447,7 +524,7 @@ helm upgrade <release> solace/solace-agent-mesh -n <namespace> -f corrected-valu
 
 **Cause:** VCT labels are immutable in StatefulSets.
 
-**Solution:** See [Bundled Persistence VCT Labels Migration](#6-bundled-persistence-vct-labels-migration) section above.
+**Solution:** See [Bundled Persistence VCT Labels](#9-bundled-persistence-vct-labels) section above.
 
 ### Service Account Not Found
 
@@ -484,15 +561,13 @@ helm rollback <release> -n <namespace>
 **After rollback:**
 - Verify pods are running
 - Check that old secrets/configmaps still exist
-- If you deleted StatefulSets during migration, you may need to restore from backup
 
 ## Getting Help
 
 If you encounter migration issues:
 
-1. Review the [Kubernetes Quick Start](./quickstart-kubernetes.md) for v2.0.0 examples
-2. Check the inline documentation in the chart's `values.yaml`
-3. Contact Solace support with your migration questions
+1. Check the inline documentation in the chart's `values.yaml`
+2. Contact Solace support with your migration questions
 
 ## Related Documentation
 
