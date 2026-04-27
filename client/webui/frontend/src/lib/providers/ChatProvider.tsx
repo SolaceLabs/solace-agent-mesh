@@ -65,6 +65,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+    const [singleAgentMode, setSingleAgentMode] = useState<boolean>(false);
     const [isCancelling, setIsCancelling] = useState<boolean>(false);
     const [taskIdInSidePanel, setTaskIdInSidePanel] = useState<string | null>(null);
     const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState<boolean>(true);
@@ -1959,6 +1960,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         addNotification,
         selectedAgentName,
         setSelectedAgentName,
+        singleAgentMode,
+        setSingleAgentMode,
         artifacts,
         allArtifacts,
         artifactsLoading,

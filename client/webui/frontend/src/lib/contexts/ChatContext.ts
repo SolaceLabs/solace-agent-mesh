@@ -22,6 +22,7 @@ export interface ChatState {
     sessionOwnerEmail: string | null;
     currentTaskId: string | null;
     selectedAgentName: string;
+    singleAgentMode: boolean;
     notifications: Notification[];
     isCancelling: boolean;
     latestStatusText: React.RefObject<string | null>;
@@ -89,6 +90,7 @@ export interface ChatActions {
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "warning") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;
+    setSingleAgentMode: React.Dispatch<React.SetStateAction<boolean>>;
     uploadArtifactFile: (file: File, overrideSessionId?: string, description?: string, silent?: boolean) => Promise<{ uri: string; sessionId: string } | { error: string } | null>;
     /** Side Panel Control Actions */
     setIsSidePanelCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
