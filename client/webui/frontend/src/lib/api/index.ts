@@ -1,4 +1,6 @@
 export { api, getErrorFromResponse, refreshToken, scheduleProactiveRefresh, cancelProactiveRefresh } from "./client";
+export { useAllArtifacts, useProjectArtifactContent, useSessionArtifactContent, usePdfBlob } from "./artifacts/hooks";
+export type { BulkArtifactsResponse, ArtifactWithSession } from "./artifacts/types";
 export * from "./features";
 export * from "./people";
 export * from "./projects";
