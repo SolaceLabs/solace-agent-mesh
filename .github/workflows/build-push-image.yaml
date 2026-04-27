@@ -19,6 +19,11 @@ on:
         type: boolean
         required: false
         default: false
+      is_release_merge:
+        description: "True when this build is for a release-please merge to the default branch. Controls whether the bare version tag is applied."
+        type: boolean
+        required: false
+        default: false
     outputs:
       version:
         description: "Semantic version that was built"
@@ -49,6 +54,11 @@ on:
         default: true
       run_container_scan:
         description: "Run Prisma Cloud container scan on built images."
+        type: boolean
+        required: false
+        default: false
+      is_release_merge:
+        description: "True when this build is for a release-please merge. Controls whether the bare version tag is applied."
         type: boolean
         required: false
         default: false
@@ -266,8 +276,7 @@ jobs:
           SHORT_SHA: ${{ needs.prepare-metadata.outputs.short_sha }}
           RELEASE_TAG: ${{ needs.prepare-metadata.outputs.release_tag }}
           COMMIT_SHA: ${{ needs.prepare-metadata.outputs.commit_hash }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REF_NAME: ${{ github.ref_name }}
+          IS_RELEASE_MERGE: ${{ inputs.is_release_merge }}
         run: |
           set -euo pipefail
 
@@ -277,7 +286,7 @@ jobs:
           BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
           TAGS=("${IMG}:${VERSION}-${SHORT_SHA}")
-          if [[ "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+          if [[ "$IS_RELEASE_MERGE" == "true" ]]; then
             TAGS+=("${IMG}:${VERSION}")
             TAGS+=("${IMG}:${RELEASE_TAG}")
           fi

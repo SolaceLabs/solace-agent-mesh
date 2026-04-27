@@ -1,5 +1,5 @@
 name: CI
-
+run-name: "CI (${{ github.event_name == 'push' && '`main`' || (contains(github.event.pull_request.head.ref, 'release-please') && 'Release-Please PR' || format('PR `#{0}`', github.event.pull_request.number)) || '' }})"
 on:
   push:
     branches:
@@ -10,18 +10,20 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-main-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.head.ref, 'release-please')  }}
 
 jobs:
   detect-context:
     name: Detect Context
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       is_release_please_pr: ${{ steps.context.outputs.is_release_please_pr }}
       is_regular_pr: ${{ steps.context.outputs.is_regular_pr }}
       is_push_to_main: ${{ steps.context.outputs.is_push_to_main }}
       is_fork_pr: ${{ steps.context.outputs.is_fork_pr }}
+      is_release_please_merge: ${{ steps.context.outputs.is_release_please_merge }}
+      release_version: ${{ steps.context.outputs.release_version }}
       pr_base_sha: ${{ steps.context.outputs.pr_base_sha }}
     steps:
       - id: context
@@ -32,12 +34,26 @@ jobs:
           IS_PUSH_TO_MAIN: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
           IS_REGULAR_PR: ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && !contains(github.event.pull_request.head.ref, 'release-please') }}
           IS_RELEASE_PLEASE_PR: ${{ contains(github.event.pull_request.head.ref, 'release-please') }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           echo "Determining context..."
           echo "is_fork_pr=$IS_FORK_PR" >> "$GITHUB_OUTPUT"
           echo "is_push_to_main=$IS_PUSH_TO_MAIN" >> "$GITHUB_OUTPUT"
           echo "is_regular_pr=$IS_REGULAR_PR" >> "$GITHUB_OUTPUT"
           echo "is_release_please_pr=$IS_RELEASE_PLEASE_PR" >> "$GITHUB_OUTPUT"
+
+          # Detect release-please merge: push to main where the merge commit
+          # message matches release-please's title pattern (proven in release-post-process.yml).
+          IS_RELEASE_PLEASE_MERGE=false
+          RELEASE_VERSION=""
+          if [[ "$IS_PUSH_TO_MAIN" == "true" && "$HEAD_COMMIT_MESSAGE" =~ ^chore(\(.*\))?:\ release\ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            IS_RELEASE_PLEASE_MERGE=true
+            RELEASE_VERSION="${BASH_REMATCH[2]}"
+          fi
+
+
+          echo "is_release_please_merge=$IS_RELEASE_PLEASE_MERGE" >> "$GITHUB_OUTPUT"
+          echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
   pr-size-check:
     name: PR Size Check
     needs: detect-context
@@ -109,7 +125,7 @@ jobs:
       custom_setup_script: "uv export --format requirements-txt --no-dev --output-file requirements.txt"
       additional_scan_params: |
         fossa.branch=${{ github.event_name == 'pull_request' && 'PR' || 'main' }}
-        fossa.revision=${{ github.event.pull_request.head.ref || github.sha }}
+        fossa.revision=${{ needs.detect-context.outputs.release_version || github.event.pull_request.head.ref || github.sha }}
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
 
@@ -149,6 +165,7 @@ jobs:
       ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
       push_to_ecr: ${{ fromJSON(needs.detect-context.outputs.is_push_to_main) || fromJSON(needs.detect-context.outputs.is_release_please_pr) }}
       run_container_scan: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
+      is_release_merge: ${{ fromJSON(needs.detect-context.outputs.is_release_please_merge) }}
     secrets: inherit
 
   # ── Release-please PR: release readiness ──────────────────────

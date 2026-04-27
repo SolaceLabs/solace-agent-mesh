@@ -13,6 +13,13 @@ log = logging.getLogger(__name__)
 
 LOG_IDENTIFIER = "[ConfigResolver]"
 
+# ``gateway_context["auth_mode"]`` values exchanged between the scheduler and
+# any ``ConfigResolver`` implementation. Producers (the scheduler) and
+# consumers (resolver subclasses) must use these constants so the contract is
+# defined in one place.
+AUTH_MODE_INTERACTIVE = "interactive"
+AUTH_MODE_SCHEDULED = "scheduled"
+
 
 class ConfigResolver:
     """
