@@ -1638,6 +1638,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     core_a2a_service=self.core_a2a_service,
                     config=scheduler_config,
                     sse_manager=self.sse_manager,
+                    gateway_id=self.gateway_id,
                 )
                 log.info(
                     "%s Scheduler service initialized (instance_id=%s).",

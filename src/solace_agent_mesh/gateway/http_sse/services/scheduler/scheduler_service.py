@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.middleware.config_resolver import AUTH_MODE_SCHEDULED
 from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
@@ -80,10 +81,16 @@ class SchedulerService:
         core_a2a_service: CoreA2AService,
         config: Optional[Dict[str, Any]] = None,
         sse_manager: Optional[Any] = None,
+        gateway_id: Optional[str] = None,
     ):
         self.session_factory = session_factory
         self.namespace = namespace
         self.instance_id = instance_id
+        # Host gateway id (e.g. the webui_backend gateway). Used when resolving
+        # user config for scheduled fires so RBAC scopes / role lookups hit the
+        # same authorization service the user is enrolled in.  Falls back to a
+        # synthetic id only for legacy callers that don't pass it.
+        self.gateway_id = gateway_id or f"scheduler_{instance_id}"
         self.publish_func = publish_func
         self.core_a2a_service = core_a2a_service
 
@@ -984,38 +991,81 @@ class SchedulerService:
     ) -> Optional[Dict[str, Any]]:
         """Resolve user configuration for a scheduled task execution.
 
-        The enterprise capability filter requires ``_enterprise_capabilities``
-        in the ``a2aUserConfig`` user-property so that the orchestrator's
-        ``_filter_tools_by_capability_callback`` does not strip peer-agent
-        tools.  Regular chat requests get this from the gateway's
-        ``resolve_user_config`` call; scheduled tasks must do the same.
+        Scheduled fires have no live HTTP request, so the enterprise
+        ``ConfigResolver`` cannot extract auth material from
+        ``request.state``.  We pass ``auth_mode="scheduled"`` in
+        ``gateway_context`` so a resolver implementation can route to a
+        no-request path (e.g. load the scheduling user's stored OAuth
+        credentials from a persistent credential service and refresh via
+        their refresh token) and still produce a ``a2aUserConfig`` that
+        carries the user's identity, RBAC scopes, and any per-agent
+        delegated tokens needed by downstream peer agents.
+
+        The scheduling user is preserved (not replaced with a synthetic
+        service identity) so RBAC scopes and per-user audit trails resolve
+        the same way as in interactive chat.
 
         Returns the resolved user config dict, or ``None`` on failure.
         """
         effective_user = user_id or created_by or "system-scheduler"
         try:
             config_resolver = MiddlewareRegistry.get_config_resolver()
-            user_identity = {"id": effective_user, "name": effective_user}
+            # Match the shape produced by the interactive path's
+            # _extract_initial_claims (gateway/http_sse/component.py).
+            # Downstream agents (e.g. the Salesforce agent's _get_user_email)
+            # walk _user_identity["user_info"]["email"] to scope per-user
+            # behavior; without these fields the agent fails with
+            # "User email not available. Cannot load schema."
+            # Only populate email when the identity actually looks like one.
+            # Downstream agents (e.g. the Salesforce agent's _get_user_email)
+            # treat a missing key as "no email available" and fail cleanly;
+            # handing them a non-email value (UUID, "system-scheduler", etc.)
+            # would silently produce wrong behavior.
+            user_email = (
+                effective_user
+                if isinstance(effective_user, str) and "@" in effective_user
+                else None
+            )
+            user_info = {
+                "id": effective_user,
+                "user_id": effective_user,
+                "name": effective_user,
+                "authenticated": True,
+                "auth_method": "scheduled",
+            }
+            user_identity = {
+                "id": effective_user,
+                "name": effective_user,
+                "user_info": user_info,
+            }
+            if user_email:
+                user_info["email"] = user_email
+                user_identity["email"] = user_email
             gateway_context = {
-                "gateway_id": f"scheduler_{self.instance_id}",
+                "gateway_id": self.gateway_id,
                 "gateway_app_config": {},
+                "auth_mode": AUTH_MODE_SCHEDULED,
+                "scheduling_user_id": effective_user,
             }
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
             user_config["user_profile"] = user_identity
             log.info(
-                "[SchedulerService:%s] Resolved user config for '%s' with %d enterprise capabilities",
+                "[SchedulerService:%s] Resolved user config for '%s' (auth_mode=%s) "
+                "with %d enterprise capabilities",
                 self.instance_id,
                 effective_user,
+                AUTH_MODE_SCHEDULED,
                 len(user_config.get("_enterprise_capabilities", [])),
             )
             return user_config
         except Exception as e:
             log.warning(
-                "[SchedulerService:%s] Failed to resolve user config for '%s': %s. "
-                "Proceeding without user config — enterprise capability filter may restrict tools.",
-                self.instance_id, effective_user, e,
+                "[SchedulerService:%s] Failed to resolve user config for '%s' "
+                "(auth_mode=%s): %s. Peer-agent calls that require "
+                "user-delegated credentials will fail.",
+                self.instance_id, effective_user, AUTH_MODE_SCHEDULED, e,
             )
             return None
 

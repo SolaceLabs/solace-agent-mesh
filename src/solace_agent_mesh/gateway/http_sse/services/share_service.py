@@ -39,6 +39,7 @@ from ..utils.share_utils import (
 from solace_agent_mesh.shared.utils.timestamp_utils import now_epoch_ms
 from solace_agent_mesh.shared.api.pagination import PaginationParams, PaginatedResponse
 from ....agent.utils.artifact_helpers import get_artifact_info_list
+from .scheduler.session_resolver import resolve_execution_context
 
 if TYPE_CHECKING:
     from ..component import WebUIBackendComponent
@@ -406,16 +407,39 @@ class ShareService:
         if artifact_service:
             try:
                 app_name = self.component.get_config("name", "A2A_WebUI_App")
-                log.info(f"Loading artifacts for shared session {share_id}, user_id={share_link.user_id}, session_id={share_link.session_id}, project_id={project_id}, app_name={app_name}")
-                
+                # Scheduled-task chats record per-execution session_ids
+                # ("scheduled_{execution_id}") but agents write artifacts under
+                # the stable task-level session ("scheduled_task_{task_id}").
+                # Resolve here so the share view finds them, and pin to the
+                # versions captured by this execution's manifest.
+                storage_session_id, execution_artifact_info = resolve_execution_context(
+                    share_link.session_id
+                )
+                if storage_session_id is None:
+                    storage_session_id = share_link.session_id
+                log.info(f"Loading artifacts for shared session {share_id}, user_id={share_link.user_id}, session_id={share_link.session_id}, storage_session_id={storage_session_id}, project_id={project_id}, app_name={app_name}")
+
                 # Load session artifacts
                 artifact_infos = await get_artifact_info_list(
                     artifact_service=artifact_service,
                     app_name=app_name,
                     user_id=share_link.user_id,
-                    session_id=share_link.session_id
+                    session_id=storage_session_id
                 )
-                
+
+                # For scheduled execution sessions, filter to only artifacts
+                # produced by this execution (the storage session accumulates
+                # artifacts across every run of the same scheduled task).
+                if execution_artifact_info is not None:
+                    before_count = len(artifact_infos)
+                    artifact_infos = [
+                        a for a in artifact_infos
+                        if a.filename in execution_artifact_info
+                    ]
+                    log.info(
+                        f"Filtered scheduled execution artifacts: {before_count} -> {len(artifact_infos)}"
+                    )
+
                 log.info(f"Found {len(artifact_infos)} session artifacts for shared session {share_id}")
                 
                 # If session is part of a project, also load project artifacts
