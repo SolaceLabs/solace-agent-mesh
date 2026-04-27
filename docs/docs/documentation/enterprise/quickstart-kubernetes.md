@@ -5,14 +5,14 @@ sidebar_position: 4
 
 # Kubernetes Quick Start
 
-Deploy SAM Enterprise on Kubernetes in ~10 minutes using Helm with **zero required configuration**.
+Deploy Solace Agent Mesh Enterprise on Kubernetes in ~10 minutes using Helm with **zero required configuration**.
 
 :::warning Evaluation Only
 This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with **authentication disabled**. It is designed for evaluation and testing only. **Do not use in production.** See [Production Kubernetes Installation](./production-kubernetes.md) for production-ready deployments.
 :::
 
 **What You'll Deploy:**
-- SAM Core (orchestrator, platform services, WebUI)
+- Agent Mesh Core (orchestrator, platform services, WebUI)
 - Embedded Solace PubSub+ broker
 - Embedded PostgreSQL database
 - Embedded SeaweedFS object storage
@@ -24,7 +24,7 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 #### Minimum Node Requirements
 
-The table below shows resource requirements for embedded broker mode (quickstart). These values account for all SAM components plus embedded PostgreSQL, SeaweedFS, and Solace broker.
+The following table shows resource requirements for embedded broker mode (quickstart). These values account for all Agent Mesh components plus embedded PostgreSQL, SeaweedFS, and Solace broker.
 
 | Scenario | CPU Requests | Memory Requests | Recommended Node Size |
 |----------|--------------|-----------------|----------------------|
@@ -33,7 +33,7 @@ The table below shows resource requirements for embedded broker mode (quickstart
 | **Recommended with headroom** (kube-system, bursts, limits) | ~5200m | ~6500Mi | **6 vCPU / 8 GiB allocatable** |
 
 :::tip Recommended Node Specification
-For the best quickstart experience, use **6 vCPU / 8 GiB RAM** nodes to accommodate:
+Use **6 vCPU / 8 GiB RAM** nodes to accommodate:
 - Kubernetes system components (kube-system)
 - CPU/memory bursts during agent operations
 - Safe headroom for Helm upgrades
@@ -106,7 +106,7 @@ Solace provides a JSON credentials file for authenticating with the GCR registry
 }
 ```
 
-Pass this file to Helm using `--set-file` — the chart automatically creates the pull secret and injects it into all pod specs:
+Pass this file to Helm using `--set-file`. The chart automatically creates the pull secret and injects it into all pod specs:
 
 ```bash
 helm install sam solace/solace-agent-mesh \
@@ -115,7 +115,7 @@ helm install sam solace/solace-agent-mesh \
 ```
 
 :::info
-`global.imagePullKey` and `global.imagePullSecrets` are mutually exclusive. Use `imagePullKey` to let the chart manage the pull secret automatically, or `imagePullSecrets` to reference a pre-created secret — not both.
+`global.imagePullKey` and `global.imagePullSecrets` are mutually exclusive. Use `imagePullKey` to let the chart manage the pull secret automatically, or use `imagePullSecrets` to reference a pre-created secret. Do not use both.
 :::
 
 :::warning Important Caveats
@@ -137,7 +137,7 @@ helm install sam solace/solace-agent-mesh \
 
 ## Step 1: Install with Zero Configuration
 
-Install SAM using the GCR credentials file downloaded from Solace Cloud:
+Install Agent Mesh using the GCR credentials file downloaded from Solace Cloud:
 
 ```bash
 helm install sam solace/solace-agent-mesh \
@@ -145,7 +145,7 @@ helm install sam solace/solace-agent-mesh \
   --set-file global.imagePullKey=sam-pull-credentials.json
 ```
 
-The chart defaults are optimized for quickstart evaluation — no values file needed beyond the credentials.
+The chart defaults are optimized for quickstart evaluation. No values file is needed beyond the credentials.
 
 **What gets deployed** (chart defaults):
 
@@ -165,7 +165,7 @@ Wait for all pods to be ready:
 kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
 ```
 
-Press `Ctrl-C` once all pods show `Running` status.
+Press `Ctrl-C` after all pods show `Running` status.
 
 ## Step 3: Access the WebUI
 
@@ -185,9 +185,9 @@ http://localhost:8000
 
 ### First-Time Model Configuration
 
-On first login, the **Model Configuration UI** will prompt you to configure your LLM provider.
+On first login, the **Model Configuration UI** prompts you to configure your LLM provider.
 
-#### Getting Started with SAM
+#### Getting Started with Agent Mesh
 
 1. **Access the Console UI**
 2. **Configure your LLM model** via the UI prompt
@@ -198,9 +198,9 @@ On first login, the **Model Configuration UI** will prompt you to configure your
 
 ## What's Next?
 
-### Explore SAM Features
+### Explore Agent Mesh Features
 
-Now that your quickstart installation is running, explore SAM capabilities:
+Now that your quickstart installation is running, explore Agent Mesh capabilities:
 
 - **Agent Builder** - Create custom agents with specialized capabilities
 - **Multi-Agent Workflows** - Deploy multiple agents that collaborate
@@ -208,10 +208,10 @@ Now that your quickstart installation is running, explore SAM capabilities:
 - **Gateways** - Integrate with Slack, Teams, or other messaging platforms
 
 :::info OpenAPI Connector Feature
-If you plan to use the **OpenAPI Connector** feature for REST API integrations, you'll need to configure a separate S3 bucket for OpenAPI specification files. This is optional for evaluation but required for production use of this feature. See [Production Installation - S3 Buckets for OpenAPI Connector Specs](./production-kubernetes.md#s3-buckets-for-openapi-connector-specs) for setup instructions.
+If you plan to use the **OpenAPI Connector** feature for REST API integrations, you must configure a separate S3 bucket for OpenAPI specification files. This is optional for evaluation but required for production use of this feature. See [Production Installation - S3 Buckets for OpenAPI Connector Specs](./production-kubernetes.md#s3-buckets-for-openapi-connector-specs) for setup instructions.
 :::
 
-Refer to the main [Enterprise documentation](./enterprise.md) for detailed feature guides.
+See the main [Enterprise documentation](./enterprise.md) for detailed feature guides.
 
 ### Moving to Production
 
@@ -223,14 +223,14 @@ The embedded PostgreSQL, SeaweedFS, and Solace broker are designed for evaluatio
 
 ## Troubleshooting
 
-If something looks wrong after accessing the Console, verify SAM is healthy:
+If something looks wrong after accessing the Console, verify Agent Mesh is healthy:
 
 ```bash
 curl -s http://localhost:8000/health
 curl -s http://localhost:8080/api/v1/platform/health
 ```
 
-Both endpoints should return a successful response when SAM is running correctly.
+Both endpoints should return a successful response when Agent Mesh is running correctly.
 
 For detailed health check configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 

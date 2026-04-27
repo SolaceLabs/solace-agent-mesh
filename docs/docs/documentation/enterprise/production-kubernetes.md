@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # Kubernetes Production Installation
 
-Deploy SAM Enterprise on Kubernetes for production with full configuration, high availability, and security.
+Deploy Solace Agent Mesh Enterprise on Kubernetes for production with full configuration, high availability, and security.
 
 :::info
 For quick evaluation, see the [Kubernetes Quick Start](./quickstart-kubernetes.md). For air-gapped environments, see the [Air-Gapped Kubernetes Installation](./airgap-kubernetes.md).
@@ -22,7 +22,7 @@ Quick Start is designed for **evaluation only** and uses embedded components uns
 | **Authentication** | Disabled | RBAC + SSO (OIDC) |
 | **High Availability** | Single instance | Multi-replica, auto-recovery |
 | **TLS/Certificates** | None | Full TLS with trusted certificates |
-| **Monitoring** | Basic logs | Full observability (Prometheus, Grafana, etc.) |
+| **Monitoring** | Basic logs | Full observability (Prometheus, Grafana, and so on) |
 | **Suitable For** | Testing, evaluation, demos | Production workloads |
 
 ## Production Prerequisites
@@ -32,7 +32,7 @@ Quick Start is designed for **evaluation only** and uses embedded components uns
 **Supported Kubernetes Versions:**
 - The **three most recent minor versions** of upstream Kubernetes
 - For managed services (EKS, AKS, GKE): validated against provider's default release channels
-- For on-premises (OpenShift, Rancher, etc.): compatibility based on underlying K8s API version
+- For on-premises (OpenShift, Rancher, and so on): compatibility based on underlying K8s API version
 
 **Platform Support Matrix:**
 
@@ -44,10 +44,10 @@ Quick Start is designed for **evaluation only** and uses embedded components uns
 **Constraints & Limitations:**
 
 - **Node Architecture:** Standard worker nodes (VMs or bare metal) required
-  - ❌ **Not Supported:** Serverless nodes (AWS Fargate, GKE Autopilot, Azure Virtual Nodes)
+  - **Not Supported:** Serverless nodes (AWS Fargate, GKE Autopilot, Azure Virtual Nodes)
 - **Security Context:** Containers run as non-root (UID 999), no privileged capabilities required
   - For OpenShift: May need to add service account to `nonroot` SCC if cluster enforces `restricted-v2`
-- **Monitoring:** SAM does NOT deploy DaemonSets - observability is customer responsibility
+- **Monitoring:** Solace Agent Mesh does NOT deploy DaemonSets - observability is customer responsibility
 
 ### Compute Resources
 
@@ -65,7 +65,7 @@ Use latest-generation general-purpose nodes with 1:4 CPU:Memory ratio:
 | **Minimum** | 2 | 8 GiB | AWS `m8g.large`<br/>Azure `Standard_D2ps_v6`<br/>GCP `c4a-standard-2` | AWS `m8i.large`<br/>Azure `Standard_D2s_v6`<br/>GCP `n2-standard-2` |
 
 :::tip Instance Availability
-If the listed instance types are unavailable in your region, choose the next closest equivalent (e.g., `m7g.large` instead of `m8g.large`).
+If the listed instance types are unavailable in your region, choose the next closest equivalent (for example, `m7g.large` instead of `m8g.large`).
 :::
 
 **Component Resource Specifications:**
@@ -91,9 +91,9 @@ Budget the following per concurrent agent you plan to deploy:
 Production deployments **must** use managed external services. Embedded components are not supported for production.
 
 **Database:**
-- PostgreSQL 17+ (AWS RDS, Azure Database for PostgreSQL, Cloud SQL, etc.)
+- PostgreSQL 17+ (AWS RDS, Azure Database for PostgreSQL, Cloud SQL, and so on)
 - Admin credentials with `SUPERUSER` privileges (recommended) or minimum `CREATEROLE` and `CREATEDB`
-- SAM's init container uses admin credentials to automatically create users and databases
+- The Agent Mesh init container uses admin credentials to automatically create users and databases
 - See [Session Storage](/docs/documentation/installing-and-configuring/session-storage) for configuration
 
 **Object Storage:**
@@ -109,7 +109,7 @@ Production deployments **must** use managed external services. Embedded componen
 - Can be configured post-install via Model Config UI or pre-configured in values.yaml
 
 **Identity Provider (IdP):**
-- OIDC-compliant provider (Microsoft Entra ID, Okta, AWS Cognito, etc.)
+- OIDC-compliant provider (Microsoft Entra ID, Okta, AWS Cognito, and so on)
 - Required for SSO and RBAC
 - See [Single Sign-On](./single-sign-on.md) for configuration
 
@@ -117,7 +117,7 @@ Production deployments **must** use managed external services. Embedded componen
 
 If using OpenAPI Connector features, a separate S3 bucket is required:
 - **Public read access** - Agents download specs without authentication
-- **Authenticated write** - SAM platform uploads/manages specs
+- **Authenticated write** - Agent Mesh platform uploads/manages specs
 - **Security:** Only API schemas stored, never credentials
 - Configure via `dataStores.s3.connectorSpecBucketName` in values.yaml
 
@@ -125,12 +125,12 @@ If using OpenAPI Connector features, a separate S3 bucket is required:
 OpenAPI connector specs must be publicly readable for agents to download at startup, while artifact storage requires authentication. Separation maintains security boundaries.
 :::
 
-For detailed setup instructions, see [S3 Buckets for OpenAPI Connector Specs](#s3-buckets-for-openapi-connector-specs) below.
+For detailed setup instructions, see [S3 Buckets for OpenAPI Connector Specs](#s3-buckets-for-openapi-connector-specs) in the following section.
 
 ### Network Connectivity
 
 **Inbound Traffic:**
-- Ingress controller required (NGINX, ALB, etc.)
+- Ingress controller required (NGINX, ALB, and so on)
 - TLS certificate for production (via cert-manager or manual)
 - See [Network Configuration Guide](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs/network-configuration) for ingress setup
 
@@ -142,7 +142,7 @@ The following outbound connectivity is required:
 |-------------|---------|-------|
 | `gcr.io/gcp-maas-prod` | Container registry | Requires Pull Secret from Solace Cloud Console<br/>**OR** mirror to private registry |
 | `*.messaging.solace.cloud` | Solace Cloud broker | **OR** self-hosted broker at SMF/SMF+TLS ports |
-| LLM provider endpoints | Model inference | e.g., `api.openai.com`, Azure OpenAI endpoints |
+| LLM provider endpoints | Model inference | for example, `api.openai.com`, Azure OpenAI endpoints |
 | Identity Provider (IdP) | Authentication/authorization | Your OIDC provider endpoints |
 
 **Corporate Proxy Support:**
@@ -150,7 +150,7 @@ The following outbound connectivity is required:
 - See [Proxy Configuration](/docs/documentation/deploying/proxy_configuration) for setup
 
 **Application & Mesh Components:**
-- Custom agents may require access to external systems (Salesforce, Jira, databases, etc.)
+- Custom agents may require access to external systems (Salesforce, Jira, databases, and so on)
 - Ensure worker nodes have network reachability to target services
 
 ### Command-Line Tools
@@ -180,7 +180,7 @@ For production Kubernetes deployments, configure Solace broker queue templates t
 
 ## Step 1: Infrastructure Preparation
 
-Prepare your Kubernetes cluster infrastructure before deploying SAM.
+Prepare your Kubernetes cluster infrastructure before deploying Agent Mesh.
 
 ### Cluster Sizing
 
@@ -207,20 +207,20 @@ Budget the following per concurrent agent:
 | **Minimum** (2 vCPU / 8 GiB) | AWS `m8g.large`<br/>Azure `Standard_D2ps_v6`<br/>GCP `c4a-standard-2` | AWS `m8i.large`<br/>Azure `Standard_D2s_v6`<br/>GCP `n2-standard-2` |
 
 :::tip ARM64 Recommended
-ARM64 instances (AWS Graviton, Azure Cobalt, Google Axion) offer better price/performance. If listed instances are unavailable in your region, choose the next closest equivalent (e.g., `m7g.large` instead of `m8g.large`).
+ARM64 instances (AWS Graviton, Azure Cobalt, Google Axion) offer better price/performance. If listed instances are unavailable in your region, choose the next closest equivalent (for example, `m7g.large` instead of `m8g.large`).
 :::
 
 ### Node Pool Topology (Multi-AZ Clusters)
 
 :::info Stateless Workloads
-When using external persistence (recommended for production), all SAM workloads are stateless and do not have multi-AZ topology constraints. This section is only relevant if you're using embedded persistence for dev/staging environments on production-grade clusters.
+When using external persistence (recommended for production), all Agent Mesh workloads are stateless and do not have multi-AZ topology constraints. This section is only relevant if you're using embedded persistence for dev/staging environments on production-grade clusters.
 :::
 
 In multi-AZ clusters (EKS, AKS, GKE), when using embedded persistence (`global.persistence.enabled: true`), one node pool must be provisioned per availability zone due to volume affinity constraints.
 
 **Simplest Approach:**
 
-Provision SAM in **one availability zone only** to avoid multi-AZ complexity.
+Provision Agent Mesh in **one availability zone only** to avoid multi-AZ complexity.
 
 **Official Cloud Provider Guidance:**
 - **AKS:** [Cluster Autoscaler Documentation](https://learn.microsoft.com/en-us/azure/aks/cluster-autoscaler?tabs=azure-cli#re-enable-the-cluster-autoscaler-on-a-node-pool)
@@ -235,11 +235,11 @@ StatefulSets with persistent volumes (PostgreSQL, SeaweedFS) are bound to specif
 
 ## Step 2: External Dependencies
 
-Configure external services required for production SAM deployments.
+Configure external services required for production Agent Mesh deployments.
 
 ### Solace Broker Configuration
 
-Set up your external Solace event broker before installing SAM.
+Set up your external Solace event broker before installing Agent Mesh.
 
 **Solace Cloud (Recommended):**
 1. Create a service in [Solace Cloud](https://console.solace.cloud/)
@@ -254,7 +254,7 @@ Set up your external Solace event broker before installing SAM.
 
 **Self-Hosted PubSub+:**
 - Ensure SMF over TLS (port 55443) or WebSocket Secure connectivity
-- Provide connection details in values.yaml (see Step 3)
+- Provide connection details in values.yaml (see the configuration in Step 3)
 
 #### Queue Template Configuration for Kubernetes
 
@@ -262,7 +262,7 @@ For production Kubernetes deployments, configure your Solace broker to use durab
 
 **Why Durable Queues for Kubernetes?**
 
-When `USE_TEMPORARY_QUEUES=true` (default), SAM uses temporary endpoints for agent-to-agent communication. Temporary queues are automatically created and deleted by the broker, but they **do not support multiple client connections** to the same queue.
+When `USE_TEMPORARY_QUEUES=true` (default), Agent Mesh uses temporary endpoints for agent-to-agent communication. Temporary queues are automatically created and deleted by the broker, but they **do not support multiple client connections** to the same queue.
 
 In container-managed environments like Kubernetes, this causes problems:
 - A new pod may start while the previous instance is still terminating
@@ -273,7 +273,7 @@ In container-managed environments like Kubernetes, this causes problems:
 
 Durable queues persist beyond client disconnections and allow multiple instances to connect to the same queue.
 
-**Step 1: Configure SAM to Use Durable Queues**
+**Step 1: Configure Agent Mesh to Use Durable Queues**
 
 Set the following in your Helm values:
 
@@ -296,22 +296,22 @@ To prevent messages from piling up when agents are not running, configure messag
 
 | Setting | Value | Location |
 |---------|-------|----------|
-| **Queue Name Filter** | `{NAMESPACE}/>` | Replace `{NAMESPACE}` with your SAM namespace (e.g., `sam/>`) |
+| **Queue Name Filter** | `{NAMESPACE}/>` | Replace `{NAMESPACE}` with your Agent Mesh namespace (for example, `sam/>`) |
 | **Respect TTL** | `true` | Advanced Settings → Message Expiry |
 | **Maximum TTL (sec)** | `18000` | Advanced Settings → Message Expiry |
 
 :::info Template Application
 Queue templates only apply to **new queues created by messaging clients**. If you already have durable queues from previous deployments, either:
 - Manually enable **TTL** and **Respect TTL** on each existing queue in Solace console, OR
-- Delete existing queues and restart SAM to recreate them with the template settings
+- Delete existing queues and restart Agent Mesh to recreate them with the template settings
 :::
 
 **Step 3: Verify Configuration**
 
-After deploying SAM, verify queues are created with correct settings:
+After deploying Agent Mesh, verify queues are created with correct settings:
 
 1. In Solace Cloud Console, navigate to **Queues**
-2. Find queues matching your namespace pattern (e.g., `sam/...`)
+2. Find queues matching your namespace pattern (for example, `sam/...`)
 3. Check that **Respect TTL** is enabled
 4. Verify **Maximum TTL** is set to 18000 seconds
 
@@ -329,10 +329,10 @@ If you plan to use the **OpenAPI Connector** feature for REST API integrations, 
 
 #### When is a Connector Specs Bucket Required?
 
-- ✅ When using the OpenAPI Connector feature for REST API integrations
-- ✅ When agents must access OpenAPI spec files at startup
-- ✅ For all Kubernetes deployments using OpenAPI connectors
-- ❌ Not required if you're not using OpenAPI Connector features
+- When using the OpenAPI Connector feature for REST API integrations
+- When agents must access OpenAPI spec files at startup
+- For all Kubernetes deployments using OpenAPI connectors
+- Not required if you're not using OpenAPI Connector features
 
 #### Why a Separate Bucket?
 
@@ -375,9 +375,9 @@ aws s3api put-bucket-policy \
   --policy file://connector-specs-policy.json
 ```
 
-**Step 3: Configure IAM Permissions for SAM Platform**
+**Step 3: Configure IAM Permissions for Agent Mesh Platform**
 
-Grant the SAM platform's IAM user/role the following permissions for write access:
+Grant the Agent Mesh platform's IAM user/role the following permissions for write access:
 
 ```json
 {
@@ -412,14 +412,14 @@ dataStores:
 
 #### Other Cloud Providers
 
-For Azure Blob Storage, Google Cloud Storage, or other S3-compatible storage, configure the `connectorSpecBucketName` (or equivalent container name) in your Helm values under the appropriate `dataStores` section. Ensure the bucket/container has public read access and that the SAM platform has write permissions.
+For Azure Blob Storage, Google Cloud Storage, or other S3-compatible storage, configure the `connectorSpecBucketName` (or equivalent container name) in your Helm values under the appropriate `dataStores` section. Ensure the bucket/container has public read access and that the Agent Mesh platform has write permissions.
 
 #### Security Best Practices
 
 :::warning Security Guidelines
 - Never store API keys, passwords, or secrets in OpenAPI spec files
 - Public read is safe - only API schemas are stored
-- Write access should be restricted to the SAM platform
+- Write access should be restricted to the Agent Mesh platform
 :::
 
 #### Verification
@@ -435,7 +435,7 @@ If you get a 403 Forbidden error, check your bucket policy. If you get 404 Not F
 
 ## Step 3: Helm Chart Configuration
 
-Create a production overrides file (`production-overrides.yaml`) based on the comprehensive inline documentation in the chart's `values.yaml`.
+Create a production overrides file (`production-overrides.yaml`) based on the inline documentation in the chart's `values.yaml`.
 
 :::info Embedded vs External Components
 Production deployments must use external components. Embedded PostgreSQL, SeaweedFS, and Solace broker lack high availability, backup/restore, and proper resource limits.
@@ -463,10 +463,10 @@ broker:
 
 ### External Datastores
 
-Configure PostgreSQL database and object storage. The `applicationPassword` is **required** — this single password will be used for all database users created by SAM (webui, orchestrator, platform, and all agents).
+Configure PostgreSQL database and object storage. The `applicationPassword` is **required**. This single password is used for all database users created by Agent Mesh (webui, orchestrator, platform, and all agents).
 
 :::warning Password Rotation Limitation
-Once database users are created for a given `namespaceId`, the `applicationPassword` cannot be changed. To change passwords, you must either use a new `namespaceId` (creates new databases/users) or manually update passwords directly in the database.
+After database users are created for a given `namespaceId`, the `applicationPassword` cannot be changed. To change passwords, you must either use a new `namespaceId` (creates new databases/users) or manually update passwords directly in the database.
 :::
 
 #### AWS RDS + S3
@@ -597,7 +597,7 @@ dataStores:
 
 ### Workload Identity
 
-Workload identity allows SAM pods to authenticate with cloud storage using the pod's Kubernetes service account, eliminating static credentials (access keys, account keys, JSON key files).
+Workload identity allows Agent Mesh pods to authenticate with cloud storage using the pod's Kubernetes service account, eliminating static credentials (access keys, account keys, JSON key files).
 
 ```yaml
 dataStores:
@@ -653,7 +653,7 @@ ingress:
 ### Secret Management
 
 - `SESSION_SECRET_KEY` is auto-generated if not provided
-- Once generated, it is preserved across upgrades to prevent session invalidation
+- After generation, it is preserved across upgrades to prevent session invalidation
 - For production, explicitly set it for consistency: `sam.sessionSecretKey: "your-secret-key"`
 
 ### LLM Configuration
@@ -663,9 +663,9 @@ ingress:
 
 ### Custom CA Certificates
 
-If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses self-signed or private CA certificates, configure SAM to trust them. Applies to:
+If your internal infrastructure (Solace broker, OIDC provider, LLM service) uses self-signed or private CA certificates, configure Agent Mesh to trust them. This applies to:
 - Solace broker with custom CA
-- OIDC provider (Keycloak, etc.) with custom CA
+- OIDC provider (Keycloak, and so on) with custom CA
 - LLM service with custom CA
 
 :::warning Certificate Requirements
@@ -694,7 +694,7 @@ openssl pkcs7 -print_certs -in ca.p7b -out ca.crt
 openssl pkcs12 -in ca.pfx -out ca.crt -nokeys -cacerts
 ```
 
-**Step 1:** Prepare CA bundle — ensure file has `.crt` extension:
+**Step 1:** Prepare the CA bundle. Ensure the file has a `.crt` extension:
 
 ```bash
 cp ca-cert.pem ca-cert.crt
@@ -724,7 +724,7 @@ samDeployment:
     configMapName: "truststore"  # Optional: default is "truststore"
 ```
 
-**Step 4:** Install or upgrade — the chart injects a `ca-merge` init container that merges your CA bundle with the system trust store:
+**Step 4:** Install or upgrade. The chart injects a `ca-merge` init container that merges your CA bundle with the system trust store:
 
 ```bash
 helm upgrade sam solace/solace-agent-mesh \
@@ -732,9 +732,9 @@ helm upgrade sam solace/solace-agent-mesh \
   -f production-overrides.yaml
 ```
 
-To rotate or update certificates: delete the ConfigMap, create a new one, then restart the deployment with `kubectl rollout restart deployment/sam-solace-agent-mesh-core -n <namespace>`.
+To rotate or update certificates, delete the ConfigMap, create a new one, then restart the deployment with `kubectl rollout restart deployment/sam-solace-agent-mesh-core -n <namespace>`.
 
-- If ConfigMap doesn't exist at pod start, SAM falls back to the system CA bundle silently
+- If the ConfigMap does not exist at pod start, Agent Mesh falls back to the system CA bundle silently
 - Pod restart is always required for CA changes (no hot reload)
 - ConfigMap name can be customized via `customCA.configMapName` if `truststore` conflicts
 
@@ -767,7 +767,7 @@ helm template sam solace/solace-agent-mesh \
 
 ## Step 5: Installation
 
-Install SAM with your production overrides:
+Install Agent Mesh with your production overrides:
 
 ```bash
 helm install sam solace/solace-agent-mesh \
@@ -776,23 +776,23 @@ helm install sam solace/solace-agent-mesh \
   -f production-overrides.yaml
 ```
 
-The chart's default `values.yaml` contains comprehensive inline documentation for all configuration options. Reference it when creating your production overrides.
+The chart's default `values.yaml` contains inline documentation for all configuration options. Consult it when creating your production overrides.
 
 ## Step 6: Post-Installation Configuration
 
 **Verify Production Readiness:**
 
-- ✓ **Persistence**: External PostgreSQL and S3 (not embedded)
-- ✓ **Authorization**: Enabled
-- ✓ **OIDC**: Issuer configured
-- ✓ **TLS**: Certificates configured
-- ✓ **Ingress/LoadBalancer**: External access enabled
+- **Persistence**: External PostgreSQL and S3 (not embedded)
+- **Authorization**: Enabled
+- **OIDC**: Issuer configured
+- **TLS**: Certificates configured
+- **Ingress/LoadBalancer**: External access enabled
 
 ### First Login
 
 **With OIDC configured:**
 
-On first login you will be redirected to your identity provider. Before logging in, ensure your OIDC callback URI is registered with your provider:
+On first login, you are redirected to your identity provider. Before logging in, ensure your OIDC callback URI is registered with your provider:
 
 ```
 https://<your-sam-domain>/callback
@@ -800,7 +800,7 @@ https://<your-sam-domain>/callback
 
 **Without OIDC:**
 
-On first login you'll be prompted to configure your LLM API key via the Model Configuration UI.
+On first login, you are prompted to configure your LLM API key via the Model Configuration UI.
 
 ### Configure Authentication
 
@@ -816,7 +816,7 @@ Perform comprehensive validation before going live.
 
 ### Health Checks
 
-SAM provides HTTP health check endpoints that integrate with Kubernetes probes for automated lifecycle management. Configure startup, readiness, and liveness probes in your deployment manifests to enable graceful deployments and automatic recovery from failures.
+Agent Mesh provides HTTP health check endpoints that integrate with Kubernetes probes for automated lifecycle management. Configure startup, readiness, and liveness probes in your deployment manifests to enable graceful deployments and automatic recovery from failures.
 
 **Verify health endpoints** (replace with your actual domain):
 
@@ -829,7 +829,7 @@ For detailed probe configuration options and examples, see [Health Checks](/docs
 
 ## Upgrading from Quick Start
 
-If you started with the Quick Start installation (chart defaults), upgrade to production using `helm upgrade`:
+If you started with the Quick Start installation (chart defaults), upgrade to production using `helm upgrade`.
 
 ```bash
 helm upgrade sam solace/solace-agent-mesh \
@@ -875,17 +875,17 @@ When migrating from embedded PostgreSQL to external, you must export and import 
 
 ## Reference
 
-Complete reference for all configuration options in the SAM Helm chart.
+Complete reference for all configuration options in the Agent Mesh Helm chart.
 
 ### Global Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `global.broker.embedded` | bool | `true` | Deploy embedded single-node Solace event broker alongside SAM. For production, set to `false` and configure external broker. |
+| `global.broker.embedded` | bool | `true` | Deploy embedded single-node Solace event broker alongside Agent Mesh. For production, set to `false` and configure external broker. |
 | `global.persistence.enabled` | bool | `true` | Deploy bundled persistence with in-cluster PostgreSQL and SeaweedFS. For production, set to `false` and configure external datastores. |
-| `global.persistence.namespaceId` | string | `"solace-agent-mesh"` | Unique identifier for SAM database/user scoping. Must be unique per SAM installation to avoid topic collisions. |
+| `global.persistence.namespaceId` | string | `"solace-agent-mesh"` | Unique identifier for Agent Mesh database/user scoping. Must be unique per Agent Mesh installation to avoid topic collisions. |
 | `global.imageRegistry` | string | `"gcr.io/gcp-maas-prod"` | Container registry for all images. For air-gapped environments, set to your internal registry. |
-| `global.imagePullSecrets` | list | `[]` | Image pull secrets applied to ALL pods (core, agent-deployer, postgresql, seaweedfs, broker). Required when using private registry. |
+| `global.imagePullSecrets` | list | `[]` | Image pull secrets applied to ALL pods (core, agent-deployer, postgresql, seaweedfs, broker). Required when using a private registry. |
 | `global.imagePullKey` | string | `""` | Docker config JSON for private registry authentication. Mutually exclusive with `imagePullSecrets`. Use with `--set-file global.imagePullKey=credentials.json` |
 
 ### Validations
@@ -894,17 +894,17 @@ Complete reference for all configuration options in the SAM Helm chart.
 |-----|------|---------|-------------|
 | `validations.clusterResourceChecks` | bool | `true` | Template-time cluster resource existence checks. Looks up referenced Secrets, ConfigMaps, StorageClass, IngressClass before install. Set to `false` if service account lacks `get` RBAC on cluster resources. |
 
-### SAM Core Configuration
+### Agent Mesh Core Configuration
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `sam.communityMode` | bool | `false` | Disable SAM enterprise features (internal use only) |
-| `sam.frontendServerUrl` | string | `"http://localhost:8000"` | Frontend URL for accessing SAM. For port-forward, use `http://localhost:8000`. For production with Ingress, set to `""` (enables auto-detection). For LoadBalancer, set to external URL. |
+| `sam.communityMode` | bool | `false` | Disable Agent Mesh enterprise features (internal use only) |
+| `sam.frontendServerUrl` | string | `"http://localhost:8000"` | Frontend URL for accessing Agent Mesh. For port-forward, use `http://localhost:8000`. For production with Ingress, set to `""` (enables auto-detection). For LoadBalancer, set to external URL. |
 | `sam.platformServiceUrl` | string | `"http://localhost:8080"` | Platform service URL. For port-forward, use `http://localhost:8080`. For production with Ingress, set to `""` (enables auto-detection). |
 | `sam.cors.allowedOriginRegex` | string | "https?://(localhost&#124;127\\.0\\.0\\.1)(:\\d+)?" | CORS regex pattern for allowed origins. Default allows any localhost:port. For production, set to `""`. |
 | `sam.authorization.enabled` | bool | `false` | Enforce RBAC authorization via OIDC. Default: `false` (all users have admin access). For production, set to `true` and configure oauthProvider/authenticationRbac. |
-| `sam.dnsName` | string | `""` | External DNS name for SAM. Not required for port-forward or Ingress. For LoadBalancer/NodePort, set to your external DNS name. |
-| `sam.sessionSecretKey` | string | `""` | Secure session key. Auto-generates on first install if empty, stable across upgrades. For production, explicitly set for reproducibility. |
+| `sam.dnsName` | string | `""` | External DNS name for Agent Mesh. Not required for port-forward or Ingress. For LoadBalancer/NodePort, set to your external DNS name. |
+| `sam.sessionSecretKey` | string | `""` | Secure session key. Auto-generates on first install if empty; stable across upgrades. For production, explicitly set for reproducibility. |
 | `sam.oauthProvider.oidc.issuer` | string | `""` | OIDC issuer URL for authentication |
 | `sam.oauthProvider.oidc.clientId` | string | `""` | OIDC client ID |
 | `sam.oauthProvider.oidc.clientSecret` | string | `""` | OIDC client secret |
@@ -913,9 +913,9 @@ Complete reference for all configuration options in the SAM Helm chart.
 | `sam.authenticationRbac.idpClaims.enabled` | bool | `false` | Enable dynamic role assignment from IDP claims |
 | `sam.authenticationRbac.idpClaims.oidcProvider` | string | `"oidc"` | OIDC provider name for IDP claims |
 | `sam.authenticationRbac.idpClaims.claimKey` | string | `"groups"` | Claim key containing group/role information |
-| `sam.authenticationRbac.idpClaims.mappings` | object | `{}` | Map IDP claim values to SAM roles |
+| `sam.authenticationRbac.idpClaims.mappings` | object | `{}` | Map IDP claim values to Agent Mesh roles |
 | `sam.authenticationRbac.defaultRoles` | list | `["sam_user"]` | Default roles assigned when no explicit role match found |
-| `sam.taskLogging.enabled` | bool | `true` | Enable SAM logging during task execution |
+| `sam.taskLogging.enabled` | bool | `true` | Enable Agent Mesh logging during task execution |
 | `sam.taskLogging.logStatusUpdates` | bool | `true` | Log status updates during tasks |
 | `sam.taskLogging.logArtifactEvents` | bool | `false` | Log artifact events |
 | `sam.taskLogging.logFileParts` | bool | `true` | Log file parts |
@@ -928,35 +928,35 @@ Complete reference for all configuration options in the SAM Helm chart.
 
 ### Broker Configuration (External)
 
-Configure external Solace Event Broker. For production, set `global.broker.embedded: false` and configure these values.
+Configure an external Solace Event Broker. For production, set `global.broker.embedded: false` and configure these values.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `broker.url` | string | `""` | Solace broker connection URL (e.g., `tcps://broker.messaging.solace.cloud:55443` or `wss://...:443`) |
+| `broker.url` | string | `""` | Solace broker connection URL (for example, `tcps://broker.messaging.solace.cloud:55443` or `wss://...:443`) |
 | `broker.clientUsername` | string | `""` | Broker username for authentication |
 | `broker.password` | string | `""` | Broker password |
 | `broker.vpn` | string | `""` | Broker VPN name |
 
 ### LLM Service Configuration
 
-Configure LLM service here or via SAM UI after installation. All fields are optional.
+Configure the LLM service here or via the Agent Mesh UI after installation. All fields are optional.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `llmService.llmServiceEndpoint` | string | N/A (optional) | LLM API endpoint (e.g., `https://api.openai.com/v1`) |
+| `llmService.llmServiceEndpoint` | string | N/A (optional) | LLM API endpoint (for example, `https://api.openai.com/v1`) |
 | `llmService.llmServiceApiKey` | string | N/A (optional) | API key for LLM service |
-| `llmService.planningModel` | string | N/A (optional) | Model name for planning tasks (e.g., `gpt-4o`) |
-| `llmService.generalModel` | string | N/A (optional) | Model name for general tasks (e.g., `gpt-4o`) |
+| `llmService.planningModel` | string | N/A (optional) | Model name for planning tasks (for example, `gpt-4o`) |
+| `llmService.generalModel` | string | N/A (optional) | Model name for general tasks (for example, `gpt-4o`) |
 | `llmService.reportModel` | string | N/A (optional) | Model name for reports (optional) |
-| `llmService.imageModel` | string | N/A (optional) | Model name for image generation (e.g., `dall-e-3`, optional) |
-| `llmService.transcriptionModel` | string | N/A (optional) | Model name for audio transcription (e.g., `whisper-1`, optional) |
+| `llmService.imageModel` | string | N/A (optional) | Model name for image generation (for example, `dall-e-3`, optional) |
+| `llmService.transcriptionModel` | string | N/A (optional) | Model name for audio transcription (for example, `whisper-1`, optional) |
 
 ### Environment Variables
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `extraSecretEnvironmentVars` | list | `[]` | Load credentials from existing Kubernetes Secrets. List of objects with `envName`, `secretName`, `secretKey` fields. |
-| `environmentVariables` | object | Feature flags enabled | Inject custom environment variables into SAM core containers. Use for feature flags and custom configuration. |
+| `environmentVariables` | object | Feature flags enabled | Inject custom environment variables into Agent Mesh core containers. Use for feature flags and custom configuration. |
 
 ### Network Configuration - Service
 
@@ -980,7 +980,7 @@ Configure LLM service here or via SAM UI after installation. All fields are opti
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `ingress.enabled` | bool | `false` | Enable Ingress for HTTP/HTTPS routing. For production, set to `true`. |
-| `ingress.className` | string | `""` | Ingress controller class name (e.g., `nginx`, `alb`, `traefik`, `gce`) |
+| `ingress.className` | string | `""` | Ingress controller class name (for example, `nginx`, `alb`, `traefik`, `gce`) |
 | `ingress.annotations` | object | `{}` | Ingress annotations (vary by controller). Examples in values.yaml for NGINX, ALB. |
 | `ingress.autoConfigurePaths` | bool | `true` | Automatically configure all required ingress paths (platform API, auth, webui). Recommended. |
 | `ingress.host` | string | `""` | Hostname for ingress. Leave empty for ALB (accepts all hostnames). Required for NGINX/other name-based controllers. |
@@ -994,11 +994,11 @@ Configure external PostgreSQL database and object storage. For production, set `
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `dataStores.database.protocol` | string | `"postgresql+psycopg2"` | Database protocol |
-| `dataStores.database.host` | string | `""` | PostgreSQL hostname (e.g., `mydb.us-east-1.rds.amazonaws.com`) |
+| `dataStores.database.host` | string | `""` | PostgreSQL hostname (for example, `mydb.us-east-1.rds.amazonaws.com`) |
 | `dataStores.database.port` | string | `"5432"` | PostgreSQL port |
-| `dataStores.database.adminUsername` | string | `""` | PostgreSQL admin user (used to create SAM application users) |
+| `dataStores.database.adminUsername` | string | `""` | PostgreSQL admin user (used to create Agent Mesh application users) |
 | `dataStores.database.adminPassword` | string | `""` | PostgreSQL admin password |
-| `dataStores.database.applicationPassword` | string | `""` | Shared password for all SAM database users (webui, orchestrator, platform, agents). **Required** for external persistence. |
+| `dataStores.database.applicationPassword` | string | `""` | Shared password for all Agent Mesh database users (webui, orchestrator, platform, agents). **Required** for external persistence. |
 | `dataStores.database.supabaseTenantId` | string | `""` | Supabase project ID. Required when using Supabase connection pooler. |
 | `dataStores.objectStorage.type` | string | `"s3"` | Object storage type: `s3`, `azure`, or `gcs` |
 | `dataStores.objectStorage.workloadIdentity.enabled` | bool | `false` | Enable cloud-native auth (AWS IRSA, Azure WI, GCP WI) instead of access keys |
@@ -1018,17 +1018,17 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `dataStores.gcs.bucketName` | string | `""` | GCS bucket for artifacts |
 | `dataStores.gcs.connectorSpecBucketName` | string | `""` | GCS bucket for connector specs |
 
-### SAM Deployment
+### Agent Mesh Deployment
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `samDeployment.serviceAccount.name` | string | `""` | Service account name. Auto-generates `{release}-solace-agent-mesh-core-sa` when empty. Set explicitly for workload identity. |
 | `samDeployment.serviceAccount.annotations` | object | `{}` | Service account annotations for workload identity (AWS IRSA, Azure WI, GCP WI) |
-| `samDeployment.imagePullSecret` | string | `""` | Image pull secret attached to SAM service accounts. Using `global.imagePullSecrets` is preferred. |
-| `samDeployment.image.registry` | string | `""` | Overrides `global.imageRegistry` for SAM image only |
-| `samDeployment.image.repository` | string | `"solace-agent-mesh-enterprise"` | SAM application image repository |
-| `samDeployment.image.tag` | string | `"1.143.0"` | SAM application image tag |
-| `samDeployment.image.digest` | string | `""` | SAM image digest. Takes precedence over tag when set. |
+| `samDeployment.imagePullSecret` | string | `""` | Image pull secret attached to Agent Mesh service accounts. Using `global.imagePullSecrets` is preferred. |
+| `samDeployment.image.registry` | string | `""` | Overrides `global.imageRegistry` for the Agent Mesh image only |
+| `samDeployment.image.repository` | string | `"solace-agent-mesh-enterprise"` | Agent Mesh application image repository |
+| `samDeployment.image.tag` | string | `"1.143.0"` | Agent Mesh application image tag |
+| `samDeployment.image.digest` | string | `""` | Agent Mesh image digest. Takes precedence over tag when set. |
 | `samDeployment.image.pullPolicy` | string | `"IfNotPresent"` | Image pull policy |
 | `samDeployment.agentDeployer.image.registry` | string | `""` | Overrides `global.imageRegistry` for agent deployer image only |
 | `samDeployment.agentDeployer.image.repository` | string | `"sam-agent-deployer"` | Agent deployer image repository |
@@ -1056,18 +1056,18 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `samDeployment.annotations` | object | `{}` | Deployment annotations |
 | `samDeployment.podAnnotations` | object | `{}` | Pod annotations |
 | `samDeployment.podLabels` | object | `{}` | Pod labels |
-| `samDeployment.resources.sam.requests.cpu` | string | `"1000m"` | CPU request for SAM core container |
-| `samDeployment.resources.sam.requests.memory` | string | `"1024Mi"` | Memory request for SAM core container |
-| `samDeployment.resources.sam.limits.cpu` | string | `"2000m"` | CPU limit for SAM core container |
-| `samDeployment.resources.sam.limits.memory` | string | `"2048Mi"` | Memory limit for SAM core container |
+| `samDeployment.resources.sam.requests.cpu` | string | `"1000m"` | CPU request for Agent Mesh core container |
+| `samDeployment.resources.sam.requests.memory` | string | `"1024Mi"` | Memory request for Agent Mesh core container |
+| `samDeployment.resources.sam.limits.cpu` | string | `"2000m"` | CPU limit for Agent Mesh core container |
+| `samDeployment.resources.sam.limits.memory` | string | `"2048Mi"` | Memory limit for Agent Mesh core container |
 | `samDeployment.resources.agentDeployer.requests.cpu` | string | `"100m"` | CPU request for agent deployer container |
 | `samDeployment.resources.agentDeployer.requests.memory` | string | `"256Mi"` | Memory request for agent deployer container |
 | `samDeployment.resources.agentDeployer.limits.cpu` | string | `"200m"` | CPU limit for agent deployer container |
 | `samDeployment.resources.agentDeployer.limits.memory` | string | `"512Mi"` | Memory limit for agent deployer container |
 
-### SAM Doctor (Pre-Flight Validation)
+### Agent Mesh Doctor (Pre-Flight Validation)
 
-Run sam-doctor before install/upgrade to validate configuration. For production, consider enabling to catch configuration issues early.
+Run sam-doctor before install or upgrade to validate configuration. For production, consider enabling it to catch configuration issues early.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1111,4 +1111,4 @@ Configure embedded Solace PubSub+ broker. Only used when `global.broker.embedded
 
 ---
 
-**For complete inline documentation and examples, see the chart's `values.yaml` file.**
+**For inline documentation and examples, see the chart's `values.yaml` file.**

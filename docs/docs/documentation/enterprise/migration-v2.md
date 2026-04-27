@@ -17,29 +17,29 @@ Chart v2.0.0 introduces several breaking changes to configuration structure, def
 
 | Your Situation | Action Required |
 |---------------|-----------------|
-| **New installation (never used v1.x)** | ✅ No action - skip this guide |
-| **Upgrading from v1.2.x** | ⚠️ **CRITICAL** - Multiple required changes before upgrade (see below) |
-| **Using `localCharts` or `chartBaseUrl` in values** | ❌ **SCHEMA FAILURE** - Must remove before upgrade or `helm upgrade` fails immediately |
-| **Session key not explicitly set** | ⚠️ **CRITICAL** - Extract old value first or all users are logged out |
-| **Using external references (External Secrets, ArgoCD, etc.)** | ⚠️ Required - Update secret/configmap names |
-| **Using `samDeployment.imagePullSecret`** | ⚠️ Required - Move to `global.imagePullSecrets` |
-| **Using bundled persistence and upgrading from ≤v1.1.0** | ⚠️ **CRITICAL** - Must migrate StatefulSets before upgrade |
-| **Relying on v1.x defaults** | ⚠️ Required - Explicitly set production values |
+| **New installation (never used v1.x)** | No action - skip this guide |
+| **Upgrading from v1.2.x** | **CRITICAL** - Multiple required changes before upgrade (see the following sections) |
+| **Using `localCharts` or `chartBaseUrl` in values** | **SCHEMA FAILURE** - Must remove before upgrade or `helm upgrade` fails immediately |
+| **Session key not explicitly set** | **CRITICAL** - Extract old value first or all users are logged out |
+| **Using external references (External Secrets, ArgoCD, and so on)** | Required - Update secret/configmap names |
+| **Using `samDeployment.imagePullSecret`** | Required - Move to `global.imagePullSecrets` |
+| **Using bundled persistence and upgrading from v1.1.0 or earlier** | **CRITICAL** - Must migrate StatefulSets before upgrade |
+| **Relying on v1.x defaults** | Required - Explicitly set production values |
 
-**Most critical issues for v1.2.x upgrades:** `localCharts`/`chartBaseUrl` removal causes schema failure and `sam.sessionSecretKey` change logs out all users. See the full breaking changes below.
+**Most critical issues for v1.2.x upgrades:** `localCharts`/`chartBaseUrl` removal causes schema failure and `sam.sessionSecretKey` change logs out all users. See the full breaking changes in the following sections.
 
 ## What's New in v2.0.0
 
-In addition to the breaking changes below, v2.0.0 introduces the following new capabilities:
+In addition to the breaking changes listed in the following sections, v2.0.0 introduces the following new capabilities:
 
 | Feature | Description | Values Key |
 |---------|-------------|------------|
-| **GCR Pull Secret Automation** | Pass a dockerconfigjson credentials file via `--set-file` and the chart automatically creates the image pull secret and injects it into all pod specs — no manual `kubectl create secret` step required. Mutually exclusive with `global.imagePullSecrets`. See [GCR Credentials File](./quickstart-kubernetes.md#gcr-credentials-file) and [Air-Gapped: Step 3](./airgap-kubernetes.md#step-3-configuring-image-pull-secrets). | `global.imagePullKey` |
+| **GCR Pull Secret Automation** | Pass a dockerconfigjson credentials file via `--set-file` and the chart automatically creates the image pull secret and injects it into all pod specs. No manual `kubectl create secret` step is required. Mutually exclusive with `global.imagePullSecrets`. See [GCR Credentials File](./quickstart-kubernetes.md#gcr-credentials-file) and [Air-Gapped: Step 3](./airgap-kubernetes.md#step-3-configuring-image-pull-secrets). | `global.imagePullKey` |
 | **Custom CA Certificates** | Inject custom or self-signed CA certificates for internal infrastructure (broker, OIDC provider, LLM service) via a Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates). | `samDeployment.customCA` |
-| **Embedded Solace Broker** | Deploy a single-node Solace PubSub+ broker in-cluster for evaluation — no external broker required. See [Kubernetes Quick Start](./quickstart-kubernetes.md). | `global.broker.embedded` |
-| **SAM Doctor Pre-flight Checks** | Pre-install/pre-upgrade Helm hook that validates broker, database, object storage, TLS, and OIDC configuration before any workload pods are created — misconfigurations surface as a clear error instead of `CrashLoopBackOff`. Disabled by default (`samDoctor.enabled: false`); requires the enterprise image to include `sam_doctor`. See [SAM Doctor](./production-kubernetes.md#sam-doctor-pre-flight-validation). | `samDoctor.enabled` |
-| **JSON Schema Validation** | `values.schema.json` is now shipped with the chart — Helm rejects invalid configuration at `helm lint`, `helm install`, `helm upgrade`, and `helm template` with clear error messages. Also enforces conditional rules (e.g., external datastore credentials required when `global.persistence.enabled: false`). | Built-in |
-| **Cluster Resource Checks** | At `helm install`/`upgrade` time, validates that referenced Secrets, ConfigMaps, StorageClass, and IngressClass actually exist in the cluster — reports all missing resources in one aggregated error instead of letting pods fail with `ImagePullBackOff` or PVCs get stuck `Pending`. No-op during `helm template`/`--dry-run=client`. | `validations.clusterResourceChecks` |
+| **Embedded Solace Broker** | Deploy a single-node Solace PubSub+ broker in-cluster for evaluation. No external broker is required. See [Kubernetes Quick Start](./quickstart-kubernetes.md). | `global.broker.embedded` |
+| **Agent Mesh Doctor Pre-flight Checks** | Pre-install/pre-upgrade Helm hook that validates broker, database, object storage, TLS, and OIDC configuration before any workload pods are created. Misconfigurations surface as a clear error instead of `CrashLoopBackOff`. Disabled by default (`samDoctor.enabled: false`); requires the enterprise image to include `sam_doctor`. See [Agent Mesh Doctor](./production-kubernetes.md#sam-doctor-pre-flight-validation). | `samDoctor.enabled` |
+| **JSON Schema Validation** | `values.schema.json` is now shipped with the chart. Helm rejects invalid configuration at `helm lint`, `helm install`, `helm upgrade`, and `helm template` with clear error messages. Also enforces conditional rules (for example, external datastore credentials required when `global.persistence.enabled: false`). | Built-in |
+| **Cluster Resource Checks** | At `helm install`/`upgrade` time, validates that referenced Secrets, ConfigMaps, StorageClass, and IngressClass actually exist in the cluster. Reports all missing resources in one aggregated error instead of letting pods fail with `ImagePullBackOff` or PVCs get stuck `Pending`. No-op during `helm template`/`--dry-run=client`. | `validations.clusterResourceChecks` |
 
 ## Migration Timeline
 
@@ -63,7 +63,7 @@ All users upgrading from v1.2.x must address:
 
 In v2.0.0, the agent chart is always bundled inside the main chart. These keys no longer exist in the schema.
 
-**Old values (v1.2.x) — remove these:**
+**Old values (v1.2.x) - remove these:**
 ```yaml
 samDeployment:
   agentDeployer:
@@ -84,7 +84,7 @@ samDeployment:
 ### 2. Image Configuration Restructured
 
 :::warning Critical - Pods Will Fail Without This Change
-All users upgrading from v1.2.x must update their values file before running `helm upgrade`. The default `repository` value in v1.2.x included the registry hostname (`gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise`). In v2.0.0, the chart prepends `global.imageRegistry` to `repository` automatically — upgrading without updating your values will produce a double-prefixed image reference that Kubernetes cannot pull, and pods will go into `ImagePullBackOff` immediately.
+All users upgrading from v1.2.x must update their values file before running `helm upgrade`. The default `repository` value in v1.2.x included the registry hostname (`gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise`). In v2.0.0, the chart prepends `global.imageRegistry` to `repository` automatically. Upgrading without updating your values produces a double-prefixed image reference that Kubernetes cannot pull, and pods immediately enter `ImagePullBackOff`.
 :::
 
 Starting with v2.0.0, the registry is separated from the repository. The chart constructs the full image reference as `registry/repository:tag`, where `registry` defaults to `global.imageRegistry` (`gcr.io/gcp-maas-prod`).
@@ -141,20 +141,20 @@ samDeployment:
 
 **Step 1:** Remove the registry hostname from `samDeployment.image.repository` and `samDeployment.agentDeployer.image.repository` in your values file. If you use an internal registry, set `global.imageRegistry` to that registry hostname.
 
-**Step 2:** Validate your updated values file before upgrading — check that all image references resolve correctly:
+**Step 2:** Validate your updated values file before upgrading. Check that all image references resolve correctly:
 ```bash
 helm template <release-name> solace/solace-agent-mesh \
   -f updated-values.yaml \
   | grep "image:" | sort -u
 ```
-Every image should show the correct registry prefix exactly once (e.g., `gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`).
+Every image should show the correct registry prefix exactly once (for example, `gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`).
 
 **Step 3:** Proceed with the upgrade (see [Upgrade Command](#upgrade-command) section).
 
 ### 3. Session Key Secret Location Changed
 
 :::danger All Users Logged Out Without This Step
-In v1.2.x the session key was stored in `<release>-environment`. In v2.0.0 it moves to a new secret with a different name. On first upgrade, the chart cannot find the old value and generates a new random key — instantly logging out all active users.
+In v1.2.x the session key was stored in `<release>-environment`. In v2.0.0 it moves to a new secret with a different name. On first upgrade, the chart cannot find the old value and generates a new random key, instantly logging out all active users.
 :::
 
 **If `sam.sessionSecretKey` was already set explicitly in your v1.2.x values:** carry it forward unchanged. No action needed.
@@ -197,7 +197,7 @@ Alternatively, use `global.imagePullKey` with `--set-file` to let the chart crea
 
 ### 5. Secrets and ConfigMaps Restructured
 
-The monolithic secret and configmap have been split into multiple focused resources for better security and organization.
+The monolithic secret and configmap have been split into multiple focused resources for improved security and organization.
 
 **Old Resources (v1.x):**
 - `solace-agent-mesh-secret` (single monolithic secret)
@@ -215,14 +215,14 @@ kubectl get configmaps -n <namespace> -l app.kubernetes.io/instance=<release>
 **Migration Action:**
 - Pods will automatically pick up the new secret and configmap names
 - **Update external references** if you have:
-  - External Secrets Operator syncing to SAM secrets
+  - External Secrets Operator syncing to Solace Agent Mesh secrets
   - ArgoCD or other GitOps patches referencing old names
-  - Custom scripts or operators reading SAM secrets/configmaps
+  - Custom scripts or operators reading Agent Mesh secrets/configmaps
   - Backup/restore automation referencing old names
 
 ### 6. Default Values Changed
 
-Chart v2.0.0 changes several default values to optimize for quickstart evaluation.
+Chart v2.0.0 changes several default values to suit quickstart evaluation.
 
 | Setting | v1.x Default | v2.0.0 Default | Impact |
 |---------|--------------|----------------|--------|
@@ -242,24 +242,24 @@ Sample values files in `samples/values/` have been removed and consolidated into
 - `samples/values/production.yaml`
 - `samples/values/sam-tls-oidc-bundled-persistence.yaml`
 - `samples/values/sam-tls-bundled-persistence-no-auth.yaml`
-- And other sample files
+- Other sample files
 
 **New Approach:**
 - Use the main `values.yaml` as reference documentation
-- Create custom override files (e.g., `production-overrides.yaml`)
+- Create custom override files (for example, `production-overrides.yaml`)
 
 **Migration Action:**
 - If you were using `-f samples/values/*.yaml`, migrate to custom override files
-- Reference the inline documentation in `values.yaml` for all configuration options
+- See the inline documentation in `values.yaml` for all configuration options
 - See [Production Kubernetes Installation](./production-kubernetes.md) for examples
 
 ### 8. Bundled Persistence VCT Labels
 
-:::warning Only for Bundled Persistence Users Upgrading from ≤v1.1.0
-This section only applies if you are using **bundled persistence** (`global.persistence.enabled: true`) and upgrading from chart version ≤1.1.0. External persistence users and new installations are **not affected**.
+:::warning Only for Bundled Persistence Users Upgrading from v1.1.0 or Earlier
+This section only applies if you are using **bundled persistence** (`global.persistence.enabled: true`) and upgrading from chart version 1.1.0 or earlier. External persistence users and new installations are **not affected**.
 :::
 
-Starting with chart versions after 1.1.0, the bundled persistence layer uses minimal VolumeClaimTemplate (VCT) labels for StatefulSets. This prevents upgrade failures when labels change over time, but requires a one-time migration for existing deployments.
+Starting with chart versions after 1.1.0, the bundled persistence layer uses minimal VolumeClaimTemplate (VCT) labels for StatefulSets. This prevents upgrade failures when labels change over time, but a one-time migration is required for existing deployments.
 
 **Why this matters:** Kubernetes StatefulSet VCT labels are immutable. Without migration, upgrades will fail with:
 ```
@@ -315,8 +315,8 @@ samDeployment:
 ```
 
 **Impact:**
-- Deployments with pinned tags (e.g., `1.97.2`) are unaffected
-- If you use mutable tags (e.g., `latest`) or republish images under the same tag, restore the previous behavior explicitly:
+- Deployments with pinned tags (for example, `1.97.2`) are unaffected
+- If you use mutable tags (for example, `latest`) or republish images under the same tag, restore the previous behavior explicitly:
 
 ```yaml
 samDeployment:
@@ -351,8 +351,8 @@ samDeployment:
   - Export values: `helm get values <release> -n <namespace> > current-values.yaml`
   - If using bundled persistence, verify PVC backup strategy
 
-- [ ] [Migrate StatefulSet VCT labels](#8-bundled-persistence-vct-labels) (bundled persistence + upgrading from ≤v1.1.0 only)
-- [ ] **Preserve shared ServiceAccount** (embedded persistence users only) — set in your values file:
+- [ ] [Migrate StatefulSet VCT labels](#8-bundled-persistence-vct-labels) (bundled persistence + upgrading from v1.1.0 or earlier only)
+- [ ] **Preserve shared ServiceAccount** (embedded persistence users only). Set in your values file:
   ```yaml
   samDeployment:
     serviceAccount:
@@ -368,7 +368,7 @@ samDeployment:
 ### Phase 3: Upgrade and Verify
 
 - [ ] Run `helm upgrade` (see [Upgrade Command](#upgrade-command))
-- [ ] Confirm running agents (`sam-agent-*`) were unaffected — they continue on the old agent chart throughout
+- [ ] Confirm running agents (`sam-agent-*`) were unaffected. They continue on the old agent chart throughout.
 - [ ] Verify pods start successfully (check for `ImagePullBackOff`)
 - [ ] Test RBAC/OIDC authentication
 
@@ -389,8 +389,8 @@ helm template <release> <chart> -f values-2.0.0.yaml \
   | grep "image:" | sort -u
 ```
 
-- ✅ Correct: `gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
-- ❌ Wrong: `gcr.io/gcp-maas-prod/gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
+- Correct: `gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
+- Wrong: `gcr.io/gcp-maas-prod/gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise:1.97.2`
 
 **Step 2: Review what will change (if using helm-diff plugin)**
 
@@ -409,7 +409,7 @@ helm upgrade <release> <chart> \
 ```
 
 :::info Running Agents Are Unaffected
-`helm upgrade` on the main chart does not touch `sam-agent-*` pods. They continue running on the old agent chart throughout the upgrade with no intervention required. After the upgrade, new agents use the 2.0.0 agent chart. Existing agents can be redeployed from the SAM UI to pick up the new version.
+`helm upgrade` on the main chart does not touch `sam-agent-*` pods. They continue running on the old agent chart throughout the upgrade with no intervention required. After the upgrade, new agents use the 2.0.0 agent chart. Existing agents can be redeployed from the Agent Mesh UI to pick up the new version.
 :::
 
 **Step 4: Verify the upgrade**
@@ -454,7 +454,7 @@ helm upgrade <release> solace/solace-agent-mesh -n <namespace> -f corrected-valu
 
 **Cause:** VCT labels are immutable in StatefulSets.
 
-**Solution:** See [Bundled Persistence VCT Labels](#8-bundled-persistence-vct-labels) section above.
+**Solution:** See the [Bundled Persistence VCT Labels](#8-bundled-persistence-vct-labels) section.
 
 ### Service Account Not Found
 
@@ -478,7 +478,7 @@ samDeployment:
 
 **Solution:** Update external references to use new resource names:
 - Old: `<release>-secret`, `<release>-config`
-- New: `<release>-secret-auth`, `<release>-secret-core`, `<release>-core-env`, etc.
+- New: `<release>-secret-auth`, `<release>-secret-core`, `<release>-core-env`, and so on
 
 ## Rollback
 

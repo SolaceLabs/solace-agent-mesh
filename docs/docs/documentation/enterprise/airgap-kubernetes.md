@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Air-Gapped Kubernetes Installation
 
-This guide covers deploying Agent Mesh Enterprise (SAM) to Kubernetes clusters in air-gapped environments using Helm charts.
+This guide covers deploying Solace Agent Mesh Enterprise to Kubernetes clusters in air-gapped environments using Helm charts.
 
 :::info
 For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-kubernetes.md) or [Production Kubernetes Installation](./production-kubernetes.md).
@@ -13,7 +13,7 @@ For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-ku
 
 ## What is an Air-Gapped Deployment?
 
-An air-gapped deployment runs in an environment with no direct internet connectivity. All container images, dependencies, and artifacts must be pre-loaded into private registries within the isolated network. This approach ensures compliance with security policies while maintaining full SAM functionality.
+An air-gapped deployment runs in an environment with no direct internet connectivity. All container images, dependencies, and artifacts must be pre-loaded into private registries within the isolated network. This approach ensures compliance with security policies while maintaining full Agent Mesh functionality.
 
 Air-gapped installations are common in regulated industries such as financial services, government, and healthcare where security policies require complete network isolation.
 
@@ -22,15 +22,15 @@ Air-gapped installations are common in regulated industries such as financial se
 ### Required Access
 
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
-- A system with internet access for downloading the SAM delivery bundle
-- Transfer capability to move files into your air-gapped environment (USB drives, secure file transfer, etc.)
+- A system with internet access for downloading the Agent Mesh delivery bundle
+- Transfer capability to move files into your air-gapped environment (USB drives, secure file transfer, and so on)
 
 ### Infrastructure Requirements
 
-Air-gapped deployments have the same infrastructure requirements as your target deployment type — see [Kubernetes Quick Start](./quickstart-kubernetes.md#prerequisites) for evaluation or [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites) for production — plus the following air-gapped-specific requirements:
+Air-gapped deployments have the same infrastructure requirements as your target deployment type, plus the following air-gapped-specific requirements. See [Kubernetes Quick Start](./quickstart-kubernetes.md#prerequisites) for evaluation or [Production Kubernetes Installation](./production-kubernetes.md#production-prerequisites) for production.
 
 **Air-Gapped-Specific Requirements:**
-- A private container registry accessible from your air-gapped cluster (Harbor, Artifactory, ECR, ACR, GCR, etc.)
+- A private container registry accessible from your air-gapped cluster (Harbor, Artifactory, ECR, ACR, GCR, and so on)
 - Registry credentials with push/pull permissions
 
 **Within Air-Gapped Network:**
@@ -45,11 +45,11 @@ For detailed infrastructure requirements (node sizing, compute resources, storag
 
 ## Understanding the Air-Gapped Installation Process
 
-## Step 1: Obtaining the SAM Delivery Bundle
+## Step 1: Obtaining the Agent Mesh Delivery Bundle
 
 ### Bundle Contents
 
-The SAM delivery bundle contains everything needed for an air-gapped Kubernetes deployment — no internet access required after downloading.
+The Agent Mesh delivery bundle contains everything needed for an air-gapped Kubernetes deployment. No internet access is required after downloading.
 
 **Bundle structure:**
 
@@ -78,7 +78,7 @@ bundle/
 
 | Image | Description |
 |-------|-------------|
-| `solace-agent-mesh-enterprise` | SAM core application |
+| `solace-agent-mesh-enterprise` | Agent Mesh core application |
 | `sam-agent-deployer` | Manages agent and gateway deployments |
 | `postgres` | Database init container (schema initialization on every deployment) and embedded PostgreSQL database (evaluation only) |
 | `seaweedfs` | Embedded S3-compatible storage (evaluation only) |
@@ -88,21 +88,21 @@ bundle/
 
 | Chart | Description |
 |-------|-------------|
-| `solace-agent-mesh-<version>.tgz` | Main SAM Helm chart |
+| `solace-agent-mesh-<version>.tgz` | Main Agent Mesh Helm chart |
 | `sam-agent-<version>.tgz` | Agent sub-chart |
 
 **BOM files:**
 
 | File | Use case | Images included |
 |------|----------|-----------------|
-| `bom.yaml` | Production (external broker + datastores) | SAM core images only (`solace-agent-mesh-enterprise`, `sam-agent-deployer`) |
+| `bom.yaml` | Production (external broker + datastores) | Agent Mesh core images only (`solace-agent-mesh-enterprise`, `sam-agent-deployer`) |
 | `bom-quickStart.yaml` | Evaluation (embedded broker + datastores) | All images including `solace-pubsub-enterprise`, `postgres`, `seaweedfs` |
 
 Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification.
 
 ## Step 2: Loading Container Images
 
-All container images are included in the bundle for both `amd64` and `arm64` architectures — no public registry access required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
+All container images are included in the bundle for both `amd64` and `arm64` architectures. No public registry access is required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
 
 The registry path structure matters: when you set `global.imageRegistry` in `values.yaml`, the chart constructs image references as `<registry>/<repository>:<tag>`. Ensure your pushed images are reachable under those paths.
 
@@ -120,7 +120,7 @@ Repeat for each image in the bundle. Exact tags are listed in `bom.yaml`.
 
 ## Step 3: Configuring Image Pull Secrets
 
-Your private registry requires authentication. The chart provides two mutually exclusive options — choose one:
+Your private registry requires authentication. The chart provides two mutually exclusive options. Choose one:
 
 ### Option 1: Pass a Credentials File (`global.imagePullKey`)
 
@@ -153,7 +153,7 @@ global:
 
 ## Step 4: Configuring values.yaml for Air-Gapped
 
-The only required change for an air-gapped deployment is pointing to your private registry. Create an `airgap-overrides.yaml` with:
+The only required change for an air-gapped deployment is pointing to your private registry. Create an `airgap-overrides.yaml` with the following content:
 
 ```yaml
 global:
@@ -163,15 +163,15 @@ global:
 
 For registry authentication, see [Step 3: Configuring Image Pull Secrets](#step-3-configuring-image-pull-secrets).
 
-This is sufficient for **evaluation** — embedded broker and persistence are used by default, just as in the [Kubernetes Quick Start](./quickstart-kubernetes.md).
+This configuration is sufficient for **evaluation**. Embedded broker and persistence are used by default, as in the [Kubernetes Quick Start](./quickstart-kubernetes.md).
 
-For **production** air-gapped deployments, also configure external components — see [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
+For **production** air-gapped deployments, also configure external components. See [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
 
-## Step 5: Installing SAM with Helm
+## Step 5: Installing Agent Mesh with Helm
 
-For dry-run validation before installing, see [Step 4: Pre-Installation Validation](./production-kubernetes.md#step-4-pre-installation-validation) in the Production guide — the same approaches apply.
+For dry-run validation before installing, see [Step 4: Pre-Installation Validation](./production-kubernetes.md#step-4-pre-installation-validation) in the Production guide. The same approaches apply.
 
-Install SAM in your air-gapped environment with your custom overrides:
+Install Agent Mesh in your air-gapped environment with your custom overrides:
 
 ```bash
 helm install sam /../bundle/charts/solace-agent-mesh-<version>.tgz \
@@ -184,15 +184,15 @@ helm install sam /../bundle/charts/solace-agent-mesh-<version>.tgz \
 
 ### Verify All Pods are Running
 
-**For evaluation** — see [Step 2: Wait for Installation to Complete](./quickstart-kubernetes.md#step-2-wait-for-installation-to-complete) in the Quick Start guide.
+**For evaluation:** see [Step 2: Wait for Installation to Complete](./quickstart-kubernetes.md#step-2-wait-for-installation-to-complete) in the Quick Start guide.
 
-**For production** — see [Step 6: Post-Installation Configuration](./production-kubernetes.md#step-6-post-installation-configuration) in the Production guide.
+**For production:** see [Step 6: Post-Installation Configuration](./production-kubernetes.md#step-6-post-installation-configuration) in the Production Kubernetes Installation guide.
 
 ### Access the WebUI
 
-**For evaluation** — see [Step 3: Access the WebUI](./quickstart-kubernetes.md#step-3-access-the-webui) in the Quick Start guide.
+**For evaluation:** see [Step 3: Access the WebUI](./quickstart-kubernetes.md#step-3-access-the-webui) in the Quick Start guide.
 
-**For production** — access is via Ingress or LoadBalancer as configured in your `airgap-overrides.yaml`.
+**For production:** access is via Ingress or LoadBalancer as configured in your `airgap-overrides.yaml`.
 
 ### First Login
 
@@ -204,7 +204,7 @@ Ensure your LLM endpoint and OIDC provider are accessible from within the air-ga
 
 ### Health Checks
 
-Verify SAM is healthy after installation:
+Verify Agent Mesh is healthy after installation:
 
 ```bash
 curl -s https://<your-sam-domain>/health
@@ -219,7 +219,7 @@ Both endpoints should return a successful response. For detailed probe configura
 
 Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
 
-SAM supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
+Agent Mesh supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
 
 The same configuration applies to air-gapped deployments:
 
@@ -232,7 +232,7 @@ samDeployment:
 
 ### Components Requiring External Connectivity
 
-The following SAM components require internet access or external service connectivity to function. In air-gapped environments, you must provide alternative solutions:
+The following Agent Mesh components require internet access or external service connectivity to function. In air-gapped environments, you must provide alternative solutions:
 
 ### Solace Broker Configuration
 
@@ -250,7 +250,7 @@ In air-gapped environments, ensure your LLM service endpoint is accessible from 
 
 **Option 1: Post-Install via Model Config UI**
 
-On first login to the Console UI, you'll be prompted to configure your LLM provider. Ensure the LLM endpoint is accessible from your air-gapped network.
+On first login to the Console UI, you are prompted to configure your LLM provider. Ensure the LLM endpoint is accessible from your air-gapped network.
 
 **Option 2: Pre-Configure via values.yaml**
 
