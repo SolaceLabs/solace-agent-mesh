@@ -775,6 +775,7 @@ async def extract_content_from_artifact(
             "supported_binary_mime_types", []
         )
         model_config_for_extraction = extraction_config.get("model")
+        extraction_timeout_seconds = extraction_config.get("timeout_seconds", 300)
     except Exception as e:
         log.exception("%s Error retrieving tool configuration: %s", log_identifier, e)
         return ToolResult.error(
@@ -1013,7 +1014,28 @@ Based on analyzing the CSV data, I found 102 records containing 'Employee' in th
     )
 
     extracted_content_str = ""
+    # Override the per-call HTTP timeout and disable client-side retries for the
+    # internal LLM call. The agent's main LiteLlm carries timeout=120s in its
+    # _model_config, which is too short for extraction prompts that legitimately
+    # need 130-300s on richer artifacts (e.g. structured Chatter feeds). When the
+    # natural completion exceeds 120s, the litellm client times out and num_retries
+    # fires another full attempt against the proxy — observed in production as
+    # 4-7 sequential 120-180s upstream calls totalling ~840s wall time. The
+    # override is a per-async-task ContextVar, so it does not affect the agent's
+    # main reasoning loop or any concurrent task.
+    from ..adk.models.lite_llm import set_model_override, get_model_override
+    timeout_override: dict[str, Any] | None = None
+    if extraction_timeout_seconds:
+        timeout_override = {
+            "timeout": extraction_timeout_seconds,
+            "num_retries": 0,
+        }
+    previous_override = get_model_override()
     try:
+        if timeout_override is not None:
+            merged_override = dict(previous_override or {})
+            merged_override.update(timeout_override)
+            set_model_override(merged_override)
         log.info(
             "%s Executing internal LLM call for extraction. Goal: %s",
             log_identifier,
@@ -1165,6 +1187,9 @@ Based on analyzing the CSV data, I found 102 records containing 'Employee' in th
             f"The LLM failed to process the artifact content for your goal '{extraction_goal}'. Error: {e}",
             data={"filename": filename, "version_requested": str(version)}
         )
+    finally:
+        if timeout_override is not None:
+            set_model_override(previous_override)
 
     extracted_content_bytes = extracted_content_str.encode("utf-8")
     extracted_content_size_bytes = len(extracted_content_bytes)
