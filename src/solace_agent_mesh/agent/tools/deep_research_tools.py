@@ -985,15 +985,46 @@ Respond in JSON format:
 _PLAN_RESPONSE_TIMEOUT_SECONDS = 600
 
 
-def _is_webui_gateway(tool_context: ToolContext) -> bool:
-    """Whether the invoking gateway can render the interactive plan UI.
+# Default set of gateway client_ids whose surfaces can render and respond to
+# plan-verification signals. Today only the http_sse (WebUI) gateway has the
+# /research/plan-response endpoint; Slack, Teams, and MCP have no transport for
+# returning the user's approval. Override per-agent in tool_config:
+#
+#   tool_config:
+#     interactive_plan_verification: true
+#     interactive_plan_verification_clients:   # optional; defaults to below
+#       - http_sse_gateway
+#       - my_custom_webui_gateway
+#
+# Use ``["*"]`` to opt every client in (treats verification as if any gateway
+# can satisfy it - only safe when every reachable gateway actually can).
+_DEFAULT_INTERACTIVE_PLAN_CLIENTS: tuple = ("http_sse_gateway",)
 
-    Placeholder: always True today. Gateway-type detection is currently handled
-    via the ``interactive_plan_verification`` config flag; this helper exists so
-    callers can migrate to a per-request check once that signal is plumbed
-    through the tool context.
+
+def _is_interactive_plan_client(
+    tool_context: ToolContext, tool_config: Optional[Dict[str, Any]]
+) -> bool:
+    """Whether the invoking gateway can render and respond to plan signals.
+
+    Reads ``client_id`` from ``a2a_context`` (stamped by the gateway in
+    user_properties.clientId on every A2A request, see
+    ``gateway/base/component.py``) and matches it against the configured
+    allowlist. Returns False when client_id is missing so unknown surfaces
+    fall through to the auto-approve path rather than the publish+wait path.
     """
-    return True
+    config = tool_config or {}
+    allowlist = config.get(
+        "interactive_plan_verification_clients",
+        list(_DEFAULT_INTERACTIVE_PLAN_CLIENTS),
+    )
+    if "*" in allowlist:
+        return True
+
+    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
+    if not isinstance(a2a_context, dict):
+        return False
+    client_id = a2a_context.get("client_id") or ""
+    return client_id in allowlist
 
 
 async def _send_plan_verification(
@@ -2072,14 +2103,13 @@ async def deep_research(
         await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
         
         # === VERIFICATION STEP ===
-        # Interactive plan verification is opt-in via config. Enable for gateways
-        # that can render and respond to plan signals (e.g. WebUI); leave disabled
-        # for non-interactive surfaces (Slack, Teams, MCP) where the prompt would
-        # never be answered and the tool would block until timeout.
-        #
-        # Scheduled-task sessions (session_id prefixed "scheduled_") always
-        # auto-approve: there's no human available to confirm. The plan is still
-        # generated so it appears in the run's logs/artifacts for post-hoc review.
+        # Interactive plan verification is opt-in via config. The publish+wait
+        # path only works when the originating gateway can render the plan card
+        # and POST a plan-response back; today that's the WebUI's http_sse
+        # gateway. For every other surface (Slack, Teams, MCP, scheduled tasks)
+        # we still generate the plan so it lands in the run log, then
+        # auto-approve - blocking on a response that can never arrive would
+        # just stall the tool until _PLAN_RESPONSE_TIMEOUT_SECONDS and cancel.
         from ..utils.context_helpers import get_original_session_id
         session_id = ""
         inv_ctx = getattr(tool_context, "_invocation_context", None)
@@ -2090,8 +2120,12 @@ async def deep_research(
                 session_id = ""
         is_scheduled_session = session_id.startswith("scheduled_")
 
+        verification_flag_on = bool(config.get("interactive_plan_verification", False))
+        client_supports_verification = _is_interactive_plan_client(tool_context, tool_config)
+
         interactive_verification = (
-            bool(config.get("interactive_plan_verification", False))
+            verification_flag_on
+            and client_supports_verification
             and not is_scheduled_session
         )
 
@@ -2156,7 +2190,7 @@ async def deep_research(
                 log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
 
             log.info("%s Plan approved, proceeding with research", log_identifier)
-        elif is_scheduled_session:
+        elif verification_flag_on and is_scheduled_session:
             # Scheduled task: generate plan for the run log, then auto-approve.
             plan_steps = await _generate_research_plan(
                 research_question, queries, tool_context, tool_config
@@ -2164,6 +2198,25 @@ async def deep_research(
             log.info(
                 "%s Scheduled session (session_id=%s); auto-approving plan with %d steps",
                 log_identifier, session_id, len(plan_steps),
+            )
+        elif verification_flag_on and not client_supports_verification:
+            # Non-interactive gateway (Slack, Teams, MCP, custom). Generate the
+            # plan for the run log, then auto-approve. Falling into the
+            # publish+wait branch here would block for
+            # _PLAN_RESPONSE_TIMEOUT_SECONDS and then cancel the research,
+            # giving the user nothing.
+            a2a_ctx = tool_context.state.get("a2a_context") if tool_context.state else None
+            client_id = (
+                a2a_ctx.get("client_id", "<unknown>")
+                if isinstance(a2a_ctx, dict)
+                else "<unknown>"
+            )
+            plan_steps = await _generate_research_plan(
+                research_question, queries, tool_context, tool_config
+            )
+            log.info(
+                "%s Non-interactive client (client_id=%s); auto-approving plan with %d steps",
+                log_identifier, client_id, len(plan_steps),
             )
         else:
             log.info("%s Interactive plan verification disabled, skipping", log_identifier)
