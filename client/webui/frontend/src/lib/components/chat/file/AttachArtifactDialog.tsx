@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Folder, MessageSquare, Search } from "lucide-react";
+import { MessageSquare, Search } from "lucide-react";
 
 import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner } from "@/lib/components/ui";
 import { useAllArtifacts, useArtifactVersions, isProjectArtifact, type ArtifactWithSession } from "@/lib/api/artifacts";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
 
 import { getFileTypeColor } from "./FileIcon";
+import { ProjectBadge } from "./ProjectBadge";
 import { getExtensionLabel } from "./attachmentUtils";
 
 /**
@@ -223,9 +224,6 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                 {visibleArtifacts.map(({ artifact }) => {
                                     const k = keyFor(artifact);
                                     const isSelected = selectedKeys.has(k);
-                                    // Prefer project name over session name; pick the matching icon.
-                                    const scopeName = artifact.projectName || artifact.sessionName;
-                                    const ScopeIcon = artifact.projectName ? Folder : MessageSquare;
                                     return (
                                         <li
                                             key={k}
@@ -273,20 +271,31 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                         />
                                                     )}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
-                                                    <span className="truncate">{artifact.mime_type}</span>
+                                                <div className="flex items-center gap-2 overflow-hidden text-xs whitespace-nowrap text-(--secondary-text-wMain)">
+                                                    <span className="min-w-0 truncate">{artifact.mime_type}</span>
                                                     <span aria-hidden>·</span>
-                                                    <span>{formatBytes(artifact.size)}</span>
-                                                    {scopeName && (
+                                                    <span className="flex-shrink-0">{formatBytes(artifact.size)}</span>
+                                                    {/* Project artifacts render the standard ProjectBadge —
+                                                        same component used in RecentChatsPage / ArtifactsPage /
+                                                        ChatPage so the visual treatment stays consistent. Session
+                                                        artifacts keep the chat-bubble icon + chat title. */}
+                                                    {artifact.projectName ? (
                                                         <>
                                                             <span aria-hidden>·</span>
-                                                            <span className="flex min-w-0 items-center gap-1">
-                                                                <ScopeIcon className="size-3 flex-shrink-0" />
-                                                                <span className="truncate" title={scopeName}>
-                                                                    {scopeName}
-                                                                </span>
-                                                            </span>
+                                                            <ProjectBadge text={artifact.projectName} className="flex-shrink-0" />
                                                         </>
+                                                    ) : (
+                                                        artifact.sessionName && (
+                                                            <>
+                                                                <span aria-hidden>·</span>
+                                                                <span className="flex min-w-0 items-center gap-1">
+                                                                    <MessageSquare className="size-3 flex-shrink-0" />
+                                                                    <span className="truncate" title={artifact.sessionName}>
+                                                                        {artifact.sessionName}
+                                                                    </span>
+                                                                </span>
+                                                            </>
+                                                        )
                                                     )}
                                                 </div>
                                             </div>
