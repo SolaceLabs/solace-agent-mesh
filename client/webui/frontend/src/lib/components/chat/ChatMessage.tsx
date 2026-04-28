@@ -17,7 +17,6 @@ import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { hasDocumentSearchResults } from "@/lib/utils/sourceUrlHelpers";
-import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
 import DOMPurify from "dompurify";
@@ -547,27 +546,13 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         }
 
         if (embeddedContent.length === 0) {
-            // Use MarkdownWrapper for streaming (smooth animation), TextWithCitations otherwise (citation support)
-            if (isStreaming) {
-                return <MarkdownWrapper content={displayText} isStreaming={isStreaming} />;
-            }
-            // Render text with citations if any exist
-            if (citations.length > 0) {
-                return <TextWithCitations text={displayText} citations={citations} onCitationClick={handleCitationClick} />;
-            }
-            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+            return <MarkdownWrapper content={displayText} isStreaming={isStreaming} citations={citations} onCitationClick={handleCitationClick} />;
         }
 
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                {isStreaming ? (
-                    <MarkdownWrapper content={modifiedText} isStreaming={isStreaming} />
-                ) : modifiedCitations.length > 0 ? (
-                    <TextWithCitations text={modifiedText} citations={modifiedCitations} onCitationClick={handleCitationClick} />
-                ) : (
-                    <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
-                )}
+                <MarkdownWrapper content={modifiedText} isStreaming={isStreaming} citations={modifiedCitations} onCitationClick={handleCitationClick} />
                 {contentElements}
             </div>
         );
