@@ -10,7 +10,7 @@
  *   - infinite-scroll sentinel → loadMore invocation
  *   - Cancel closes without emitting onAttach
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
@@ -32,10 +32,10 @@ vi.mock("@/lib/hooks", async () => {
     };
 });
 
-// IntersectionObserver is not available in jsdom — capture the callback so
-// tests can fire it directly to simulate the sentinel entering the viewport.
-let latestObserverCallback: IntersectionObserverCallback | null = null;
-
+// IntersectionObserver is not available in jsdom. The dialog still mounts
+// the sentinel via `new IntersectionObserver(...)`, so a no-op stub is
+// enough — actual sentinel-to-loadMore behaviour is covered by the
+// Storybook play test in the browser project.
 class MockIntersectionObserver {
     observe = vi.fn();
     unobserve = vi.fn();
@@ -44,9 +44,6 @@ class MockIntersectionObserver {
     root: Element | Document | null = null;
     rootMargin = "";
     thresholds: ReadonlyArray<number> = [];
-    constructor(callback: IntersectionObserverCallback) {
-        latestObserverCallback = callback;
-    }
 }
 
 const makeArtifact = (overrides: Partial<ArtifactWithSession> = {}): ArtifactWithSession => ({
@@ -116,7 +113,6 @@ function renderDialog(artifacts: ArtifactWithSession[], options: { hasMore?: boo
 
 describe("AttachArtifactDialog", () => {
     beforeEach(() => {
-        latestObserverCallback = null;
         vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     });
 
@@ -220,54 +216,11 @@ describe("AttachArtifactDialog", () => {
         expect(onClose).toHaveBeenCalled();
     });
 
-    // NOTE: `useAllArtifacts` sets `refetchOnMount: "always"`, which in jsdom
-    // triggers an immediate refetch that drops the seeded cache before the
-    // sentinel mounts. Without a reliable hook mock (vi.mock doesn't reach
-    // the transitive import here), the test can't observe `hasMore=true`
-    // long enough to register the IntersectionObserver. The
-    // sentinel-to-loadMore wiring is covered by the browser storybook tests.
-    test.skip("infinite-scroll sentinel triggers loadMore when it enters the viewport", async () => {
-        // useAllArtifacts sets refetchOnMount:"always" — once the dialog
-        // mounts it refetches, which in jsdom would otherwise drop the seed.
-        // Stub fetch so the refetch resolves with a page that still reports
-        // `nextPage: 2`, keeping hasNextPage (== hasMore) true.
-        const fetchStub = vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            json: async () => ({ artifacts: [{ filename: "x.txt", size: 1, mimeType: "text/plain", lastModified: "x", uri: "artifact://s/x.txt", sessionId: "s", sessionName: "S" }], nextPage: 2, totalCount: 1 }),
-            text: async () => "",
-            headers: new Headers({ "content-type": "application/json" }),
-        });
-        vi.stubGlobal("fetch", fetchStub);
-
-        const loadMoreSpy = vi.fn();
-        renderDialog([makeArtifact({ uri: "artifact://s/x.txt" })], { hasMore: true, loadMoreSpy });
-
-        await waitFor(() => {
-            expect(latestObserverCallback).toBeTypeOf("function");
-        });
-
-        // Fire the observer with an intersecting entry — mimics the sentinel
-        // scrolling into view at the bottom of the list.
-        latestObserverCallback?.(
-            [
-                {
-                    isIntersecting: true,
-                    intersectionRatio: 1,
-                    target: document.createElement("li"),
-                    boundingClientRect: {} as DOMRectReadOnly,
-                    intersectionRect: {} as DOMRectReadOnly,
-                    rootBounds: null,
-                    time: 0,
-                },
-            ],
-            {} as IntersectionObserver
-        );
-
-        await waitFor(() => {
-            expect(loadMoreSpy).toHaveBeenCalled();
-        });
-    });
+    // The infinite-scroll sentinel-to-loadMore wiring is covered by the
+    // Storybook play test in AttachArtifactDialog.stories.tsx — vi.mock in
+    // jsdom can't reliably intercept useAllArtifacts's refetchOnMount path,
+    // so the browser project owns this case where a real
+    // IntersectionObserver is available.
 
     test("search input updates the query value", async () => {
         renderDialog([]);
