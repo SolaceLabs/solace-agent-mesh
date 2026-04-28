@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.5](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.4...1.20.5) (2026-04-28)
+
+
+### Bug Fixes
+
+* **DATAGO-133254:** fixing minor UX issues. ([#1445](https://github.com/SolaceLabs/solace-agent-mesh/issues/1445)) ([c322084](https://github.com/SolaceLabs/solace-agent-mesh/commit/c322084da33bc772c057d9a31e3eb0dedcaca199))
+* **DATAGO-134083:** Fix cryptic code rendering for citations during response streaming in projects ([#1468](https://github.com/SolaceLabs/solace-agent-mesh/issues/1468)) ([b75ead3](https://github.com/SolaceLabs/solace-agent-mesh/commit/b75ead325e409a3def350b4688fabd52fff247de))
+* **DATAGO-134087:** Audit and optimize Database indexing for performance ([#1469](https://github.com/SolaceLabs/solace-agent-mesh/issues/1469)) ([d235de2](https://github.com/SolaceLabs/solace-agent-mesh/commit/d235de24164056504ca772ae37ef395d76ac3927))
+
 ## [1.20.4](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.3...1.20.4) (2026-04-28)
 
 
