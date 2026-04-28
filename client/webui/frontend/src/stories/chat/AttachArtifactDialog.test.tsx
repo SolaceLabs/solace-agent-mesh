@@ -128,12 +128,12 @@ describe("AttachArtifactDialog", () => {
         expect(screen.getByText(/no artifacts available/i)).toBeInTheDocument();
     });
 
-    test("emits the canonical artifact:// URI returned by the bulk endpoint as-is", async () => {
+    test("emits the canonical artifact:// URI without ?version when the user keeps the 'Latest' default", async () => {
         // The /artifacts/all endpoint returns a canonical 4-segment URI
-        // (artifact://{app_name}/{user_id}/{session_id}/{filename}?version=N).
-        // The dialog forwards it untouched — fabricating any other shape would
-        // fail agent-side parsing.
-        const canonical = "artifact://my-app/user-1/sess-legacy/legacy.txt?version=0";
+        // without a `?version=N` query (the agent-side translator resolves
+        // "latest" at fetch time). The dialog forwards it untouched when the
+        // per-row version picker is left on its default.
+        const canonical = "artifact://my-app/user-1/sess-legacy/legacy.txt";
         const onAttach = vi.fn();
         renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-legacy", uri: canonical })], { onAttach });
 

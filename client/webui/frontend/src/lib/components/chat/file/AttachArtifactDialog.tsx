@@ -1,14 +1,73 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Folder, MessageSquare, Search } from "lucide-react";
 
-import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Spinner } from "@/lib/components/ui";
-import { useAllArtifacts, type ArtifactWithSession } from "@/lib/api/artifacts";
+import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner } from "@/lib/components/ui";
+import { useAllArtifacts, useArtifactVersions, type ArtifactWithSession } from "@/lib/api/artifacts";
 import { useDebounce } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
 
 import { getFileTypeColor } from "./FileIcon";
 import { getExtensionLabel } from "./attachmentUtils";
+
+const LATEST_VERSION_VALUE = "latest";
+
+/**
+ * Inline per-row version picker. Lazy-loads versions on first open so a
+ * dialog with 30+ artifacts doesn't fan out N list_versions calls upfront.
+ * Mirrors the look of the side-panel `ArtifactDetails` selector.
+ */
+const ArtifactVersionPicker: React.FC<{
+    artifact: ArtifactWithSession;
+    value: string;
+    onValueChange: (value: string) => void;
+}> = ({ artifact, value, onValueChange }) => {
+    const [hasOpened, setHasOpened] = useState(false);
+    const { data: versions, isLoading } = useArtifactVersions({
+        sessionId: artifact.sessionId,
+        projectId: artifact.projectId,
+        filename: artifact.filename,
+        enabled: hasOpened,
+    });
+
+    return (
+        <Select
+            value={value}
+            onValueChange={onValueChange}
+            onOpenChange={open => {
+                if (open) setHasOpened(true);
+            }}
+        >
+            <SelectTrigger
+                className="h-[16px] w-auto gap-1 py-0 text-xs shadow-none"
+                onClick={e => {
+                    // The row itself has an onClick that toggles selection — the
+                    // version picker should be independent of that.
+                    e.stopPropagation();
+                }}
+            >
+                <SelectValue placeholder="Latest" />
+            </SelectTrigger>
+            <SelectContent
+                onClick={e => {
+                    e.stopPropagation();
+                }}
+            >
+                <SelectItem value={LATEST_VERSION_VALUE}>Latest</SelectItem>
+                {isLoading && (
+                    <div className="flex items-center justify-center py-1">
+                        <Spinner size="small" variant="muted" />
+                    </div>
+                )}
+                {versions?.map(v => (
+                    <SelectItem key={v} value={v.toString()}>
+                        Version {v}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
+};
 
 // The agent-side translator requires the canonical 4-segment form
 // `artifact://{app_name}/{user_id}/{session_id}/{filename}?version=N`. The
@@ -19,6 +78,25 @@ import { getExtensionLabel } from "./attachmentUtils";
 // attachable, so we hide it rather than fabricate a broken URI.
 const resolveArtifactUri = (artifact: ArtifactWithSession): string | null => {
     return artifact.uri ? artifact.uri : null;
+};
+
+/**
+ * Apply a per-row version override to a canonical artifact URI. "Latest" maps
+ * to omitting `?version=` so the agent-side translator resolves the latest at
+ * fetch time. A specific version is encoded as `?version=N`, replacing any
+ * pre-existing query.
+ */
+const applyVersionToUri = (uri: string, version: string): string => {
+    try {
+        const url = new URL(uri);
+        url.search = "";
+        if (version !== LATEST_VERSION_VALUE) {
+            url.searchParams.set("version", version);
+        }
+        return url.toString();
+    } catch {
+        return uri;
+    }
 };
 
 interface AttachArtifactDialogProps {
@@ -38,11 +116,15 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
     const { data: artifacts = [], isLoading, hasMore, loadMore, isLoadingMore } = useAllArtifacts(debouncedSearch || undefined);
 
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+    // Per-row version override; absent entry = "latest". Keyed the same way
+    // as `selectedKeys` so they can be looked up together when attaching.
+    const [versionByKey, setVersionByKey] = useState<Map<string, string>>(new Map());
 
     // Reset state when dialog closes so it opens fresh next time.
     useEffect(() => {
         if (!isOpen) {
             setSelectedKeys(new Set());
+            setVersionByKey(new Map());
             setSearchQuery("");
         }
     }, [isOpen]);
@@ -85,10 +167,15 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
         () =>
             visibleArtifacts
                 .filter(({ artifact }) => selectedKeys.has(keyFor(artifact)))
-                // Ensure the outgoing artifact carries a resolved `uri` so downstream
-                // consumers (the chat submit pipeline) don't need to re-resolve it.
-                .map(({ artifact, resolvedUri }) => ({ ...artifact, uri: resolvedUri ?? artifact.uri })),
-        [visibleArtifacts, selectedKeys]
+                .map(({ artifact, resolvedUri }) => {
+                    const baseUri = resolvedUri ?? artifact.uri;
+                    const versionChoice = versionByKey.get(keyFor(artifact)) ?? LATEST_VERSION_VALUE;
+                    // Encode the per-row version override on the URI so the
+                    // chat submit pipeline doesn't need to re-resolve it.
+                    const finalUri = baseUri ? applyVersionToUri(baseUri, versionChoice) : baseUri;
+                    return { ...artifact, uri: finalUri };
+                }),
+        [visibleArtifacts, selectedKeys, versionByKey]
     );
 
     const handleAttach = () => {
@@ -152,8 +239,21 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                 {getExtensionLabel(artifact.filename)}
                                             </span>
                                             <div className="min-w-0 flex-1">
-                                                <div className="truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
-                                                    {artifact.filename}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
+                                                        {artifact.filename}
+                                                    </div>
+                                                    <ArtifactVersionPicker
+                                                        artifact={artifact}
+                                                        value={versionByKey.get(k) ?? LATEST_VERSION_VALUE}
+                                                        onValueChange={v => {
+                                                            setVersionByKey(prev => {
+                                                                const next = new Map(prev);
+                                                                next.set(k, v);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                    />
                                                 </div>
                                                 <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                                                     <span className="truncate">{artifact.mime_type}</span>
