@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 
 from .base import ObjectStorageClient, StorageObject
-from .exceptions import StorageNotFoundError
+from .exceptions import StorageError, StorageNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,10 @@ class FileSystemStorageClient(ObjectStorageClient):
 
     def __init__(self, bucket_name: str, root_path: str):
         self._bucket = bucket_name
-        self._root = Path(root_path).expanduser() / bucket_name
+        # `.resolve()` is required so `as_uri()` works (it rejects relative
+        # paths) and so the path-traversal guard in `_path_for` has a stable
+        # absolute anchor to compare against.
+        self._root = (Path(root_path).expanduser() / bucket_name).resolve()
         self._root.mkdir(parents=True, exist_ok=True)
         log.info(
             "FileSystemStorageClient ready: bucket=%s, root=%s",
@@ -34,7 +37,22 @@ class FileSystemStorageClient(ObjectStorageClient):
         )
 
     def _path_for(self, key: str) -> Path:
-        return self._root / key
+        """Resolve a key to an absolute path inside the bucket root.
+
+        Rejects absolute keys and any key that resolves outside the root
+        (e.g. ``..`` traversal). This is defense-in-depth: callers in this
+        codebase only pass server-constructed keys, but the class is part
+        of the public storage interface.
+        """
+        if not key:
+            raise StorageError("Storage key must be non-empty", key=key)
+        candidate = (self._root / key).resolve()
+        if candidate != self._root and self._root not in candidate.parents:
+            raise StorageError(
+                f"Storage key resolves outside bucket root: {key!r}",
+                key=key,
+            )
+        return candidate
 
     def put_object(
         self,
@@ -71,7 +89,9 @@ class FileSystemStorageClient(ObjectStorageClient):
         # Treat the prefix as a key-prefix string match against existing files.
         count = 0
         for p in self._root.rglob("*"):
-            if p.is_file() and str(p.relative_to(self._root)).startswith(prefix):
+            if not p.is_file():
+                continue
+            if p.relative_to(self._root).as_posix().startswith(prefix):
                 p.unlink()
                 count += 1
         return count
@@ -81,7 +101,7 @@ class FileSystemStorageClient(ObjectStorageClient):
         for p in self._root.rglob("*"):
             if not p.is_file():
                 continue
-            rel = str(p.relative_to(self._root))
+            rel = p.relative_to(self._root).as_posix()
             if rel.startswith(prefix):
                 out.append(rel)
         return out
