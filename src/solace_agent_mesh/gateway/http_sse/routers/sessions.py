@@ -1421,11 +1421,14 @@ def get_session_context_usage(
         # leak into the new agent's indicator.
         if completed_tasks:
             task_ids = [t.id for t in completed_tasks]
-            # DISTINCT ON caps events at one row per task at the DB layer (the
-            # earliest 'request' event), and we project only (task_id, payload)
-            # — id/topic/created_time/user_id aren't read here. payload stays
-            # JSON because TaskEventModel uses sqlalchemy JSON (not JSONB), so
-            # path extraction via ``->>`` isn't available.
+            # Project only (task_id, payload) — id/topic/created_time/user_id
+            # aren't read here. payload stays JSON because TaskEventModel uses
+            # sqlalchemy JSON (not JSONB), so path extraction via ``->>`` isn't
+            # available. We can't push DISTINCT-per-task to the DB portably:
+            # ``.distinct(column)`` compiles to PostgreSQL-only ``DISTINCT ON``
+            # and raises CompileError on SQLite/MySQL (the gateway DB supports
+            # all three — see dependencies.init_database). Fold to the earliest
+            # request per task in Python instead.
             request_rows = (
                 db.query(TaskEventModel.task_id, TaskEventModel.payload)
                 .filter(
@@ -1433,7 +1436,6 @@ def get_session_context_usage(
                     TaskEventModel.direction == "request",
                 )
                 .order_by(TaskEventModel.task_id, TaskEventModel.created_time.asc())
-                .distinct(TaskEventModel.task_id)
                 .all()
             )
 
@@ -1448,9 +1450,11 @@ def get_session_context_usage(
                 except AttributeError:
                     return None
 
-            first_request_by_task: dict[str, Optional[str]] = {
-                r.task_id: _row_agent(r.payload) for r in request_rows
-            }
+            first_request_by_task: dict[str, Optional[str]] = {}
+            for r in request_rows:
+                if r.task_id in first_request_by_task:
+                    continue
+                first_request_by_task[r.task_id] = _row_agent(r.payload)
 
             def _task_agent(task_id: str) -> Optional[str]:
                 return first_request_by_task.get(task_id)

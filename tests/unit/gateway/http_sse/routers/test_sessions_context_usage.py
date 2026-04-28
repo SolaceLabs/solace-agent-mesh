@@ -81,7 +81,6 @@ def _make_mock_db():
     query_mock = MagicMock()
     query_mock.filter.return_value = query_mock
     query_mock.order_by.return_value = query_mock
-    query_mock.distinct.return_value = query_mock
     query_mock.count.return_value = 0
     query_mock.all.return_value = []
     query_mock.first.return_value = None
@@ -207,6 +206,10 @@ class TestGetSessionContextUsage:
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 get_session_context_usage,
             )
+            from solace_agent_mesh.gateway.http_sse.repository.models import (
+                TaskEventModel,
+                TaskModel,
+            )
 
             result = get_session_context_usage(
                 session_id="test-session-id",
@@ -229,6 +232,242 @@ class TestGetSessionContextUsage:
             assert result.has_compaction is False
             assert result.total_tasks == 3
             assert result.total_messages == 6
+
+            # Pin the projection: the TaskModel query MUST request exactly the
+            # six columns the response builder consumes via row attributes
+            # (id, total_input_tokens, total_output_tokens,
+            # total_cached_input_tokens, token_usage_details, start_time).
+            # initial_request_text is intentionally excluded — it's a heavy
+            # Text column that this endpoint never reads.
+            task_query_args = None
+            for call in mock_db.query.call_args_list:
+                args = call.args
+                # ChatTaskModel query passes the model class itself; the
+                # TaskModel projection passes individual column entities.
+                if len(args) > 1:
+                    task_query_args = args
+                    break
+            assert task_query_args is not None, (
+                "TaskModel projection query was not issued"
+            )
+            assert task_query_args == (
+                TaskModel.id,
+                TaskModel.total_input_tokens,
+                TaskModel.total_output_tokens,
+                TaskModel.total_cached_input_tokens,
+                TaskModel.token_usage_details,
+                TaskModel.start_time,
+            )
+            # Sanity check: heavy Text column must not be projected.
+            # Use identity comparison to avoid SQLAlchemy's __eq__ overload.
+            assert all(
+                a is not TaskModel.initial_request_text for a in task_query_args
+            )
+            # And the TaskEventModel projection is similarly minimal.
+            assert all(
+                a is not TaskEventModel.id
+                for c in mock_db.query.call_args_list
+                for a in c.args
+            )
+
+
+class TestAgentSwitchAndRequestEventFold:
+    """Behavioral tests for the agent-switch filter and the Python-side
+    earliest-request-per-task fold introduced when DISTINCT ON was reverted."""
+
+    @pytest.fixture
+    def mock_session_service(self):
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_component(self):
+        comp = MagicMock()
+        comp.model_config = None
+        return comp
+
+    @staticmethod
+    def _build_db(completed_tasks, request_event_rows, chat_task_count=0):
+        """Build a mock DB whose db.query(...) returns three different chains
+        for ChatTaskModel, TaskModel projection, and TaskEventModel projection
+        — driven by argument count (1 for ChatTaskModel class, 6 for TaskModel
+        projection, 2 for TaskEventModel projection)."""
+        from solace_agent_mesh.gateway.http_sse.repository.models import (
+            ChatTaskModel,
+        )
+
+        chat_chain = MagicMock(name="chat_chain")
+        chat_chain.filter.return_value = chat_chain
+        chat_chain.order_by.return_value = chat_chain
+        chat_chain.count.return_value = chat_task_count
+        chat_chain.all.return_value = []
+        chat_chain.first.return_value = None
+
+        task_chain = MagicMock(name="task_chain")
+        task_chain.filter.return_value = task_chain
+        task_chain.order_by.return_value = task_chain
+        task_chain.all.return_value = list(completed_tasks)
+        task_chain.first.return_value = (
+            completed_tasks[0] if completed_tasks else None
+        )
+
+        event_chain = MagicMock(name="event_chain")
+        event_chain.filter.return_value = event_chain
+        event_chain.order_by.return_value = event_chain
+        event_chain.all.return_value = list(request_event_rows)
+
+        def query(*args):
+            if len(args) == 1 and args[0] is ChatTaskModel:
+                return chat_chain
+            if len(args) == 6:
+                return task_chain
+            if len(args) == 2:
+                return event_chain
+            # Fallback: behave like an empty chain.
+            empty = MagicMock()
+            empty.filter.return_value = empty
+            empty.order_by.return_value = empty
+            empty.count.return_value = 0
+            empty.all.return_value = []
+            empty.first.return_value = None
+            return empty
+
+        db = MagicMock()
+        db.query.side_effect = query
+        return db
+
+    @staticmethod
+    def _task(task_id, input_tokens, output_tokens=0):
+        t = MagicMock()
+        t.id = task_id
+        t.total_input_tokens = input_tokens
+        t.total_output_tokens = output_tokens
+        t.total_cached_input_tokens = 0
+        t.token_usage_details = None
+        t.start_time = 0
+        return t
+
+    @staticmethod
+    def _event_row(task_id, agent_name=None, workflow_name=None):
+        payload = {
+            "params": {
+                "message": {
+                    "metadata": {},
+                }
+            }
+        }
+        meta = payload["params"]["message"]["metadata"]
+        if workflow_name is not None:
+            meta["workflow_name"] = workflow_name
+        if agent_name is not None:
+            meta["agent_name"] = agent_name
+        row = MagicMock()
+        row.task_id = task_id
+        row.payload = payload
+        return row
+
+    def test_earliest_request_event_wins_per_task(
+        self, mock_session_service, mock_component
+    ):
+        """The Python fold relies on SQL ORDER BY task_id, created_time ASC
+        plus dict-insertion-first-wins. To distinguish first-wins from
+        last-wins we need a *second* task whose only event ties to the
+        earliest agent: under first-wins, current_agent matches both tasks
+        and both contribute; under last-wins, current_agent is the later
+        agent and task-B is filtered out — yielding different totals."""
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        # task-A is most recent (DESC by start_time). It has two request
+        # events: earliest=alpha, later=beta.
+        # task-B is older and has a single request event: alpha.
+        # First-wins  → current_agent="alpha", filter keeps A and B
+        #              → prompt_tokens = 1000 + 250 = 1250
+        # Last-wins   → current_agent="beta",  filter drops B (alpha)
+        #              → prompt_tokens = 1000
+        completed = [
+            self._task("task-A", input_tokens=1000),
+            self._task("task-B", input_tokens=250),
+        ]
+        # Production orders by (task_id, created_time ASC); we mirror that
+        # ordering here so the fold sees task-A's earliest event first.
+        events = [
+            self._event_row("task-A", agent_name="alpha"),
+            self._event_row("task-A", agent_name="beta"),
+            self._event_row("task-B", agent_name="alpha"),
+        ]
+        db = self._build_db(completed, events)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.sessions._get_model_context_limit",
+            return_value=200_000,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = get_session_context_usage(
+                session_id="sess",
+                model="test-model",
+                agent_name=None,
+                db=db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                component=mock_component,
+            )
+
+            # Only first-wins produces 1250; last-wins would produce 1000.
+            assert result.prompt_tokens == 1250
+
+    def test_agent_switch_filter_keeps_only_current_agent_tokens(
+        self, mock_session_service, mock_component
+    ):
+        """After an agent switch (A → B), only the most recent agent's tokens
+        are summed. completed_tasks comes back ordered by start_time DESC, so
+        task-B is first and defines current_agent."""
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        # B is most recent (first in DESC-ordered list); A is older.
+        completed = [
+            self._task("task-B", input_tokens=4000, output_tokens=400),
+            self._task("task-A", input_tokens=1000, output_tokens=100),
+        ]
+        events = [
+            self._event_row("task-A", agent_name="agent-a"),
+            self._event_row("task-B", agent_name="agent-b"),
+        ]
+        db = self._build_db(completed, events)
+
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+            return_value=mock_component,
+        ), patch(
+            "solace_agent_mesh.gateway.http_sse.routers.sessions._get_model_context_limit",
+            return_value=200_000,
+        ):
+            from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+                get_session_context_usage,
+            )
+
+            result = get_session_context_usage(
+                session_id="sess",
+                model="test-model",
+                agent_name=None,
+                db=db,
+                user={"id": "user-1"},
+                session_service=mock_session_service,
+                component=mock_component,
+            )
+
+            # Only B's tokens (4000 / 400) — A's (1000 / 100) are filtered out
+            # because the active ADK session is keyed to agent-b now.
+            assert result.prompt_tokens == 4000
+            assert result.completion_tokens == 400
 
 
 class TestCompactSession:
