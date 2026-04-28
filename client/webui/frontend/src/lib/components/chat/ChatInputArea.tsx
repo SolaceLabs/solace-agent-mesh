@@ -1096,7 +1096,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         if (!open) setPreviewingArtifact(null);
                     }}
                 >
-                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg sm:max-w-5xl">
                         {previewingArtifact && (
                             <StandaloneArtifactPreview artifact={previewingArtifact} onClose={() => setPreviewingArtifact(null)} onDownload={handlePreviewArtifactDownload} onGoToChat={handlePreviewGoToChat} onGoToProject={handlePreviewGoToProject} />
                         )}
@@ -1112,7 +1112,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         if (!open) setPreviewingLocalFile(null);
                     }}
                 >
-                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg p-0 sm:max-w-5xl">
+                    <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden rounded-lg sm:max-w-5xl">
                         {previewingLocalFile && <LocalFilePreview file={previewingLocalFile} onClose={() => setPreviewingLocalFile(null)} />}
                     </DialogContent>
                 </Dialog>

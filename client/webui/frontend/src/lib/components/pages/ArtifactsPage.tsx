@@ -942,9 +942,12 @@ export function ArtifactsPage() {
                     </div>
                 </div>
 
-                {/* Preview Panel */}
+                {/* Preview Panel — side-panel context, gets a left border to
+                    visually separate it from the artifact grid. (The same
+                    component renders without the border when used inside a
+                    centered dialog modal.) */}
                 {previewArtifact && (
-                    <div className="w-1/2">
+                    <div className="w-1/2 border-l">
                         <StandaloneArtifactPreview artifact={previewArtifact} onClose={handleClosePreview} onDownload={handleDownload} onGoToChat={handleGoToChat} onGoToProject={handleGoToProject} />
                     </div>
                 )}
