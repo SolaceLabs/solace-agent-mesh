@@ -138,13 +138,6 @@ async def _prepare_a2a_filepart_for_adk(
     artifact_service = component.artifact_service
     enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
-    # When the URI branch overrides any of these from the URI's path, the
-    # rebound values are used for both inline-vision and metadata loads
-    # below — the URI is self-contained and identifies a specific artifact
-    # location; the agent's own context is only the fallback.
-    load_user_id = user_id
-    load_session_id = get_original_session_id(session_id)
-
     if not artifact_service:
         log.error(
             "%s Artifact service is not configured. Cannot process FilePart.", log_id
@@ -190,31 +183,75 @@ async def _prepare_a2a_filepart_for_adk(
                 )
 
         elif isinstance(part.file, FileWithUri):
-            log.debug("%s FilePart contains URI. Loading metadata.", log_id)
+            log.debug("%s FilePart contains URI. Resolving to bytes and re-saving under agent namespace.", log_id)
             uri = part.file.uri
             parsed_uri = urlparse(uri)
             path_parts = parsed_uri.path.strip("/").split("/")
             if len(path_parts) < 3:
                 raise ValueError(f"Invalid artifact URI format: {uri}")
             # Canonical layout: artifact://{app_name}/{user_id}/{session_id}/{filename}
-            # Only the trailing segment is the filename; the preceding two (when
-            # present) identify the artifact's owning user + session, which can
-            # differ from the agent's own context (e.g. a WebUI-uploaded
-            # artifact attached by reference into an agent task). Honor the
-            # URI's coordinates so the lookup hits the right namespace.
+            # The URI's path identifies the artifact's actual storage location
+            # (which may live in a different namespace from the receiving agent
+            # — e.g. a WebUI-uploaded artifact attached by reference). We
+            # rehydrate the bytes from that namespace and save a fresh copy
+            # under the agent's namespace so the LLM's `load_artifact` tool —
+            # which only knows the agent's context — can find it later.
             filename = path_parts[-1]
-            if len(path_parts) >= 3:
-                load_user_id = path_parts[-3]
-                load_session_id = path_parts[-2]
-            if parsed_uri.netloc:
-                app_name = parsed_uri.netloc
+            source_user_id = path_parts[-3]
+            source_session_id = path_parts[-2]
+            source_app_name = parsed_uri.netloc or app_name
 
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
             # Fall back to "latest" so callers (e.g. the WebUI attach-artifact
             # dialog) don't have to know the numeric version up front; the
             # downstream loader resolves it against the live version list.
-            version = int(version_str) if version_str else "latest"
-            mime_type = part.file.mime_type or resolve_mime_type(filename, None)
+            source_version = int(version_str) if version_str else "latest"
+
+            source_load = await load_artifact_content_or_metadata(
+                artifact_service=artifact_service,
+                app_name=source_app_name,
+                user_id=source_user_id,
+                session_id=source_session_id,
+                filename=filename,
+                version=source_version,
+                load_metadata_only=False,
+                return_raw_bytes=True,
+            )
+            if source_load["status"] != "success":
+                raise RuntimeError(
+                    f"Failed to load referenced artifact: {source_load.get('message', 'unknown error')}"
+                )
+
+            content_bytes = source_load.get("raw_bytes")
+            mime_type = part.file.mime_type or source_load.get("mime_type") or resolve_mime_type(filename, None)
+            if content_bytes is None:
+                raise RuntimeError(
+                    f"Referenced artifact '{filename}' returned no bytes."
+                )
+
+            save_result = await save_artifact_with_metadata(
+                artifact_service=artifact_service,
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=filename,
+                content_bytes=content_bytes,
+                mime_type=mime_type,
+                metadata_dict={
+                    "source": "a2a_filepart_uri_reference",
+                    "source_uri": uri,
+                },
+                timestamp=datetime.now(timezone.utc),
+            )
+            if save_result["status"] != "success":
+                raise IOError(
+                    f"Failed to save resolved artifact and its metadata: {save_result['message']}"
+                )
+            version = save_result["data_version"]
+            log.info(
+                "%s Resolved URI to bytes and saved '%s' as v%d under agent namespace.",
+                log_id, filename, version,
+            )
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
@@ -250,8 +287,8 @@ async def _prepare_a2a_filepart_for_adk(
                     load_artifact_content_or_metadata=load_artifact_content_or_metadata,
                     artifact_service=artifact_service,
                     app_name=app_name,
-                    user_id=load_user_id,
-                    session_id=load_session_id,
+                    user_id=user_id,
+                    session_id=session_id,
                     filename=filename,
                     version=version,
                     mime_type=mime_type,
@@ -265,12 +302,16 @@ async def _prepare_a2a_filepart_for_adk(
                     tracker["bytes_inlined"] += image_size
                     return vision_part
 
-        # Default: fetch metadata only and return text summary
+        # Default: fetch metadata only and return text summary. By this point
+        # both the bytes branch and the URI-reference branch have placed a
+        # copy of the artifact under the agent's own (app_name, user_id,
+        # session_id) namespace, so the LLM's `load_artifact` tool can find
+        # it via its tool_context later.
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=load_user_id,
-            session_id=load_session_id,
+            user_id=user_id,
+            session_id=get_original_session_id(session_id),
             filename=filename,
             version=version,
             load_metadata_only=True,
