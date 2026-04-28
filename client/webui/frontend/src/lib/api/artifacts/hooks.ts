@@ -89,7 +89,7 @@ export function useProjectArtifactContent(projectId: string | null, filename: st
     const validProjectId = validIdOrUndefined(projectId);
     return useQuery({
         queryKey: validProjectId && filename ? artifactKeys.content(null, validProjectId, filename, version) : ["artifacts", "content", "empty"],
-        queryFn: validProjectId && filename ? () => artifactService.getArtifactContent({ projectId: validProjectId, filename, version }) : skipToken,
+        queryFn: validProjectId && filename ? () => artifactService.getArtifactContentWithValidation({ projectId: validProjectId, filename, version }) : skipToken,
         enabled: !!validProjectId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,
@@ -109,7 +109,7 @@ export function useSessionArtifactContent(sessionId: string | null, filename: st
     const validSessionId = validIdOrUndefined(sessionId);
     return useQuery({
         queryKey: validSessionId && filename ? artifactKeys.content(validSessionId, null, filename, version) : ["artifacts", "session", "empty"],
-        queryFn: validSessionId && filename ? () => artifactService.getArtifactContent({ sessionId: validSessionId, filename, version }) : skipToken,
+        queryFn: validSessionId && filename ? () => artifactService.getArtifactContentWithValidation({ sessionId: validSessionId, filename, version }) : skipToken,
         enabled: !!validSessionId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,

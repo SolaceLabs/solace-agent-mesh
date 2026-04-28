@@ -369,6 +369,14 @@ class FilteringSessionService(BaseSessionService):
         """
         self._wrapped = wrapped_service
 
+    def __getattr__(self, name: str) -> Any:
+        # Forward backend-specific attributes (e.g. DatabaseSessionService's
+        # database_session_factory, which enterprise's SecretSessionManager
+        # reaches in for) that aren't part of BaseSessionService. Only fires
+        # on lookup miss, so the explicit wrapper methods above still take
+        # precedence and add their filtering/retry behaviour.
+        return getattr(self._wrapped, name)
+
     async def get_session(
         self,
         *,
@@ -471,6 +479,103 @@ class FilteringSessionService(BaseSessionService):
         """Delegate to wrapped service."""
         return await self._wrapped.append_event(session, event)
 
+
+class RetryingSessionService(BaseSessionService):
+    """Wrapper that retries append_event on stale-session race conditions.
+
+    The Google ADK Runner's internal loop calls session_service.append_event
+    directly (google.adk.runners._exec_with_plugin), bypassing
+    append_event_with_retry. When another writer (peer-agent delegation,
+    compaction, concurrent task) bumps the storage row's update_timestamp
+    between two appends, the in-memory session's last_update_time lags by
+    microseconds and ADK's strict `>` check raises a stale-session ValueError
+    that aborts the entire task.
+
+    This wrapper applies the same retry-and-refetch loop as
+    append_event_with_retry to every append_event call, so the ADK runner's
+    internal appends are protected too.
+    """
+
+    def __init__(self, wrapped_service: BaseSessionService):
+        self._wrapped = wrapped_service
+
+    def __getattr__(self, name: str) -> Any:
+        # Forward backend-specific attributes (e.g. DatabaseSessionService's
+        # database_session_factory, which enterprise's SecretSessionManager
+        # reaches in for) that aren't part of BaseSessionService. Only fires
+        # on lookup miss, so the explicit wrapper methods above still take
+        # precedence and add their retry behaviour.
+        return getattr(self._wrapped, name)
+
+    async def get_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        config: Optional[Any] = None,
+    ) -> Optional[ADKSession]:
+        return await self._wrapped.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            config=config,
+        )
+
+    async def create_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        state: Optional[dict[str, Any]] = None,
+        session_id: Optional[str] = None,
+    ) -> ADKSession:
+        return await self._wrapped.create_session(
+            app_name=app_name,
+            user_id=user_id,
+            state=state,
+            session_id=session_id,
+        )
+
+    async def delete_session(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+    ) -> None:
+        return await self._wrapped.delete_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+    async def list_sessions(
+        self,
+        *,
+        app_name: str,
+        user_id: Optional[str] = None,
+    ) -> Any:
+        return await self._wrapped.list_sessions(
+            app_name=app_name,
+            user_id=user_id,
+        )
+
+    async def append_event(
+        self,
+        session: ADKSession,
+        event: ADKEvent,
+    ) -> ADKEvent:
+        return await append_event_with_retry(
+            session_service=self._wrapped,
+            session=session,
+            event=event,
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+        )
+
+
 def create_session_service_from_config(
     config,
     log_identifier: str = "[SessionService]",
@@ -559,6 +664,11 @@ def initialize_session_service(component) -> BaseSessionService:
         run_db_migrations=True,
         migration_component=component,
     )
+
+    # Always wrap with RetryingSessionService so the ADK Runner's internal
+    # append_event calls (which bypass append_event_with_retry) survive
+    # stale-session races caused by concurrent writers on the same session row.
+    base_service = RetryingSessionService(base_service)
 
     # Check if auto-summarization is enabled from component config.
     # Use getattr with a default so this works when called from components

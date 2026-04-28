@@ -1064,12 +1064,12 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             />
 
             {/* Buttons */}
-            <div className="relative m-2 flex items-center gap-2">
+            <div className="@container relative m-2 flex min-w-[420px] items-center gap-2">
                 <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
                     <Paperclip className="size-4" />
                 </Button>
 
-                <div>Agent: </div>
+                <div className="hidden @[480px]:block">Agent: </div>
                 <Select
                     value={selectedAgentName}
                     onValueChange={agentName => {
@@ -1101,9 +1101,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
 
                 {isResponding && !isCancelling ? (
-                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling}>
+                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Stop">
                         <Ban className="size-4" />
-                        Stop
+                        <span className="hidden @[480px]:inline">Stop</span>
                     </Button>
                 ) : (
                     <Button data-testid="sendMessage" variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} tooltip="Send message">

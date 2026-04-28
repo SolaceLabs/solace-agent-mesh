@@ -11,6 +11,7 @@ import { useChatContext, useCitationClick } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
+import { ResearchPlanVerification, type ResearchPlanData } from "@/lib/components/research/ResearchPlanVerification";
 import { DeepResearchReportContent } from "@/lib/components/research/DeepResearchReportContent";
 import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
@@ -647,6 +648,13 @@ const getChatBubble = (
 
     if (message.authenticationLink) {
         return <AuthenticationMessage message={message} />;
+    }
+
+    // Check for deep research plan verification data
+    const planPart = message.parts?.find(p => p.kind === "data" && (p as DataPart).data && ((p as DataPart).data as { type?: string }).type === "deep_research_plan") as DataPart | undefined;
+    if (planPart?.data) {
+        const planData = planPart.data as unknown as ResearchPlanData;
+        return <ResearchPlanVerification planData={planData} />;
     }
 
     // Check for deep research progress data

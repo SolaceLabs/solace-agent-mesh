@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request as FastAPIRequest, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from ....gateway.http_sse.sse_manager import SSEManager
-from ....gateway.http_sse.dependencies import get_sse_manager, get_user_id, SessionLocal, short_lived_session, _is_connection_error
+from ....gateway.http_sse.dependencies import get_sse_manager, get_user_id, short_lived_session, _is_connection_error
 from ....gateway.http_sse.repository.task_repository import TaskRepository
 
 log = logging.getLogger(__name__)
@@ -36,8 +36,10 @@ def _prepare_replay_events(
     Returns:
         List of event dictionaries with 'event' type and 'data' payload ready for SSE.
     """
+    from ....gateway.http_sse.dependencies import SessionLocal
+
     replay_events = []
-    
+
     if SessionLocal is None:
         log.warning("%sDatabase not configured, cannot replay events", log_prefix)
         return replay_events
@@ -124,6 +126,8 @@ def _get_task_info(task_id: str, log_prefix: str) -> Optional[bool]:
     Raises:
         HTTPException: 503 if database connection is unavailable during the query.
     """
+    from ....gateway.http_sse.dependencies import SessionLocal
+
     if SessionLocal is None:
         log.debug("%sDatabase not configured", log_prefix)
         return None

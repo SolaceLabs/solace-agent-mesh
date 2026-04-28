@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.20.4](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.3...1.20.4) (2026-04-28)
+
+
+### Bug Fixes
+
+* **DATAGO-123668:** Implement verification step in deep research process ([#1307](https://github.com/SolaceLabs/solace-agent-mesh/issues/1307)) ([7b90384](https://github.com/SolaceLabs/solace-agent-mesh/commit/7b90384c4c2ac0e57c3f52302fdf8d560f9574dc))
+* **DATAGO-131321:** expose useAllArtifacts ([#1465](https://github.com/SolaceLabs/solace-agent-mesh/issues/1465)) ([7f47c93](https://github.com/SolaceLabs/solace-agent-mesh/commit/7f47c93ff59c9d0f25504990438be4eae27641eb))
+* **DATAGO-133564:** Fix 'Stop' button cutoff in narrow chat window ([#1455](https://github.com/SolaceLabs/solace-agent-mesh/issues/1455)) ([eb84685](https://github.com/SolaceLabs/solace-agent-mesh/commit/eb84685bad183e0d057c28d71c9f4c744bf8e45b))
+* **DATAGO-133950:** forward unknown attrs through ADK's session-service wrappers ([#1462](https://github.com/SolaceLabs/solace-agent-mesh/issues/1462)) ([8e0a5d4](https://github.com/SolaceLabs/solace-agent-mesh/commit/8e0a5d45a237d576423940a5d6b27f8531183b64))
+* **DATAGO-133967:** SSE viz queue overflow under high-fan-out tasks — UI progress freezes/skips events ([#1464](https://github.com/SolaceLabs/solace-agent-mesh/issues/1464)) ([4c8df84](https://github.com/SolaceLabs/solace-agent-mesh/commit/4c8df84a8470d931759eecaca67423a7ce460779))
+
+## [1.20.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.2...1.20.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* **DATAGO-133911:** SSE event replay silently disabled — gateway logs "Database not configured" despite SQL session_service ([#1458](https://github.com/SolaceLabs/solace-agent-mesh/issues/1458)) ([abb5c6c](https://github.com/SolaceLabs/solace-agent-mesh/commit/abb5c6cf603fa263918e8653b67cd6b51de82557))
+* **DATAGO-133916 :** extract_content_from_artifact spends 10-14 min per call summarising 35-66KB JSON ([#1460](https://github.com/SolaceLabs/solace-agent-mesh/issues/1460)) ([80ac170](https://github.com/SolaceLabs/solace-agent-mesh/commit/80ac170e84d784f892ccb1cb5e480a027b7ded93))
+
+## [1.20.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.1...1.20.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* **DATAGO-133775:** Fix authentication failure for scheduled SAM reports against Salesforce ([#1456](https://github.com/SolaceLabs/solace-agent-mesh/issues/1456)) ([cd39424](https://github.com/SolaceLabs/solace-agent-mesh/commit/cd3942425033cf3a7dc5a820064e9b3e5d1e7891))
+
+## [1.20.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.0...1.20.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **DATAGO-131321:** enhance visualizer step cards ([#1452](https://github.com/SolaceLabs/solace-agent-mesh/issues/1452)) ([091f987](https://github.com/SolaceLabs/solace-agent-mesh/commit/091f9876982e958f8119e5a3c94e2307e8d70bef))
+* **DATAGO-131500:** Resolve model override for agent's own model alias ([#1438](https://github.com/SolaceLabs/solace-agent-mesh/issues/1438)) ([44e5dce](https://github.com/SolaceLabs/solace-agent-mesh/commit/44e5dceb7d39131c36a4be57f353754f72499aa2))
+* **DATAGO-133094:** reducing status calls ([#1442](https://github.com/SolaceLabs/solace-agent-mesh/issues/1442)) ([18ef571](https://github.com/SolaceLabs/solace-agent-mesh/commit/18ef571ec27411e34e5690fd531bd9dd050ff143))
+* **DATAGO-133559:** Context usage indicator inflates after tasks with peer delegation ([#1453](https://github.com/SolaceLabs/solace-agent-mesh/issues/1453)) ([9658450](https://github.com/SolaceLabs/solace-agent-mesh/commit/96584509304ea2834b199c0be2ab0d8415643514))
+
 ## [1.20.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.19.1...1.20.0) (2026-04-24)
 
 

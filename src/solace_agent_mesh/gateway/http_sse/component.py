@@ -41,6 +41,29 @@ class _CompactionFutureEntry(TypedDict):
     future: asyncio.Future
     expected_agent_id: str | None
 
+
+def _should_include_for_visualization(payload: Any) -> bool:
+    """Inspect the raw payload dict before SSE serialization so excluded
+    messages can be short-circuited instead of building+dumping+parsing
+    them for every subscriber."""
+    if not isinstance(payload, dict):
+        return True
+    params = payload.get("params")
+    if not isinstance(params, dict):
+        return True
+    message = params.get("message")
+    if not isinstance(message, dict):
+        return True
+    metadata = message.get("metadata")
+    if not isinstance(metadata, dict):
+        return True
+    setting = metadata.get("visualization")
+    if isinstance(setting, bool):
+        return setting is not False
+    if isinstance(setting, str):
+        return setting.lower() != "false"
+    return True
+
 try:
     from google.adk.artifacts import BaseArtifactService
 except ImportError:
@@ -109,10 +132,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
         #   during embed resolution and rendered inline in the web UI
         # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        # - supports_interactive_plan_verification=True: Web UI renders deep_research_plan and
+        #   POSTs the plan response back via /api/v1/research/plan-response
         super().__init__(
             resolve_artifact_uris_in_gateway=resolve_uris,
             supports_inline_artifact_resolution=True,
             filter_tool_data_parts=False,
+            supports_interactive_plan_verification=True,
             **kwargs
         )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
@@ -152,7 +178,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
-        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 1000)
         sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
         self.sse_event_buffer = SSEEventBuffer(
@@ -1047,10 +1073,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         continue
 
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
-                    event_details_for_owner = self._infer_visualization_event_details(
+                    event_details = self._infer_visualization_event_details(
                         topic, payload_dict
                     )
-                    task_id_for_context = event_details_for_owner.get("task_id")
+                    task_id_for_context = event_details.get("task_id")
                     message_owner_id = None
                     if task_id_for_context:
                         root_task_id = task_id_for_context.split(":", 1)[0]
@@ -1092,6 +1118,40 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         message_owner_id,
                                         task_id_for_context,
                                     )
+                    if not _should_include_for_visualization(payload_dict):
+                        continue
+
+                    # Build + serialize once per A2A message; the resulting bytes
+                    # are identical for every eligible stream. Doing this per-stream
+                    # under the viz lock made event-loop CPU scale as O(streams ×
+                    # payload_size) and was observed to overflow per-stream queues
+                    # under high-fan-out tasks (DATAGO incident, 2026-04-26).
+                    viz_event_payload = {
+                        "event_type": "a2a_message",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "solace_topic": topic,
+                        "direction": event_details["direction"],
+                        "source_entity": event_details["source_entity"],
+                        "target_entity": event_details["target_entity"],
+                        "message_id": event_details["message_id"],
+                        "task_id": event_details["task_id"],
+                        "payload_summary": event_details["payload_summary"],
+                        "full_payload": payload_dict,
+                        "debug_type": event_details["debug_type"],
+                    }
+                    try:
+                        viz_msg = {
+                            "event": "a2a_message",
+                            "data": json.dumps(viz_event_payload),
+                        }
+                    except (TypeError, ValueError):
+                        log.exception(
+                            "%s Failed to serialize viz message for topic %s",
+                            log_id_prefix,
+                            topic,
+                        )
+                        continue
+
                     async with self._get_visualization_lock():
                         for (
                             stream_id,
@@ -1134,54 +1194,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         break
 
                             if is_permitted:
-                                event_details = self._infer_visualization_event_details(
-                                    topic, payload_dict
+                                self._put_viz_msg_to_stream(
+                                    stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
                                 )
-
-                                sse_event_payload = {
-                                    "event_type": "a2a_message",
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    "solace_topic": topic,
-                                    "direction": event_details["direction"],
-                                    "source_entity": event_details["source_entity"],
-                                    "target_entity": event_details["target_entity"],
-                                    "message_id": event_details["message_id"],
-                                    "task_id": event_details["task_id"],
-                                    "payload_summary": event_details["payload_summary"],
-                                    "full_payload": payload_dict,
-                                    "debug_type": event_details["debug_type"],
-                                }
-
-                                try:
-                                    viz_msg = {
-                                        "event": "a2a_message",
-                                        "data": json.dumps(sse_event_payload),
-                                    }
-                                    log.debug(
-                                        "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
-                                        log_id_prefix,
-                                        stream_id,
-                                        sse_queue_for_stream.qsize(),
-                                    )
-                                    self._put_viz_msg_to_stream(
-                                        stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
-                                    )
-                                    log.debug(
-                                        "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
-                                        log_id_prefix,
-                                        stream_id,
-                                        topic,
-                                        event_details["direction"],
-                                    )
-                                except Exception as send_err:
-                                    log.error(
-                                        "%s Failed to serialize/send viz message for stream %s: %s",
-                                        log_id_prefix,
-                                        stream_id,
-                                        send_err,
-                                    )
-                            else:
-                                pass
                 finally:
                     self._visualization_message_queue.task_done()
 
@@ -1638,6 +1653,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     core_a2a_service=self.core_a2a_service,
                     config=scheduler_config,
                     sse_manager=self.sse_manager,
+                    gateway_id=self.gateway_id,
                 )
                 log.info(
                     "%s Scheduler service initialized (instance_id=%s).",
