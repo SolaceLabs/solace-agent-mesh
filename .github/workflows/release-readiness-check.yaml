@@ -119,7 +119,7 @@ jobs:
     name: FOSSA Scan
     needs: resolve-context
     if: ${{ !fromJSON(inputs.check_only) }}
-    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@b2383c6cf01345e4f01f27f264300681f84e56e7
     permissions:
       contents: read
       packages: read
