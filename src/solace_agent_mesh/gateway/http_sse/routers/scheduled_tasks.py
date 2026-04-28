@@ -149,7 +149,9 @@ class TaskBuilderChatRequest(BaseModel):
     message: str = Field(..., max_length=5000)
     conversation_history: List[Dict[str, str]] = Field(default=[], max_length=50)
     current_task: Dict[str, Any] = {}
-    available_agents: List[str] = []
+    # Each entry: {"name": str, "display_name"?: str, "description"?: str}.
+    # Backwards-compatible: a list of plain strings is also accepted.
+    available_agents: List[Any] = Field(default_factory=list, max_length=200)
 
 
 class TaskBuilderChatResponse(BaseModel):
@@ -158,6 +160,7 @@ class TaskBuilderChatResponse(BaseModel):
     task_updates: Dict[str, Any] = {}
     confidence: float
     ready_to_save: bool
+    inline_component: Optional[Dict[str, Any]] = None
 
 
 def get_task_builder_assistant(
@@ -200,6 +203,7 @@ async def task_builder_chat(
             task_updates=response.task_updates,
             confidence=response.confidence,
             ready_to_save=response.ready_to_save,
+            inline_component=response.inline_component.model_dump() if response.inline_component else None,
         )
     except Exception as e:
         log.error("Error in task builder chat: %s", e, exc_info=True)

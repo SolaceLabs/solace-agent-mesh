@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { AgentCardInfo } from "@/lib/types";
 
@@ -11,11 +11,26 @@ const AgentImage = <Bot className="text-(--secondary-text-wMain)" size={64} />;
 
 interface AgentMeshCardsProps {
     agents: AgentCardInfo[];
+    selectedAgent?: string | null;
 }
 
-export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
-    const [expandedAgentName, setExpandedAgentName] = useState<string | null>(null);
+export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selectedAgent }) => {
+    const [expandedAgentName, setExpandedAgentName] = useState<string | null>(selectedAgent ?? null);
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    // Honor deep-links arriving (or changing) after mount: expand the targeted
+    // agent, clear any active filter that would hide it, and scroll it into view.
+    useEffect(() => {
+        if (!selectedAgent) return;
+        if (!agents.some(a => a.name === selectedAgent)) return;
+        setExpandedAgentName(selectedAgent);
+        setSearchQuery("");
+        const node = cardRefs.current[selectedAgent];
+        if (node) {
+            node.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, [selectedAgent, agents]);
 
     const handleToggleExpand = (agentName: string) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));
@@ -37,7 +52,14 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
                                 {filteredAgents.map(agent => (
-                                    <AgentDisplayCard key={agent.name} agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
+                                    <div
+                                        key={agent.name}
+                                        ref={node => {
+                                            cardRefs.current[agent.name] = node;
+                                        }}
+                                    >
+                                        <AgentDisplayCard agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
+                                    </div>
                                 ))}
                             </div>
                         </div>
