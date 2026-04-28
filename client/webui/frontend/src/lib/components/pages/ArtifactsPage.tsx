@@ -137,8 +137,16 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     // Only enable document thumbnail if: it's a PDF (always works) OR it's an Office doc and conversion is enabled
     const canAttemptDocumentThumbnail = isDocumentThumbnailSupported && (isPdfFile || binaryArtifactPreviewEnabled);
 
+    // Office-document mimes (e.g. .spreadsheetml.sheet, .wordprocessingml.document)
+    // contain the substring "xml" and would otherwise be picked up by
+    // `supportsTextPreview` — rendering the binary zip as garbage characters
+    // when the conversion service is unavailable. Documents take precedence:
+    // if a file qualifies for the document-thumbnail pipeline, it must NEVER
+    // fall through to text preview, even when the binary-preview flag is off.
+    const canShowTextPreview = !isDocumentThumbnailSupported && supportsTextPreview(artifact.mime_type);
+
     // Determine whether this card needs a network fetch for its preview
-    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || supportsTextPreview(artifact.mime_type);
+    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || canShowTextPreview;
 
     // Use IntersectionObserver to defer ALL preview loading until card is near the viewport.
     // This prevents hundreds of simultaneous fetches when the page first loads with many artifacts.
@@ -273,7 +281,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         if (isMounted) setIsLoadingPreview(false);
                     }
                 }
-            } else if (supportsTextPreview(artifact.mime_type)) {
+            } else if (canShowTextPreview) {
                 // For text files — check cache first, then fetch a preview snippet
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
                 const cachedPreview = await textPreviewCache.get(cacheKey);
@@ -443,7 +451,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     <div className="flex flex-col items-center justify-center gap-2">
                         {isImageType(artifact.mime_type) ? (
                             <FileImage className="h-12 w-12 text-(--secondary-text-wMain)" />
-                        ) : supportsTextPreview(artifact.mime_type) ? (
+                        ) : canShowTextPreview ? (
                             <FileCode className="h-12 w-12 text-(--secondary-text-wMain)" />
                         ) : isDocumentThumbnailSupported ? (
                             // Show appropriate icon for document types while loading or if thumbnail failed
