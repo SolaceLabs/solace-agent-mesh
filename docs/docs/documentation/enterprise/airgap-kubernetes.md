@@ -11,12 +11,6 @@ This guide covers deploying Solace Agent Mesh Enterprise to Kubernetes clusters 
 For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-kubernetes.md) or [Production Kubernetes Installation](./production-kubernetes.md).
 :::
 
-## What is an Air-Gapped Deployment?
-
-An air-gapped deployment runs in an environment with no direct internet connectivity. All container images, dependencies, and artifacts must be pre-loaded into private registries within the isolated network. This approach ensures compliance with security policies while maintaining full Agent Mesh functionality.
-
-Air-gapped installations are common in regulated industries such as financial services, government, and healthcare where security policies require complete network isolation.
-
 ## Prerequisites
 
 ### Required Access
@@ -42,8 +36,6 @@ Air-gapped deployments have the same infrastructure requirements as your target 
 - Identity Provider (IdP) accessible within the network (for production deployments with OIDC/SSO enabled)
 
 For detailed infrastructure requirements (node sizing, compute resources, storage classes), see [Production Prerequisites](./production-kubernetes.md#production-prerequisites).
-
-## Understanding the Air-Gapped Installation Process
 
 ## Step 1: Obtaining the Agent Mesh Delivery Bundle
 
@@ -98,7 +90,17 @@ bundle/
 | `bom.yaml` | Production (external broker + datastores) | Agent Mesh core images only (`solace-agent-mesh-enterprise`, `sam-agent-deployer`) |
 | `bom-quickStart.yaml` | Evaluation (embedded broker + datastores) | All images including `solace-pubsub-enterprise`, `postgres`, `seaweedfs` |
 
-Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification.
+Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification. For a first-time evaluation install, use `bom-quickStart.yaml`.
+
+### Verifying Bundle Integrity (Optional)
+
+For environments with compliance requirements, verify each image digest against the BOM before loading. Run this example command and get the hash value of an artifact:
+
+```bash
+sha256sum bundle/amd64/solace-agent-mesh-enterprise.tar.gz
+```
+
+The `sha256sum` output must match the related `digest` value in the BOM (excluding the `sha256:` prefix). Discard and re-download the file if they differ. Repeat for each artifact you want to consume.
 
 ## Step 2: Loading Container Images
 
@@ -124,16 +126,7 @@ Your private registry requires authentication. The chart provides two mutually e
 
 ### Option 1: Pass a Credentials File (`global.imagePullKey`)
 
-If your private registry provides a credentials file in Kubernetes dockerconfigjson format, pass it directly to Helm. The chart automatically creates the pull secret and injects it into all pod specs:
-
-```bash
-helm install sam solace/solace-agent-mesh \
-  --namespace sam \
-  --set-file global.imagePullKey=registry-credentials.json \
-  -f airgap-overrides.yaml
-```
-
-The credentials file must be in dockerconfigjson format:
+If your private registry provides a credentials file in Kubernetes dockerconfigjson format, the chart creates the pull secret automatically and injects it into all pod specs. The credentials file must be in dockerconfigjson format:
 
 ```json
 {
@@ -167,26 +160,57 @@ This configuration is sufficient for **evaluation**. Embedded broker and persist
 
 For **production** air-gapped deployments, also configure external components. See [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
 
-## Step 5: Installing Agent Mesh with Helm
+## Step 5: Custom CA Certificates (If Required)
+
+If your environment uses custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services), configure this before the Helm install. Pods make outbound calls to these endpoints at startup and the CA bundle must be in place first.
+
+Agent Mesh supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions. The same configuration applies to air-gapped deployments:
+
+```yaml
+samDeployment:
+  customCA:
+    enabled: true
+    configMapName: "truststore"
+```
+
+If your environment does not use custom CA certificates, skip this step.
+
+## Step 6: Installing Agent Mesh with Helm
 
 For dry-run validation before installing, see [Step 4: Pre-Installation Validation](./production-kubernetes.md#step-4-pre-installation-validation) in the Production guide. The same approaches apply.
 
-Install Agent Mesh in your air-gapped environment with your custom overrides:
+Install Agent Mesh using the local chart from your bundle and the `airgap-overrides.yaml` file you created in Step 4.
+
+**Option 1** — with a credentials file (from Step 3, Option 1):
 
 ```bash
-helm install sam /../bundle/charts/solace-agent-mesh-<version>.tgz \
+helm install sam /path/to/bundle/charts/solace-agent-mesh-<version>.tgz \
+  --namespace sam \
+  --create-namespace \
+  --set-file global.imagePullKey=registry-credentials.json \
+  -f airgap-overrides.yaml
+```
+
+**Option 2** — with a pre-created secret (from Step 3, Option 2):
+
+```bash
+helm install sam /path/to/bundle/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   -f airgap-overrides.yaml
 ```
 
-## Step 6: Post-Installation Configuration
+## Step 7: Post-Installation Configuration
 
 ### Verify All Pods are Running
 
-**For evaluation:** see [Step 2: Wait for Installation to Complete](./quickstart-kubernetes.md#step-2-wait-for-installation-to-complete) in the Quick Start guide.
+Wait for all pods to reach `Running` status:
 
-**For production:** see [Step 6: Post-Installation Configuration](./production-kubernetes.md#step-6-post-installation-configuration) in the Production Kubernetes Installation guide.
+```bash
+kubectl get pods -n sam -l app.kubernetes.io/instance=sam -w
+```
+
+Press `Ctrl-C` after all pods show `Running` status. For additional post-installation steps by deployment type, see [Quick Start: Step 2](./quickstart-kubernetes.md#step-2-wait-for-installation-to-complete) (evaluation) or [Production: Step 6](./production-kubernetes.md#step-6-post-installation-configuration) (production).
 
 ### Access the WebUI
 
@@ -214,21 +238,6 @@ curl -s https://<your-sam-domain>/api/v1/platform/health
 Both endpoints should return a successful response. For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 
 ## Air-Gapped-Specific Considerations
-
-### Custom CA Certificates
-
-Air-gapped environments often use custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services).
-
-Agent Mesh supports custom CA certificate injection via Kubernetes ConfigMap. See [Custom CA Certificates](./production-kubernetes.md#custom-ca-certificates) in the Production guide for complete setup instructions.
-
-The same configuration applies to air-gapped deployments:
-
-```yaml
-samDeployment:
-  customCA:
-    enabled: true
-    configMapName: "truststore"
-```
 
 ### Components Requiring External Connectivity
 
@@ -263,6 +272,10 @@ llmService:
   planningModel: "gpt-4o"
   generalModel: "gpt-4o"
 ```
+
+:::warning Credential Security
+Do not store API keys or passwords directly in `values.yaml` or `airgap-overrides.yaml`. Use `extraSecretEnvironmentVars` to reference existing Kubernetes Secrets instead. See [Secret Management](./production-kubernetes.md#secret-management) in the Production guide.
+:::
 
 **LLM Deployment Options in Air-Gapped:**
 - Self-hosted LLM within the air-gapped network
@@ -303,9 +316,51 @@ dataStores:
     secretKey: "..."
 ```
 
-**No Public Access Required:** Agents authenticate to download connector specs using the same credentials as artifact storage.
+:::warning Credential Security
+Do not store `accessKey` or `secretKey` directly in `values.yaml`. Use `extraSecretEnvironmentVars` to reference existing Kubernetes Secrets instead. See [Secret Management](./production-kubernetes.md#secret-management) in the Production guide.
+:::
 
-Configure identical access credentials for both buckets in your Helm values.
+Agents authenticate to download connector specs using the same credentials as artifact storage.
+
+## Troubleshooting
+
+### Image Pull Failures
+
+If pods enter `ImagePullBackOff`, the images are not reachable from the registry path the chart constructs:
+
+```bash
+kubectl describe pod -n sam <pod-name> | grep -A5 "Failed\|Error"
+```
+
+Check that:
+- `global.imageRegistry` in your values file matches the registry prefix you used when pushing images
+- The image pull secret is correctly configured (see [Step 3](#step-3-configuring-image-pull-secrets))
+- Your private registry is accessible from within the cluster network
+
+### CA Trust Errors
+
+If pods fail with TLS handshake errors when connecting to your LLM, OIDC provider, or Solace broker, your custom CA is not trusted. Verify that the `truststore` ConfigMap exists and that `samDeployment.customCA.enabled: true` is set before running `helm install`. See [Step 5: Custom CA Certificates](#step-5-custom-ca-certificates-if-required).
+
+### Pods Not Starting
+
+Inspect pod events and logs:
+
+```bash
+kubectl get pods -n sam
+kubectl describe pod -n sam <pod-name>
+kubectl logs -n sam <pod-name>
+```
+
+### Health Check Endpoints Not Responding
+
+After the port-forward is running, verify Agent Mesh is healthy:
+
+```bash
+curl -s http://localhost:8000/health
+curl -s http://localhost:8080/api/v1/platform/health
+```
+
+If using Ingress, replace `localhost` with your domain. For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
 
 ## Additional Resources
 
