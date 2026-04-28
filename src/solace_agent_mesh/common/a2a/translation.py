@@ -196,6 +196,13 @@ async def _prepare_a2a_filepart_for_adk(
             # downstream loader resolves it against the live version list.
             version = int(version_str) if version_str else "latest"
             mime_type = part.file.mime_type or resolve_mime_type(filename, None)
+            # Honor the URI's app_name (netloc). Artifacts referenced by an
+            # `artifact://` URI live under the namespace baked into the URI,
+            # which may not match this agent's own app_name — e.g. a WebUI
+            # gateway artifact attached by reference. Fall back to the agent's
+            # name only when the URI carries no netloc.
+            if parsed_uri.netloc:
+                app_name = parsed_uri.netloc
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")

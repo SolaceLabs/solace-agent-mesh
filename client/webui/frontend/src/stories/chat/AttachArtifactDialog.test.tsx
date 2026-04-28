@@ -1,14 +1,16 @@
 /// <reference types="@testing-library/jest-dom" />
 /**
  * Tests for AttachArtifactDialog covering:
- *   - resolveArtifactUri legacy synthesis (falls back to `artifact://{sessionId}/{filename}`
- *     when the /artifacts/all fast endpoint omits `uri`)
+ *   - canonical URI passthrough (the dialog emits whatever the bulk endpoint
+ *     returned — fabricating a legacy 2-segment form would fail agent parsing)
+ *   - records without a backend-provided uri are hidden as unattachable
  *   - alreadyAttachedUris hiding (dedupe against current chat input)
- *   - multi-select onAttach contract (returns the selected artifacts with
- *     their resolved `uri` populated, regardless of whether the source
- *     record already had one)
- *   - infinite-scroll sentinel → loadMore invocation
+ *   - multi-select onAttach contract (returns the selected artifacts)
  *   - Cancel closes without emitting onAttach
+ *
+ * Infinite-scroll sentinel-to-loadMore behaviour is covered by the
+ * Storybook play test in AttachArtifactDialog.stories.tsx (real
+ * IntersectionObserver in Chromium).
  */
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
