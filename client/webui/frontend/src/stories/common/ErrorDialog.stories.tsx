@@ -68,9 +68,7 @@ export const WithButton = {
 
         return (
             <>
-                <Button onClick={() => setOpen(true)} variant="destructive">
-                    Show Error Dialog
-                </Button>
+                <Button onClick={() => setOpen(true)}>Show Error Dialog</Button>
                 <ErrorDialog
                     title="Long Detailed Error"
                     error="Something went wrong"

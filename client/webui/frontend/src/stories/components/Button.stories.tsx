@@ -69,15 +69,6 @@ export const Ghost: Story = {
     },
 };
 
-export const Destructive: Story = {
-    args: {
-        variant: "destructive",
-        children: "Destructive Button",
-        disabled: false,
-        onClick: () => alert("Button does something"),
-    },
-};
-
 export const Disabled: Story = {
     args: {
         variant: "default",

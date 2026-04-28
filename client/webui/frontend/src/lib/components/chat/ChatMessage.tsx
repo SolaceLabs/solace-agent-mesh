@@ -788,7 +788,7 @@ const getChatBubble = (
             {/* Render inline progress updates at the top of AI messages (only when inline-activity-timeline is enabled).
                 Also renders when active with no updates yet to show the "Processing..." placeholder. */}
             {inlineActivityTimelineEnabled && !message.isUser && (!message.isComplete || (message.progressUpdates && message.progressUpdates.length > 0)) && (
-                <div className="pl-4">
+                <div>
                     <InlineProgressUpdates
                         updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
                         isActive={!message.isComplete}

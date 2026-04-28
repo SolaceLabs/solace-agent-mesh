@@ -19,12 +19,6 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@/lib/components/ui";
 import { useChatContext, useDebounce } from "@/lib/hooks";
 import { useAllArtifacts } from "@/lib/api/artifacts";
@@ -43,6 +37,7 @@ import { PageLayout } from "@/lib/components/layout";
 import { LifecycleBadge } from "@/lib/components/ui";
 import type { FileAttachment } from "@/lib/types";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { ConfirmationDialog } from "../common";
 
 // Persistent cache for document thumbnails (base64 PDF/DOCX data).
 // Survives page refreshes via IndexedDB with an in-memory LRU fast path.
@@ -1250,25 +1245,20 @@ export function ArtifactsPage() {
             </div>
 
             {/* Delete Confirmation Dialog */}
-            <Dialog open={!!deleteConfirmArtifact} onOpenChange={open => !open && setDeleteConfirmArtifact(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Artifact</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete <strong>{deleteConfirmArtifact?.filename}</strong>? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteConfirmArtifact(null)}>
-                            Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDeleteConfirm}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ConfirmationDialog
+                open={!!deleteConfirmArtifact}
+                onOpenChange={open => !open && setDeleteConfirmArtifact(null)}
+                title="Delete Artifact"
+                content={
+                    <>
+                        This action cannot be undone. This artifact will be permanently deleted: <strong>{deleteConfirmArtifact?.filename}</strong>
+                    </>
+                }
+                actionLabels={{
+                    confirm: "Delete",
+                }}
+                onConfirm={handleDeleteConfirm}
+            />
         </PageLayout>
     );
 }
