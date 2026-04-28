@@ -81,7 +81,7 @@ const getStageStatus = (stagePhase: string, currentPhase: string, isComplete: bo
     return "pending";
 };
 
-export const InlineResearchProgress: React.FC<InlineResearchProgressProps> = ({ progress, isComplete = false, ragData }) => {
+export const InlineResearchProgress = ({ progress, isComplete = false, ragData }: InlineResearchProgressProps) => {
     // Use localStorage to persist accordion state across navigation
     const storageKey = `research-timeline-expanded`;
     const [isTimelineExpanded, setIsTimelineExpanded] = useState(() => {

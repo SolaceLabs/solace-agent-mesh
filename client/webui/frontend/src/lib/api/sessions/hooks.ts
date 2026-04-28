@@ -38,15 +38,17 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
  * Hook to fetch paginated sessions with infinite scroll support.
  * Automatically invalidates on session events (new session, session updated, title updated, background task completed).
  */
-export function useInfiniteSessions(pageSize: number = 20, source?: string) {
+export function useInfiniteSessions(pageSize: number = 20, source?: string, options?: { enabled?: boolean }) {
     const queryClient = useQueryClient();
+    const enabled = options?.enabled ?? true;
 
     useEffect(() => {
+        if (!enabled) return;
         const invalidate = () => queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
         const events = ["new-chat-session", "session-updated", "session-title-updated", "background-task-completed"];
         events.forEach(e => window.addEventListener(e, invalidate));
         return () => events.forEach(e => window.removeEventListener(e, invalidate));
-    }, [queryClient]);
+    }, [queryClient, enabled]);
 
     return useInfiniteQuery({
         queryKey: [...sessionKeys.lists(), "infinite", pageSize, source],
@@ -54,6 +56,7 @@ export function useInfiniteSessions(pageSize: number = 20, source?: string) {
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,
         refetchOnMount: "always",
+        enabled,
     });
 }
 

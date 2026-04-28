@@ -180,6 +180,9 @@ async def process_event(component, event: Event):
                 get_agent_status_subscription_topic(namespace, agent_name)[:-2] + "/"
             )
             sam_events_topic = get_sam_events_subscription_topic(namespace, "session")
+            deep_research_events_topic = get_sam_events_subscription_topic(
+                namespace, "deep_research"
+            )
             if topic == agent_request_topic:
                 await handle_a2a_request(component, message)
             elif topic_matches_subscription(topic, discovery_subscription):
@@ -190,6 +193,8 @@ async def process_event(component, event: Event):
                     message.call_acknowledgements()
             elif topic_matches_subscription(topic, sam_events_topic):
                 handle_sam_event(component, message, topic)
+            elif topic_matches_subscription(topic, deep_research_events_topic):
+                handle_deep_research_event(component, message, topic)
             elif topic.startswith(agent_response_sub_prefix) or topic.startswith(
                 agent_status_sub_prefix
             ):
@@ -1279,6 +1284,13 @@ async def _handle_send_message_request(
             session_behavior,
         )
     user_id = message.get_user_properties().get("userId", "default_user")
+    gateway_capabilities = message.get_user_properties().get("gatewayCapabilities", {})
+    if not isinstance(gateway_capabilities, dict):
+        log.warning(
+            "%s gatewayCapabilities is not a dict, using empty dict instead",
+            component.log_identifier,
+        )
+        gateway_capabilities = {}
     agent_name = component.get_config("agent_name")
     is_streaming_request = method == "message/stream"
     host_supports_streaming = component.get_config("supports_streaming", False)
@@ -1355,6 +1367,7 @@ async def _handle_send_message_request(
         "session_id": original_session_id,  # Keep for now for compatibility
         "user_id": user_id,
         "client_id": client_id,
+        "gateway_capabilities": gateway_capabilities,
         "is_streaming": is_streaming_request,
         "statusTopic": status_topic_from_peer,
         "replyToTopic": reply_topic_from_peer,
@@ -2738,6 +2751,91 @@ def publish_agent_card(component):
             "%s Failed to publish Agent Card: %s", component.log_identifier, e
         )
         component.handle_error(e, None)
+
+
+def handle_deep_research_event(component, message, topic):
+    """Route gateway-originated deep-research control signals to waiting tools.
+
+    Currently handles one event type:
+
+      ``plan_response`` - A user approved a plan verification card ("start",
+      optionally with edited steps). Resolves the tool's ``asyncio.Future``
+      via the component's plan-waiter registry. Cancellation does NOT come
+      through this path - the frontend uses the standard tasks/:cancel flow
+      so the orchestrator is terminated deterministically.
+    """
+    try:
+        payload = message.get_payload()
+        if not isinstance(payload, dict):
+            log.warning(
+                "%s Invalid deep_research event payload - not a dict",
+                component.log_identifier,
+            )
+            message.call_acknowledgements()
+            return
+
+        event_type = payload.get("event_type")
+        if event_type != "plan_response":
+            log.warning(
+                "%s Unknown deep_research event_type: %s",
+                component.log_identifier,
+                event_type,
+            )
+            message.call_acknowledgements()
+            return
+
+        data = payload.get("data", {}) or {}
+        plan_id = data.get("plan_id")
+        user_id = data.get("user_id")
+        action = data.get("action")
+        target_agent = data.get("agent_name")
+        current_agent = component.get_config("agent_name")
+
+        if not plan_id or not user_id or action != "start":
+            log.warning(
+                "%s Malformed deep_research plan_response: plan_id=%r user_id_present=%s action=%r",
+                component.log_identifier,
+                plan_id,
+                bool(user_id),
+                action,
+            )
+            message.call_acknowledgements()
+            return
+
+        # Every agent on the bus sees this topic; only the one that owns the
+        # waiter should act. The payload carries agent_name so other agents
+        # ack and drop without touching their registries.
+        if target_agent and target_agent != current_agent:
+            message.call_acknowledgements()
+            return
+
+        response = {"action": "start", "steps": data.get("steps")}
+        resolved = component.resolve_deep_research_plan_response(
+            plan_id=plan_id, user_id=user_id, response=response
+        )
+
+        if not resolved:
+            # The waiter is gone (timeout already fired, never registered,
+            # or user mismatch). Nothing actionable left to do - the tool's
+            # own timeout branch has already published a stale signal if
+            # relevant.
+            log.info(
+                "%s plan_response for plan_id=%s could not be resolved (unknown or user mismatch).",
+                component.log_identifier,
+                plan_id,
+            )
+
+        message.call_acknowledgements()
+    except Exception as e:
+        log.exception(
+            "%s Error handling deep_research event: %s",
+            component.log_identifier,
+            e,
+        )
+        try:
+            message.call_acknowledgements()
+        except Exception:
+            pass
 
 
 def handle_sam_event(component, message, topic):

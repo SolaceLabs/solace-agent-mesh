@@ -26,10 +26,11 @@ export function useShareUsers(shareId: string | undefined) {
     });
 }
 
-export function useSharedWithMe() {
+export function useSharedWithMe(options?: { enabled?: boolean }) {
     return useQuery({
         queryKey: shareKeys.sharedWithMe(),
         queryFn: shareService.listSharedWithMe,
+        enabled: options?.enabled ?? true,
     });
 }
 

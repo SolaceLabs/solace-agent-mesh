@@ -165,6 +165,10 @@ class ExtractContentConfig(SamConfigBase):
         default=None,
         description="Specifies the LLM for extraction. String (ADK LLMRegistry name) or dict (LiteLlm config). Defaults to agent's LLM.",
     )
+    timeout_seconds: Optional[int] = Field(
+        default=300,
+        description="HTTP timeout (seconds) for the internal LLM call. The agent's default LiteLlm timeout (120s) is too short for extraction prompts that legitimately need 130-300s of generation time on richer artifacts (e.g. structured Chatter feeds). When the natural completion exceeds 120s, the litellm client times out and the configured num_retries kick in, producing 4-7 sequential retries while each upstream call eventually succeeds — total wall time ~840s. Set to null to inherit the LiteLlm wrapper default (120s).",
+    )
 
 
 class McpProcessingConfig(SamConfigBase):
@@ -606,6 +610,7 @@ class SamAgentApp(SamAppBase):
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
+            get_sam_events_subscription_topic(namespace, "deep_research"),
         ]
 
         # Add trust card subscription if trust manager is enabled

@@ -12,7 +12,7 @@ interface ImageSearchGridProps {
     maxVisible?: number;
 }
 
-const ImageSearchGrid: React.FC<ImageSearchGridProps> = ({ images, maxVisible = 6 }) => {
+const ImageSearchGrid = ({ images, maxVisible = 6 }: ImageSearchGridProps) => {
     const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
     const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
     const dialogRef = useRef<HTMLDivElement>(null);

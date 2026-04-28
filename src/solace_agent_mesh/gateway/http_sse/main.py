@@ -33,6 +33,7 @@ from .routers import (
     feature_flags,
     feedback,
     people,
+    research,
     sse,
     share,
     speech,
@@ -354,6 +355,7 @@ def _setup_routers() -> None:
         except Exception as e:
             log.error("Failed to mount scheduled tasks router: %s", e, exc_info=True)
 
+    app.include_router(research.router, prefix=api_prefix, tags=["Research"])
     log.info("Legacy routers mounted for endpoints not yet migrated")
 
     # Register shared exception handlers
