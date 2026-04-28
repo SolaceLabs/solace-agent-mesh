@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
+import { markPlanResponded } from "@/lib/components/research/respondedPlansStore";
 
 import type { DataPart, FileAttachment, SendStreamingMessageSuccessResponse, JSONRPCErrorResponse, TaskStatusUpdateEvent, ArtifactPart, PartFE, MessageFE, RAGSearchResult, ProgressUpdate, ArtifactInfo, Part } from "@/lib/types";
 
@@ -88,6 +89,12 @@ interface ToolInvocationStartPayload {
     type: "tool_invocation_start";
 }
 
+interface DeepResearchPlanStalePayload {
+    type: "deep_research_plan_stale";
+    plan_id: string;
+    reason: "timed_out";
+}
+
 type ChatDataPartPayload =
     | ThinkingContentPayload
     | AgentProgressUpdatePayload
@@ -97,7 +104,8 @@ type ChatDataPartPayload =
     | DeepResearchProgressPayload
     | CompactionNotificationPayload
     | ToolResultPayload
-    | ToolInvocationStartPayload;
+    | ToolInvocationStartPayload
+    | DeepResearchPlanStalePayload;
 
 function asTypedPayload(data: unknown): ChatDataPartPayload | null {
     if (typeof data !== "object" || data === null || !("type" in data)) return null;
@@ -435,6 +443,33 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         }
                         case "compaction_notification": {
                             latestStatusText = null;
+                            break;
+                        }
+                        case "deep_research_plan_stale": {
+                            // A plan card is no longer actionable (tool timed
+                            // out or the response arrived too late). Record it
+                            // in the session-local responded store so the
+                            // interactive card stays hidden even if the plan
+                            // event replays, then also patch the message
+                            // history so persisted serialisations reflect it.
+                            const stalePlanId = data.plan_id;
+                            markPlanResponded(stalePlanId, "stale");
+                            for (let i = messages.length - 1; i >= 0; i--) {
+                                const msg = messages[i];
+                                if (!msg.parts) continue;
+                                let touched = false;
+                                const nextParts = msg.parts.map(p => {
+                                    if (p.kind !== "data") return p;
+                                    const d = (p as DataPart).data as { type?: string; plan_id?: string; responded?: string } | undefined;
+                                    if (d?.type !== "deep_research_plan" || d.plan_id !== stalePlanId) return p;
+                                    touched = true;
+                                    return { ...(p as DataPart), data: { ...d, responded: "stale" } } as DataPart;
+                                });
+                                if (touched) {
+                                    messages[i] = { ...msg, parts: nextParts };
+                                    break;
+                                }
+                            }
                             break;
                         }
                         case "tool_result": {

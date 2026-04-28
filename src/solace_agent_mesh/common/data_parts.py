@@ -463,6 +463,60 @@ class RAGInfoUpdateData(BaseModel):
     timestamp: str = Field(..., description="ISO timestamp of this update")
 
 
+class DeepResearchPlanData(BaseModel):
+    """
+    Data model for deep research plan verification.
+    Sent before research begins to allow user to review/edit/cancel the plan.
+    The frontend renders this as an interactive card with Edit, Cancel, and Start buttons.
+    If the user does not respond within the backend-side timeout the research is cancelled.
+    """
+
+    type: Literal["deep_research_plan"] = Field(
+        "deep_research_plan", description="The constant type for this data part."
+    )
+    plan_id: str = Field(..., description="Unique ID for this plan verification request")
+    agent_name: str = Field(
+        ...,
+        description=(
+            "Name of the agent whose deep-research tool is awaiting the response. "
+            "The frontend echoes this in the plan-response POST so the gateway knows "
+            "which agent to route the control signal back to (supports delegated "
+            "research on peer agents)."
+        ),
+    )
+    title: str = Field(..., description="Auto-generated research title")
+    research_question: str = Field(..., description="The original research question")
+    steps: list[str] = Field(..., description="Ordered list of research plan steps")
+    research_type: str = Field(
+        default="quick", description="Research type: quick or in-depth"
+    )
+    max_iterations: int = Field(..., description="Planned max iterations")
+    max_runtime_seconds: int = Field(..., description="Planned max runtime in seconds")
+    sources: list[str] = Field(
+        default_factory=list, description="Sources to search (e.g., web, kb)"
+    )
+
+
+class DeepResearchPlanStaleData(BaseModel):
+    """
+    Agent → frontend signal: the plan verification card is no longer actionable.
+
+    Emitted when the tool's hard backstop timeout fires so the frontend can
+    lock the card. (User cancellation now cancels the orchestrator task
+    directly, so there is no "late response / wrong user" case to signal.)
+    """
+
+    type: Literal["deep_research_plan_stale"] = Field(
+        "deep_research_plan_stale",
+        description="The constant type for this data part.",
+    )
+    plan_id: str = Field(..., description="The plan id that is no longer waiting.")
+    reason: Literal["timed_out"] = Field(
+        "timed_out",
+        description="Currently only 'timed_out' - the agent's hard backstop fired.",
+    )
+
+
 class DeepResearchReportData(BaseModel):
     """
     Data model for a deep research report completion signal.
@@ -544,6 +598,8 @@ SignalData = Union[
     WorkflowExecutionResultData,
     DeepResearchProgressData,
     RAGInfoUpdateData,
+    DeepResearchPlanData,
+    DeepResearchPlanStaleData,
     DeepResearchReportData,
     CompactionNotificationData,
     ThinkingContentData,

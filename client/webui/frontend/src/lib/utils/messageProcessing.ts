@@ -3,16 +3,16 @@ import type { MessageFE } from "@/lib/types/fe";
 
 /**
  * Filters message parts to only renderable data parts and visible content.
- * Keeps: compaction_notification, deep_research_progress data parts, files, artifacts.
- * Keeps text parts only when there is no deep research progress.
+ * Keeps: compaction_notification, deep_research_progress, deep_research_plan data parts, files, artifacts.
+ * Keeps text parts only when there is no deep research progress or plan.
  */
 export function filterRenderableDataParts(parts: Part[], hasDeepResearchProgress: boolean): Part[] {
     return parts.filter(p => {
-        // Keep deep_research_progress and compaction_notification data parts
+        // Keep deep_research_progress, deep_research_plan, and compaction_notification data parts
         if (p.kind === "data") {
             const dataPart = p as DataPart;
             const dataType = dataPart.data && (dataPart.data as Record<string, unknown>).type;
-            return dataType === "deep_research_progress" || dataType === "compaction_notification";
+            return dataType === "deep_research_progress" || dataType === "deep_research_plan" || dataType === "compaction_notification";
         }
         // Filter out text parts if we have deep research progress (to show progress-only)
         if (p.kind === "text" && hasDeepResearchProgress) {
@@ -25,11 +25,14 @@ export function filterRenderableDataParts(parts: Part[], hasDeepResearchProgress
 
 /**
  * Determines whether filtered parts contain visible content worth creating a message bubble for.
- * Checks for non-empty text, files, or renderable data parts (deep_research_progress, compaction_notification).
+ * Checks for non-empty text, files, or renderable data parts (deep_research_progress, deep_research_plan, compaction_notification).
  */
 export function checkHasVisibleContent(parts: Part[]): boolean {
     return parts.some(
-        p => (p.kind === "text" && (p as TextPart).text.trim()) || p.kind === "file" || (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "compaction_notification"))
+        p =>
+            (p.kind === "text" && (p as TextPart).text.trim()) ||
+            p.kind === "file" ||
+            (p.kind === "data" && (p as DataPart).data && ((p as DataPart).data.type === "deep_research_progress" || (p as DataPart).data.type === "deep_research_plan" || (p as DataPart).data.type === "compaction_notification"))
     );
 }
 

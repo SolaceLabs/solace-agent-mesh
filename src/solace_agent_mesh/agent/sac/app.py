@@ -610,6 +610,7 @@ class SamAgentApp(SamAppBase):
             get_agent_response_subscription_topic(namespace, agent_name),
             get_agent_status_subscription_topic(namespace, agent_name),
             get_sam_events_subscription_topic(namespace, "session"),
+            get_sam_events_subscription_topic(namespace, "deep_research"),
         ]
 
         # Add trust card subscription if trust manager is enabled
