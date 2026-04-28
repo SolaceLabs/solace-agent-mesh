@@ -97,7 +97,9 @@ export function useArtifactVersions(args: { sessionId?: string; projectId?: stri
             ? async (): Promise<number[]> => {
                   const url = getArtifactUrl({ filename, sessionId: validSessionId, projectId: validProjectId });
                   const versions: number[] = await api.webui.get(url);
-                  return [...(versions ?? [])].sort((a, b) => a - b);
+                  // Newest first — matches user expectation when scanning a
+                  // version list ("the latest one's at the top").
+                  return [...(versions ?? [])].sort((a, b) => b - a);
               }
             : skipToken,
         enabled: enabled && ready,

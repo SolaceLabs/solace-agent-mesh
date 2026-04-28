@@ -114,7 +114,8 @@ export function useArtifactSource(artifact: ArtifactWithSession): ArtifactSource
         queryFn: async (): Promise<number[]> => {
             const url = getArtifactUrl({ filename: artifact.filename, sessionId, projectId });
             const versions: number[] = await api.webui.get(url);
-            return [...(versions ?? [])].sort((a, b) => a - b);
+            // Newest first so the version dropdown shows the latest at the top.
+            return [...(versions ?? [])].sort((a, b) => b - a);
         },
         enabled: canPreview,
         staleTime: PREVIEW_CACHE_MS,
@@ -126,9 +127,10 @@ export function useArtifactSource(artifact: ArtifactWithSession): ArtifactSource
     const availableVersions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
 
     // Once versions arrive, default to the latest. Re-applies after an artifact change.
+    // (List is sorted descending, so [0] is the highest version.)
     useEffect(() => {
         if (currentVersion === null && availableVersions.length > 0) {
-            setCurrentVersion(availableVersions[availableVersions.length - 1]);
+            setCurrentVersion(availableVersions[0]);
         }
     }, [availableVersions, currentVersion]);
 
