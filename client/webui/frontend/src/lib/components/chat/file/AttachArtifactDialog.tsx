@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Folder, MessageSquare, Search } from "lucide-react";
 
 import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner } from "@/lib/components/ui";
-import { useAllArtifacts, useArtifactVersions, type ArtifactWithSession } from "@/lib/api/artifacts";
+import { useAllArtifacts, useArtifactVersions, isProjectArtifact, type ArtifactWithSession } from "@/lib/api/artifacts";
 import { useDebounce } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { formatBytes } from "@/lib/utils/format";
@@ -242,7 +242,9 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                             className={cn("flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-(--primary-w10) focus:bg-(--primary-w10) focus:outline-none", isSelected && "bg-(--primary-w10)")}
                                         >
                                             <Checkbox checked={isSelected} />
-                                            <span className={cn("flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>
+                                            {/* Fixed-width pill so filenames line up vertically across rows
+                                                regardless of the extension label (WEBP vs TXT vs DOCX vs WASM). */}
+                                            <span className={cn("w-12 flex-shrink-0 rounded px-2 py-0.5 text-center text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>
                                                 {getExtensionLabel(artifact.filename)}
                                             </span>
                                             <div className="min-w-0 flex-1">
@@ -250,7 +252,14 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                     <div className="min-w-0 flex-1 truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
                                                         {artifact.filename}
                                                     </div>
-                                                    {typeof artifact.version === "number" && (
+                                                    {/* Hide the picker for:
+                                                        - project-scoped artifacts: project knowledge files only
+                                                          expose their single latest version regardless of how many
+                                                          versions exist within the project.
+                                                        - single-version artifacts: nothing to pick.
+                                                          Versions are 0-indexed and sequential, so a latest of 0
+                                                          implies exactly one version. */}
+                                                    {!isProjectArtifact(artifact) && typeof artifact.version === "number" && artifact.version > 0 && (
                                                         <ArtifactVersionPicker
                                                             artifact={artifact}
                                                             value={versionByKey.get(k) ?? artifact.version}
