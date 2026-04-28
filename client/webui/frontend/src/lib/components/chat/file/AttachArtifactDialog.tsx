@@ -10,15 +10,15 @@ import { formatBytes } from "@/lib/utils/format";
 import { getFileTypeColor } from "./FileIcon";
 import { getExtensionLabel } from "./attachmentUtils";
 
-// The /artifacts/all fast endpoint omits `uri` on session-scoped items. Synthesize
-// the legacy `artifact://{sessionId}/{filename}` form — the same shape used across
-// the frontend (processChatEvent, deserializeChatMessages, useArtifacts) and
-// understood by parseArtifactUri. Encode the filename so reserved URL chars
-// (#, ?, %, /) round-trip through `new URL()` parsing.
+// The agent-side translator requires the canonical 4-segment form
+// `artifact://{app_name}/{user_id}/{session_id}/{filename}?version=N`. The
+// 2-segment legacy form used elsewhere for display purposes is rejected
+// when sent through `FilePart{uri}`. The bulk `/artifacts/all` endpoint
+// returns the canonical URI on every record — if `uri` is missing here it
+// means the backend couldn't resolve a version and the artifact isn't
+// attachable, so we hide it rather than fabricate a broken URI.
 const resolveArtifactUri = (artifact: ArtifactWithSession): string | null => {
-    if (artifact.uri) return artifact.uri;
-    if (!artifact.sessionId || !artifact.filename) return null;
-    return `artifact://${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
+    return artifact.uri ? artifact.uri : null;
 };
 
 interface AttachArtifactDialogProps {

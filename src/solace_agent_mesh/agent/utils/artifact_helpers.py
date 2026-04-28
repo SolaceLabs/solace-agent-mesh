@@ -193,6 +193,22 @@ def format_artifact_uri(
     return urlunparse(("artifact", app_name, path, "", query, ""))
 
 
+def _format_artifact_path_uri(
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+) -> str:
+    """Formats the canonical artifact:// path *without* a `?version=` query.
+
+    Use when the version isn't known at format time and the consumer should
+    resolve "latest" at fetch — e.g., the WebUI bulk-list endpoint, where
+    metadata-version drift would otherwise produce stale URIs.
+    """
+    path = f"/{user_id}/{session_id}/{filename}"
+    return urlunparse(("artifact", app_name, path, "", "", ""))
+
+
 def parse_artifact_uri(uri: str) -> Dict[str, Any]:
     """Parses an artifact:// URI into its constituent parts."""
     parsed = urlparse(uri)
@@ -1158,6 +1174,14 @@ async def get_artifact_info_list(
                         source=source,
                         tags=tags,
                         source_project_id=source_project_id,
+                        # Same rationale as the fast path: omit `?version=N`
+                        # so the translator resolves "latest" at fetch time.
+                        uri=_format_artifact_path_uri(
+                            app_name=app_name,
+                            user_id=user_id,
+                            session_id=session_id,
+                            filename=filename,
+                        ),
                     )
                 )
                 log.debug(
@@ -1287,7 +1311,21 @@ async def get_artifact_info_list_fast(
                     log_identifier_prefix=f"{log_prefix} [{filename}]",
                 )
 
-                return _metadata_to_artifact_info(filename, data.get("metadata", {}))
+                info = _metadata_to_artifact_info(filename, data.get("metadata", {}))
+                # Populate the canonical 4-segment artifact:// URI so consumers
+                # (the chat-input attach dialog) can pass it to handleSubmit
+                # without falling back to a synthesized form the agent-side
+                # parser rejects. We deliberately omit `?version=N` — the
+                # translator resolves "latest" against the live version list
+                # at fetch time, which avoids drift between metadata and
+                # content versions.
+                info.uri = _format_artifact_path_uri(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                )
+                return info
             except FileNotFoundError:
                 log.warning("%s Artifact '%s' not found. Skipping.", log_prefix, filename)
                 return None

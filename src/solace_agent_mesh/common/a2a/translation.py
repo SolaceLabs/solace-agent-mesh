@@ -191,13 +191,18 @@ async def _prepare_a2a_filepart_for_adk(
                 raise ValueError(f"Invalid artifact URI format: {uri}")
             filename = path_parts[-1]
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
-            version = int(version_str) if version_str else None
+            # Fall back to "latest" so callers (e.g. the WebUI attach-artifact
+            # dialog) don't have to know the numeric version up front; the
+            # downstream loader resolves it against the live version list.
+            version = int(version_str) if version_str else "latest"
             mime_type = part.file.mime_type or resolve_mime_type(filename, None)
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
 
-        # At this point, we must have filename and version to proceed
+        # At this point, we must have a filename to proceed. `version` may be
+        # a concrete int or the sentinel "latest" — load_artifact_content_or_metadata
+        # resolves "latest" against list_versions on the metadata file.
         if filename is None or version is None:
             raise ValueError("Could not determine filename and version for artifact.")
 
@@ -257,7 +262,9 @@ async def _prepare_a2a_filepart_for_adk(
 
         metadata_dict = load_result.get("metadata", {})
         metadata_dict["filename"] = filename
-        metadata_dict["version"] = version
+        # Use the resolved version from the load result rather than the URI
+        # input — which may be the sentinel "latest".
+        metadata_dict["version"] = load_result.get("version", version)
 
         # Format the final text for the LLM
         formatted_summary = format_metadata_for_llm(metadata_dict)

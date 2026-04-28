@@ -267,7 +267,10 @@ async def resolve_file_part_uri(
 
         user_id, session_id, filename = path_parts
         version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
-        version = int(version_str) if version_str else None
+        # Same fallback as `_prepare_a2a_filepart_for_adk` in translation.py:
+        # URIs may legitimately omit `?version=N` (e.g. the WebUI bulk-list
+        # output), in which case the loader resolves "latest" at fetch time.
+        version = int(version_str) if version_str else "latest"
 
         from ...agent.utils.artifact_helpers import load_artifact_content_or_metadata
 

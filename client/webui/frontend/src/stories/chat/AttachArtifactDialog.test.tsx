@@ -126,9 +126,14 @@ describe("AttachArtifactDialog", () => {
         expect(screen.getByText(/no artifacts available/i)).toBeInTheDocument();
     });
 
-    test("synthesizes a legacy artifact:// URI when the record has no uri and attaches it", async () => {
+    test("emits the canonical artifact:// URI returned by the bulk endpoint as-is", async () => {
+        // The /artifacts/all endpoint returns a canonical 4-segment URI
+        // (artifact://{app_name}/{user_id}/{session_id}/{filename}?version=N).
+        // The dialog forwards it untouched — fabricating any other shape would
+        // fail agent-side parsing.
+        const canonical = "artifact://my-app/user-1/sess-legacy/legacy.txt?version=0";
         const onAttach = vi.fn();
-        renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-legacy", uri: "" })], { onAttach });
+        renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-legacy", uri: canonical })], { onAttach });
 
         await userEvent.click(screen.getByText("legacy.txt"));
         await userEvent.click(screen.getByRole("button", { name: /attach 1/i }));
@@ -136,41 +141,32 @@ describe("AttachArtifactDialog", () => {
         expect(onAttach).toHaveBeenCalledTimes(1);
         const [emitted] = onAttach.mock.calls[0];
         expect(emitted).toHaveLength(1);
-        expect(emitted[0].uri).toBe("artifact://sess-legacy/legacy.txt");
-        expect(emitted[0].filename).toBe("legacy.txt");
+        expect(emitted[0].uri).toBe(canonical);
     });
 
-    test("percent-encodes reserved URL chars in the synthesized filename so the URI parses correctly", async () => {
-        const onAttach = vi.fn();
-        const filename = "weird name#1?.txt";
-        renderDialog([makeArtifact({ filename, sessionId: "sess-x", uri: "" })], { onAttach });
+    test("hides records that arrive without a canonical URI (treats them as unattachable)", () => {
+        // Backend should always return `uri` on the bulk endpoint. If a record
+        // arrives without one, the agent-side translator would reject any
+        // fallback we synthesized — surface "unattachable" by hiding it.
+        renderDialog([makeArtifact({ filename: "broken.txt", sessionId: "sess-x", uri: "" })]);
 
-        await userEvent.click(screen.getByText(filename));
-        await userEvent.click(screen.getByRole("button", { name: /attach 1/i }));
-
-        const emitted = onAttach.mock.calls[0][0] as ArtifactWithSession[];
-        expect(emitted[0].uri).toBe(`artifact://sess-x/${encodeURIComponent(filename)}`);
-        // Round-trip via new URL() parsing — `#`/`?` would otherwise become
-        // hash/search and the filename would be lost.
-        const parsed = new URL(emitted[0].uri!);
-        expect(decodeURIComponent(parsed.pathname.replace(/^\//, ""))).toBe(filename);
+        expect(screen.queryByText("broken.txt")).not.toBeInTheDocument();
+        expect(screen.getByText(/no artifacts available/i)).toBeInTheDocument();
     });
 
     test("hides artifacts whose URI is already attached", () => {
-        renderDialog([makeArtifact({ filename: "already.txt", sessionId: "sess-1", uri: "artifact://sess-1/already.txt" }), makeArtifact({ filename: "fresh.txt", sessionId: "sess-1", uri: "artifact://sess-1/fresh.txt" })], {
-            alreadyAttachedUris: ["artifact://sess-1/already.txt"],
-        });
+        renderDialog(
+            [
+                makeArtifact({ filename: "already.txt", sessionId: "sess-1", uri: "artifact://app/user/sess-1/already.txt?version=0" }),
+                makeArtifact({ filename: "fresh.txt", sessionId: "sess-1", uri: "artifact://app/user/sess-1/fresh.txt?version=0" }),
+            ],
+            {
+                alreadyAttachedUris: ["artifact://app/user/sess-1/already.txt?version=0"],
+            }
+        );
 
         expect(screen.queryByText("already.txt")).not.toBeInTheDocument();
         expect(screen.getByText("fresh.txt")).toBeInTheDocument();
-    });
-
-    test("hides session-only artifacts already attached via their synthesized URI", () => {
-        // The list entry has no uri; the parent computes its synthesized URI
-        // and includes it in alreadyAttachedUris. The dialog must still hide it.
-        renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-x", uri: "" })], { alreadyAttachedUris: ["artifact://sess-x/legacy.txt"] });
-
-        expect(screen.queryByText("legacy.txt")).not.toBeInTheDocument();
     });
 
     test("supports multi-select and emits all chosen artifacts on Attach", async () => {
