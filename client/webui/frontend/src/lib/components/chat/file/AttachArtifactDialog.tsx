@@ -5,7 +5,7 @@ import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, Di
 import { useAllArtifacts, useArtifactVersions, isProjectArtifact, type ArtifactWithSession } from "@/lib/api/artifacts";
 import { useDebounce } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
-import { formatBytes } from "@/lib/utils/format";
+import { formatBytes, formatRelativeTime } from "@/lib/utils/format";
 
 import { getFileTypeColor } from "./FileIcon";
 import { ProjectBadge } from "./ProjectBadge";
@@ -272,9 +272,13 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2 overflow-hidden text-xs whitespace-nowrap text-(--secondary-text-wMain)">
-                                                    <span className="min-w-0 truncate">{artifact.mime_type}</span>
-                                                    <span aria-hidden>·</span>
                                                     <span className="flex-shrink-0">{formatBytes(artifact.size)}</span>
+                                                    {artifact.last_modified && (
+                                                        <>
+                                                            <span aria-hidden>·</span>
+                                                            <span className="flex-shrink-0">{formatRelativeTime(artifact.last_modified)}</span>
+                                                        </>
+                                                    )}
                                                     {/* Project artifacts render the standard ProjectBadge —
                                                         same component used in RecentChatsPage / ArtifactsPage /
                                                         ChatPage so the visual treatment stays consistent. Session
