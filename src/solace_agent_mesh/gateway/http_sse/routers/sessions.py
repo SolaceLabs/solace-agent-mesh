@@ -1327,7 +1327,7 @@ def _get_model_context_limit(
     response_model=ContextUsageResponse,
     response_model_by_alias=True,
 )
-async def get_session_context_usage(
+def get_session_context_usage(
     session_id: str,
     model: Optional[str] = None,
     agent_name: Optional[str] = None,
@@ -1342,6 +1342,10 @@ async def get_session_context_usage(
     Returns the current token count, model context limit, and usage percentage.
     Uses the gateway's own tasks and chat_tasks tables as the source of truth
     for token data (LLM-reported totals from completed tasks).
+
+    Declared sync (not ``async def``) so FastAPI runs the body — which is
+    purely synchronous SQLAlchemy + CPU work — in its threadpool, leaving
+    the event loop free for other concurrent requests.
     """
     user_id = user.get("id")
 

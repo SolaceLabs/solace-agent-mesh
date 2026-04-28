@@ -106,8 +106,7 @@ class TestGetSessionContextUsage:
         comp.model_config = None
         return comp
 
-    @pytest.mark.asyncio
-    async def test_returns_zeros_for_empty_session(
+    def test_returns_zeros_for_empty_session(
         self, mock_db, mock_session_service, mock_component
     ):
         mock_session = MagicMock()
@@ -122,7 +121,7 @@ class TestGetSessionContextUsage:
                 get_session_context_usage,
             )
 
-            result = await get_session_context_usage(
+            result = get_session_context_usage(
                 session_id="test-session-id",
                 model=None,
                 agent_name=None,
@@ -138,8 +137,7 @@ class TestGetSessionContextUsage:
             assert result.total_events == 0
             assert result.has_compaction is False
 
-    @pytest.mark.asyncio
-    async def test_returns_404_when_session_not_found(
+    def test_returns_404_when_session_not_found(
         self, mock_db, mock_session_service, mock_component
     ):
         from fastapi import HTTPException
@@ -155,7 +153,7 @@ class TestGetSessionContextUsage:
             )
 
             with pytest.raises(HTTPException) as exc_info:
-                await get_session_context_usage(
+                get_session_context_usage(
                     session_id="test-session-id",
                     model=None,
                     agent_name=None,
@@ -167,8 +165,7 @@ class TestGetSessionContextUsage:
 
             assert exc_info.value.status_code == 404
 
-    @pytest.mark.asyncio
-    async def test_returns_token_data_from_completed_tasks(
+    def test_returns_token_data_from_completed_tasks(
         self, mock_db, mock_session_service, mock_component
     ):
         """Token data comes from the gateway's tasks table (LLM-reported totals)."""
@@ -211,7 +208,7 @@ class TestGetSessionContextUsage:
                 get_session_context_usage,
             )
 
-            result = await get_session_context_usage(
+            result = get_session_context_usage(
                 session_id="test-session-id",
                 model="test-model",
                 agent_name=None,
@@ -662,8 +659,7 @@ class TestContextUsageModelResolution:
     def mock_session_service(self):
         return MagicMock()
 
-    @pytest.mark.asyncio
-    async def test_uses_component_model_config_as_default(
+    def test_uses_component_model_config_as_default(
         self, mock_db, mock_session_service
     ):
         """When no model param given, should use component.model_config['model']."""
@@ -682,7 +678,7 @@ class TestContextUsageModelResolution:
                 get_session_context_usage,
             )
 
-            result = await get_session_context_usage(
+            result = get_session_context_usage(
                 session_id="test-session-id",
                 model=None,
                 agent_name=None,
@@ -694,8 +690,7 @@ class TestContextUsageModelResolution:
 
         assert result.model == "my-custom-model"
 
-    @pytest.mark.asyncio
-    async def test_explicit_model_param_overrides_component_config(
+    def test_explicit_model_param_overrides_component_config(
         self, mock_db, mock_session_service
     ):
         """Explicit model query param should take priority over component.model_config."""
@@ -714,7 +709,7 @@ class TestContextUsageModelResolution:
                 get_session_context_usage,
             )
 
-            result = await get_session_context_usage(
+            result = get_session_context_usage(
                 session_id="test-session-id",
                 model="explicit-model",
                 agent_name=None,
@@ -726,8 +721,7 @@ class TestContextUsageModelResolution:
 
         assert result.model == "explicit-model"
 
-    @pytest.mark.asyncio
-    async def test_falls_back_to_default_model_when_no_config(
+    def test_falls_back_to_default_model_when_no_config(
         self, mock_db, mock_session_service
     ):
         """Falls back to DEFAULT_MODEL when component has no model_config."""
@@ -747,7 +741,7 @@ class TestContextUsageModelResolution:
                 DEFAULT_MODEL,
             )
 
-            result = await get_session_context_usage(
+            result = get_session_context_usage(
                 session_id="test-session-id",
                 model=None,
                 agent_name=None,
