@@ -240,7 +240,7 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                             </span>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
+                                                    <div className="min-w-0 flex-1 truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
                                                         {artifact.filename}
                                                     </div>
                                                     <ArtifactVersionPicker
