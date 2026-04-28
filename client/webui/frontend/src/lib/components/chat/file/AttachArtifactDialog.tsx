@@ -13,11 +13,12 @@ import { getExtensionLabel } from "./attachmentUtils";
 // The /artifacts/all fast endpoint omits `uri` on session-scoped items. Synthesize
 // the legacy `artifact://{sessionId}/{filename}` form — the same shape used across
 // the frontend (processChatEvent, deserializeChatMessages, useArtifacts) and
-// understood by parseArtifactUri.
+// understood by parseArtifactUri. Encode the filename so reserved URL chars
+// (#, ?, %, /) round-trip through `new URL()` parsing.
 const resolveArtifactUri = (artifact: ArtifactWithSession): string | null => {
     if (artifact.uri) return artifact.uri;
     if (!artifact.sessionId || !artifact.filename) return null;
-    return `artifact://${artifact.sessionId}/${artifact.filename}`;
+    return `artifact://${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
 };
 
 interface AttachArtifactDialogProps {
@@ -77,18 +78,26 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
         });
     };
 
+    // Derive from `visibleArtifacts` so the count tracks what `handleAttach`
+    // would actually attach: if a selected item is filtered out by the search,
+    // it stops counting and the button label/disabled state stay in sync.
+    const selectedArtifacts = useMemo(
+        () =>
+            visibleArtifacts
+                .filter(({ artifact }) => selectedKeys.has(keyFor(artifact)))
+                // Ensure the outgoing artifact carries a resolved `uri` so downstream
+                // consumers (the chat submit pipeline) don't need to re-resolve it.
+                .map(({ artifact, resolvedUri }) => ({ ...artifact, uri: resolvedUri ?? artifact.uri })),
+        [visibleArtifacts, selectedKeys]
+    );
+
     const handleAttach = () => {
-        const selected = visibleArtifacts
-            .filter(({ artifact }) => selectedKeys.has(keyFor(artifact)))
-            // Ensure the outgoing artifact carries a resolved `uri` so downstream
-            // consumers (the chat submit pipeline) don't need to re-resolve it.
-            .map(({ artifact, resolvedUri }) => ({ ...artifact, uri: resolvedUri ?? artifact.uri }));
-        if (selected.length === 0) return;
-        onAttach(selected);
+        if (selectedArtifacts.length === 0) return;
+        onAttach(selectedArtifacts);
         onClose();
     };
 
-    const selectedCount = selectedKeys.size;
+    const selectedCount = selectedArtifacts.length;
 
     return (
         <Dialog
@@ -136,7 +145,7 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                 }
                                             }}
                                             tabIndex={0}
-                                            className={`flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-(--primary-w10) focus:bg-(--primary-w10) focus:outline-none ${isSelected ? "bg-(--primary-w10)" : ""}`}
+                                            className={cn("flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-(--primary-w10) focus:bg-(--primary-w10) focus:outline-none", isSelected && "bg-(--primary-w10)")}
                                         >
                                             <Checkbox checked={isSelected} />
                                             <span className={cn("flex-shrink-0 rounded px-2 py-0.5 text-[10px] font-bold text-(--darkSurface-text)", getFileTypeColor(artifact.mime_type, artifact.filename))}>

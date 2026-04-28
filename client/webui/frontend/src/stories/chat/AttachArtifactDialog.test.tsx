@@ -144,6 +144,22 @@ describe("AttachArtifactDialog", () => {
         expect(emitted[0].filename).toBe("legacy.txt");
     });
 
+    test("percent-encodes reserved URL chars in the synthesized filename so the URI parses correctly", async () => {
+        const onAttach = vi.fn();
+        const filename = "weird name#1?.txt";
+        renderDialog([makeArtifact({ filename, sessionId: "sess-x", uri: "" })], { onAttach });
+
+        await userEvent.click(screen.getByText(filename));
+        await userEvent.click(screen.getByRole("button", { name: /attach 1/i }));
+
+        const emitted = onAttach.mock.calls[0][0] as ArtifactWithSession[];
+        expect(emitted[0].uri).toBe(`artifact://sess-x/${encodeURIComponent(filename)}`);
+        // Round-trip via new URL() parsing — `#`/`?` would otherwise become
+        // hash/search and the filename would be lost.
+        const parsed = new URL(emitted[0].uri!);
+        expect(decodeURIComponent(parsed.pathname.replace(/^\//, ""))).toBe(filename);
+    });
+
     test("hides artifacts whose URI is already attached", () => {
         renderDialog([makeArtifact({ filename: "already.txt", sessionId: "sess-1", uri: "artifact://sess-1/already.txt" }), makeArtifact({ filename: "fresh.txt", sessionId: "sess-1", uri: "artifact://sess-1/fresh.txt" })], {
             alreadyAttachedUris: ["artifact://sess-1/already.txt"],

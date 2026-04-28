@@ -8,6 +8,11 @@ import { DocumentThumbnail, supportsThumbnail } from "./DocumentThumbnail";
 import { getFileTypeColor } from "./FileIcon";
 import { MAX_THUMBNAIL_FILE_BYTES, getExtensionLabel, isImageType, supportsTextPreview } from "./attachmentUtils";
 
+// 60 s is enough for any browser to start streaming the blob into the new tab
+// (PDFs, images) before the URL is revoked. Shorter risks blanking the tab on
+// slow disks; longer just delays GC.
+const BLOB_REVOKE_DELAY_MS = 60_000;
+
 interface FileUploadCardProps {
     file: File;
     onRemove?: () => void;
@@ -103,7 +108,7 @@ export const FileUploadCard: React.FC<FileUploadCardProps> = ({ file, onRemove, 
         const url = URL.createObjectURL(file);
         const tab = window.open(url, "_blank", "noopener,noreferrer");
         // Revoke after a delay so the tab has time to load the blob.
-        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        window.setTimeout(() => URL.revokeObjectURL(url), BLOB_REVOKE_DELAY_MS);
         if (!tab) URL.revokeObjectURL(url);
     };
     const handleClick = onClick ?? openBlobInNewTab;

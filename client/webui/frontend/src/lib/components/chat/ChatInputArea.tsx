@@ -23,7 +23,7 @@ import { FileBadge } from "./file/FileBadge";
 import { FileUploadCard } from "./file/FileUploadCard";
 import { LocalFilePreview } from "./file/LocalFilePreview";
 import { StandaloneArtifactPreview, getArtifactApiUrl } from "./file/StandaloneArtifactPreview";
-import { api } from "@/lib/api";
+import { api, getErrorFromResponse } from "@/lib/api";
 import { AudioRecorder } from "./AudioRecorder";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
@@ -452,6 +452,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         async (artifact: ArtifactWithSession) => {
             try {
                 const response = await api.webui.get(getArtifactApiUrl(artifact), { fullResponse: true });
+                if (!response.ok) {
+                    throw new Error(await getErrorFromResponse(response));
+                }
                 const blob = await response.blob();
                 const downloadUrl = window.URL.createObjectURL(blob);
                 const link = document.createElement("a");
@@ -461,7 +464,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 link.click();
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(downloadUrl);
-                addNotification?.(`Downloaded ${artifact.filename}`, "success");
+                addNotification(`Downloaded ${artifact.filename}`, "success");
             } catch (error) {
                 displayError({ title: "Download Failed", error: getErrorMessage(error) });
             }

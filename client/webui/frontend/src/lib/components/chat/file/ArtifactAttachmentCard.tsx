@@ -21,8 +21,11 @@ interface ArtifactAttachmentCardProps {
 function decodeBase64Snippet(base64: string): string {
     try {
         // base64 is ~4/3 the byte size — ~1.4 KB covers ~1 KB of text.
-        const trimmed = base64.slice(0, 1400);
-        const binary = atob(trimmed.replace(/\s/g, ""));
+        // atob requires a full quartet, so trim any trailing partial group.
+        const cleaned = base64.slice(0, 1400).replace(/\s/g, "");
+        const len = cleaned.length - (cleaned.length % 4);
+        if (len === 0) return "";
+        const binary = atob(cleaned.slice(0, len));
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         return new TextDecoder("utf-8", { fatal: false }).decode(bytes);

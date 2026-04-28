@@ -32,7 +32,7 @@ export function getArtifactApiUrl(artifact: ArtifactWithSession): string {
     if (isProjectArtifact(artifact) && artifact.projectId) {
         return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
     }
-    return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
+    return `/api/v1/artifacts/${encodeURIComponent(artifact.sessionId)}/${encodeURIComponent(artifact.filename)}`;
 }
 
 interface StandaloneArtifactPreviewProps {
