@@ -16,7 +16,7 @@ For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-ku
 ### Required Access
 
 - Access to the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/)
-- A system with internet access for downloading the Agent Mesh delivery bundle
+- A system with internet access for downloading the Agent Mesh delivery package
 - Transfer capability to move files into your air-gapped environment (USB drives, secure file transfer, and so on)
 
 ### Infrastructure Requirements
@@ -37,16 +37,16 @@ Air-gapped deployments have the same infrastructure requirements as your target 
 
 For detailed infrastructure requirements (node sizing, compute resources, storage classes), see [Production Prerequisites](./production-kubernetes.md#production-prerequisites).
 
-## Step 1: Obtaining the Agent Mesh Delivery Bundle
+## Step 1: Obtaining the Agent Mesh Delivery Package
 
-### Bundle Contents
+### Package Contents
 
-The Agent Mesh delivery bundle contains everything needed for an air-gapped Kubernetes deployment. No internet access is required after downloading.
+The Agent Mesh delivery package folder contains everything needed for an air-gapped Kubernetes deployment. No internet access is required after downloading.
 
-**Bundle structure:**
+**Folder structure:**
 
 ```
-bundle/
+<enterprise-version>/
 ├── amd64/
 │   ├── postgres.tar.gz
 │   ├── sam-agent-deployer.tar.gz
@@ -92,19 +92,19 @@ bundle/
 
 Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification. For a first-time evaluation install, use `bom-quickStart.yaml`.
 
-### Verifying Bundle Integrity (Optional)
+### Verifying Image Integrity (Optional)
 
-For environments with compliance requirements, verify each image digest against the BOM before loading. Run this example command and get the hash value of an artifact:
+For environments with compliance requirements, verify each image digest against the BOM before loading. Run the following command to get the hash value of an image file:
 
 ```bash
-sha256sum bundle/amd64/solace-agent-mesh-enterprise.tar.gz
+sha256sum /path/to/amd64/solace-agent-mesh-enterprise.tar.gz
 ```
 
-The `sha256sum` output must match the related `digest` value in the BOM (excluding the `sha256:` prefix). Discard and re-download the file if they differ. Repeat for each artifact you want to consume.
+The `sha256sum` output must match the related `digest` value in the BOM (excluding the `sha256:` prefix). Discard and re-download the file if they differ. Repeat for each image you want to load.
 
 ## Step 2: Loading Container Images
 
-All container images are included in the bundle for both `amd64` and `arm64` architectures. No public registry access is required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
+All container images are included in the package folder for both `amd64` and `arm64` architectures. No public registry access is required. Load each `.tar.gz` from your architecture directory into your private registry using your organisation's preferred tooling.
 
 The registry path structure matters: when you set `global.imageRegistry` in `values.yaml`, the chart constructs image references as `<registry>/<repository>:<tag>`. Ensure your pushed images are reachable under those paths.
 
@@ -112,12 +112,12 @@ The registry path structure matters: when you set `global.imageRegistry` in `val
 One common approach using the Docker CLI:
 
 ```bash
-docker load -i bundle/amd64/solace-agent-mesh-enterprise.tar.gz
+docker load -i /path/to/amd64/solace-agent-mesh-enterprise.tar.gz
 docker tag solace-agent-mesh-enterprise:<version> your-registry.internal/solace-agent-mesh-enterprise:<version>
 docker push your-registry.internal/solace-agent-mesh-enterprise:<version>
 ```
 
-Repeat for each image in the bundle. Exact tags are listed in `bom.yaml`.
+Repeat for each image. Exact tags are listed in `bom.yaml` or `bom-quickStart`.
 :::
 
 ## Step 3: Configuring Image Pull Secrets
@@ -179,12 +179,12 @@ If your environment does not use custom CA certificates, skip this step.
 
 For dry-run validation before installing, see [Step 4: Pre-Installation Validation](./production-kubernetes.md#step-4-pre-installation-validation) in the Production guide. The same approaches apply.
 
-Install Agent Mesh using the local chart from your bundle and the `airgap-overrides.yaml` file you created in Step 4.
+Install Agent Mesh using the local chart downloaded earlier and the `airgap-overrides.yaml` file you created in Step 4.
 
 **Option 1** — with a credentials file (from Step 3, Option 1):
 
 ```bash
-helm install sam /path/to/bundle/charts/solace-agent-mesh-<version>.tgz \
+helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   --set-file global.imagePullKey=registry-credentials.json \
@@ -194,7 +194,7 @@ helm install sam /path/to/bundle/charts/solace-agent-mesh-<version>.tgz \
 **Option 2** — with a pre-created secret (from Step 3, Option 2):
 
 ```bash
-helm install sam /path/to/bundle/charts/solace-agent-mesh-<version>.tgz \
+helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   -f airgap-overrides.yaml
