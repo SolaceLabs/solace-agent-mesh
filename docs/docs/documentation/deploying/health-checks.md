@@ -379,7 +379,7 @@ broker:
 
 ## Related Documentation
 
-- [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md) - Configure application metrics using the same management server (Enterprise)
+- [Application Metrics with OpenTelemetry](../enterprise/otel-metrics/otel-metrics.md) - Configure application metrics using the same management server (Enterprise)
 - [solace-ai-connector Health Checks](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/health_checks.md) - Underlying health check implementation
 - [Kubernetes Deployment Guide](./kubernetes/kubernetes-deployment-guide.md) - Detailed Kubernetes deployment instructions
 - [Logging Configuration](./logging.md) - Configure logging for health check debugging

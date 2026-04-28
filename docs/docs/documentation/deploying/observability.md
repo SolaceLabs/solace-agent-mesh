@@ -10,7 +10,7 @@ Understanding how your Agent Mesh system operates in real-time is crucial for ma
 These observability tools work together to create a complete picture of your system's health and performance. Whether you're troubleshooting a specific issue, optimizing performance, or simply monitoring day-to-day operations, these tools provide the visibility you need to maintain a robust agent mesh.
 
 :::tip Complementary Tools
-The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md). For application metrics and OpenTelemetry integration, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md).
+The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md). For application metrics and OpenTelemetry integration, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics/otel-metrics.md).
 :::
 
 ## Viewing Activities
@@ -124,4 +124,4 @@ Agent Mesh Enterprise instruments key application domains with latency-based met
 
 **External Dependencies**: Track outbound service call latency to external systems and APIs to understand dependency behavior and identify integration issues.
 
-For comprehensive information about enabling metrics, configuring metric collection, and integrating with observability platforms, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md).
+For comprehensive information about enabling metrics, configuring metric collection, and integrating with observability platforms, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics/otel-metrics.md).
