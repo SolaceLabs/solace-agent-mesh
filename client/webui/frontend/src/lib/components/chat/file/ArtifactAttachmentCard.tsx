@@ -2,14 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Spinner } from "@/lib/components/ui";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, isProjectArtifact } from "@/lib/api/artifacts";
 import { getArtifactContent } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 import { AttachmentCardShell, AttachmentInlineText } from "./AttachmentCardShell";
 import { DocumentThumbnail, supportsThumbnail } from "./DocumentThumbnail";
 import { getFileTypeColor } from "./FileIcon";
-import { isProjectArtifact } from "./StandaloneArtifactPreview";
 import { MAX_THUMBNAIL_FILE_BYTES, getExtensionLabel, isImageType, supportsTextPreview } from "./attachmentUtils";
 
 interface ArtifactAttachmentCardProps {
@@ -52,8 +51,11 @@ export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ 
     const isText = !tooLargeToThumb && !isDoc && !isImage && supportsTextPreview(artifact.mime_type, artifact.filename);
     const needsFetch = isImage || isDoc || isText;
 
-    const sessionId = isProjectArtifact(artifact) ? undefined : artifact.sessionId;
-    const projectId = isProjectArtifact(artifact) ? artifact.projectId : undefined;
+    // Mirror the contract used by `getArtifactApiUrl`: only treat as project-scoped
+    // when projectId is actually set. Project artifacts missing a projectId fall
+    // back to session-scoped fetch so the request hits a real path.
+    const projectId = isProjectArtifact(artifact) && artifact.projectId ? artifact.projectId : undefined;
+    const sessionId = projectId ? undefined : artifact.sessionId;
 
     const { data, isLoading, isError } = useQuery({
         // Without a version, getArtifactUrl returns the list-versions endpoint

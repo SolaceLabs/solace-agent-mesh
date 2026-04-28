@@ -1,13 +1,12 @@
 /**
- * Tests for the URL-resolution helpers exported from StandaloneArtifactPreview.
- * These are now shared by ChatInputArea and ArtifactsPage — a regression in
- * either branch (project vs session) would break cross-context artifact
- * fetches silently.
+ * Tests for the URL-resolution helpers from `@/lib/api/artifacts`.
+ * Shared by ChatInputArea, ArtifactsPage, and ArtifactAttachmentCard — a
+ * regression in either branch (project vs session) would break cross-context
+ * artifact fetches silently.
  */
 import { describe, test, expect } from "vitest";
 
-import { getArtifactApiUrl, isProjectArtifact } from "@/lib/components/chat/file/StandaloneArtifactPreview";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, getArtifactApiUrl, isProjectArtifact } from "@/lib/api/artifacts";
 
 function makeArtifact(overrides: Partial<ArtifactWithSession>): ArtifactWithSession {
     return {
@@ -74,6 +73,17 @@ describe("getArtifactApiUrl", () => {
         );
         expect(url).toContain("/api/v1/artifacts/sess-xyz/");
         expect(url).toContain(encodeURIComponent("with spaces & symbols.txt"));
+    });
+
+    test("URL-encodes sessionIds with reserved characters in the session branch", () => {
+        const url = getArtifactApiUrl(
+            makeArtifact({
+                sessionId: "sess?weird/id",
+                filename: "x.txt",
+            })
+        );
+        // `?` and `/` would otherwise terminate the path segment / start a query.
+        expect(url).toBe(`/api/v1/artifacts/${encodeURIComponent("sess?weird/id")}/x.txt`);
     });
 
     test("falls back to session-path format when source is 'project' but projectId is missing", () => {

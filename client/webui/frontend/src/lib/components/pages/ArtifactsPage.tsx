@@ -21,7 +21,7 @@ import {
     SelectValue,
 } from "@/lib/components/ui";
 import { useChatContext, useDebounce } from "@/lib/hooks";
-import { useAllArtifacts } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, getArtifactApiUrl, isProjectArtifact, useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
 import { formatTimestamp, cn, createSemaphore, createPersistentCache } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
@@ -29,12 +29,11 @@ import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
 import { getFileTypeColor } from "@/lib/components/chat/file/FileIcon";
-import { StandaloneArtifactPreview, isProjectArtifact, getArtifactApiUrl } from "@/lib/components/chat/file/StandaloneArtifactPreview";
+import { StandaloneArtifactPreview } from "@/lib/components/chat/file/StandaloneArtifactPreview";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
 import { Header } from "@/lib/components/header/Header";
 import { PageLayout } from "@/lib/components/layout";
 import { LifecycleBadge } from "@/lib/components/ui";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
 import { ConfirmationDialog } from "../common";
 
 // Persistent cache for document thumbnails (base64 PDF/DOCX data).
@@ -782,10 +781,9 @@ export function ArtifactsPage() {
 
     const handleGoToProject = useCallback(
         (artifact: ArtifactWithSession) => {
-            // Navigate to the project page
-            if (artifact.projectId) {
-                navigate(`/projects/${artifact.projectId}`);
-            }
+            // The preview dialog hides Go-to-Project when projectId is missing,
+            // so this path is only reached for valid project artifacts.
+            navigate(`/projects/${artifact.projectId}`);
         },
         [navigate]
     );

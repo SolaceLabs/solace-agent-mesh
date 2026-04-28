@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Ban, Paperclip, Send, Quote, X, Upload, Link2 } from "lucide-react";
 
 import { Button, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, getArtifactApiUrl } from "@/lib/api/artifacts";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -22,7 +22,7 @@ import { ArtifactAttachmentCard } from "./file/ArtifactAttachmentCard";
 import { FileBadge } from "./file/FileBadge";
 import { FileUploadCard } from "./file/FileUploadCard";
 import { LocalFilePreview } from "./file/LocalFilePreview";
-import { StandaloneArtifactPreview, getArtifactApiUrl } from "./file/StandaloneArtifactPreview";
+import { StandaloneArtifactPreview } from "./file/StandaloneArtifactPreview";
 import { api, getErrorFromResponse } from "@/lib/api";
 import { AudioRecorder } from "./AudioRecorder";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
@@ -483,10 +483,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     const handlePreviewGoToProject = useCallback(
         (artifact: ArtifactWithSession) => {
-            if (artifact.projectId) {
-                setPreviewingArtifact(null);
-                navigate(`/projects/${artifact.projectId}`);
-            }
+            // The dialog hides Go-to-Project when projectId is missing, so this
+            // path is only reached for valid project artifacts.
+            setPreviewingArtifact(null);
+            navigate(`/projects/${artifact.projectId}`);
         },
         [navigate]
     );

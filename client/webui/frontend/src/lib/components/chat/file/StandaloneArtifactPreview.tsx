@@ -9,38 +9,17 @@ import { formatBytes } from "@/lib/utils/format";
 import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
 import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import type { FileAttachment } from "@/lib/types";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, isProjectArtifact } from "@/lib/api/artifacts";
 
 import { ProjectBadge } from "./ProjectBadge";
-
-/**
- * True when the artifact belongs to a project rather than a chat session.
- * Backend uses "project-{id}" format; "project:{id}" is kept for backward compat.
- */
-export function isProjectArtifact(artifact: ArtifactWithSession): boolean {
-    return artifact.sessionId.startsWith("project:") || artifact.sessionId.startsWith("project-") || artifact.source === "project";
-}
-
-/**
- * Resolve the correct API path for an artifact.
- *
- * For project artifacts we pass "null" as the session placeholder in the path
- * and the actual project via the project_id query param — the backend endpoint
- * requires a session_id path segment.
- */
-export function getArtifactApiUrl(artifact: ArtifactWithSession): string {
-    if (isProjectArtifact(artifact) && artifact.projectId) {
-        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
-    }
-    return `/api/v1/artifacts/${encodeURIComponent(artifact.sessionId)}/${encodeURIComponent(artifact.filename)}`;
-}
 
 interface StandaloneArtifactPreviewProps {
     artifact: ArtifactWithSession;
     onClose: () => void;
     onDownload: (artifact: ArtifactWithSession) => void;
     onGoToChat: (artifact: ArtifactWithSession) => void;
-    onGoToProject: (artifact: ArtifactWithSession) => void;
+    /** Optional — only relevant for project artifacts; the Go-to-Project button is hidden when omitted. */
+    onGoToProject?: (artifact: ArtifactWithSession) => void;
 }
 
 /**
@@ -226,10 +205,14 @@ export const StandaloneArtifactPreview = memo(function StandaloneArtifactPreview
                         Download
                     </Button>
                     {isProjectArtifact(artifact) ? (
-                        <Button variant="ghost" size="sm" onClick={() => onGoToProject(artifact)}>
-                            <FolderOpen className="mr-1 h-4 w-4" />
-                            Go to Project
-                        </Button>
+                        // Hide Go-to-Project for project artifacts missing a projectId
+                        // (legacy/partial records) — there is nowhere to navigate to.
+                        onGoToProject && artifact.projectId ? (
+                            <Button variant="ghost" size="sm" onClick={() => onGoToProject(artifact)}>
+                                <FolderOpen className="mr-1 h-4 w-4" />
+                                Go to Project
+                            </Button>
+                        ) : null
                     ) : (
                         <Button variant="ghost" size="sm" onClick={() => onGoToChat(artifact)}>
                             <MessageCircle className="mr-1 h-4 w-4" />

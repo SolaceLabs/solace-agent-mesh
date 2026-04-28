@@ -29,14 +29,16 @@ export const FileBadge: React.FC<FileBadgeProps> = ({ fileName, onRemove, onClic
     return (
         <Badge className="max-w-50 gap-1.5 rounded-full bg-(--secondary-w10) pr-1">
             {onClick ? (
-                <button
-                    type="button"
+                <Button
+                    variant="ghost"
                     onClick={onClick}
                     title={title ?? fileName}
-                    className={cn("flex min-w-0 flex-1 items-center gap-1.5 rounded-full bg-transparent text-left hover:text-(--primary-wMain) focus-visible:ring-2 focus-visible:ring-(--primary-wMain) focus-visible:outline-none")}
+                    // Strip Button's default min-height/padding so the badge stays
+                    // tight; keep the ghost focus-visible ring + hover tint.
+                    className={cn("flex h-auto min-h-0 min-w-0 flex-1 justify-start gap-1.5 rounded-full px-0 py-0 text-left enabled:hover:bg-transparent")}
                 >
                     {labelContent}
-                </button>
+                </Button>
             ) : (
                 labelContent
             )}
