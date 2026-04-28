@@ -176,8 +176,6 @@ The following outbound connectivity is required:
 For production Kubernetes deployments, configure Solace broker queue templates to prevent message buildup and startup issues. See [Queue Template Configuration for Kubernetes](#queue-template-configuration-for-kubernetes) in Step 2 for detailed setup instructions.
 
 
-## Architecture Overview
-
 ## Step 1: Infrastructure Preparation
 
 Prepare your Kubernetes cluster infrastructure before deploying Agent Mesh.
@@ -230,8 +228,6 @@ Provision Agent Mesh in **one availability zone only** to avoid multi-AZ complex
 **Why This Matters:**
 
 StatefulSets with persistent volumes (PostgreSQL, SeaweedFS) are bound to specific zones. When nodes span multiple AZs without proper node pool configuration, pod scheduling can fail if the PVC and node are in different zones.
-
-### Network Configuration
 
 ## Step 2: External Dependencies
 
@@ -320,8 +316,6 @@ For more details on queue configuration, see [Queue Template Configuration](/doc
 ### S3-Compatible Storage
 
 Configure external object storage for artifacts and session data.
-
-### Certificate Management
 
 ### S3 Buckets for OpenAPI Connector Specs
 
