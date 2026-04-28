@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qs, quote, urlparse
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.constants import ARTIFACT_TAG_WORKING
 from ....common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
@@ -833,7 +834,12 @@ async def list_all_artifacts(
                 for artifact in artifacts:
                     if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
                         continue
-                    
+                    # Internal artifacts produced by tools (RAG intermediates,
+                    # workflow scratch files, etc.) are tagged __working and
+                    # are not meant for direct user consumption.
+                    if artifact.tags and ARTIFACT_TAG_WORKING in artifact.tags:
+                        continue
+
                     result.append(ArtifactWithContext(
                         filename=artifact.filename,
                         size=artifact.size,
