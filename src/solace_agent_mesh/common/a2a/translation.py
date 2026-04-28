@@ -138,6 +138,13 @@ async def _prepare_a2a_filepart_for_adk(
     artifact_service = component.artifact_service
     enable_inline_vision = getattr(component, "enable_inline_vision", False)
 
+    # When the URI branch overrides any of these from the URI's path, the
+    # rebound values are used for both inline-vision and metadata loads
+    # below — the URI is self-contained and identifies a specific artifact
+    # location; the agent's own context is only the fallback.
+    load_user_id = user_id
+    load_session_id = get_original_session_id(session_id)
+
     if not artifact_service:
         log.error(
             "%s Artifact service is not configured. Cannot process FilePart.", log_id
@@ -189,20 +196,25 @@ async def _prepare_a2a_filepart_for_adk(
             path_parts = parsed_uri.path.strip("/").split("/")
             if len(path_parts) < 3:
                 raise ValueError(f"Invalid artifact URI format: {uri}")
+            # Canonical layout: artifact://{app_name}/{user_id}/{session_id}/{filename}
+            # Only the trailing segment is the filename; the preceding two (when
+            # present) identify the artifact's owning user + session, which can
+            # differ from the agent's own context (e.g. a WebUI-uploaded
+            # artifact attached by reference into an agent task). Honor the
+            # URI's coordinates so the lookup hits the right namespace.
             filename = path_parts[-1]
+            if len(path_parts) >= 3:
+                load_user_id = path_parts[-3]
+                load_session_id = path_parts[-2]
+            if parsed_uri.netloc:
+                app_name = parsed_uri.netloc
+
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
             # Fall back to "latest" so callers (e.g. the WebUI attach-artifact
             # dialog) don't have to know the numeric version up front; the
             # downstream loader resolves it against the live version list.
             version = int(version_str) if version_str else "latest"
             mime_type = part.file.mime_type or resolve_mime_type(filename, None)
-            # Honor the URI's app_name (netloc). Artifacts referenced by an
-            # `artifact://` URI live under the namespace baked into the URI,
-            # which may not match this agent's own app_name — e.g. a WebUI
-            # gateway artifact attached by reference. Fall back to the agent's
-            # name only when the URI carries no netloc.
-            if parsed_uri.netloc:
-                app_name = parsed_uri.netloc
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
@@ -238,8 +250,8 @@ async def _prepare_a2a_filepart_for_adk(
                     load_artifact_content_or_metadata=load_artifact_content_or_metadata,
                     artifact_service=artifact_service,
                     app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
+                    user_id=load_user_id,
+                    session_id=load_session_id,
                     filename=filename,
                     version=version,
                     mime_type=mime_type,
@@ -257,8 +269,8 @@ async def _prepare_a2a_filepart_for_adk(
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
-            user_id=user_id,
-            session_id=get_original_session_id(session_id),
+            user_id=load_user_id,
+            session_id=load_session_id,
             filename=filename,
             version=version,
             load_metadata_only=True,
