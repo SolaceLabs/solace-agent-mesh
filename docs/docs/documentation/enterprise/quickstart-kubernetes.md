@@ -32,6 +32,10 @@ The following table shows resource requirements for embedded broker mode (quicks
 | **Install + upgrade safety** | 4600m | 5424Mi | 6 vCPU / 7 GiB allocatable |
 | **Recommended with headroom** (kube-system, bursts, limits) | ~5200m | ~6500Mi | **6 vCPU / 8 GiB allocatable** |
 
+:::info Below-Minimum Behavior
+If your cluster does not meet the CPU or memory requests, the scheduler reports which pod could not be placed and why. The error identifies the specific unmet resource (for example, `0/1 nodes are available: Insufficient cpu`), not a generic installation failure.
+:::
+
 :::tip Recommended Node Specification
 Use **6 vCPU / 8 GiB RAM** nodes to accommodate:
 - Kubernetes system components (kube-system)
@@ -63,7 +67,7 @@ Embedded persistence requires SSD-backed storage for acceptable performance.
 | Provider | Storage Class | Notes |
 |----------|--------------|-------|
 | **AWS EKS** | `gp3` | EBS General Purpose SSD, zoned automatically |
-| **Azure AKS** | `Premium_LRS` | Azure Zoned Premium SSD |
+| **Azure AKS** | `managed-csi-premium` | Azure Premium SSD (`managed-premium` on older AKS clusters) |
 | **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
 
 #### Storage Class Configuration
@@ -111,20 +115,9 @@ Pass this file to Helm using `--set-file`. The chart automatically creates the p
 ```bash
 helm install sam solace/solace-agent-mesh \
   --namespace sam \
+  --create-namespace \
   --set-file global.imagePullKey=sam-pull-credentials.json
 ```
-
-:::info
-`global.imagePullKey` and `global.imagePullSecrets` are mutually exclusive. Use `imagePullKey` to let the chart manage the pull secret automatically, or use `imagePullSecrets` to reference a pre-created secret. Do not use both.
-:::
-
-:::warning Important Caveats
-- **PVCs persist after uninstall:** When you run `helm uninstall`, PersistentVolumeClaims are NOT automatically deleted (prevents accidental data loss). To clean up: `kubectl delete pvc -l app.kubernetes.io/namespace-id=<your-namespace-id>`
-- **Single instance only:** Bundled persistence deploys single-instance databases with no HA or automatic failover
-- **No automatic backups:** You are responsible for implementing backup strategies
-- **Storage Class Configuration:** Use SSD-backed storage classes (not HDD) to avoid agent timeouts
-- **Data loss on uninstall:** Default StorageClasses often have `reclaimPolicy: Delete` - uninstalling Helm will permanently delete your data unless you use `reclaimPolicy: Retain`
-:::
 
 ### Command-Line Tools
 
@@ -142,10 +135,11 @@ Install Agent Mesh using the GCR credentials file downloaded from Solace Cloud:
 ```bash
 helm install sam solace/solace-agent-mesh \
   --namespace sam \
+  --create-namespace \
   --set-file global.imagePullKey=sam-pull-credentials.json
 ```
 
-The chart defaults are optimized for quickstart evaluation. No values file is needed beyond the credentials.
+The chart defaults are optimized for quickstart evaluation. No values file is needed beyond the credentials. After installation completes, the terminal displays post-install instructions including the port-forward command and the URL to access the Console UI.
 
 **What gets deployed** (chart defaults):
 
@@ -190,7 +184,7 @@ On first login, the **Model Configuration UI** prompts you to configure your LLM
 #### Getting Started with Agent Mesh
 
 1. **Access the Console UI**
-2. **Configure your LLM model** via the UI prompt
+2. **Configure your LLM models** via the UI prompt. After saving, navigate to **Chat** in the left sidebar to start using Agent Mesh.
 3. **Send your first chat message** to the orchestrator
 4. **Build a custom agent** via Agent Builder
 5. **Deploy your agent**
