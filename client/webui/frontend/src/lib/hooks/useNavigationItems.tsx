@@ -44,7 +44,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
         if (schedulerEnabled) {
             navItems.push({
                 id: "schedules",
-                label: "Schedules",
+                label: "Scheduled Tasks",
                 icon: CalendarClock,
                 route: "/scheduled-tasks",
                 routeMatch: "/scheduled-tasks",

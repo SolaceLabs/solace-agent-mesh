@@ -63,7 +63,7 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
     if (schedulerEnabled) {
         items.push({
             id: "schedules",
-            label: "Schedules",
+            label: "Scheduled Tasks",
             icon: CalendarClock,
             badge: "EXPERIMENTAL",
         });
@@ -103,7 +103,7 @@ export const topNavigationItems: NavigationItem[] = [
     },
     {
         id: "schedules",
-        label: "Schedules",
+        label: "Scheduled Tasks",
         icon: CalendarClock,
         badge: "EXPERIMENTAL",
     },
