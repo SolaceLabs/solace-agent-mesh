@@ -10,7 +10,7 @@ import { getCitationTooltip, INDIVIDUAL_CITATION_PATTERN, parseCitationId } from
 
 /** Default max length for citation display text */
 const DEFAULT_CITATION_MAX_LENGTH = 60;
-import { MarkdownHTMLConverter } from "@/lib/components";
+import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter";
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
 import { getSourceUrl } from "@/lib/utils/sourceUrlHelpers";
 import { Popover, PopoverContent, PopoverTrigger } from "@/lib/components/ui/popover";
