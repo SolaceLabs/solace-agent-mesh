@@ -5,7 +5,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Ban, Paperclip, Send, Quote, X, Upload, Link2 } from "lucide-react";
 
 import { Button, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { type ArtifactWithSession, getArtifactApiUrl } from "@/lib/api/artifacts";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -23,13 +22,13 @@ import { FileBadge } from "./file/FileBadge";
 import { FileUploadCard } from "./file/FileUploadCard";
 import { LocalFilePreview } from "./file/LocalFilePreview";
 import { StandaloneArtifactPreview } from "./file/StandaloneArtifactPreview";
-import { api, getErrorFromResponse } from "@/lib/api";
 import { AudioRecorder } from "./AudioRecorder";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { PromptsCommand, type ChatCommand } from "./PromptsCommand";
 import { MentionsCommand } from "./MentionsCommand";
 import { VariableDialog } from "./VariableDialog";
-import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem, type PasteMetadata, type PastedTextItem } from "./paste";
+import { PendingPastedTextBadge, PasteActionDialog, isLargeText, createPastedTextItem } from "./paste";
+import { useChatAttachments } from "./useChatAttachments";
 import { getErrorMessage, escapeMarkdown } from "@/lib/utils";
 import { SNIP_TO_CHAT_EVENT, type SnipToChatEventDetail } from "./preview/Renderers/PdfRenderer";
 
@@ -95,23 +94,45 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-    // Existing-artifact attachment support (references, not re-uploads).
-    // The backend re-validates access when the agent fetches the referenced URI,
-    // so we only keep the URI + display metadata client-side.
-    const [selectedArtifactRefs, setSelectedArtifactRefs] = useState<ArtifactWithSession[]>([]);
-    const [showAttachArtifactDialog, setShowAttachArtifactDialog] = useState(false);
-    // Artifact currently shown in the standalone preview modal (cross-session safe).
-    const [previewingArtifact, setPreviewingArtifact] = useState<ArtifactWithSession | null>(null);
-    // Local file currently shown in the preview modal (not yet uploaded).
-    const [previewingLocalFile, setPreviewingLocalFile] = useState<File | null>(null);
-
-    // Pending pasted text support (not yet saved as artifacts, shown as badges)
-    // These items may have optional metadata if user has configured them via dialog
-    const [pendingPastedTextItems, setPendingPastedTextItems] = useState<PastedTextItem[]>([]);
-    const [selectedPendingPasteId, setSelectedPendingPasteId] = useState<string | null>(null);
-    const [showArtifactForm, setShowArtifactForm] = useState(false);
+    // All attachment slices (files, artifact references, pending pasted text)
+    // and their dialog/modal flags live in `useChatAttachments`. The hook also
+    // owns capture/restore-on-failure with the per-slice intentional-clear flag.
+    const attachments = useChatAttachments({
+        isResponding,
+        addNotification,
+        displayError,
+        handleSwitchSession,
+        navigate,
+    });
+    const {
+        selectedFiles,
+        selectedArtifactRefs,
+        pendingPastedTextItems,
+        selectedPendingPasteId,
+        previewingArtifact,
+        previewingLocalFile,
+        showAttachArtifactDialog,
+        showArtifactForm,
+        setSelectedFiles,
+        setPendingPastedTextItems,
+        setSelectedArtifactRefs,
+        setPreviewingArtifact,
+        setPreviewingLocalFile,
+        setShowAttachArtifactDialog,
+        handleAttachArtifacts,
+        handleRemoveArtifactRef,
+        handleRemoveFile,
+        handleRemovePendingPaste,
+        handlePendingPasteClick,
+        handleSaveMetadata,
+        handleCancelArtifactForm,
+        handlePreviewArtifactDownload,
+        handlePreviewGoToChat,
+        handlePreviewGoToProject,
+        captureAndClearForSubmit,
+        restoreFromCapture,
+    } = attachments;
 
     const [contextText, setContextText] = useState<string | null>(null);
     const [contextSourceId, setContextSourceId] = useState<string | null>(null);
@@ -211,7 +232,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevSessionIdRef.current = sessionId;
         setContextText(null);
-    }, [pendingPrompt, sessionId]);
+    }, [pendingPrompt, sessionId, setPendingPastedTextItems, setSelectedArtifactRefs]);
 
     useEffect(() => {
         if (prevIsRespondingRef.current && !isResponding) {
@@ -315,7 +336,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             console.log("[ChatInputArea] Removing snip-to-chat event listener");
             window.removeEventListener(SNIP_TO_CHAT_EVENT, handleSnipToChat);
         };
-    }, []);
+    }, [setSelectedFiles]);
 
     const handleFileSelect = () => {
         if (!isResponding) {
@@ -383,48 +404,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         // Small text pastes go through normally (no preventDefault)
     };
 
-    // Handle saving metadata from the dialog (no upload yet - just stores the configuration)
-    const handleSaveMetadata = (metadata: PasteMetadata) => {
-        if (!selectedPendingPasteId) return;
-
-        // Update the pending item with the new metadata
-        setPendingPastedTextItems(prev =>
-            prev.map(item =>
-                item.id === selectedPendingPasteId
-                    ? {
-                          ...item,
-                          content: metadata.content,
-                          filename: metadata.filename,
-                          mimeType: metadata.mimeType,
-                          description: metadata.description,
-                          isConfigured: true,
-                      }
-                    : item
-            )
-        );
-
-        setSelectedPendingPasteId(null);
-        setShowArtifactForm(false);
-    };
-
-    const handleCancelArtifactForm = () => {
-        setSelectedPendingPasteId(null);
-        setShowArtifactForm(false);
-    };
-
-    const handlePendingPasteClick = (id: string) => {
-        setSelectedPendingPasteId(id);
-        setShowArtifactForm(true);
-    };
-
-    const handleRemovePendingPaste = (id: string) => {
-        setPendingPastedTextItems(prev => prev.filter(item => item.id !== id));
-    };
-
-    const handleRemoveFile = (index: number) => {
-        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
     // Refocus the chat input after the attachment row re-renders, so users can
     // keep typing without a manual click. Using a useEffect keyed on the
     // attached-count (rather than a setTimeout) avoids a brittle magic delay.
@@ -435,61 +414,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         }
         prevArtifactRefsLenRef.current = selectedArtifactRefs.length;
     }, [selectedArtifactRefs.length]);
-
-    const handleAttachArtifacts = (artifactsToAttach: ArtifactWithSession[]) => {
-        setSelectedArtifactRefs(prev => {
-            const existingUris = new Set(prev.map(a => a.uri).filter(Boolean));
-            const deduped = artifactsToAttach.filter(a => a.uri && !existingUris.has(a.uri));
-            return deduped.length ? [...prev, ...deduped] : prev;
-        });
-    };
-
-    const handleRemoveArtifactRef = (uri: string) => {
-        setSelectedArtifactRefs(prev => prev.filter(a => a.uri !== uri));
-    };
-
-    const handlePreviewArtifactDownload = useCallback(
-        async (artifact: ArtifactWithSession) => {
-            try {
-                const response = await api.webui.get(getArtifactApiUrl(artifact), { fullResponse: true });
-                if (!response.ok) {
-                    throw new Error(await getErrorFromResponse(response));
-                }
-                const blob = await response.blob();
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = downloadUrl;
-                link.download = artifact.filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(downloadUrl);
-                addNotification(`Downloaded ${artifact.filename}`, "success");
-            } catch (error) {
-                displayError({ title: "Download Failed", error: getErrorMessage(error) });
-            }
-        },
-        [addNotification, displayError]
-    );
-
-    const handlePreviewGoToChat = useCallback(
-        async (artifact: ArtifactWithSession) => {
-            setPreviewingArtifact(null);
-            await handleSwitchSession(artifact.sessionId);
-            navigate("/chat");
-        },
-        [handleSwitchSession, navigate]
-    );
-
-    const handlePreviewGoToProject = useCallback(
-        (artifact: ArtifactWithSession) => {
-            // The dialog hides Go-to-Project when projectId is missing, so this
-            // path is only reached for valid project artifacts.
-            setPreviewingArtifact(null);
-            navigate(`/projects/${artifact.projectId}`);
-        },
-        [navigate]
-    );
 
     const isSubmittingEnabled = useMemo(
         () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
@@ -510,10 +434,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 fullMessage = `Context: "${escapeMarkdown(contextText)}"\n\n${fullMessage}`;
             }
 
-            // Capture values needed for async work before clearing input
-            const capturedSelectedFiles = [...selectedFiles];
-            const capturedPendingPastedTextItems = [...pendingPastedTextItems];
-            const capturedSelectedArtifactRefs = [...selectedArtifactRefs];
+            // Capture values needed for async work before clearing input.
+            // The attachments hook owns capture/restore for files / artifact
+            // refs / pasted-text + the per-slice intentional-clear flag.
+            const attachmentsCapture = captureAndClearForSubmit();
             const capturedContextText = contextText;
             const capturedContextSourceId = contextSourceId;
             const capturedShowContextBadge = showContextBadge;
@@ -521,10 +445,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             const capturedMentionMap = new Map(mentionMap);
             const capturedInnerHTML = chatInputRef.current?.innerHTML || "";
 
-            const resetInputState = () => {
-                setSelectedFiles([]);
-                setPendingPastedTextItems([]);
-                setSelectedArtifactRefs([]);
+            const resetTextInput = () => {
                 setInputValue("");
                 setMentionMap(new Map());
                 setContextText(null);
@@ -536,9 +457,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             };
 
             const restoreInputState = () => {
-                // Only restore fields the user hasn't modified since the reset.
-                // If the user typed new content or attached new files while the
-                // async operation was in-flight, overwriting would lose their work.
+                // Only restore typed text the user hasn't replaced since the reset.
+                // If the user typed new content while the async operation was
+                // in-flight, overwriting would lose their work.
                 const currentInnerHTML = chatInputRef.current?.innerHTML || "";
                 const userHasTypedNew = currentInnerHTML !== "";
                 if (!userHasTypedNew) {
@@ -548,17 +469,16 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                         chatInputRef.current.innerHTML = capturedInnerHTML;
                     }
                 }
-                // Only restore non-text fields if the user hasn't added new ones
-                setSelectedFiles(current => (current.length > 0 ? current : capturedSelectedFiles));
-                setPendingPastedTextItems(current => (current.length > 0 ? current : capturedPendingPastedTextItems));
-                setSelectedArtifactRefs(current => (current.length > 0 ? current : capturedSelectedArtifactRefs));
+                // Restore attachments via the hook (skips slices the user
+                // explicitly cleared during the in-flight submit).
+                restoreFromCapture(attachmentsCapture);
                 setContextText(current => (current !== null ? current : capturedContextText));
                 setContextSourceId(current => (current !== null ? current : capturedContextSourceId));
                 setShowContextBadge(current => (current ? current : capturedShowContextBadge));
             };
 
             // Clear input immediately for snappy UX — all needed values are captured above
-            resetInputState();
+            resetTextInput();
 
             try {
                 // Upload all pending pasted text items as artifacts, then create references
@@ -575,7 +495,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 const existingFilenames = new Set(artifacts.map(a => a.filename));
 
                 const uploadErrors: string[] = [];
-                for (const item of capturedPendingPastedTextItems) {
+                for (const item of attachmentsCapture.pastedTextItems) {
                     // Use configured metadata if available, otherwise generate defaults
                     let filename: string;
                     let mimeType: string;
@@ -660,7 +580,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 // ChatProvider.handleSubmit sends them as file parts with a URI instead
                 // of re-uploading. The URI is authoritative — the backend re-checks the
                 // user's access to the artifact when the agent fetches it.
-                const existingArtifactFiles: File[] = capturedSelectedArtifactRefs
+                const existingArtifactFiles: File[] = attachmentsCapture.artifactRefs
                     .filter(artifact => !!artifact.uri)
                     .map(artifact => {
                         const artifactData = JSON.stringify({
@@ -676,7 +596,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     });
 
                 // Combine regular files with artifact references (pasted-text uploads + pre-existing artifacts)
-                const allFiles = [...capturedSelectedFiles, ...artifactFiles, ...existingArtifactFiles];
+                const allFiles = [...attachmentsCapture.files, ...artifactFiles, ...existingArtifactFiles];
 
                 // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
                 // as the uploaded artifacts (avoids React state timing issues)

@@ -408,6 +408,58 @@ describe("ChatInputArea — selectedArtifactRefs restore on submit failure", () 
         });
     });
 
+    test("suppresses restore for a slice the user explicitly cleared during the in-flight submit", async () => {
+        // The pre-flag behavior would re-add the captured ref if the user's
+        // explicit removal left the slice empty (length === 0). The intentional-
+        // clear flag distinguishes "user didn't touch it" from "user wiped it on
+        // purpose" so the restore doesn't undo their action.
+        seedArtifacts([makeArtifact({ filename: "to-remove.txt", uri: "artifact://sess-1/to-remove.txt" })]);
+        let rejectFn: (err: Error) => void;
+        const handleSubmit = vi.fn().mockImplementation(
+            () =>
+                new Promise<void>((_resolve, reject) => {
+                    rejectFn = reject;
+                })
+        );
+
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("message");
+
+        await attachArtifactsViaDialog(["to-remove.txt"]);
+        await userEvent.click(screen.getByTestId("sendMessage"));
+
+        // Card cleared immediately after resetInputState runs.
+        await waitFor(() => {
+            expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+        });
+
+        // Re-attach during the in-flight submit so we have something to remove.
+        await attachArtifactsViaDialog(["to-remove.txt"]);
+        await waitFor(() => {
+            expect(screen.getByTitle("to-remove.txt")).toBeInTheDocument();
+        });
+
+        // Now explicitly remove it (X on the card).
+        await userEvent.click(screen.getByRole("button", { name: /remove attached artifact/i }));
+        await waitFor(() => {
+            expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+        });
+
+        // Submit rejects — the captured ref must NOT be restored, since the
+        // user just deliberately dropped it.
+        await act(async () => {
+            rejectFn!(new Error("Network error"));
+        });
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+
+        expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+    });
+
     test("does not clobber newly-attached artifacts if the user attached a different ref during the async gap", async () => {
         seedArtifacts([makeArtifact({ filename: "original.txt", uri: "artifact://sess-1/original.txt" }), makeArtifact({ filename: "new.txt", uri: "artifact://sess-1/new.txt" })]);
         let rejectFn: (err: Error) => void;
