@@ -44,17 +44,17 @@ class SessionService:
 
     def _find_sessions_with_running_background_tasks(
         self, db: DbSession, user_id: UserId, session_ids: list[str]
-    ) -> dict[str, bool]:
-        """Return {session_id: True} for sessions in `session_ids` that have a
-        background task still running for `user_id`.
+    ) -> set[str]:
+        """Return the subset of `session_ids` that have a background task
+        still running for `user_id`.
 
         Scoped at the SQL layer to (user, page's sessions, background mode,
         non-terminal status) so cost is bounded by page size, not by total
         background-task history. task_metadata is parsed only for the matching
-        rows since chat-side completion can lead TaskModel.status.
+        rows because chat-side completion can lead TaskModel.status.
         """
         if not session_ids:
-            return {}
+            return set()
 
         from ..repository.models import ChatTaskModel
         from ..repository.models.task_model import TaskModel
@@ -76,10 +76,8 @@ class SessionService:
         )
 
         terminal_statuses = {"completed", "error", "failed"}
-        session_task_map: dict[str, bool] = {}
+        running: set[str] = set()
         for session_id, raw_metadata in rows:
-            if not session_id:
-                continue
             if raw_metadata:
                 try:
                     metadata = (
@@ -91,10 +89,10 @@ class SessionService:
                         continue
                 except Exception as e:
                     log.warning(
-                        f"[get_user_sessions] Failed to parse task metadata for session {session_id}: {e}"
+                        f"Failed to parse task metadata for session {session_id}: {e}"
                     )
-            session_task_map[session_id] = True
-        return session_task_map
+            running.add(session_id)
+        return running
 
     def get_user_sessions(
         self,
@@ -143,13 +141,9 @@ class SessionService:
 
         # Check for running background tasks in these sessions
         session_ids = [s.id for s in sessions]
-        session_task_map = self._find_sessions_with_running_background_tasks(db, user_id, session_ids)
-
-        # Add background task status to sessions
+        running = self._find_sessions_with_running_background_tasks(db, user_id, session_ids)
         for session in sessions:
-            session.has_running_background_task = session_task_map.get(session.id, False)
-            if session.has_running_background_task:
-                log.debug(f"[get_user_sessions] Marking session {session.id} as having running background task")
+            session.has_running_background_task = session.id in running
 
         return PaginatedResponse.create(sessions, total_count, pagination)
 
@@ -472,61 +466,10 @@ class SessionService:
                     session.project_name = project_map.get(session.project_id)
 
         # Check for running background tasks in these sessions
-        task_repo = TaskRepository()
         session_ids = [s.id for s in sessions]
-        
-        # Get all running background tasks for this user
-        running_bg_tasks = task_repo.find_background_tasks_by_status(db, status=None)
-        running_bg_tasks = [
-            task for task in running_bg_tasks
-            if task.status in [None, "running", "pending"] and task.end_time is None and task.user_id == user_id
-        ]
-        
-        log.info(f"[search_sessions] Found {len(running_bg_tasks)} running background tasks for user {user_id}")
-        
-        # Create a map of session_id -> has_running_background_task
-        # Query ChatTaskModel to find which sessions these tasks belong to
-        # Also filter out tasks that have been marked as completed in their metadata
-        from ..repository.models import ChatTaskModel
-        import json
-        session_task_map = {}
-        if running_bg_tasks:
-            task_ids = [task.id for task in running_bg_tasks]
-            log.info(f"[search_sessions] Looking up chat tasks for task IDs: {task_ids}")
-            
-            # Query chat tasks for these task IDs
-            chat_tasks = db.query(ChatTaskModel).filter(
-                ChatTaskModel.id.in_(task_ids),
-                ChatTaskModel.user_id == user_id
-            ).all()
-            
-            log.info(f"[search_sessions] Found {len(chat_tasks)} chat tasks")
-            
-            for chat_task in chat_tasks:
-                if chat_task.session_id:
-                    # Check if task metadata indicates completion
-                    is_completed = False
-                    if chat_task.task_metadata:
-                        try:
-                            metadata = json.loads(chat_task.task_metadata) if isinstance(chat_task.task_metadata, str) else chat_task.task_metadata
-                            task_status = metadata.get("status")
-                            is_completed = task_status in ["completed", "error", "failed"]
-                            log.info(f"[search_sessions] Task {chat_task.id} metadata status: {task_status}, is_completed: {is_completed}")
-                        except Exception as e:
-                            log.warning(f"[search_sessions] Failed to parse task metadata for {chat_task.id}: {e}")
-                    
-                    # Only mark session as having running task if task is not completed
-                    if not is_completed:
-                        session_task_map[chat_task.session_id] = True
-                        log.info(f"[search_sessions] Session {chat_task.session_id} has running background task {chat_task.id}")
-                    else:
-                        log.info(f"[search_sessions] Task {chat_task.id} is completed, not marking session as having running task")
-        
-        # Add background task status to sessions
+        running = self._find_sessions_with_running_background_tasks(db, user_id, session_ids)
         for session in sessions:
-            session.has_running_background_task = session_task_map.get(session.id, False)
-            if session.has_running_background_task:
-                log.info(f"[search_sessions] Marking session {session.id} as having running background task")
+            session.has_running_background_task = session.id in running
 
         log.info(
             "Search for '%s' by user %s returned %d results (total: %d)",
