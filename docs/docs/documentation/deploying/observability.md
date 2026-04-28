@@ -10,7 +10,7 @@ Understanding how your Agent Mesh system operates in real-time is crucial for ma
 These observability tools work together to create a complete picture of your system's health and performance. Whether you're troubleshooting a specific issue, optimizing performance, or simply monitoring day-to-day operations, these tools provide the visibility you need to maintain a robust agent mesh.
 
 :::tip Complementary Tools
-The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md).
+The observability features described here focus on runtime behavior and message flows. For information about application logging, see [Logging Configuration](./logging.md). For application metrics and OpenTelemetry integration, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md).
 :::
 
 ## Viewing Activities
@@ -105,3 +105,23 @@ These comprehensive logs create a valuable data source for advanced visualizatio
 ### Storage Location
 
 By default, `.stim` files are written to the `/tmp/solace-agent-mesh/` directory. This location provides fast access for analysis while keeping logs separate from your application data.
+
+## Application Metrics with OpenTelemetry
+
+The observability features described above provide visibility into message flows, agent interactions, and request lifecycles through visual tools and detailed trace logs. Agent Mesh Enterprise extends this foundation with standards-based application metrics powered by OpenTelemetry, enabling integration with your organization's existing observability stack.
+
+Application metrics provide a different dimension of visibility compared to the runtime observability tools. While the activity viewer and stimulus logs help you understand individual request flows, metrics provide aggregated insights into system health, performance trends, and resource utilization over time. This metrics-based approach enables proactive monitoring, alerting, and capacity planning that complements the request-level visibility you get from other observability tools.
+
+Agent Mesh Enterprise instruments key application domains with latency-based metrics, providing visibility into:
+
+**Agent Performance**: Monitor agent response times, throughput, and error rates to understand agent utilization and identify bottlenecks.
+
+**LLM Operations**: Track inference latency, time-to-first-token, token consumption, and costs across different models to optimize AI model selection and usage.
+
+**Gateway Performance**: Measure request handling latency and time-to-first-byte for gateway endpoints to ensure responsive user experiences.
+
+**Database Operations**: Monitor query latency and operation counts to identify slow database interactions and optimize persistence layers.
+
+**External Dependencies**: Track outbound service call latency to external systems and APIs to understand dependency behavior and identify integration issues.
+
+For comprehensive information about enabling metrics, configuring metric collection, and integrating with observability platforms, see [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md).

@@ -31,17 +31,38 @@ All endpoints return:
 
 ## Enabling Health Checks
 
-Add the `health_check` section at the top level of your YAML configuration (outside the `apps:` block). You only need to add this to one configuration file for the health check server to run in the container:
+Health checks are configured through the `management_server` section, which provides a unified operational endpoint for health probes, metrics, and other management functions.
+
+Add the `management_server` configuration to your YAML configuration file:
 
 ```yaml
-health_check:
+management_server:
   enabled: true
   port: 8080  # Default port
+  
+  health:
+    enabled: true
+    liveness_path: /healthz
+    readiness_path: /readyz
+    startup_path: /startup
 
 apps:
   - name: my-agent-app
     # ... app configuration ...
 ```
+
+:::warning Deprecated Configuration Format
+The top-level `health_check` configuration format is deprecated and will be removed in a future release:
+
+```yaml
+# DEPRECATED - Do not use in new configurations
+health_check:
+  enabled: true
+  port: 8080
+```
+
+Migrate to the `management_server.health` format shown above. The deprecated format currently still works for backward compatibility but will be removed in a future version.
+:::
 
 ## Built-in Health Checks
 
@@ -230,11 +251,54 @@ The `/startup` and `/readyz` endpoints evaluate the following checks:
 
 ## Configuration Reference
 
-### Global Health Check Options
+### Management Server Health Options
 
-Configure the health check server at the top level of your YAML configuration:
+Configure health checks through the `management_server` section:
 
 ```yaml
+management_server:
+  enabled: true
+  port: 8080
+  
+  health:
+    enabled: true
+    liveness_path: /healthz
+    readiness_path: /readyz
+    startup_path: /startup
+    readiness_check_period_seconds: 5
+    startup_check_period_seconds: 5
+```
+
+#### Management Server Options
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `enabled` | boolean | `false` | Enable the management server |
+| `port` | integer | `8080` | Port for the management HTTP server |
+
+#### Health Check Options
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `enabled` | boolean | `false` | Enable health check endpoints |
+| `liveness_path` | string | `/healthz` | URL path for liveness probe endpoint |
+| `readiness_path` | string | `/readyz` | URL path for readiness probe endpoint |
+| `startup_path` | string | `/startup` | URL path for startup probe endpoint |
+| `readiness_check_period_seconds` | integer | `5` | Interval in seconds for internal readiness monitoring |
+| `startup_check_period_seconds` | integer | `5` | Interval in seconds for internal startup monitoring |
+
+:::tip Custom Endpoint Paths
+If your infrastructure requires different endpoint paths (for example, to avoid conflicts with other services), you can customize them using `liveness_path`, `readiness_path`, and `startup_path`. Remember to update your Kubernetes probe configurations to match.
+:::
+
+### Deprecated Configuration Format
+
+:::warning Deprecated
+The following top-level `health_check` configuration format is deprecated and will be removed in a future release. Migrate to the `management_server.health` format shown above.
+:::
+
+```yaml
+# DEPRECATED - Do not use in new configurations
 health_check:
   enabled: true
   port: 8080
@@ -244,20 +308,6 @@ health_check:
   readiness_check_period_seconds: 5
   startup_check_period_seconds: 5
 ```
-
-| Option | Type | Default | Description |
-| ------ | ---- | ------- | ----------- |
-| `enabled` | boolean | `false` | Enable health check endpoints |
-| `port` | integer | `8080` | Port for health check HTTP server |
-| `liveness_path` | string | `/healthz` | URL path for liveness probe endpoint |
-| `readiness_path` | string | `/readyz` | URL path for readiness probe endpoint |
-| `startup_path` | string | `/startup` | URL path for startup probe endpoint |
-| `readiness_check_period_seconds` | integer | `5` | Interval in seconds for internal readiness monitoring |
-| `startup_check_period_seconds` | integer | `5` | Interval in seconds for internal startup monitoring |
-
-:::tip Custom Endpoint Paths
-If your infrastructure requires different endpoint paths (e.g., to avoid conflicts with other services), you can customize them using `liveness_path`, `readiness_path`, and `startup_path`. Remember to update your Kubernetes probe configurations to match.
-:::
 
 ### App-specific Health Check Options
 
@@ -329,6 +379,7 @@ broker:
 
 ## Related Documentation
 
+- [Application Metrics with OpenTelemetry](../enterprise/otel-metrics.md) - Configure application metrics using the same management server (Enterprise)
 - [solace-ai-connector Health Checks](https://github.com/SolaceLabs/solace-ai-connector/blob/main/docs/health_checks.md) - Underlying health check implementation
 - [Kubernetes Deployment Guide](./kubernetes/kubernetes-deployment-guide.md) - Detailed Kubernetes deployment instructions
 - [Logging Configuration](./logging.md) - Configure logging for health check debugging
