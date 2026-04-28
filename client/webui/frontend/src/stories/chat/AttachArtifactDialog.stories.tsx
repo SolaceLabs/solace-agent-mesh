@@ -110,6 +110,10 @@ export const VersionPickerEncodesSelectedVersion: Story = {
                                 mimeType: "application/pdf",
                                 lastModified: "2026-01-01T00:00:00Z",
                                 uri: "artifact://my-app/user-1/sess-1/report.pdf",
+                                // Backend reports the resolved-latest version
+                                // so the picker can default to it without an
+                                // extra round-trip.
+                                version: 2,
                                 sessionId: "sess-1",
                                 sessionName: "Session One",
                                 projectId: null,
@@ -123,7 +127,7 @@ export const VersionPickerEncodesSelectedVersion: Story = {
                         nextPage: null,
                     });
                 }),
-                // The per-row picker lazy-fetches versions on first open.
+                // The per-row picker lazy-fetches the full version list on first open.
                 http.get("*/api/v1/artifacts/:sessionId/report.pdf/versions", () => {
                     return HttpResponse.json([0, 1, 2]);
                 }),

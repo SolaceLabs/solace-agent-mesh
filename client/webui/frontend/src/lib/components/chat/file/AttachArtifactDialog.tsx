@@ -10,30 +10,37 @@ import { formatBytes } from "@/lib/utils/format";
 import { getFileTypeColor } from "./FileIcon";
 import { getExtensionLabel } from "./attachmentUtils";
 
-const LATEST_VERSION_VALUE = "latest";
-
 /**
- * Inline per-row version picker. Lazy-loads versions on first open so a
- * dialog with 30+ artifacts doesn't fan out N list_versions calls upfront.
- * Mirrors the look of the side-panel `ArtifactDetails` selector.
+ * Inline per-row version picker. The default is the resolved-latest version
+ * provided by the bulk-list endpoint (a concrete number, not a "Latest"
+ * sentinel — that label would have falsely implied live-sync semantics; in
+ * practice the selected version is snapshot into the agent's namespace at
+ * attach time and frozen). The full version list is lazy-loaded on first
+ * open so a dialog with 30+ artifacts doesn't fan out N list_versions calls
+ * upfront. Mirrors the look of the side-panel `ArtifactDetails` selector.
  */
 const ArtifactVersionPicker: React.FC<{
     artifact: ArtifactWithSession;
-    value: string;
-    onValueChange: (value: string) => void;
+    value: number;
+    onValueChange: (value: number) => void;
 }> = ({ artifact, value, onValueChange }) => {
     const [hasOpened, setHasOpened] = useState(false);
-    const { data: versions, isLoading } = useArtifactVersions({
+    const { data: lazyVersions, isLoading } = useArtifactVersions({
         sessionId: artifact.sessionId,
         projectId: artifact.projectId,
         filename: artifact.filename,
         enabled: hasOpened,
     });
 
+    // Until the user opens the picker we only know the latest version (from
+    // the bulk-list response). Render that single option; the lazy fetch
+    // expands the list once they look.
+    const versions = lazyVersions ?? (typeof artifact.version === "number" ? [artifact.version] : []);
+
     return (
         <Select
-            value={value}
-            onValueChange={onValueChange}
+            value={value.toString()}
+            onValueChange={v => onValueChange(parseInt(v, 10))}
             onOpenChange={open => {
                 if (open) setHasOpened(true);
             }}
@@ -46,20 +53,19 @@ const ArtifactVersionPicker: React.FC<{
                     e.stopPropagation();
                 }}
             >
-                <SelectValue placeholder="Latest" />
+                <SelectValue />
             </SelectTrigger>
             <SelectContent
                 onClick={e => {
                     e.stopPropagation();
                 }}
             >
-                <SelectItem value={LATEST_VERSION_VALUE}>Latest</SelectItem>
                 {isLoading && (
                     <div className="flex items-center justify-center py-1">
                         <Spinner size="small" variant="muted" />
                     </div>
                 )}
-                {versions?.map(v => (
+                {versions.map(v => (
                     <SelectItem key={v} value={v.toString()}>
                         Version {v}
                     </SelectItem>
@@ -81,18 +87,16 @@ const resolveArtifactUri = (artifact: ArtifactWithSession): string | null => {
 };
 
 /**
- * Apply a per-row version override to a canonical artifact URI. "Latest" maps
- * to omitting `?version=` so the agent-side translator resolves the latest at
- * fetch time. A specific version is encoded as `?version=N`, replacing any
- * pre-existing query.
+ * Apply a concrete version to a canonical artifact URI as `?version=N`,
+ * replacing any pre-existing query. The version is always explicit (the
+ * dialog resolved "latest" to a concrete number when the row was rendered)
+ * so the snapshot semantics are visible end-to-end.
  */
-const applyVersionToUri = (uri: string, version: string): string => {
+const applyVersionToUri = (uri: string, version: number): string => {
     try {
         const url = new URL(uri);
         url.search = "";
-        if (version !== LATEST_VERSION_VALUE) {
-            url.searchParams.set("version", version);
-        }
+        url.searchParams.set("version", version.toString());
         return url.toString();
     } catch {
         return uri;
@@ -116,9 +120,10 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
     const { data: artifacts = [], isLoading, hasMore, loadMore, isLoadingMore } = useAllArtifacts(debouncedSearch || undefined);
 
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
-    // Per-row version override; absent entry = "latest". Keyed the same way
-    // as `selectedKeys` so they can be looked up together when attaching.
-    const [versionByKey, setVersionByKey] = useState<Map<string, string>>(new Map());
+    // Per-row version override; absent entry = the artifact's own
+    // backend-resolved latest version. Keyed the same way as `selectedKeys` so
+    // they can be looked up together when attaching.
+    const [versionByKey, setVersionByKey] = useState<Map<string, number>>(new Map());
 
     // Reset state when dialog closes so it opens fresh next time.
     useEffect(() => {
@@ -169,10 +174,12 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                 .filter(({ artifact }) => selectedKeys.has(keyFor(artifact)))
                 .map(({ artifact, resolvedUri }) => {
                     const baseUri = resolvedUri ?? artifact.uri;
-                    const versionChoice = versionByKey.get(keyFor(artifact)) ?? LATEST_VERSION_VALUE;
-                    // Encode the per-row version override on the URI so the
-                    // chat submit pipeline doesn't need to re-resolve it.
-                    const finalUri = baseUri ? applyVersionToUri(baseUri, versionChoice) : baseUri;
+                    // Use the per-row override if set, else the artifact's
+                    // backend-resolved latest version. Either way, the URI
+                    // always carries an explicit `?version=N` — no implicit
+                    // "latest" semantics survive into the submit pipeline.
+                    const versionChoice = versionByKey.get(keyFor(artifact)) ?? artifact.version;
+                    const finalUri = baseUri && typeof versionChoice === "number" ? applyVersionToUri(baseUri, versionChoice) : baseUri;
                     return { ...artifact, uri: finalUri };
                 }),
         [visibleArtifacts, selectedKeys, versionByKey]
@@ -243,17 +250,19 @@ export const AttachArtifactDialog: React.FC<AttachArtifactDialogProps> = ({ isOp
                                                     <div className="min-w-0 flex-1 truncate text-sm font-medium text-(--primary-text-wMain)" title={artifact.filename}>
                                                         {artifact.filename}
                                                     </div>
-                                                    <ArtifactVersionPicker
-                                                        artifact={artifact}
-                                                        value={versionByKey.get(k) ?? LATEST_VERSION_VALUE}
-                                                        onValueChange={v => {
-                                                            setVersionByKey(prev => {
-                                                                const next = new Map(prev);
-                                                                next.set(k, v);
-                                                                return next;
-                                                            });
-                                                        }}
-                                                    />
+                                                    {typeof artifact.version === "number" && (
+                                                        <ArtifactVersionPicker
+                                                            artifact={artifact}
+                                                            value={versionByKey.get(k) ?? artifact.version}
+                                                            onValueChange={v => {
+                                                                setVersionByKey(prev => {
+                                                                    const next = new Map(prev);
+                                                                    next.set(k, v);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                        />
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                                                     <span className="truncate">{artifact.mime_type}</span>

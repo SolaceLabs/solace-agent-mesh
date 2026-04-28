@@ -548,26 +548,31 @@ async def upload_artifact_with_session(
 
 class ArtifactWithContext(BaseModel):
     """Artifact info with session/project context for bulk listing."""
-    
+
     # Core artifact fields from ArtifactInfo
     filename: str
     size: int
     mime_type: Optional[str] = Field(None, alias="mimeType")
     last_modified: Optional[str] = Field(None, alias="lastModified")  # ISO date string
     uri: Optional[str] = None
-    
+    # Resolved-latest version captured during the metadata load (free —
+    # load_artifact_content_or_metadata had to call list_versions anyway).
+    # The WebUI uses this so the attach-artifact dialog can default its
+    # version picker to a concrete number instead of a "Latest" sentinel.
+    version: Optional[int] = None
+
     # Context fields
     session_id: str = Field(..., alias="sessionId")
     session_name: Optional[str] = Field(None, alias="sessionName")
     project_id: Optional[str] = Field(None, alias="projectId")
     project_name: Optional[str] = Field(None, alias="projectName")
-    
+
     # Source field for origin badges (upload, generated, project)
     source: Optional[str] = None
-    
+
     # Tags for categorization (e.g., ["__working"] to mark as internal)
     tags: Optional[list[str]] = None
-    
+
     model_config = {"populate_by_name": True}
 
 
@@ -835,6 +840,7 @@ async def list_all_artifacts(
                         mime_type=artifact.mime_type,
                         last_modified=artifact.last_modified,
                         uri=artifact.uri,
+                        version=artifact.version,
                         session_id=session_id,
                         session_name=session_name,
                         project_id=project_id,

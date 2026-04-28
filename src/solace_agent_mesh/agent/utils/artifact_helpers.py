@@ -1311,7 +1311,17 @@ async def get_artifact_info_list_fast(
                     log_identifier_prefix=f"{log_prefix} [{filename}]",
                 )
 
-                info = _metadata_to_artifact_info(filename, data.get("metadata", {}))
+                # `version` is the metadata file's resolved-latest version,
+                # captured for free here (load_artifact_content_or_metadata
+                # already had to call list_versions to resolve "latest"). The
+                # WebUI's attach-artifact dialog uses this to pre-fill its
+                # version picker default with a concrete number rather than a
+                # "Latest" sentinel.
+                info = _metadata_to_artifact_info(
+                    filename,
+                    data.get("metadata", {}),
+                    version=data.get("version"),
+                )
                 # Populate the canonical 4-segment artifact:// URI so consumers
                 # (the chat-input attach dialog) can pass it to handleSubmit
                 # without falling back to a synthesized form the agent-side

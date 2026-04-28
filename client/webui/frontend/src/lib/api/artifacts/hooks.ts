@@ -20,6 +20,7 @@ function transformArtifacts(artifacts: BulkArtifactsResponse["artifacts"]): Arti
         mime_type: artifact.mimeType ?? "application/octet-stream",
         last_modified: artifact.lastModified ?? new Date().toISOString(),
         uri: artifact.uri ?? "",
+        version: artifact.version ?? undefined,
         sessionId: artifact.sessionId,
         sessionName: artifact.sessionName,
         projectId: artifact.projectId ?? undefined,

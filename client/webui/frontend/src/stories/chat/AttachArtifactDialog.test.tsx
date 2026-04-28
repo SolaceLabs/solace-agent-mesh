@@ -69,6 +69,7 @@ function toRawArtifact(a: ArtifactWithSession) {
         mimeType: a.mime_type,
         lastModified: a.last_modified,
         uri: a.uri,
+        version: a.version ?? null,
         sessionId: a.sessionId,
         sessionName: a.sessionName,
         projectId: a.projectId ?? null,
@@ -128,14 +129,14 @@ describe("AttachArtifactDialog", () => {
         expect(screen.getByText(/no artifacts available/i)).toBeInTheDocument();
     });
 
-    test("emits the canonical artifact:// URI without ?version when the user keeps the 'Latest' default", async () => {
-        // The /artifacts/all endpoint returns a canonical 4-segment URI
-        // without a `?version=N` query (the agent-side translator resolves
-        // "latest" at fetch time). The dialog forwards it untouched when the
-        // per-row version picker is left on its default.
+    test("encodes the backend-reported latest version on the emitted URI by default", async () => {
+        // The /artifacts/all endpoint returns the resolved-latest version
+        // alongside each record. The dialog uses that as the picker's
+        // default and bakes it into the URI as ?version=N — no implicit
+        // "latest" semantics survive into the submit pipeline.
         const canonical = "artifact://my-app/user-1/sess-legacy/legacy.txt";
         const onAttach = vi.fn();
-        renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-legacy", uri: canonical })], { onAttach });
+        renderDialog([makeArtifact({ filename: "legacy.txt", sessionId: "sess-legacy", uri: canonical, version: 2 })], { onAttach });
 
         await userEvent.click(screen.getByText("legacy.txt"));
         await userEvent.click(screen.getByRole("button", { name: /attach 1/i }));
@@ -143,14 +144,14 @@ describe("AttachArtifactDialog", () => {
         expect(onAttach).toHaveBeenCalledTimes(1);
         const [emitted] = onAttach.mock.calls[0];
         expect(emitted).toHaveLength(1);
-        expect(emitted[0].uri).toBe(canonical);
+        expect(emitted[0].uri).toBe(`${canonical}?version=2`);
     });
 
     test("hides records that arrive without a canonical URI (treats them as unattachable)", () => {
         // Backend should always return `uri` on the bulk endpoint. If a record
         // arrives without one, the agent-side translator would reject any
         // fallback we synthesized — surface "unattachable" by hiding it.
-        renderDialog([makeArtifact({ filename: "broken.txt", sessionId: "sess-x", uri: "" })]);
+        renderDialog([makeArtifact({ filename: "broken.txt", sessionId: "sess-x", uri: "", version: 0 })]);
 
         expect(screen.queryByText("broken.txt")).not.toBeInTheDocument();
         expect(screen.getByText(/no artifacts available/i)).toBeInTheDocument();
