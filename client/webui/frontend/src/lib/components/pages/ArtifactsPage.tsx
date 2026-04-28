@@ -21,9 +21,9 @@ import {
     SelectValue,
 } from "@/lib/components/ui";
 import { useChatContext, useDebounce } from "@/lib/hooks";
-import { type ArtifactWithSession, getArtifactApiUrl, isProjectArtifact, useAllArtifacts } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, acquireFetchSlotOrAbort, getArtifactApiUrl, isProjectArtifact, releaseFetchSlot, useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn, createSemaphore, createPersistentCache } from "@/lib/utils";
+import { formatTimestamp, cn, createPersistentCache } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
@@ -60,13 +60,6 @@ const textPreviewCache = createPersistentCache<string>({
 function getDocumentCacheKey(sessionId: string, filename: string, lastModified?: string | null): string {
     return `${sessionId}:${filename}:${lastModified ?? ""}`;
 }
-
-/**
- * Concurrency limiter for preview fetches.
- * Browsers typically allow ~6 concurrent connections per origin.
- * We cap at 4 to leave headroom for user-initiated requests (navigation, downloads, etc.).
- */
-const { release: releaseFetchSlot, acquireOrAbort: acquireFetchSlotOrAbort } = createSemaphore(4);
 
 /**
  * Get file extension from filename

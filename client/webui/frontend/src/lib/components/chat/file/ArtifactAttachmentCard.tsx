@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Spinner } from "@/lib/components/ui";
-import { type ArtifactWithSession, isProjectArtifact } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, acquireFetchSlotOrAbort, isProjectArtifact, releaseFetchSlot } from "@/lib/api/artifacts";
 import { getArtifactContent } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,18 @@ export const ArtifactAttachmentCard: React.FC<ArtifactAttachmentCardProps> = ({ 
         // Without a version, getArtifactUrl returns the list-versions endpoint
         // (responds with [0,1]). Pin to "latest" to always fetch the raw bytes.
         queryKey: ["artifact-attachment-preview", projectId ?? null, sessionId ?? null, artifact.filename, "latest"],
-        queryFn: () => getArtifactContent({ filename: artifact.filename, sessionId, projectId, version: "latest" }),
+        // Cap concurrent preview fetches at 4 across the app so a chat input
+        // with many attached artifacts doesn't saturate the browser's connection
+        // budget — same pattern used by ArtifactsPage.
+        queryFn: async ({ signal }) => {
+            const acquired = await acquireFetchSlotOrAbort(signal);
+            if (!acquired) throw new Error("aborted");
+            try {
+                return await getArtifactContent({ filename: artifact.filename, sessionId, projectId, version: "latest" });
+            } finally {
+                releaseFetchSlot();
+            }
+        },
         enabled: needsFetch,
         staleTime: 5 * 60 * 1000,
         retry: 1,
