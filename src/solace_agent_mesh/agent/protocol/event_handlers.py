@@ -1284,6 +1284,13 @@ async def _handle_send_message_request(
             session_behavior,
         )
     user_id = message.get_user_properties().get("userId", "default_user")
+    gateway_capabilities = message.get_user_properties().get("gatewayCapabilities", {})
+    if not isinstance(gateway_capabilities, dict):
+        log.warning(
+            "%s gatewayCapabilities is not a dict, using empty dict instead",
+            component.log_identifier,
+        )
+        gateway_capabilities = {}
     agent_name = component.get_config("agent_name")
     is_streaming_request = method == "message/stream"
     host_supports_streaming = component.get_config("supports_streaming", False)
@@ -1360,6 +1367,7 @@ async def _handle_send_message_request(
         "session_id": original_session_id,  # Keep for now for compatibility
         "user_id": user_id,
         "client_id": client_id,
+        "gateway_capabilities": gateway_capabilities,
         "is_streaming": is_streaming_request,
         "statusTopic": status_topic_from_peer,
         "replyToTopic": reply_topic_from_peer,

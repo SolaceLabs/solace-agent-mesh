@@ -148,30 +148,50 @@ class TestGenerateResearchPlan:
 class TestIsInteractivePlanClient:
     """Behavioral tests for _is_interactive_plan_client."""
 
-    def test_default_allowlist_accepts_http_sse(self):
-        """No tool_config override -> default allowlist includes http_sse_gateway."""
-        ctx = _make_tool_context(a2a_context={"client_id": "http_sse_gateway"})
+    def test_capability_flag_accepts(self):
+        """Gateway advertises the capability -> verification allowed."""
+        ctx = _make_tool_context(a2a_context={
+            "client_id": "any-gateway-id",
+            "gateway_capabilities": {"interactive_plan_verification": True},
+        })
         assert _is_interactive_plan_client(ctx, None) is True
 
-    def test_default_allowlist_rejects_slack(self):
-        """No tool_config override -> Slack client_id is not on the default list."""
-        ctx = _make_tool_context(a2a_context={"client_id": "slack_gateway_abc"})
+    def test_capability_flag_false_rejects(self):
+        """Gateway explicitly says no -> verification skipped."""
+        ctx = _make_tool_context(a2a_context={
+            "client_id": "any-gateway-id",
+            "gateway_capabilities": {"interactive_plan_verification": False},
+        })
         assert _is_interactive_plan_client(ctx, None) is False
 
-    def test_custom_allowlist_replaces_default(self):
-        """An explicit allowlist replaces the default - http_sse no longer auto-allowed."""
+    def test_no_capability_no_legacy_config_rejects(self):
+        """No capability flag and no legacy allowlist -> default deny (auto-approve path)."""
         ctx = _make_tool_context(a2a_context={"client_id": "http_sse_gateway"})
-        cfg = {"interactive_plan_verification_clients": ["my_custom_webui"]}
-        assert _is_interactive_plan_client(ctx, cfg) is False
+        assert _is_interactive_plan_client(ctx, None) is False
 
-    def test_custom_allowlist_accepts_listed_client(self):
+    def test_legacy_allowlist_still_works(self):
+        """Back-compat: capability missing but operator set the legacy allowlist."""
         ctx = _make_tool_context(a2a_context={"client_id": "my_custom_webui"})
         cfg = {"interactive_plan_verification_clients": ["my_custom_webui"]}
         assert _is_interactive_plan_client(ctx, cfg) is True
 
-    def test_wildcard_accepts_any_client(self):
+    def test_legacy_allowlist_rejects_unlisted_client(self):
+        ctx = _make_tool_context(a2a_context={"client_id": "http_sse_gateway"})
+        cfg = {"interactive_plan_verification_clients": ["my_custom_webui"]}
+        assert _is_interactive_plan_client(ctx, cfg) is False
+
+    def test_legacy_wildcard_accepts_any_client(self):
         ctx = _make_tool_context(a2a_context={"client_id": "slack_gateway_abc"})
         cfg = {"interactive_plan_verification_clients": ["*"]}
+        assert _is_interactive_plan_client(ctx, cfg) is True
+
+    def test_capability_flag_wins_over_legacy_allowlist(self):
+        """Capability flag is checked first; legacy fallback only runs when it's absent."""
+        ctx = _make_tool_context(a2a_context={
+            "client_id": "not-on-list",
+            "gateway_capabilities": {"interactive_plan_verification": True},
+        })
+        cfg = {"interactive_plan_verification_clients": ["only-this-one"]}
         assert _is_interactive_plan_client(ctx, cfg) is True
 
     def test_missing_a2a_context_rejects(self):
@@ -181,6 +201,14 @@ class TestIsInteractivePlanClient:
 
     def test_missing_client_id_rejects(self):
         ctx = _make_tool_context(a2a_context={"user_id": "u1"})
+        assert _is_interactive_plan_client(ctx, None) is False
+
+    def test_malformed_capabilities_falls_through(self):
+        """A non-dict capabilities value is ignored, not crashed on."""
+        ctx = _make_tool_context(a2a_context={
+            "client_id": "x",
+            "gateway_capabilities": "not-a-dict",
+        })
         assert _is_interactive_plan_client(ctx, None) is False
 
 

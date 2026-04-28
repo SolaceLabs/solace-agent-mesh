@@ -985,20 +985,11 @@ Respond in JSON format:
 _PLAN_RESPONSE_TIMEOUT_SECONDS = 600
 
 
-# Default set of gateway client_ids whose surfaces can render and respond to
-# plan-verification signals. Today only the http_sse (WebUI) gateway has the
-# /research/plan-response endpoint; Slack, Teams, and MCP have no transport for
-# returning the user's approval. Override per-agent in tool_config:
-#
-#   tool_config:
-#     interactive_plan_verification: true
-#     interactive_plan_verification_clients:   # optional; defaults to below
-#       - http_sse_gateway
-#       - my_custom_webui_gateway
-#
-# Use ``["*"]`` to opt every client in (treats verification as if any gateway
-# can satisfy it - only safe when every reachable gateway actually can).
-_DEFAULT_INTERACTIVE_PLAN_CLIENTS: tuple = ("http_sse_gateway",)
+# Capability flag a gateway publishes (in user_properties.gatewayCapabilities)
+# when it can render the deep_research_plan signal and POST a plan response.
+# Set by BaseGatewayComponent / its subclasses; see
+# ``gateway/base/component.py::_get_gateway_capabilities``.
+_PLAN_VERIFICATION_CAPABILITY = "interactive_plan_verification"
 
 
 def _is_interactive_plan_client(
@@ -1006,21 +997,29 @@ def _is_interactive_plan_client(
 ) -> bool:
     """Whether the invoking gateway can render and respond to plan signals.
 
-    Reads ``client_id`` from ``a2a_context`` (stamped by the gateway in
-    user_properties.clientId on every A2A request, see
-    ``gateway/base/component.py``) and matches it against the configured
-    allowlist. Returns False when client_id is missing so unknown surfaces
-    fall through to the auto-approve path rather than the publish+wait path.
+    Primary check: the gateway capability flag the gateway stamped on every
+    A2A request. Capability-based gating means the agent does not need to
+    know the gateway's client_id - the gateway itself declares what it can
+    render. Falls back to the legacy ``interactive_plan_verification_clients``
+    allowlist (matched against ``a2a_context.client_id``) for back-compat
+    with deployments that set it before the capability flag existed. Returns
+    False when neither signal says yes, so unknown surfaces fall through to
+    the auto-approve path rather than blocking on a publish+wait that no one
+    can satisfy.
     """
+    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
+    if isinstance(a2a_context, dict):
+        capabilities = a2a_context.get("gateway_capabilities")
+        if isinstance(capabilities, dict) and capabilities.get(_PLAN_VERIFICATION_CAPABILITY):
+            return True
+
+    # Legacy fallback: explicit client_id allowlist from tool_config.
     config = tool_config or {}
-    allowlist = config.get(
-        "interactive_plan_verification_clients",
-        list(_DEFAULT_INTERACTIVE_PLAN_CLIENTS),
-    )
+    allowlist = config.get("interactive_plan_verification_clients")
+    if not allowlist:
+        return False
     if "*" in allowlist:
         return True
-
-    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
     if not isinstance(a2a_context, dict):
         return False
     client_id = a2a_context.get("client_id") or ""
@@ -2180,8 +2179,14 @@ async def deep_research(
                     ),
                 }
 
-            # User may have edited steps - regenerate queries if steps were modified
-            user_steps = verification_result.get("steps", plan_steps)
+            # User may have edited steps - regenerate queries if steps were modified.
+            # Tolerate malformed payloads (null, non-list, non-string entries) by
+            # falling back to the originally-generated plan steps.
+            raw_steps = verification_result.get("steps")
+            if isinstance(raw_steps, list) and all(isinstance(s, str) for s in raw_steps):
+                user_steps = raw_steps
+            else:
+                user_steps = plan_steps
             if user_steps != plan_steps:
                 log.info("%s User modified plan steps, regenerating queries", log_identifier)
                 queries = await _regenerate_queries_from_steps(

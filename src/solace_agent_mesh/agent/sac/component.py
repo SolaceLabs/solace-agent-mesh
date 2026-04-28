@@ -3424,6 +3424,14 @@ class SamAgentComponent(SamComponentBase):
                 # Get current call depth from parent context
                 current_depth = parent_task_context.a2a_context.get("call_depth", 0)
 
+                # Forward the originating gateway's capability flags so peers
+                # can gate interactive flows (e.g. deep_research plan
+                # verification) on what the *user-facing* gateway can render,
+                # not on the peer's own client_id.
+                parent_capabilities = parent_task_context.a2a_context.get("gateway_capabilities")
+                if isinstance(parent_capabilities, dict) and parent_capabilities:
+                    user_properties["gatewayCapabilities"] = parent_capabilities
+
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
                     user_properties["authToken"] = auth_token

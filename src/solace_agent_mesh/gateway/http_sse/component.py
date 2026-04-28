@@ -132,10 +132,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
         #   during embed resolution and rendered inline in the web UI
         # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        # - supports_interactive_plan_verification=True: Web UI renders deep_research_plan and
+        #   POSTs the plan response back via /api/v1/research/plan-response
         super().__init__(
             resolve_artifact_uris_in_gateway=resolve_uris,
             supports_inline_artifact_resolution=True,
             filter_tool_data_parts=False,
+            supports_interactive_plan_verification=True,
             **kwargs
         )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)

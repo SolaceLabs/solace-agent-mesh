@@ -13,11 +13,15 @@
 
 export type RespondedAction = "start" | "cancel" | "stale";
 
-const respondedPlans = new Map<string, RespondedAction>();
+// Snapshot is replaced (not mutated) on every change so useSyncExternalStore
+// can detect updates via referential equality.
+let respondedPlans: ReadonlyMap<string, RespondedAction> = new Map();
 const listeners = new Set<() => void>();
 
 export function markPlanResponded(planId: string, action: RespondedAction) {
-    respondedPlans.set(planId, action);
+    const next = new Map(respondedPlans);
+    next.set(planId, action);
+    respondedPlans = next;
     listeners.forEach(listener => listener());
 }
 
@@ -33,6 +37,6 @@ export function getRespondedPlansSnapshot(): ReadonlyMap<string, RespondedAction
 }
 
 export function __resetRespondedPlansForTest() {
-    respondedPlans.clear();
+    respondedPlans = new Map();
     listeners.forEach(listener => listener());
 }

@@ -1,5 +1,5 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
-import { Brain, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
+import { Brain, CircleDashed, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
 
 import { useSubmitPlanResponse } from "@/lib/api";
 import { Button } from "@/lib/components/ui/button";
@@ -8,12 +8,6 @@ import { useChatContext } from "@/lib/hooks";
 import type { DataPart } from "@/lib/types";
 
 import { getRespondedPlansSnapshot, markPlanResponded, subscribeRespondedPlans } from "./respondedPlansStore";
-
-const DashedCircle = ({ className }: { className?: string }) => (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={className}>
-        <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" strokeLinecap="round" />
-    </svg>
-);
 
 export interface ResearchPlanData {
     type: "deep_research_plan";
@@ -184,7 +178,7 @@ export const ResearchPlanVerification = ({ planData }: ResearchPlanVerificationP
                         : planData.steps.map((step, index) => (
                               <div key={index} className="flex items-start gap-3">
                                   <div className="mt-0.5 flex-shrink-0" aria-hidden="true">
-                                      <DashedCircle className="text-(--secondary-text-wMain)" />
+                                      <CircleDashed className="h-4 w-4 text-(--secondary-text-wMain)" />
                                   </div>
                                   <span className="text-sm leading-relaxed">{step}</span>
                               </div>
