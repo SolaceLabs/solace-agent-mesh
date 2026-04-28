@@ -81,6 +81,7 @@ def _make_mock_db():
     query_mock = MagicMock()
     query_mock.filter.return_value = query_mock
     query_mock.order_by.return_value = query_mock
+    query_mock.distinct.return_value = query_mock
     query_mock.count.return_value = 0
     query_mock.all.return_value = []
     query_mock.first.return_value = None

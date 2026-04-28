@@ -1389,8 +1389,18 @@ async def get_session_context_usage(
         # their later start_time would otherwise trick the agent-switch filter
         # below into treating the peer as the "current agent" whenever a peer
         # completion is the most-recent row in the session.
+        # Project only the columns we actually consume — TaskModel includes
+        # initial_request_text (Text) which is unused here and adds appreciable
+        # row weight on long sessions (p99 ≈ 138 rows per call).
         completed_tasks = (
-            db.query(TaskModel)
+            db.query(
+                TaskModel.id,
+                TaskModel.total_input_tokens,
+                TaskModel.total_output_tokens,
+                TaskModel.total_cached_input_tokens,
+                TaskModel.token_usage_details,
+                TaskModel.start_time,
+            )
             .filter(
                 TaskModel.session_id == session_id,
                 TaskModel.user_id == user_id,
@@ -1407,28 +1417,39 @@ async def get_session_context_usage(
         # leak into the new agent's indicator.
         if completed_tasks:
             task_ids = [t.id for t in completed_tasks]
-            request_events = (
-                db.query(TaskEventModel)
+            # DISTINCT ON caps events at one row per task at the DB layer (the
+            # earliest 'request' event), and we project only (task_id, payload)
+            # — id/topic/created_time/user_id aren't read here. payload stays
+            # JSON because TaskEventModel uses sqlalchemy JSON (not JSONB), so
+            # path extraction via ``->>`` isn't available.
+            request_rows = (
+                db.query(TaskEventModel.task_id, TaskEventModel.payload)
                 .filter(
                     TaskEventModel.task_id.in_(task_ids),
                     TaskEventModel.direction == "request",
                 )
                 .order_by(TaskEventModel.task_id, TaskEventModel.created_time.asc())
+                .distinct(TaskEventModel.task_id)
                 .all()
             )
-            first_request_by_task: dict[str, TaskEventModel] = {}
-            for ev in request_events:
-                first_request_by_task.setdefault(ev.task_id, ev)
 
-            def _task_agent(task_id: str) -> Optional[str]:
-                ev = first_request_by_task.get(task_id)
-                if not ev or not ev.payload:
+            def _row_agent(payload) -> Optional[str]:
+                if not payload:
                     return None
                 try:
-                    metadata = ev.payload.get("params", {}).get("message", {}).get("metadata", {})
+                    metadata = (
+                        payload.get("params", {}).get("message", {}).get("metadata", {})
+                    )
                     return metadata.get("workflow_name") or metadata.get("agent_name")
                 except AttributeError:
                     return None
+
+            first_request_by_task: dict[str, Optional[str]] = {
+                r.task_id: _row_agent(r.payload) for r in request_rows
+            }
+
+            def _task_agent(task_id: str) -> Optional[str]:
+                return first_request_by_task.get(task_id)
 
             # Find the most recent real (non-compaction) task's agent — that's the
             # ADK session currently active for this gateway session.
