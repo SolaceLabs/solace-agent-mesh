@@ -2119,7 +2119,11 @@ async def deep_research(
                 session_id = ""
         is_scheduled_session = session_id.startswith("scheduled_")
 
-        verification_flag_on = bool(config.get("interactive_plan_verification", False))
+        # Defaults to True: gateway capability gating already auto-approves on
+        # surfaces that can't render the plan (Slack/Teams/MCP), so the right
+        # behavior is "verify whenever the gateway can". Agents can still
+        # opt out by setting this to False in tool_config.
+        verification_flag_on = bool(config.get("interactive_plan_verification", True))
         client_supports_verification = _is_interactive_plan_client(tool_context, tool_config)
 
         interactive_verification = (
