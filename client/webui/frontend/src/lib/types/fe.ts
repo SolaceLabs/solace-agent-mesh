@@ -108,6 +108,17 @@ export interface Notification {
     type?: "info" | "success" | "warning";
 }
 
+/**
+ * Pointer to an existing artifact attached to a user message by reference
+ * (URI) rather than uploaded as bytes. Mirrors `ArtifactRef` from
+ * `@/lib/api/artifacts` so message types don't pull in API-layer imports.
+ */
+export interface AttachedArtifactRef {
+    uri: string;
+    filename: string;
+    mimeType: string;
+}
+
 export interface ArtifactPart {
     kind: "artifact";
     status: "in-progress" | "completed" | "failed";
@@ -151,6 +162,7 @@ export interface MessageFE {
     isComplete?: boolean; // ADDED: True if the agent response associated with this message is complete
     isError?: boolean; // ADDED: True if this message represents an error/failure
     uploadedFiles?: File[]; // Array of files uploaded by the user with this message
+    attachedArtifacts?: AttachedArtifactRef[]; // Existing artifacts the user attached by reference (URI), not re-uploaded
     toolEvents?: ToolEvent[]; // --- NEW: Array to hold tool call results ---
     displayHtml?: string; // HTML for displaying user messages with mention chips (user messages only)
     contextQuote?: string; // Original quoted text from "Ask Followup" action (user messages only)

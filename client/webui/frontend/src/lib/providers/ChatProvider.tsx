@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
+import type { AttachedArtifactRef } from "@/lib/types";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
@@ -1334,11 +1335,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
+        async (
+            event: FormEvent,
+            files?: File[] | null,
+            userInputText?: string | null,
+            overrideSessionId?: string | null,
+            displayHtml?: string | null,
+            contextQuote?: string | null,
+            contextQuoteSourceId?: string | null,
+            artifactReferences?: AttachedArtifactRef[] | null
+        ) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
-            if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
+            const currentArtifactRefs = artifactReferences || [];
+            if ((!currentInput && currentFiles.length === 0 && currentArtifactRefs.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 return;
             }
             closeCurrentEventSource();
@@ -1354,6 +1365,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
+                attachedArtifacts: currentArtifactRefs.length > 0 ? currentArtifactRefs.map(r => ({ uri: r.uri, filename: r.filename, mimeType: r.mimeType })) : undefined,
                 displayHtml: displayHtml || undefined,
                 contextQuote: contextQuote || undefined,
                 contextQuoteSourceId: contextQuoteSourceId || undefined,
@@ -1379,35 +1391,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Use overrideSessionId if provided (e.g., from artifact upload that created a session)
                 let effectiveSessionId = overrideSessionId || sessionId;
 
-                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s) and ${currentArtifactRefs.length} artifact reference(s)`);
+
+                // Pointers to existing artifacts: emit a FilePart with URI and
+                // skip the upload pipeline entirely. The backend re-validates
+                // access when the agent fetches the URI.
+                for (const ref of currentArtifactRefs) {
+                    console.log(`[handleSubmit] Adding artifact reference: ${ref.filename} (${ref.uri})`);
+                    uploadedFileParts.push({
+                        kind: "file",
+                        file: {
+                            uri: ref.uri,
+                            name: ref.filename,
+                            mimeType: ref.mimeType || "application/octet-stream",
+                        },
+                    });
+                }
 
                 for (const file of currentFiles) {
-                    // Check if this is an artifact reference (pasted artifact)
-                    if (file.type === "application/x-artifact-reference") {
-                        try {
-                            // Read the artifact reference data
-                            const text = await file.text();
-                            const artifactRef = JSON.parse(text);
-
-                            if (artifactRef.isArtifactReference && artifactRef.uri) {
-                                // This is a pasted artifact - send it as a file part with URI
-                                console.log(`[handleSubmit] Adding artifact reference: ${artifactRef.filename} (${artifactRef.uri})`);
-                                uploadedFileParts.push({
-                                    kind: "file",
-                                    file: {
-                                        uri: artifactRef.uri,
-                                        name: artifactRef.filename,
-                                        mimeType: artifactRef.mimeType || "application/octet-stream",
-                                    },
-                                });
-                                continue; // Skip to next file
-                            }
-                        } catch (error) {
-                            console.error(`[handleSubmit] Error processing artifact reference:`, error);
-                            // Fall through to normal file handling
-                        }
-                    }
-
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
                         // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);

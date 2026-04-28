@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Ban, Paperclip, Send, Quote, X, Upload, Link2 } from "lucide-react";
 
 import { Button, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import type { AttachedArtifactRef } from "@/lib/types";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
@@ -560,50 +561,27 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     displayError({ title: "Some uploads failed", error: uploadErrors.join("; ") });
                 }
 
-                // Create artifact reference files for all uploaded artifacts
-                const artifactFiles: File[] = uploadedArtifacts.map(item => {
-                    // Create a special File object that contains the artifact URI
-                    const artifactData = JSON.stringify({
-                        isArtifactReference: true,
-                        uri: item.uri,
-                        filename: item.filename,
-                        mimeType: item.mimeType,
-                    });
-                    const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
-                    return new File([blob], item.filename, {
-                        type: "application/x-artifact-reference",
-                    });
-                });
-
-                // Existing-artifact references (chosen via the Attach-artifact dialog).
-                // Encode each with the same application/x-artifact-reference envelope so
-                // ChatProvider.handleSubmit sends them as file parts with a URI instead
-                // of re-uploading. The URI is authoritative — the backend re-checks the
-                // user's access to the artifact when the agent fetches it.
-                const existingArtifactFiles: File[] = attachmentsCapture.artifactRefs
-                    .filter(artifact => !!artifact.uri)
-                    .map(artifact => {
-                        const artifactData = JSON.stringify({
-                            isArtifactReference: true,
-                            uri: artifact.uri,
+                // Pointers to existing artifacts go through a typed
+                // `artifactReferences` arg — both the freshly-uploaded pasted-text
+                // artifacts and the user's existing-artifact picks. ChatProvider
+                // emits these as FilePart{uri} without touching the upload pipeline.
+                const artifactReferences: AttachedArtifactRef[] = [
+                    ...uploadedArtifacts.map(item => ({ uri: item.uri, filename: item.filename, mimeType: item.mimeType })),
+                    ...attachmentsCapture.artifactRefs
+                        .filter(artifact => !!artifact.uri)
+                        .map(artifact => ({
+                            uri: artifact.uri!,
                             filename: artifact.filename,
                             mimeType: artifact.mime_type,
-                        });
-                        const blob = new Blob([artifactData], { type: "application/x-artifact-reference" });
-                        return new File([blob], artifact.filename, {
-                            type: "application/x-artifact-reference",
-                        });
-                    });
-
-                // Combine regular files with artifact references (pasted-text uploads + pre-existing artifacts)
-                const allFiles = [...attachmentsCapture.files, ...artifactFiles, ...existingArtifactFiles];
+                        })),
+                ];
 
                 // Pass the effectiveSessionId to handleSubmit to ensure the message uses the same session
                 // as the uploaded artifacts (avoids React state timing issues)
                 // Also pass contextQuote and contextQuoteSourceId separately for persistent display above the message bubble
                 const contextQuoteToPass = capturedContextText && capturedShowContextBadge ? capturedContextText : null;
                 const contextQuoteSourceIdToPass = capturedContextSourceId && capturedShowContextBadge ? capturedContextSourceId : null;
-                await handleSubmit(event, allFiles, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass);
+                await handleSubmit(event, attachmentsCapture.files, fullMessage, effectiveSessionId || null, displayHtml, contextQuoteToPass, contextQuoteSourceIdToPass, artifactReferences);
                 scrollToBottom?.();
             } catch (error) {
                 // Restore input state so the user's message is not lost

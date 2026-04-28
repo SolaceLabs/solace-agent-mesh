@@ -333,11 +333,11 @@ async function attachArtifactsViaDialog(filenames: string[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Wire envelope for attached artifact references
+// Typed artifactReferences arg (replaces the application/x-artifact-reference envelope)
 // ---------------------------------------------------------------------------
 
-describe("ChatInputArea — artifact reference envelope", () => {
-    test("submit produces a File with application/x-artifact-reference MIME and JSON body", async () => {
+describe("ChatInputArea — artifactReferences arg to handleSubmit", () => {
+    test("submit passes attached artifacts as a typed artifactReferences arg, not as fake-File envelopes", async () => {
         seedArtifacts([makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt", mime_type: "text/plain" })]);
         const handleSubmit = vi.fn().mockResolvedValue(undefined);
 
@@ -355,25 +355,16 @@ describe("ChatInputArea — artifact reference envelope", () => {
             expect(handleSubmit).toHaveBeenCalled();
         });
 
-        // handleSubmit(event, allFiles, fullMessage, sessionId, html, quote, quoteId)
-        const files = handleSubmit.mock.calls[0][1] as File[];
-        const envelope = files.find(f => f.type === "application/x-artifact-reference");
-        expect(envelope).toBeDefined();
-        expect(envelope!.name).toBe("ref.txt");
+        // handleSubmit(event, files, message, sessionId, html, quote, quoteId, artifactReferences)
+        const callArgs = handleSubmit.mock.calls[0];
+        const files = callArgs[1] as File[];
+        const artifactReferences = callArgs[7] as Array<{ uri: string; filename: string; mimeType: string }>;
 
-        const envelopeText = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(reader.error);
-            reader.readAsText(envelope!);
-        });
-        const body = JSON.parse(envelopeText);
-        expect(body).toEqual({
-            isArtifactReference: true,
-            uri: "artifact://sess-1/ref.txt",
-            filename: "ref.txt",
-            mimeType: "text/plain",
-        });
+        // No fake-File envelopes survive in the files arg.
+        expect(files.find(f => f.type === "application/x-artifact-reference")).toBeUndefined();
+
+        // The reference is delivered as a typed object on the new arg.
+        expect(artifactReferences).toEqual([{ uri: "artifact://sess-1/ref.txt", filename: "ref.txt", mimeType: "text/plain" }]);
     });
 });
 
