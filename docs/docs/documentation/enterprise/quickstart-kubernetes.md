@@ -183,6 +183,14 @@ For detailed health check configuration, see [Health Checks](/docs/documentation
 - View pod logs: `kubectl logs -n sam <pod-name>`
 - Describe pod for events: `kubectl describe pod -n sam <pod-name>`
 
+**Insufficient resources (`FailedScheduling: Insufficient cpu` or `Insufficient memory`):**
+
+If pods fail to schedule during installation or when deploying agents, increase the resources allocated to your cluster. For example, if using Colima:
+
+```bash
+colima stop && colima start --cpu 10 --memory 16 --disk 100
+```
+
 **Port-forward connection issues:**
 - Verify service exists: `kubectl get service -n sam sam-solace-agent-mesh-core`
 - Check that all pods are Running: `kubectl get pods -n sam`
@@ -192,6 +200,14 @@ For detailed health check configuration, see [Health Checks](/docs/documentation
 - Verify both ports are forwarded (8000 for UI, 8080 for Platform API)
 - Check browser console (F12) for specific error messages
 - Ensure you're accessing `http://localhost:8000` (port must match)
+
+**Blank page or 404 errors for UI assets (stale browser cache):**
+
+If the Console UI loads as a blank page and the browser DevTools Network tab shows 404 errors for `.js` or `.css` files, the browser is serving cached assets from a previous installation. This is common after a reinstall.
+
+Open the URL in a private/incognito window, or perform a hard refresh to bypass the cache.
+
+![Blank page caused by stale browser cache showing 404 errors for UI assets](/img/ui_caching_issue.png)
 
 **Agent timeouts:**
 
