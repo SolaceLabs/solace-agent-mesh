@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.21.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.0...1.21.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* **DATAGO-134263:** honour per-node timeout in workflow agent calls ([#1476](https://github.com/SolaceLabs/solace-agent-mesh/issues/1476)) ([97dbb3f](https://github.com/SolaceLabs/solace-agent-mesh/commit/97dbb3f0d621aeb83fbf0f2f2f9c9642666cbc20))
+* **DATAGO-134293:** Recent chats navigation randomly displays other users' chat history ([#1477](https://github.com/SolaceLabs/solace-agent-mesh/issues/1477)) ([aa9d6ad](https://github.com/SolaceLabs/solace-agent-mesh/commit/aa9d6ad27d9a849c2cac49126db9b7f765c15cd2))
+* **DATAGO-134388:** Implement immediate UI feedback for sent prompts ([#1480](https://github.com/SolaceLabs/solace-agent-mesh/issues/1480)) ([cc348f0](https://github.com/SolaceLabs/solace-agent-mesh/commit/cc348f00ecf324c194ef7da4114ef771712f1c86))
+
 ## [1.21.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.5...1.21.0) (2026-04-29)
 
 
