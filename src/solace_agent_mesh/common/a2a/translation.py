@@ -183,19 +183,13 @@ async def _prepare_a2a_filepart_for_adk(
                 )
 
         elif isinstance(part.file, FileWithUri):
-            log.debug("%s FilePart contains URI. Resolving to bytes and re-saving under agent namespace.", log_id)
+            log.debug("%s FilePart contains URI. Loading metadata.", log_id)
             uri = part.file.uri
             parsed_uri = urlparse(uri)
             path_parts = parsed_uri.path.strip("/").split("/")
             if len(path_parts) < 3:
                 raise ValueError(f"Invalid artifact URI format: {uri}")
             # Canonical layout: artifact://{app_name}/{user_id}/{session_id}/{filename}
-            # The URI's path identifies the artifact's actual storage location
-            # (which may live in a different namespace from the receiving agent
-            # — e.g. a WebUI-uploaded artifact attached by reference). We
-            # rehydrate the bytes from that namespace and save a fresh copy
-            # under the agent's namespace so the LLM's `load_artifact` tool —
-            # which only knows the agent's context — can find it later.
             filename = path_parts[-1]
             source_user_id = path_parts[-3]
             source_session_id = path_parts[-2]
@@ -205,53 +199,73 @@ async def _prepare_a2a_filepart_for_adk(
             # Fall back to "latest" so callers (e.g. the WebUI attach-artifact
             # dialog) don't have to know the numeric version up front; the
             # downstream loader resolves it against the live version list.
-            source_version = int(version_str) if version_str else "latest"
+            source_version: int | str = int(version_str) if version_str else "latest"
 
-            source_load = await load_artifact_content_or_metadata(
-                artifact_service=artifact_service,
-                app_name=source_app_name,
-                user_id=source_user_id,
-                session_id=source_session_id,
-                filename=filename,
-                version=source_version,
-                load_metadata_only=False,
-                return_raw_bytes=True,
+            agent_session_id = get_original_session_id(session_id)
+            same_namespace = (
+                source_app_name == app_name
+                and source_user_id == user_id
+                and source_session_id == agent_session_id
             )
-            if source_load["status"] != "success":
-                raise RuntimeError(
-                    f"Failed to load referenced artifact: {source_load.get('message', 'unknown error')}"
-                )
 
-            content_bytes = source_load.get("raw_bytes")
-            mime_type = part.file.mime_type or source_load.get("mime_type") or resolve_mime_type(filename, None)
-            if content_bytes is None:
-                raise RuntimeError(
-                    f"Referenced artifact '{filename}' returned no bytes."
+            if same_namespace:
+                # The URI already points at the agent's own namespace — no need
+                # to copy. Use the URI's coordinates for the metadata load
+                # below; `load_artifact` later will find the artifact at the
+                # same coords with no resave.
+                version = source_version
+                mime_type = part.file.mime_type or resolve_mime_type(filename, None)
+            else:
+                # Cross-namespace reference (e.g. a WebUI-uploaded artifact
+                # attached by reference into an agent task). The LLM's
+                # `load_artifact` tool only knows the agent's context, so we
+                # rehydrate the bytes here and save a fresh copy under the
+                # agent's namespace.
+                source_load = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=source_app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=filename,
+                    version=source_version,
+                    load_metadata_only=False,
+                    return_raw_bytes=True,
                 )
+                if source_load["status"] != "success":
+                    raise RuntimeError(
+                        f"Failed to load referenced artifact: {source_load.get('message', 'unknown error')}"
+                    )
 
-            save_result = await save_artifact_with_metadata(
-                artifact_service=artifact_service,
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=filename,
-                content_bytes=content_bytes,
-                mime_type=mime_type,
-                metadata_dict={
-                    "source": "a2a_filepart_uri_reference",
-                    "source_uri": uri,
-                },
-                timestamp=datetime.now(timezone.utc),
-            )
-            if save_result["status"] != "success":
-                raise IOError(
-                    f"Failed to save resolved artifact and its metadata: {save_result['message']}"
+                content_bytes = source_load.get("raw_bytes")
+                mime_type = part.file.mime_type or source_load.get("mime_type") or resolve_mime_type(filename, None)
+                if content_bytes is None:
+                    raise RuntimeError(
+                        f"Referenced artifact '{filename}' returned no bytes."
+                    )
+
+                save_result = await save_artifact_with_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    content_bytes=content_bytes,
+                    mime_type=mime_type,
+                    metadata_dict={
+                        "source": "a2a_filepart_uri_reference",
+                        "source_uri": uri,
+                    },
+                    timestamp=datetime.now(timezone.utc),
                 )
-            version = save_result["data_version"]
-            log.info(
-                "%s Resolved URI to bytes and saved '%s' as v%d under agent namespace.",
-                log_id, filename, version,
-            )
+                if save_result["status"] != "success":
+                    raise IOError(
+                        f"Failed to save resolved artifact and its metadata: {save_result['message']}"
+                    )
+                version = save_result["data_version"]
+                log.info(
+                    "%s Resolved URI to bytes and saved '%s' as v%d under agent namespace.",
+                    log_id, filename, version,
+                )
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
