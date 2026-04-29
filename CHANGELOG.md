@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.21.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.5...1.21.0) (2026-04-29)
+
+
+### Features
+
+* **DATAGO-131493:** User can run the experiment and view the result ([#1473](https://github.com/SolaceLabs/solace-agent-mesh/issues/1473)) ([a42a3f5](https://github.com/SolaceLabs/solace-agent-mesh/commit/a42a3f5c60ab5229555ef2246cbe10c39872d70a))
+
+
+### Bug Fixes
+
+* **DATAGO-134139:** stop cascading auth prompts in solace-chat's Atlassian heavy-query flow ([#1474](https://github.com/SolaceLabs/solace-agent-mesh/issues/1474)) ([18e7386](https://github.com/SolaceLabs/solace-agent-mesh/commit/18e7386b190faa9beceab10b26907846f3e4f40b))
+
 ## [1.20.5](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.4...1.20.5) (2026-04-28)
 
 
