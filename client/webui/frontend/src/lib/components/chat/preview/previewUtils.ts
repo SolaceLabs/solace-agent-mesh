@@ -424,7 +424,7 @@ export function decodeBase64Content(content: string): string {
 }
 
 const RENDER_TYPES = ["csv", "html", "json", "mermaid", "image", "markdown", "audio", "text", "yaml", "docx", "pptx", "xlsx", "pdf"];
-const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio", "docx", "pptx"];
+const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio", "docx", "pptx", "xlsx"];
 const RENDER_TYPES_WITH_URL_ONLY = ["pdf"];
 
 export const getFileContent = (file: FileAttachment | null) => {
