@@ -450,91 +450,98 @@ export const RecentChatsPage: React.FC = () => {
                 {/* Sessions Grid */}
                 {activeTab !== "shared" && filteredSessions.length > 0 && (
                     <div className="flex flex-col gap-2">
-                        {filteredSessions.map(session => (
-                            <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
-                                {editingSessionId === session.id ? (
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            ref={inputRef}
-                                            type="text"
-                                            value={editingSessionName}
-                                            onChange={e => setEditingSessionName(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === "Enter") {
-                                                    e.preventDefault();
-                                                    handleRename();
-                                                }
-                                            }}
-                                            className="min-w-0 flex-1 bg-transparent focus:outline-none"
-                                        />
-                                        <div className="flex flex-shrink-0 items-center gap-1">
-                                            <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
-                                                <Check size={16} />
-                                            </Button>
-                                            <Button variant="ghost" size="sm" onClick={() => setEditingSessionId(null)} className="h-8 w-8 p-0">
-                                                <X size={16} />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex cursor-pointer items-center gap-4" onClick={() => handleSessionClick(session)}>
-                                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                            <div className="flex items-center gap-2">
-                                                <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
-                                                {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
-                                                {session.hasRunningBackgroundTask && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-(--primary-wMain)" />
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>Background task running</TooltipContent>
-                                                    </Tooltip>
-                                                )}
+                        {filteredSessions.map(session => {
+                            const hasUnseen = hasUnseenUpdates(session);
+                            // Bar sits 10px in from the card edge, text needs another 10px gap
+                            // beyond the 4px-wide bar — card already has 16px (p-4) of padding,
+                            // so an extra 8px (pl-2) on the content row gets us to 24px.
+                            const contentShift = hasUnseen ? "pl-2" : "";
+                            return (
+                                <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
+                                    {hasUnseen && <span aria-label="Unseen updates" className="absolute top-1/2 left-[10px] h-[42px] w-1 -translate-y-1/2 rounded-sm bg-(--info-wMain)" />}
+                                    {editingSessionId === session.id ? (
+                                        <div className={`flex items-center gap-2 ${contentShift}`}>
+                                            <input
+                                                ref={inputRef}
+                                                type="text"
+                                                value={editingSessionName}
+                                                onChange={e => setEditingSessionName(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        handleRename();
+                                                    }
+                                                }}
+                                                className="min-w-0 flex-1 bg-transparent focus:outline-none"
+                                            />
+                                            <div className="flex flex-shrink-0 items-center gap-1">
+                                                <Button variant="ghost" size="sm" onClick={handleRename} className="h-8 w-8 p-0">
+                                                    <Check size={16} />
+                                                </Button>
+                                                <Button variant="ghost" size="sm" onClick={() => setEditingSessionId(null)} className="h-8 w-8 p-0">
+                                                    <X size={16} />
+                                                </Button>
                                             </div>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <div className="w-fit cursor-default text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</div>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="bottom">{formatTimestamp(session.updatedTime)}</TooltipContent>
-                                            </Tooltip>
                                         </div>
-                                        <div className="flex flex-shrink-0 items-center gap-2">
-                                            {session.scheduledTaskId && (
+                                    ) : (
+                                        <div className={`flex cursor-pointer items-center gap-4 ${contentShift}`} onClick={() => handleSessionClick(session)}>
+                                            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
+                                                    {session.hasRunningBackgroundTask && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-(--primary-wMain)" />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Background task running</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                        <button
-                                                            type="button"
-                                                            onPointerDown={e => e.stopPropagation()}
-                                                            onClick={e => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                navigate(`/scheduled-tasks?taskId=${session.scheduledTaskId}`);
-                                                            }}
-                                                            className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
-                                                        >
-                                                            <CalendarClock size={12} />
-                                                            <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
-                                                        </button>
+                                                        <div className="w-fit cursor-default text-xs font-normal text-(--secondary-text-wMain)">Last message {formatRelativeTime(session.updatedTime)}</div>
                                                     </TooltipTrigger>
-                                                    <TooltipContent>View originating schedule</TooltipContent>
+                                                    <TooltipContent side="bottom">{formatTimestamp(session.updatedTime)}</TooltipContent>
                                                 </Tooltip>
-                                            )}
-                                            {session.projectName && <ProjectBadge text={session.projectName} />}
-                                            <SessionActionMenu
-                                                session={session}
-                                                onRename={handleEditClick}
-                                                onRenameWithAI={handleRenameWithAI}
-                                                onMove={handleMoveClick}
-                                                onDelete={handleDeleteClick}
-                                                onGoToProject={handleGoToProject}
-                                                onShare={chatSharingEnabled ? handleShareClick : undefined}
-                                                isRegeneratingTitle={regeneratingTitleForSession === session.id}
-                                            />
+                                            </div>
+                                            <div className="flex flex-shrink-0 items-center gap-2">
+                                                {session.scheduledTaskId && (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button
+                                                                type="button"
+                                                                onPointerDown={e => e.stopPropagation()}
+                                                                onClick={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    navigate(`/scheduled-tasks?taskId=${session.scheduledTaskId}`);
+                                                                }}
+                                                                className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
+                                                            >
+                                                                <CalendarClock size={12} />
+                                                                <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>View originating schedule</TooltipContent>
+                                                    </Tooltip>
+                                                )}
+                                                {session.projectName && <ProjectBadge text={session.projectName} />}
+                                                <SessionActionMenu
+                                                    session={session}
+                                                    onRename={handleEditClick}
+                                                    onRenameWithAI={handleRenameWithAI}
+                                                    onMove={handleMoveClick}
+                                                    onDelete={handleDeleteClick}
+                                                    onGoToProject={handleGoToProject}
+                                                    onShare={chatSharingEnabled ? handleShareClick : undefined}
+                                                    isRegeneratingTitle={regeneratingTitleForSession === session.id}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
