@@ -132,7 +132,6 @@ For detailed setup instructions, see [S3 Buckets for OpenAPI Connector Specs](#s
 **Inbound Traffic:**
 - Ingress controller required (NGINX, ALB, and so on)
 - TLS certificate for production (via cert-manager or manual)
-- See [Network Configuration Guide](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs/network-configuration) for ingress setup
 
 **Outbound Platform Access:**
 
@@ -721,7 +720,7 @@ samDeployment:
 **Step 4:** Install or upgrade. The chart injects a `ca-merge` init container that merges your CA bundle with the system trust store:
 
 ```bash
-helm upgrade sam solace/solace-agent-mesh \
+helm upgrade sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   -n <namespace> \
   -f production-overrides.yaml
 ```
@@ -739,7 +738,7 @@ Validate your production configuration before deploying:
 **Dry-run installation:**
 
 ```bash
-helm install sam solace/solace-agent-mesh \
+helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --dry-run \
   -f production-overrides.yaml
@@ -748,7 +747,7 @@ helm install sam solace/solace-agent-mesh \
 **Validate Kubernetes manifests (optional):**
 
 ```bash
-helm template sam solace/solace-agent-mesh \
+helm template sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   -f production-overrides.yaml | \
   kubeconform -strict -summary -kubernetes-version 1.28.0
 ```
@@ -764,7 +763,7 @@ helm template sam solace/solace-agent-mesh \
 Install Agent Mesh with your production overrides:
 
 ```bash
-helm install sam solace/solace-agent-mesh \
+helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   -f production-overrides.yaml
@@ -826,7 +825,7 @@ For detailed probe configuration options and examples, see [Health Checks](/docs
 If you started with the Quick Start installation (chart defaults), upgrade to production using `helm upgrade`.
 
 ```bash
-helm upgrade sam solace/solace-agent-mesh \
+helm upgrade sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   -f production-overrides.yaml
 ```
@@ -1088,7 +1087,7 @@ Configure embedded PostgreSQL and SeaweedFS. Only used when `global.persistence.
 | `persistence-layer.seaweedfs.imagePullSecrets` | list | `[]` | Image pull secrets for SeaweedFS image (merged with `global.imagePullSecrets`) |
 | `persistence-layer.seaweedfs.image.registry` | string | `""` | Overrides `global.imageRegistry` for SeaweedFS image |
 | `persistence-layer.seaweedfs.image.repository` | string | `"chrislusf/seaweedfs"` | SeaweedFS image repository |
-| `persistence-layer.seaweedfs.image.tag` | string | `"3.97"` | SeaweedFS image tag |
+| `persistence-layer.seaweedfs.image.tag` | string | `"3.97-compliant"` | SeaweedFS image tag |
 | `persistence-layer.seaweedfs.image.digest` | string | `""` | SeaweedFS image digest |
 
 ### Bundled Components - Embedded Broker

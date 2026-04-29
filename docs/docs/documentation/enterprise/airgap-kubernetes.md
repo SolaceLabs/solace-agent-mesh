@@ -5,7 +5,7 @@ sidebar_position: 6
 
 # Air-Gapped Kubernetes Installation
 
-This guide covers deploying Solace Agent Mesh Enterprise to Kubernetes clusters in air-gapped environments using Helm charts.
+This guide covers deploying Solace Agent Mesh Enterprise to Kubernetes clusters in air-gapped environments using Helm charts. Some features require network access to external services. Ensure the necessary routes and firewall rules are in place for any external endpoints your deployment uses (LLM, OIDC, Slack, and so on).
 
 :::info
 For internet-connected deployments, see [Kubernetes Quick Start](./quickstart-kubernetes.md) or [Production Kubernetes Installation](./production-kubernetes.md).

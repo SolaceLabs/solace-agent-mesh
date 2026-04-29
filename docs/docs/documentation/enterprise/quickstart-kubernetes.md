@@ -51,41 +51,6 @@ Use **6 vCPU / 8 GiB RAM** nodes to accommodate:
 **Cluster Requirements:**
 - Kubernetes version 1.20 or later
 
-### Storage Requirements
-
-Embedded persistence requires SSD-backed storage for acceptable performance.
-
-**Volume Requirements:**
-
-| Component | Volume Size (Default) |
-|-----------|----------------------|
-| **PostgreSQL** | 30 GiB |
-| **SeaweedFS** | 50 GiB |
-
-#### Recommended Storage Classes by Provider
-
-| Provider | Storage Class | Notes |
-|----------|--------------|-------|
-| **AWS EKS** | `gp3` | EBS General Purpose SSD, zoned automatically |
-| **Azure AKS** | `managed-csi-premium` | Azure Premium SSD (`managed-premium` on older AKS clusters) |
-| **Google GKE** | `pd-ssd` or `hyperdisk-balanced` | Depends on instance type |
-
-#### Storage Class Configuration
-
-Override the default StorageClass or volume size:
-
-```yaml
-persistence-layer:
-  postgresql:
-    persistence:
-      storageClassName: "gp3"  # Override default
-      size: "50Gi"  # Override default 10Gi
-  seaweedfs:
-    persistence:
-      storageClassName: "gp3"
-      size: "100Gi"  # Override default 20Gi
-```
-
 ### Image Registry Configuration
 
 By default, all images (including embedded components) pull from Solace's GCR registry (`gcr.io/gcp-maas-prod`). This requires a GCR credentials file provided by Solace.
@@ -95,7 +60,7 @@ By default, all images (including embedded components) pull from Solace's GCR re
 | Component | Repository | Tag | Full Image Reference |
 |-----------|------------|-----|---------------------|
 | **PostgreSQL** | `postgres` | `18.0-trixie` | `gcr.io/gcp-maas-prod/postgres:18.0-trixie` |
-| **SeaweedFS** | `chrislusf/seaweedfs` | `3.97` | `gcr.io/gcp-maas-prod/chrislusf/seaweedfs:3.97` |
+| **SeaweedFS** | `chrislusf/seaweedfs` | `3.97-compliant` | `gcr.io/gcp-maas-prod/chrislusf/seaweedfs:3.97-compliant` |
 | **Solace Broker** | `solace-pubsub-enterprise` | `10.25.0.193-multi-arch` | `gcr.io/gcp-maas-prod/solace-pubsub-enterprise:10.25.0.193-multi-arch` |
 
 The chart inherits `global.imageRegistry` for all components automatically. No additional configuration needed unless using a custom registry.
@@ -110,30 +75,17 @@ Solace provides a JSON credentials file for authenticating with the GCR registry
 }
 ```
 
-Pass this file to Helm using `--set-file`. The chart automatically creates the pull secret and injects it into all pod specs:
-
-```bash
-helm install sam solace/solace-agent-mesh \
-  --namespace sam \
-  --create-namespace \
-  --set-file global.imagePullKey=sam-pull-credentials.json
-```
-
 ### Command-Line Tools
 
 - `kubectl` configured to access your cluster
 - Helm 3.0 or later
 
-### Optional for Evaluation
-
-- LLM service API key (OpenAI, Azure OpenAI, etc.) - can be configured post-install via UI
-
 ## Step 1: Install with Zero Configuration
 
-Install Agent Mesh using the GCR credentials file downloaded from Solace Cloud:
+Download the Helm chart from the [Solace Product Portal](https://products.solace.com/prods/Agent_Mesh/Enterprise/). The GCR credentials file is provided separately by Solace. Once you have both, run:
 
 ```bash
-helm install sam solace/solace-agent-mesh \
+helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
   --namespace sam \
   --create-namespace \
   --set-file global.imagePullKey=sam-pull-credentials.json
@@ -201,10 +153,6 @@ Now that your quickstart installation is running, explore Agent Mesh capabilitie
 - **Platform Services** - Connect agents to external APIs and services
 - **Gateways** - Integrate with Slack, Teams, or other messaging platforms
 
-:::info OpenAPI Connector Feature
-If you plan to use the **OpenAPI Connector** feature for REST API integrations, you must configure a separate S3 bucket for OpenAPI specification files. This is optional for evaluation but required for production use of this feature. See [Production Installation - S3 Buckets for OpenAPI Connector Specs](./production-kubernetes.md#s3-buckets-for-openapi-connector-specs) for setup instructions.
-:::
-
 See the main [Enterprise documentation](./enterprise.md) for detailed feature guides.
 
 ### Moving to Production
@@ -244,3 +192,23 @@ For detailed health check configuration, see [Health Checks](/docs/documentation
 - Verify both ports are forwarded (8000 for UI, 8080 for Platform API)
 - Check browser console (F12) for specific error messages
 - Ensure you're accessing `http://localhost:8000` (port must match)
+
+**Agent timeouts:**
+
+Performance of the embedded PostgreSQL and SeaweedFS is heavily dependent on the underlying disk I/O. Standard HDD-backed storage causes agent timeouts. If you experience this, configure a faster StorageClass for the persistence layer:
+
+| Provider | StorageClass |
+|----------|-------------|
+| **AWS EKS** | `gp3` |
+| **Azure AKS** | `managed-csi-premium` |
+| **Google GKE** | `pd-ssd` or `hyperdisk-balanced` |
+
+```yaml
+persistence-layer:
+  postgresql:
+    persistence:
+      storageClassName: "gp3"
+  seaweedfs:
+    persistence:
+      storageClassName: "gp3"
+```

@@ -143,7 +143,7 @@ samDeployment:
 
 **Step 2:** Validate your updated values file before upgrading. Check that all image references resolve correctly:
 ```bash
-helm template <release-name> solace/solace-agent-mesh \
+helm template <release-name> /path/to/charts/solace-agent-mesh-<version>.tgz \
   -f updated-values.yaml \
   | grep "image:" | sort -u
 ```
@@ -276,7 +276,7 @@ kubectl delete sts <release>-postgresql <release>-seaweedfs --cascade=orphan -n 
 **Step 2:** Upgrade the Helm release:
 
 ```bash
-helm upgrade <release> solace/solace-agent-mesh \
+helm upgrade <release> /path/to/charts/solace-agent-mesh-<version>.tgz \
   -f your-values.yaml \
   -n <namespace>
 ```
@@ -445,7 +445,7 @@ kubectl describe pod <pod-name> -n <namespace> | grep "Image:"
 # 1. Update your values file to remove registry from repository
 # 2. Rollback and re-upgrade with corrected values
 helm rollback <release> -n <namespace>
-helm upgrade <release> solace/solace-agent-mesh -n <namespace> -f corrected-values.yaml
+helm upgrade <release> /path/to/charts/solace-agent-mesh-<version>.tgz -n <namespace> -f corrected-values.yaml
 ```
 
 ### StatefulSet Update Failures (Bundled Persistence)
