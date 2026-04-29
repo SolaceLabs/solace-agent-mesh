@@ -392,10 +392,14 @@ class WorkflowExecutorComponent(SamComponentBase):
         if not node_id:
             return
 
-        timeout_seconds = self.get_config("default_node_timeout_seconds", 300)
+        timeout_seconds = workflow_context.get_sub_task_timeout(sub_task_id)
+        if timeout_seconds is None:
+            timeout_seconds = float(
+                self.get_config("default_node_timeout_seconds", 300)
+            )
         log.error(
             f"{self.log_identifier} Agent call timed out for node '{node_id}' "
-            f"(sub-task: {sub_task_id})"
+            f"(sub-task: {sub_task_id}) after {timeout_seconds} seconds"
         )
 
         # Create timeout error
