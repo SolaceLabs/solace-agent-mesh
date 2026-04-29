@@ -101,6 +101,12 @@ export const AttachmentInlineText: React.FC<{ lines: string[] }> = ({ lines }) =
     const visible = nonBlank.slice(0, SNIPPET_MAX_LINES);
     const hasMore = nonBlank.length > visible.length;
 
+    // Use the single-character Unicode ellipsis (U+2026) so our explicit
+    // truncation matches what CSS `text-overflow: ellipsis` renders when a
+    // line is wider than the card. Mixing "…" and "..." in the same card
+    // looked inconsistent.
+    const ELLIPSIS = "…";
+
     return (
         <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
             {visible.map((line, index) => {
@@ -109,10 +115,10 @@ export const AttachmentInlineText: React.FC<{ lines: string[] }> = ({ lines }) =
                 // beyond it; otherwise just truncate per-line at the char cap.
                 let display: string;
                 if (isLast && hasMore) {
-                    const cap = SNIPPET_LINE_MAX_CHARS - 3;
-                    display = line.length > cap ? line.substring(0, cap) + "..." : line + "...";
+                    const cap = SNIPPET_LINE_MAX_CHARS - 1;
+                    display = line.length > cap ? line.substring(0, cap) + ELLIPSIS : line + ELLIPSIS;
                 } else {
-                    display = line.length > SNIPPET_LINE_MAX_CHARS ? line.substring(0, SNIPPET_LINE_MAX_CHARS - 3) + "..." : line;
+                    display = line.length > SNIPPET_LINE_MAX_CHARS ? line.substring(0, SNIPPET_LINE_MAX_CHARS - 1) + ELLIPSIS : line;
                 }
                 return (
                     <div key={`${index}-${line}`} className="truncate">
