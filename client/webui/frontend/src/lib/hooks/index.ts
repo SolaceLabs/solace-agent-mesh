@@ -7,6 +7,7 @@ export * from "./useAudioSettings";
 export * from "./useAuthContext";
 export * from "./useBackgroundTaskMonitor";
 export * from "./useBeforeUnload";
+export * from "./useCacheUserId";
 export * from "./useCollaborativeSession";
 export * from "./useChatContext";
 export * from "./useCitationClick";

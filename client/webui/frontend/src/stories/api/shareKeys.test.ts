@@ -31,8 +31,8 @@ describe("shareKeys", () => {
         expect(shareKeys.users("share-abc")).toEqual(["shares", "users", "share-abc"]);
     });
 
-    test("sharedWithMe() extends all with 'shared-with-me'", () => {
-        expect(shareKeys.sharedWithMe()).toEqual(["shares", "shared-with-me"]);
+    test("sharedWithMe(userId) scopes by user so cached data can't leak across users", () => {
+        expect(shareKeys.sharedWithMe("alice")).toEqual(["shares", "shared-with-me", "alice"]);
     });
 
     test("view(shareId) extends all with 'view' and share id", () => {
