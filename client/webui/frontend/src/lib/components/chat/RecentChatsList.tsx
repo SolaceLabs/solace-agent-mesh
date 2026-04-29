@@ -12,7 +12,7 @@ import type { Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
 import { hasUnseenUpdates, toEpochMs } from "@/lib/utils";
 
-const sessionButtonStyles = cva(["relative", "flex", "h-10", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
+const sessionButtonStyles = cva(["relative", "flex", "h-[42px]", "w-full", "cursor-pointer", "items-center", "gap-2", "pr-4", "pl-6", "text-left", "transition-colors", "hover:bg-(--darkSurface-bgHover)"], {
     variants: {
         active: {
             true: "bg-(--darkSurface-bgActive)",
@@ -215,7 +215,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                         <Tooltip key={`session-${session.id}`}>
                             <TooltipTrigger asChild>
                                 <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: isActive })}>
-                                    {hasUnseen && <span aria-label="Unseen updates" className="absolute top-1/2 left-[10px] h-[42px] w-1 -translate-y-1/2 rounded-sm bg-(--info-wMain)" />}
+                                    {hasUnseen && <span aria-label="Unseen updates" className="absolute top-1/2 left-[10px] h-[38px] w-1 -translate-y-1/2 rounded-sm bg-(--info-wMain)" />}
                                     {session.source === "scheduler" ? <CalendarDays className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
                                     <div className="min-w-0 flex-1">
                                         <SessionName session={session} respondingSessionId={respondingSessionId} isActive={isActive} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
