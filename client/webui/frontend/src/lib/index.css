@@ -24,6 +24,13 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Breathing indicator used while waiting for AI response */
+@keyframes brand-breathe {
+    0%, 100% { transform: scale(0.85); opacity: 0.75; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+.brand-breathe { animation: brand-breathe 2.2s ease-in-out infinite; }
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
