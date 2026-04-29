@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { shareKeys } from "./keys";
 import * as shareService from "./service";
+import { useCacheUserId } from "@/lib/hooks/useCacheUserId";
 import type { CreateShareLinkRequest, UpdateShareLinkRequest, BatchAddShareUsersRequest, BatchDeleteShareUsersRequest } from "../../types/share";
 
 export function useShareLink(sessionId: string) {
@@ -27,8 +28,9 @@ export function useShareUsers(shareId: string | undefined) {
 }
 
 export function useSharedWithMe(options?: { enabled?: boolean }) {
+    const userId = useCacheUserId();
     return useQuery({
-        queryKey: shareKeys.sharedWithMe(),
+        queryKey: shareKeys.sharedWithMe(userId),
         queryFn: shareService.listSharedWithMe,
         enabled: options?.enabled ?? true,
     });
