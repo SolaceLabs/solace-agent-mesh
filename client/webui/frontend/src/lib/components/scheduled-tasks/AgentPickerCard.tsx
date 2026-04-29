@@ -66,8 +66,16 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
                             key={suggestion.name}
                             className={cn("flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors", isSelected && "border-(--primary-wMain) bg-(--primary-w10)", isResolved && "cursor-default opacity-70")}
                         >
-                            <input type="radio" name="agent-picker" value={suggestion.name} checked={isSelected} disabled={isResolved} onChange={() => setSelectedRadio(suggestion.name)} className="mt-1 h-4 w-4 accent-(--primary-wMain)" />
-                            <div className="flex-1">
+                            <input
+                                type="radio"
+                                name="agent-picker"
+                                value={suggestion.name}
+                                checked={isSelected}
+                                disabled={isResolved}
+                                onChange={() => setSelectedRadio(suggestion.name)}
+                                className="mt-1 h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-full border-2 border-(--secondary-text-wMain) bg-transparent transition-colors checked:border-(--primary-wMain) checked:bg-(--primary-wMain) checked:shadow-[inset_0_0_0_3px_var(--background-w10)] disabled:cursor-not-allowed"
+                            />
+                            <div className="min-w-0 flex-1">
                                 <a
                                     href={`#/agents?agent=${encodeURIComponent(suggestion.name)}`}
                                     target="_blank"
@@ -86,8 +94,16 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
 
                 {allowOther && otherAgents.length > 0 && (
                     <label className={cn("flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors", selectedRadio === OTHER_VALUE && "border-(--primary-wMain) bg-(--primary-w10)", isResolved && "cursor-default opacity-70")}>
-                        <input type="radio" name="agent-picker" value={OTHER_VALUE} checked={selectedRadio === OTHER_VALUE} disabled={isResolved} onChange={() => setSelectedRadio(OTHER_VALUE)} className="h-4 w-4 accent-(--primary-wMain)" />
-                        <span className="text-sm">Other</span>
+                        <input
+                            type="radio"
+                            name="agent-picker"
+                            value={OTHER_VALUE}
+                            checked={selectedRadio === OTHER_VALUE}
+                            disabled={isResolved}
+                            onChange={() => setSelectedRadio(OTHER_VALUE)}
+                            className="h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-full border-2 border-(--secondary-text-wMain) bg-transparent transition-colors checked:border-(--primary-wMain) checked:bg-(--primary-wMain) checked:shadow-[inset_0_0_0_3px_var(--background-w10)] disabled:cursor-not-allowed"
+                        />
+                        <span className="flex-shrink-0 text-sm">Other</span>
                         <Select
                             value={otherSelected}
                             onValueChange={value => {
@@ -96,7 +112,7 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
                             }}
                             disabled={isResolved}
                         >
-                            <SelectTrigger className="ml-auto max-w-[14rem]">
+                            <SelectTrigger className="ml-auto max-w-[14rem] min-w-0 flex-1">
                                 <SelectValue placeholder="Select an agent" />
                             </SelectTrigger>
                             <SelectContent>
