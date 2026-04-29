@@ -20,6 +20,7 @@ from ..agent.utils.artifact_helpers import (
     format_artifact_uri,
 )
 from .app import WorkflowNode, WorkflowInvokeNode
+from .utils import parse_duration
 from .workflow_execution_context import WorkflowExecutionContext, WorkflowExecutionState
 
 if TYPE_CHECKING:
@@ -138,7 +139,11 @@ class AgentCaller:
 
         # Publish request
         await self._publish_agent_request(
-            node.agent_name, message, sub_task_id, workflow_context
+            node.agent_name,
+            message,
+            sub_task_id,
+            workflow_context,
+            self._resolve_node_timeout(node.timeout),
         )
 
         # Track in workflow context
@@ -227,7 +232,11 @@ class AgentCaller:
 
         # Publish request to the sub-workflow
         await self._publish_agent_request(
-            node.workflow_name, message, sub_task_id, workflow_context
+            node.workflow_name,
+            message,
+            sub_task_id,
+            workflow_context,
+            self._resolve_node_timeout(node.timeout),
         )
 
         # Track in workflow context
@@ -462,12 +471,36 @@ This is MANDATORY for the workflow to continue.
 
         return message
 
+    def _resolve_node_timeout(self, node_timeout: Optional[str]) -> float:
+        """
+        Resolve the timeout for a node call in seconds.
+
+        If the node defines its own ``timeout`` (e.g. "5m"), parse and use it;
+        otherwise fall back to the workflow-level ``default_node_timeout_seconds``.
+        Invalid per-node values fall back to the default with a warning rather
+        than failing the call.
+        """
+        default_timeout = float(
+            self.host.get_config("default_node_timeout_seconds", 300)
+        )
+        if not node_timeout:
+            return default_timeout
+        try:
+            return parse_duration(node_timeout)
+        except ValueError as e:
+            log.warning(
+                f"{self.host.log_identifier} Invalid per-node timeout '{node_timeout}', "
+                f"falling back to default_node_timeout_seconds={default_timeout}s: {e}"
+            )
+            return default_timeout
+
     async def _publish_agent_request(
         self,
         agent_name: str,
         message: A2AMessage,
         sub_task_id: str,
         workflow_context: WorkflowExecutionContext,
+        timeout_seconds: float,
     ):
         """Publish A2A request to agent."""
         log_id = f"{self.host.log_identifier}[PublishAgentRequest:{agent_name}]"
@@ -510,8 +543,9 @@ This is MANDATORY for the workflow to continue.
             f"{log_id} Published agent request to {request_topic} (sub_task_id: {sub_task_id})"
         )
 
-        # Set timeout tracking
-        timeout_seconds = self.host.get_config("default_node_timeout_seconds", 300)
+        # Set timeout tracking. Record the resolved timeout on the context so
+        # the timeout error message reports the value that actually fired.
+        workflow_context.set_sub_task_timeout(sub_task_id, timeout_seconds)
         self.host.cache_service.add_data(
             key=sub_task_id,
             value=workflow_context.workflow_task_id,
