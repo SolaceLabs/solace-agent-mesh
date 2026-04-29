@@ -331,7 +331,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--primary-w10)">
                         <Sparkles className="h-4 w-4 text-(--primary-wMain)" />
                     </div>
-                    <h3 className="text-sm font-semibold">AI Task Builder</h3>
+                    <h3 className="text-sm font-semibold">AI Builder</h3>
                 </div>
             </div>
 

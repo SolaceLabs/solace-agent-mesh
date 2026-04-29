@@ -505,7 +505,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                     {/* Right Panel - Task Preview (only in AI mode) */}
                     {builderMode === "ai-assisted" && (
-                        <div className="w-[60%] overflow-hidden bg-(--background-w20)">
+                        <div className="w-[60%] overflow-hidden">
                             <TaskPreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
                         </div>
                     )}

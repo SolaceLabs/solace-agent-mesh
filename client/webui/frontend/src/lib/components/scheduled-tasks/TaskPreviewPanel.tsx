@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Badge, CardTitle, Label } from "@/lib/components/ui";
-import { CheckCircle2 } from "lucide-react";
+import { CalendarDays, CheckCircle2 } from "lucide-react";
 import { describeScheduleExpression } from "./utils";
 import { useAgentCards } from "@/lib/hooks";
 
@@ -103,9 +103,14 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
     return (
         <div className="flex h-full flex-col">
             {/* Header */}
-            <div className="border-b px-6 py-4">
+            <div className="border-b px-4 py-3">
                 <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Task Preview</CardTitle>
+                    <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-(--secondary-w10)">
+                            <CalendarDays className="h-4 w-4 text-(--secondary-text-wMain)" />
+                        </div>
+                        <h3 className="text-sm font-semibold">Preview</h3>
+                    </div>
                     {isReadyToSave && (
                         <Badge variant="default" className="bg-(--success-wMain)">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
