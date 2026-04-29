@@ -143,10 +143,6 @@ export const CollapsibleNavigationSidebar = ({
         }
 
         onNavigate?.(itemId, item.route);
-
-        if (item.route) {
-            navigate(item.route);
-        }
     };
 
     const toggleMenu = (menuId: string) => {
