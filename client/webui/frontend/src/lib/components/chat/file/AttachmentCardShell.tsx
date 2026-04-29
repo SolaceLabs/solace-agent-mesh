@@ -87,28 +87,39 @@ export const AttachmentCardShell: React.FC<AttachmentCardShellProps> = ({ filena
 };
 
 /**
- * Inline text snippet preview shared by attachment cards. Shows up to two
- * non-blank trimmed/truncated lines plus an ellipsis when more content is
- * available. Blank lines are skipped so the snippet doesn't waste a row on a
- * paragraph break (which used to leave the card looking like "first line +
- * blank row + ellipsis").
+ * Inline text snippet preview shared by attachment cards. Shows up to three
+ * non-blank trimmed/truncated lines. When more content exists beyond the
+ * third visible line, the third line itself ends in "…" rather than burning
+ * a fourth row on a standalone ellipsis. Blank lines are skipped so the
+ * snippet doesn't waste a row on a paragraph break.
  */
+const SNIPPET_MAX_LINES = 3;
+const SNIPPET_LINE_MAX_CHARS = 40;
+
 export const AttachmentInlineText: React.FC<{ lines: string[] }> = ({ lines }) => {
     const nonBlank = lines.map(l => l.trim()).filter(l => l.length > 0);
-    const visible = nonBlank.slice(0, 2);
+    const visible = nonBlank.slice(0, SNIPPET_MAX_LINES);
     const hasMore = nonBlank.length > visible.length;
 
     return (
         <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
             {visible.map((line, index) => {
-                const display = line.length > 40 ? line.substring(0, 37) + "..." : line;
+                const isLast = index === visible.length - 1;
+                // Append "…" on the last visible line if there's more content
+                // beyond it; otherwise just truncate per-line at the char cap.
+                let display: string;
+                if (isLast && hasMore) {
+                    const cap = SNIPPET_LINE_MAX_CHARS - 3;
+                    display = line.length > cap ? line.substring(0, cap) + "..." : line + "...";
+                } else {
+                    display = line.length > SNIPPET_LINE_MAX_CHARS ? line.substring(0, SNIPPET_LINE_MAX_CHARS - 3) + "..." : line;
+                }
                 return (
                     <div key={`${index}-${line}`} className="truncate">
                         {display}
                     </div>
                 );
             })}
-            {hasMore && <div className="text-(--secondary-text-w50)">...</div>}
         </div>
     );
 };
