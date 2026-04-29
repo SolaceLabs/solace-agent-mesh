@@ -7,6 +7,7 @@ import { useChatContext } from "@/lib/hooks";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { NODE_COLORS } from "@/lib/constants";
 import type {
+    ArtifactInfo,
     ArtifactNotificationData,
     LLMCallData,
     LLMResponseToAgentData,
@@ -26,6 +27,10 @@ interface VisualizerStepCardProps {
     isHighlighted?: boolean;
     onClick?: () => void;
     variant?: "list" | "popover";
+    /** Custom artifact lookup by filename. Falls back to ChatContext artifacts when not provided. */
+    artifactLookup?: (filename: string) => ArtifactInfo | undefined;
+    /** Custom handler for viewing an artifact. Falls back to ChatContext side panel behavior when not provided. */
+    onViewArtifact?: (artifact: ArtifactInfo, version?: number) => void;
 }
 
 const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data }) => {
@@ -77,7 +82,7 @@ const LLMResponseToAgentDetails: FC<{ data: LLMResponseToAgentData }> = ({ data 
     );
 };
 
-const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list" }) => {
+const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, onClick, variant = "list", artifactLookup, onViewArtifact }) => {
     const { artifacts, setPreviewArtifact, setActiveSidePanelTab, setIsSidePanelCollapsed, navigateArtifactVersion } = useChatContext();
 
     const getStepIcon = () => {
@@ -242,28 +247,26 @@ const VisualizerStepCard: FC<VisualizerStepCardProps> = ({ step, isHighlighted, 
         const handleViewFile = async (e: MouseEvent) => {
             e.stopPropagation();
 
-            // Find the artifact by filename
-            const artifact = artifacts.find(a => a.filename === data.artifactName);
+            // Use custom lookup if provided, otherwise fall back to ChatContext artifacts
+            const artifact = artifactLookup ? artifactLookup(data.artifactName) : artifacts.find(a => a.filename === data.artifactName);
 
             if (artifact) {
-                // Switch to Files tab
-                setActiveSidePanelTab("files");
+                if (onViewArtifact) {
+                    // Delegate entirely to the consumer
+                    onViewArtifact(artifact, data.version);
+                } else {
+                    // Default ChatContext side panel behavior
+                    setActiveSidePanelTab("files");
+                    setIsSidePanelCollapsed(false);
+                    setPreviewArtifact(artifact);
 
-                // Expand side panel if collapsed
-                setIsSidePanelCollapsed(false);
-
-                // Set preview artifact to open the file (loads latest by default)
-                setPreviewArtifact(artifact);
-
-                // If a specific version is indicated in the workflow data, navigate to it
-                if (data.version !== undefined && data.version !== artifact.version) {
-                    // Wait a bit for the file to load, then navigate to the specific version
-                    setTimeout(() => {
-                        navigateArtifactVersion(artifact.filename, data.version!);
-                    }, 100);
+                    if (data.version !== undefined && data.version !== artifact.version) {
+                        setTimeout(() => {
+                            navigateArtifactVersion(artifact.filename, data.version!);
+                        }, 100);
+                    }
                 }
             }
-            // If artifact not found, do nothing (silent failure)
         };
 
         return (

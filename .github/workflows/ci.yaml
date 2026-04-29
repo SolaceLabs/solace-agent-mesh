@@ -1,382 +1,334 @@
 name: CI
+run-name: "CI (${{ github.event_name == 'push' && '`main`' || (contains(github.event.pull_request.head.ref, 'release-please') && 'Release-Please PR' || format('PR `#{0}`', github.event.pull_request.number)) || '' }})"
 on:
   push:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches:
       - main
-      - art/**
-
-permissions:
-  repository-projects: read
-  contents: write
-  id-token: write
-  packages: write
-  checks: write
-  pull-requests: write
-  issues: write # For PR comments from FOSSA
-  statuses: write # For FOSSA commit status
-  actions: read # Required by sca-scan-and-guard reusable workflow
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-main-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.head.ref, 'release-please')  }}
 
 jobs:
-  # ----------------------------------------------------
-  # FOSSA Scan
-  # ----------------------------------------------------
+  detect-context:
+    name: Detect Context
+    runs-on: ubuntu-slim
+    outputs:
+      is_release_please_pr: ${{ steps.context.outputs.is_release_please_pr }}
+      is_regular_pr: ${{ steps.context.outputs.is_regular_pr }}
+      is_push_to_main: ${{ steps.context.outputs.is_push_to_main }}
+      is_fork_pr: ${{ steps.context.outputs.is_fork_pr }}
+      is_release_please_merge: ${{ steps.context.outputs.is_release_please_merge }}
+      release_version: ${{ steps.context.outputs.release_version }}
+      pr_base_sha: ${{ steps.context.outputs.pr_base_sha }}
+    steps:
+      - id: context
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+          IS_PUSH_TO_MAIN: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+          IS_REGULAR_PR: ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && !contains(github.event.pull_request.head.ref, 'release-please') }}
+          IS_RELEASE_PLEASE_PR: ${{ contains(github.event.pull_request.head.ref, 'release-please') }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          echo "Determining context..."
+          echo "is_fork_pr=$IS_FORK_PR" >> "$GITHUB_OUTPUT"
+          echo "is_push_to_main=$IS_PUSH_TO_MAIN" >> "$GITHUB_OUTPUT"
+          echo "is_regular_pr=$IS_REGULAR_PR" >> "$GITHUB_OUTPUT"
+          echo "is_release_please_pr=$IS_RELEASE_PLEASE_PR" >> "$GITHUB_OUTPUT"
+
+          # Detect release-please merge: push to main where the merge commit
+          # message matches release-please's title pattern (proven in release-post-process.yml).
+          IS_RELEASE_PLEASE_MERGE=false
+          RELEASE_VERSION=""
+          if [[ "$IS_PUSH_TO_MAIN" == "true" && "$HEAD_COMMIT_MESSAGE" =~ ^chore(\(.*\))?:\ release\ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            IS_RELEASE_PLEASE_MERGE=true
+            RELEASE_VERSION="${BASH_REMATCH[2]}"
+          fi
+
+
+          echo "is_release_please_merge=$IS_RELEASE_PLEASE_MERGE" >> "$GITHUB_OUTPUT"
+          echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
+  pr-size-check:
+    name: PR Size Check
+    needs: detect-context
+    if: ${{ github.event_name == 'pull_request'}}
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Validate PR Size
+        uses: SolaceDev/solace-public-workflows/.github/actions/pr-size-check@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-lines: 1500
+  validate-conventional-commit:
+    name: "Validate Conventional Commit"
+    needs: detect-context
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request'}}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR Title
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          disallowScopes: |
+            release
+          subjectPattern: ^.+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            is not empty.
+
   fossa_scan:
     name: FOSSA Scan
-    if: ${{ !github.event.repository.fork }}
+    needs: detect-context
+    if: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) || github.event_name == 'push' }}
     uses: SolaceDev/solace-public-workflows/.github/workflows/sca-scan-and-guard.yaml@main
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      id-token: write
+      actions: read
+      checks: write
+      statuses: write
     with:
       use_vault: false
       config_file: ".github/workflow-config.json"
       setup_actions: '["setup-uv"]'
       custom_setup_script: "uv export --format requirements-txt --no-dev --output-file requirements.txt"
+      additional_scan_params: |
+        fossa.branch=${{ github.event_name == 'pull_request' && 'PR' || 'main' }}
+        fossa.revision=${{ needs.detect-context.outputs.release_version || github.event.pull_request.head.ref || github.sha }}
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
 
-  # ----------------------------------------------------
-  # Test and SonarQube Analysis (Reusable Workflow)
-  # ----------------------------------------------------
   test-and-sonarqube:
     name: Test and SonarQube
+    needs: detect-context
     uses: ./.github/workflows/test-and-sonarqube.yml
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     with:
+      git_ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
       min-python-version: "3.10"
       max-python-version: "3.13"
       node-version: "25.5.0"
       ui-path: "client/webui/frontend"
+      run_sonarqube_analysis: ${{ !fromJSON(needs.detect-context.outputs.is_fork_pr)}}
+      run_quality_gate: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
       SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
 
-  # ----------------------------------------------------
-  # PHASE 0: Prepare Metadata and Determine Build Strategy Test1
-  # ----------------------------------------------------
-  prepare-metadata:
-    name: Prepare Build Metadata
+  build-and-push:
+    name: Build and Push Image
+    needs: detect-context
+    uses: ./.github/workflows/build-push-image.yaml
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+      checks: write
+      pull-requests: write
+      actions: read
+      repository-projects: read
+    with:
+      ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      push_to_ecr: ${{ fromJSON(needs.detect-context.outputs.is_push_to_main) || fromJSON(needs.detect-context.outputs.is_release_please_pr) }}
+      run_container_scan: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
+      is_release_merge: ${{ fromJSON(needs.detect-context.outputs.is_release_please_merge) }}
+    secrets: inherit
+
+  # ── Release-please PR: release readiness ──────────────────────
+  release-readiness:
+    name: Release Readiness
+    needs: [detect-context, build-and-push, test-and-sonarqube]
+    if: ${{ fromJSON(needs.detect-context.outputs.is_release_please_pr) }}
+    uses: ./.github/workflows/release-readiness-check.yaml
+    with:
+      commit_sha: ${{ github.event.pull_request.head.sha }}
+      version: ${{ needs.build-and-push.outputs.version }}
+      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+      check_only: false
+      check_sonarqube_hotspots: true
+    secrets: inherit
+
+  # ── Release-please PR: RC gate (after release readiness) ──────
+  rc-gate:
+    name: RC Gate
+    needs: [detect-context, build-and-push, release-readiness]
+    if: >-
+      needs.detect-context.outputs.is_release_please_pr == 'true' &&
+      needs.release-readiness.result == 'success'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
-      commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
-      release_tag: ${{ steps.release_tag.outputs.release_tag }}
-      docker_push: ${{ steps.set_build_params.outputs.docker_push }}
+      rc_status: ${{ steps.capture.outputs.status }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+      - name: Dispatch RC workflow and wait
+        id: run-rc
+        uses: SolaceDev/solace-public-workflows/workflow-dispatch-and-wait@main
         with:
-          enable-cache: true
+          workflow: rc-workflow.yaml
+          repo: SolaceDev/rc-sam-community
+          ref: main
+          token: ${{ secrets.RC_TOKEN }}
+          wait-for-completion: "true"
+          wait-for-completion-timeout: "2h"
+          wait-for-completion-interval: "1m"
+          inputs: >-
+            {"sha":"${{ github.event.pull_request.head.sha }}","version":"${{ needs.build-and-push.outputs.version }}","image_tag":"${{ needs.build-and-push.outputs.image_tag }}","environment":"rc"}
 
-      - name: Sync and verify uv.lock
-        run: |
-          # Sync lock file with pyproject.toml
-          uv lock
-      - name: Get Commit Hash
-        id: get_commit_hash
-        run: |
-          echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "short_sha=${GITHUB_SHA:0:10}" >> $GITHUB_OUTPUT
-
-      - name: Get Version from hatch
-        id: get_version
-        run: |
-          uv tool install --with virtualenv==20.26.6 hatch
-          echo "version=$(hatch version)" >> $GITHUB_OUTPUT
-          echo "Found version: $(hatch version)"
-
-      - name: Determine Release Tag
-        id: release_tag
-        run: |
-          # Sanitize ref_name for Docker tag compatibility (replace / with -)
-          sanitized_ref="${{ github.ref_name }}"
-          sanitized_ref="${sanitized_ref//\//-}"
-          echo "release_tag=${sanitized_ref}" >> $GITHUB_OUTPUT
-          echo "Using sanitized branch name as release tag: ${sanitized_ref} (from ${{ github.ref_name }})"
-
-      - name: Set Build Params
-        id: set_build_params
-        run: |
-          docker_push=false
-          # Only update manifest for default branch pushes
-          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-            docker_push=true
-          fi
-          echo "Will Push Images: ${docker_push}"
-          echo "docker_push=${docker_push}" >> $GITHUB_OUTPUT
-          echo "Always building multiplatform for all scenarios"
-
-  # ----------------------------------------------------
-  # PHASE 1 & 2: Multiplatform Builds (Always Both Platforms)
-  # ----------------------------------------------------
-  build-platform:
-    name: Build ${{ matrix.platform.name }}
-    needs: prepare-metadata
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - name: linux/amd64
-            runner: ubuntu-24.04
-            tag_suffix: amd64
-          - name: linux/arm64
-            runner: ubuntu-24.04-arm
-            tag_suffix: arm64
-    runs-on: ${{ matrix.platform.runner }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-        with:
-          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Determine Image Name and Cache Configuration
-        id: image_name
-        run: |
-          image_name="${{ steps.login-ecr.outputs.registry }}/solace-agent-mesh"
-          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
-
-          platform="${{ matrix.platform.tag_suffix }}"
-
-          # For push to main: read and write only to buildcache-<platform>
-          if [[ "${{ github.event_name == 'push' }}" == "true" && "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-            cache_ref="${image_name}:buildcache-${platform}"
-            echo "cache_from=type=registry,ref=${cache_ref}" >> $GITHUB_OUTPUT
-            echo "cache_to=type=registry,ref=${cache_ref},mode=max" >> $GITHUB_OUTPUT
-            echo "Main branch push: read/write buildcache-${platform}"
-          else
-            # For PR builds: read from main cache and PR cache, write only to PR cache
-            # Sanitize branch name for Docker tag compatibility (replace / with -)
-            pr_branch="${{ github.head_ref || github.ref_name }}"
-            pr_branch="${pr_branch//\//-}"
-            
-            main_cache_ref="${image_name}:buildcache-${platform}"
-            pr_cache_ref="${image_name}:buildcache-${pr_branch}-${platform}"
-            
-            # Read from both caches (will try in order)
-            echo "cache_from=type=registry,ref=${pr_cache_ref}" >> $GITHUB_OUTPUT
-            echo "cache_from_secondary=type=registry,ref=${main_cache_ref}" >> $GITHUB_OUTPUT
-            
-            # Write only to PR-specific cache
-            echo "cache_to=type=registry,ref=${pr_cache_ref},mode=max" >> $GITHUB_OUTPUT
-            echo "PR build: read from buildcache-${pr_branch}-${platform} and buildcache-${platform}, write to buildcache-${pr_branch}-${platform}"
-          fi
-
-      - name: Prepare Cache From List
-        id: cache_list
-        run: |
-          cache_from="${{ steps.image_name.outputs.cache_from }}"
-          if [[ -n "${{ steps.image_name.outputs.cache_from_secondary }}" ]]; then
-            cache_from="${cache_from}"$'\n'"${{ steps.image_name.outputs.cache_from_secondary }}"
-          fi
-
-          # Use multiline output format for GitHub Actions
-          echo "cache_from<<EOF" >> $GITHUB_OUTPUT
-          echo "$cache_from" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Build and Push Platform-Specific Image
-        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
-        with:
-          context: .
-          file: Dockerfile
-          platforms: ${{ matrix.platform.name }}
-          tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
-          push: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          cache-from: ${{ steps.cache_list.outputs.cache_from }}
-          load: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-          cache-to: ${{ steps.image_name.outputs.cache_to }}
-          provenance: false
-          sbom: false
-          build-args: |
-            INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
-
-      - name: Run Prisma Cloud Scan on Local Image
-        if: ${{ github.event_name == 'pull_request' }}
-        id: prisma_scan
-        continue-on-error: true
-        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
-        with:
-          image_registry: ${{ steps.login-ecr.outputs.registry }}
-          image_repo: ${{ github.event.repository.name }}
-          image_tag: ${{ format('{0}-{1}-{2}', needs.prepare-metadata.outputs.version, needs.prepare-metadata.outputs.short_sha, matrix.platform.tag_suffix) }}
-          pcc_console_url: ${{ vars.PRISMACLOUD_CONSOLE_URL }}
-          pcc_user: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
-          pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
-          twistcli_publish: "true"
-          vulnerability_grace_period_days: "7"
-          skip_image_pull: ${{ !fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-
-  # ----------------------------------------------------
-  # PHASE 3: Merge Multi-Platform Manifest (Always)
-  # ----------------------------------------------------
-  merge-manifest:
-    name: Create Multi-Platform Manifest
-    needs: [prepare-metadata, build-platform]
-    if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-        with:
-          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Determine Image Name and Tags
-        id: image_tags
-        run: |
-          # Reconstruct image name based on registry type
-          image_name="${{ secrets.SAM_AWS_ECR_REGISTRY }}/solace-agent-mesh"
-          echo "Using ECR registry: ${image_name}"
-
-          # Reconstruct tags
-          version="${{ needs.prepare-metadata.outputs.version }}"
-          release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
-          short_sha="${{ needs.prepare-metadata.outputs.short_sha }}"
-
-          tags="${image_name}:${version}-${short_sha}"
-
-          if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
-            tags="${tags},${image_name}:${version}"
-            tags="${tags},${image_name}:${release_tag}"
-          fi
-          tags="${tags},${image_name}:${release_tag}-${short_sha}"
-
-
-          echo "image_name=${image_name}" >> $GITHUB_OUTPUT
-          echo "tags=${tags}" >> $GITHUB_OUTPUT
-          echo "Created tags: ${tags}"
-
-      - name: Create and Push Multi-Platform Manifest
-        if: ${{ fromJSON(needs.prepare-metadata.outputs.docker_push) }}
-        run: |
-          # Define the platform-specific tags
-          AMD_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-amd64"
-          ARM_TAG="${{ steps.image_tags.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-arm64"
-
-          echo "AMD64 Tag: ${AMD_TAG}"
-          echo "ARM64 Tag: ${ARM_TAG}"
-
-          # OCI annotations to ensure unique manifest digest per commit
-          # This allows Prisma Cloud and other tools to index each tag uniquely
-          # while still benefiting from layer caching
-          COMMIT_SHA="${{ needs.prepare-metadata.outputs.commit_hash }}"
-          BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-          # Convert comma-separated tags string to array and create manifest for each
-          IFS=',' read -ra TAGS <<< "${{ steps.image_tags.outputs.tags }}"
-          for TAG in "${TAGS[@]}"; do
-            # Trim any whitespace
-            
-            TAG=$(echo "$TAG" | xargs)
-            echo "Creating manifest for tag: $TAG"
-            docker buildx imagetools create \
-              --annotation "index:org.opencontainers.image.revision=${COMMIT_SHA}" \
-              --annotation "index:org.opencontainers.image.created=${BUILD_TIME}" \
-              --annotation "index:org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-              --tag "$TAG" \
-              "$AMD_TAG" \
-              "$ARM_TAG"
-          done
-
-          echo "Multi-platform manifest created successfully"
-
-      - name: Update Release Manifest
-        if: fromJSON(needs.prepare-metadata.outputs.docker_push)
+      - name: Capture RC status
+        id: capture
+        if: always()
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          RC_CONCLUSION: ${{ steps.run-rc.outputs.workflow-conclusion }}
         run: |
-          # Set release manifest variables
-          export release_version="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
-          export version="${{ needs.prepare-metadata.outputs.version }}"
-          export image_tag="${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}"
-          export chart_version="n/a"
-          export sha="${{ needs.prepare-metadata.outputs.commit_hash }}"
-          export squad="ai"
-          export repository="solace-agent-mesh"
-          export release_tag="${{ needs.prepare-metadata.outputs.release_tag }}"
+          STATUS=success
+          if [[ "$RC_CONCLUSION" != "success" ]]; then
+            STATUS=failure
+          fi
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
 
-          # Update DynamoDB manifest
-          aws dynamodb update-item \
-              --table-name solace-cloud-manifest \
-              --key "{\"squad\":{\"S\":\"${squad}\"},\"repository\": {\"S\": \"${repository}\"} }"\
-              --update-expression "SET dev = :r" \
-              --expression-attribute-values \
-              """{\":r\":
-                      {\"M\":
-                          {
-                            \"version\":{\"S\":\"${version}\"},
-                            \"image_tag\":{\"S\":\"${image_tag}\"},
-                            \"chart_version\": {\"S\": \"${chart_version}\"},
-                            \"sha\": {\"S\": \"${sha}\"},
-                            \"release_version\": {\"S\": \"${release_version}\"}
-                          }
-                      }
-              }"""
-      - name: Trigger RC Workflow in rc-sam-community
+      - name: Enforce RC result
+        if: steps.run-rc.outputs.workflow-conclusion != 'success'
+        env:
+          RC_CONCLUSION: ${{ steps.run-rc.outputs.workflow-conclusion }}
+        run: |
+          echo "RC workflow conclusion: ${RC_CONCLUSION}" >&2
+          exit 1
+
+  # ── Release-please PR: propagate statuses ─────────────────────
+  propagate-release-statuses:
+    name: Propagate Release Statuses
+    needs: [detect-context, release-readiness, rc-gate]
+    if: always() && needs.detect-context.outputs.is_release_please_pr == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      checks: write
+      statuses: write
+    steps:
+      - name: Propagate statuses to PR SHAs
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          PR_HEAD_SHA: ${{ needs.detect-context.outputs.pr_head_sha }}
+          PR_BASE_SHA: ${{ needs.detect-context.outputs.pr_base_sha }}
+          FOSSA_STATUS: ${{ needs.release-readiness.outputs.fossa_status }}
+          PRISMA_STATUS: ${{ needs.release-readiness.outputs.prisma_status }}
+          SONAR_STATUS: ${{ needs.release-readiness.outputs.sonarqube_hotspots_status }}
+          GUARDIAN_STATUS: ${{ needs.release-readiness.outputs.guardian_status }}
+          RC_STATUS: ${{ needs.rc-gate.outputs.rc_status }}
         with:
-          github-token: ${{ secrets.RC_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const owner = 'SolaceDev';
-            const repo = 'rc-sam-community';
-            const workflow_id = 'rc-workflow.yaml';
-            const ref = 'main';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const targetUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
 
-            const sha = '${{ needs.prepare-metadata.outputs.commit_hash }}';
-            const version = '${{ needs.prepare-metadata.outputs.version }}';
-            const image_tag = '${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}';
+            const checks = [
+              ['FOSSA / Release Readiness', process.env.FOSSA_STATUS],
+              ['Prisma / Release Readiness', process.env.PRISMA_STATUS],
+              ['SonarQube Hotspots / Release Readiness', process.env.SONAR_STATUS],
+              ['Guardian / Release Readiness', process.env.GUARDIAN_STATUS],
+              ['RC / Integration Tests (Community)', process.env.RC_STATUS],
+            ];
 
-            console.log('Triggering RC workflow with:');
-            console.log(`  SHA: ${sha}`);
-            console.log(`  Version: ${version}`);
-            console.log(`  Image Tag: ${image_tag}`);
-
-            try {
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id,
-                ref,
-                inputs: {
-                  sha: sha,
-                  version: version,
-                  image_tag: image_tag,
-                  environment: 'rc'
-                }
-              });
-
-              console.log('✓ Successfully triggered RC workflow');
-              console.log(`  View at: https://github.com/${owner}/${repo}/actions/workflows/${workflow_id}`);
-            } catch (error) {
-              console.error('Failed to trigger RC workflow:', error.message);
-              throw error;
+            for (const sha of [process.env.PR_HEAD_SHA, process.env.PR_BASE_SHA].filter(Boolean)) {
+              for (const [contextName, value] of checks) {
+                const state = (value === 'success' || value === 'skipped') ? 'success' : 'failure';
+                await github.rest.repos.createCommitStatus({
+                  owner, repo, sha,
+                  state,
+                  context: contextName,
+                  description: `Release readiness: ${value || 'unknown'}`,
+                  target_url: targetUrl,
+                });
+              }
             }
+
+  # ── Unified gate for branch protection ────────────────────────
+  ci-status:
+    name: CI Status
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - fossa_scan
+      - test-and-sonarqube
+      - build-and-push
+      - release-readiness
+      - rc-gate
+      - propagate-release-statuses
+    permissions:
+      contents: read
+      id-token: write
+      checks: write
+      statuses: write
+    steps:
+      - name: Evaluate required checks
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          IS_RP_PR: ${{ needs.detect-context.outputs.is_release_please_pr }}
+          CONTEXT_RESULT: ${{ needs.detect-context.result }}
+          FOSSA_RESULT: ${{ needs.fossa_scan.result }}
+          TEST_RESULT: ${{ needs.test-and-sonarqube.result }}
+          BUILD_RESULT: ${{ needs.build-and-push.result }}
+          READINESS_RESULT: ${{ needs.release-readiness.result }}
+          RC_GATE_RESULT: ${{ needs.rc-gate.result }}
+          PROPAGATION_RESULT: ${{ needs.propagate-release-statuses.result }}
+        run: |
+          set -euo pipefail
+          require_result() {
+            local name="$1"; local value="$2"; shift 2; local allowed=("$@")
+            for expected in "${allowed[@]}"; do
+              if [[ "$value" == "$expected" ]]; then
+                echo "✅ ${name}: ${value}"
+                return 0
+              fi
+            done
+            echo "::error::${name} is '${value}' (expected: ${allowed[*]})"
+            exit 1
+          }
+
+          require_result "Detect Context" "${CONTEXT_RESULT}" success
+          require_result "Test and SonarQube" "${TEST_RESULT}" success
+          require_result "Build and Push" "${BUILD_RESULT}" success
+
+          if [[ "$IS_RP_PR" == "true" ]]; then
+            require_result "Release Readiness" "${READINESS_RESULT}" success
+            require_result "RC Gate" "${RC_GATE_RESULT}" success
+            require_result "Propagate Statuses" "${PROPAGATION_RESULT}" success
+          else
+            require_result "FOSSA PR Scan" "${FOSSA_RESULT}" success skipped
+          fi

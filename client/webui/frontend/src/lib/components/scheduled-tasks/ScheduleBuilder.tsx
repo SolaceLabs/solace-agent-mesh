@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
+import { TimePicker } from "@/lib/components/ui";
 
 // Schedule builder types
 type FrequencyType = "daily" | "weekly" | "monthly" | "hourly" | "custom";
@@ -63,7 +64,25 @@ function scheduleToCron(config: ScheduleConfig): string {
     }
 }
 
-// Parse cron expression to schedule config (best effort)
+// Normalize a cron expression for equivalence comparison:
+// sorts & dedupes comma-separated numeric lists so `3,1` === `1,3`.
+function normalizeCron(cron: string): string {
+    return cron
+        .trim()
+        .split(/\s+/)
+        .map(field => {
+            if (!field.includes(",")) return field;
+            const nums = field.split(",").map(Number);
+            if (nums.some(n => isNaN(n))) return field;
+            return [...new Set(nums)].sort((a, b) => a - b).join(",");
+        })
+        .join(" ");
+}
+
+// Parse cron expression to schedule config. When the input uses a pattern
+// the preset builder can't fully represent (e.g. month != *, ranges, steps
+// in unexpected fields), falls back to "custom" so the original expression
+// is preserved verbatim instead of being silently rewritten on save.
 function cronToSchedule(cron: string): ScheduleConfig | null {
     const parts = cron.trim().split(/\s+/);
     if (parts.length !== 5) return null;
@@ -93,60 +112,37 @@ function cronToSchedule(cron: string): ScheduleConfig | null {
 
     const time = `${hours12.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 
-    // Detect frequency
+    const customFallback: ScheduleConfig = {
+        frequency: "custom",
+        time,
+        ampm,
+        weekDays: [],
+        monthDay: 1,
+        hourInterval: 1,
+    };
+
+    let candidate: ScheduleConfig;
+
     if (minute.includes("/")) {
-        // Minute-interval pattern (e.g. */15 * * * *) — not representable in the builder
-        return {
-            frequency: "custom",
-            time,
-            ampm,
-            weekDays: [],
-            monthDay: 1,
-            hourInterval: 1,
-        };
+        return customFallback;
     } else if (hour.includes("/")) {
-        // Hourly pattern
         const interval = parseInt(hour.split("/")[1]);
-        return {
-            frequency: "hourly",
-            time,
-            ampm,
-            weekDays: [],
-            monthDay: 1,
-            hourInterval: interval,
-        };
+        candidate = { frequency: "hourly", time, ampm, weekDays: [], monthDay: 1, hourInterval: interval };
     } else if (dayOfWeek !== "*") {
-        // Weekly pattern
         const days = dayOfWeek.split(",").map(d => parseInt(d));
-        return {
-            frequency: "weekly",
-            time,
-            ampm,
-            weekDays: days,
-            monthDay: 1,
-            hourInterval: 1,
-        };
+        candidate = { frequency: "weekly", time, ampm, weekDays: days, monthDay: 1, hourInterval: 1 };
     } else if (dayOfMonth !== "*") {
-        // Monthly pattern
-        return {
-            frequency: "monthly",
-            time,
-            ampm,
-            weekDays: [],
-            monthDay: parseInt(dayOfMonth),
-            hourInterval: 1,
-        };
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthDay: parseInt(dayOfMonth), hourInterval: 1 };
     } else {
-        // Daily pattern
-        return {
-            frequency: "daily",
-            time,
-            ampm,
-            weekDays: [],
-            monthDay: 1,
-            hourInterval: 1,
-        };
+        candidate = { frequency: "daily", time, ampm, weekDays: [], monthDay: 1, hourInterval: 1 };
     }
+
+    // If the preset candidate doesn't roundtrip to the input, the cron has
+    // structure we can't represent — keep the original as a custom expression.
+    if (normalizeCron(scheduleToCron(candidate)) !== normalizeCron(cron)) {
+        return customFallback;
+    }
+    return candidate;
 }
 
 // Helper function to generate human-readable schedule description
@@ -224,32 +220,43 @@ function validateCron(cron: string): { valid: boolean; error?: string } {
     return { valid: true };
 }
 
-// Helper to validate individual cron field
+// Validate a cron field. Supports lists of any element type:
+// wildcards, singles, ranges (a-b), and steps (*/n or a-b/n).
 function isValidCronField(field: string, min: number, max: number): boolean {
-    // Wildcard
-    if (field === "*") return true;
-
-    // Step values (*/n)
-    if (field.startsWith("*/")) {
-        const step = parseInt(field.substring(2));
-        return !isNaN(step) && step > 0 && step <= max;
-    }
-
-    // Range (n-m)
-    if (field.includes("-")) {
-        const [start, end] = field.split("-").map(Number);
-        return !isNaN(start) && !isNaN(end) && start >= min && end <= max && start <= end;
-    }
-
-    // List (n,m,o)
+    if (!field) return false;
     if (field.includes(",")) {
-        const values = field.split(",").map(Number);
-        return values.every(v => !isNaN(v) && v >= min && v <= max);
+        return field.split(",").every(element => isValidCronElement(element, min, max));
+    }
+    return isValidCronElement(field, min, max);
+}
+
+function isValidCronElement(element: string, min: number, max: number): boolean {
+    if (!element) return false;
+
+    // Step: <base>/<step>, where base is '*' or a range
+    if (element.includes("/")) {
+        const [base, stepStr] = element.split("/");
+        const step = parseInt(stepStr);
+        if (isNaN(step) || String(step) !== stepStr || step <= 0 || step > max) return false;
+        if (base === "*") return true;
+        if (base.includes("-")) return isValidCronRange(base, min, max);
+        return false;
     }
 
-    // Single value
-    const value = parseInt(field);
-    return !isNaN(value) && value >= min && value <= max;
+    if (element.includes("-")) return isValidCronRange(element, min, max);
+    if (element === "*") return true;
+
+    const value = parseInt(element);
+    return !isNaN(value) && String(value) === element && value >= min && value <= max;
+}
+
+function isValidCronRange(range: string, min: number, max: number): boolean {
+    const parts = range.split("-");
+    if (parts.length !== 2) return false;
+    const [start, end] = parts.map(Number);
+    if (isNaN(start) || isNaN(end)) return false;
+    if (String(start) !== parts[0] || String(end) !== parts[1]) return false;
+    return start >= min && end <= max && start <= end;
 }
 
 export function ScheduleBuilder({ value, onChange }: { value: string; onChange: (cron: string) => void }) {
@@ -271,6 +278,21 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
     };
 
     const [config, setConfig] = useState<ScheduleConfig>(initialConfig);
+
+    // Sync internal state when the `value` prop changes externally
+    // (e.g. when the parent populates an existing task for editing).
+    useEffect(() => {
+        if (config.frequency === "custom") {
+            setRawCron(value);
+            return;
+        }
+        if (value === scheduleToCron(config)) return;
+        const parsed = cronToSchedule(value);
+        if (parsed) {
+            setConfig(parsed);
+            setRawCron(value);
+        }
+    }, [value]);
 
     // Update cron when config changes (except in custom mode)
     useEffect(() => {
@@ -423,41 +445,29 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
             {config.frequency !== "hourly" && (
                 <div>
                     <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Time</label>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            className="w-20 rounded-md border px-2 py-1.5 text-center text-sm"
-                            value={config.time}
-                            onChange={e => {
-                                const value = e.target.value;
-                                // Validate format HH:MM where HH is 01-12
-                                if (value.match(/^(0[1-9]|1[0-2]):[0-5][0-9]$/) || value.length < 5) {
-                                    updateConfig({ time: value });
-                                }
-                            }}
-                            onBlur={e => {
-                                // Auto-format on blur
-                                const value = e.target.value;
-                                const match = value.match(/^(\d{1,2}):?(\d{0,2})$/);
-                                if (match) {
-                                    let hours = parseInt(match[1]);
-                                    const minutes = match[2] ? match[2].padStart(2, "0") : "00";
-
-                                    // Clamp hours to 1-12
-                                    if (hours < 1) hours = 1;
-                                    if (hours > 12) hours = 12;
-
-                                    updateConfig({ time: `${hours.toString().padStart(2, "0")}:${minutes}` });
-                                }
-                            }}
-                            placeholder="09:00"
-                            maxLength={5}
-                        />
-                        <select className="w-16 rounded-md border px-2 py-1.5 text-sm" value={config.ampm} onChange={e => updateConfig({ ampm: e.target.value as "AM" | "PM" })}>
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <TimePicker
+                        value={(() => {
+                            // Convert 12h config to 24h for TimePicker
+                            const parts = config.time.split(":");
+                            const h12 = Number(parts[0]);
+                            const m = Number(parts[1]);
+                            if (isNaN(h12) || isNaN(m)) return "09:00";
+                            let h24 = h12;
+                            if (config.ampm === "PM") h24 = h12 === 12 ? 12 : h12 + 12;
+                            else if (config.ampm === "AM") h24 = h12 === 12 ? 0 : h12;
+                            return `${String(h24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                        })()}
+                        onChange={val => {
+                            // Convert 24h back to 12h config
+                            const [h24, m] = val.split(":").map(Number);
+                            const ampm: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
+                            const h12 = h24 % 12 || 12;
+                            updateConfig({
+                                time: `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+                                ampm,
+                            });
+                        }}
+                    />
                 </div>
             )}
 

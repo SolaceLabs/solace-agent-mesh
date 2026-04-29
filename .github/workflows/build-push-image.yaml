@@ -1,0 +1,322 @@
+name: "Reusable Build"
+run-name: "Build ${{ inputs.ref || github.ref_name }}${{ fromJSON(inputs.push_to_ecr) && ' and Push to ECR' || '' }}"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to checkout (branch, tag, or commit SHA). Leave empty for default."
+        type: string
+        required: false
+        default: ""
+      push_to_ecr:
+        description: "Push the built images to ECR and create a multi-arch manifest."
+        type: boolean
+        required: false
+        default: true
+      run_container_scan:
+        description: "Run Prisma Cloud container scan on built images."
+        type: boolean
+        required: false
+        default: false
+      is_release_merge:
+        description: "True when this build is for a release-please merge to the default branch. Controls whether the bare version tag is applied."
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      version:
+        description: "Semantic version that was built"
+        value: ${{ jobs.prepare-metadata.outputs.version }}
+      short_sha:
+        description: "Short (10-char) commit SHA"
+        value: ${{ jobs.prepare-metadata.outputs.short_sha }}
+      commit_hash:
+        description: "Full commit SHA"
+        value: ${{ jobs.prepare-metadata.outputs.commit_hash }}
+      image_tag:
+        description: "Docker image tag (<version>-<short_sha>)"
+        value: ${{ jobs.prepare-metadata.outputs.image_tag }}
+      release_tag:
+        description: "Sanitised branch/ref name for Docker tags"
+        value: ${{ jobs.prepare-metadata.outputs.release_tag }}
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to checkout (branch, tag, or commit SHA). Leave empty for default."
+        type: string
+        required: false
+        default: ""
+      push_to_ecr:
+        description: "Push the built images to ECR and create a multi-arch manifest."
+        type: boolean
+        required: false
+        default: true
+      run_container_scan:
+        description: "Run Prisma Cloud container scan on built images."
+        type: boolean
+        required: false
+        default: false
+      is_release_merge:
+        description: "True when this build is for a release-please merge. Controls whether the bare version tag is applied."
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  repository-projects: read
+  contents: write
+  id-token: write
+  packages: write
+  checks: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: build-push-image-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
+
+jobs:
+  prepare-metadata:
+    name: Prepare Build Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      short_sha: ${{ steps.get_commit_hash.outputs.short_sha }}
+      commit_hash: ${{ steps.get_commit_hash.outputs.commit_hash }}
+      image_tag: ${{ steps.image_tag.outputs.image_tag }}
+      release_tag: ${{ steps.release_tag.outputs.release_tag }}
+      docker_push: ${{ steps.set_build_params.outputs.docker_push }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          enable-cache: true
+
+      - name: Sync and verify uv.lock
+        run: uv lock
+
+      - name: Get commit hash
+        id: get_commit_hash
+        run: |
+          echo "commit_hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA:0:10}" >> "$GITHUB_OUTPUT"
+
+      - name: Get version from hatch
+        id: get_version
+        run: |
+          uv tool install --with virtualenv==20.26.6 hatch
+          echo "version=$(hatch version)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine image tag
+        id: image_tag
+        env:
+          VERSION: ${{ steps.get_version.outputs.version }}
+          SHORT_SHA: ${{ steps.get_commit_hash.outputs.short_sha }}
+        run: echo "image_tag=${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine release tag
+        id: release_tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: echo "release_tag=${REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+
+      - name: Set build params
+        id: set_build_params
+        env:
+          PUSH_INPUT: ${{ inputs.push_to_ecr }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          docker_push=false
+          if [[ "$PUSH_INPUT" == "true" ]]; then
+            docker_push=true
+          elif [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+            docker_push=true
+          fi
+          echo "docker_push=${docker_push}" >> "$GITHUB_OUTPUT"
+
+  build-platform:
+    name: Build ${{ matrix.platform.name }}
+    needs: prepare-metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: linux/amd64
+            runner: ubuntu-24.04
+            tag_suffix: amd64
+          - name: linux/arm64
+            runner: ubuntu-24.04-arm
+            tag_suffix: arm64
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Determine image name and cache configuration
+        id: image_name
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          PLATFORM_SUFFIX: ${{ matrix.platform.tag_suffix }}
+          DOCKER_PUSH: ${{ needs.prepare-metadata.outputs.docker_push }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          IMAGE_NAME="${ECR_REGISTRY}/solace-agent-mesh"
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$DOCKER_PUSH" == "true" ]]; then
+            CACHE_REF="${IMAGE_NAME}:buildcache-${PLATFORM_SUFFIX}"
+            echo "cache_from=type=registry,ref=${CACHE_REF}" >> "$GITHUB_OUTPUT"
+            echo "cache_to=type=registry,ref=${CACHE_REF},mode=max" >> "$GITHUB_OUTPUT"
+          else
+            PR_BRANCH="${HEAD_REF//\//-}"
+            MAIN_CACHE="${IMAGE_NAME}:buildcache-${PLATFORM_SUFFIX}"
+            PR_CACHE="${IMAGE_NAME}:buildcache-${PR_BRANCH}-${PLATFORM_SUFFIX}"
+            echo "cache_from=${PR_CACHE}" >> "$GITHUB_OUTPUT"
+            echo "cache_from_secondary=${MAIN_CACHE}" >> "$GITHUB_OUTPUT"
+            echo "cache_to=type=registry,ref=${PR_CACHE},mode=max" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare cache-from list
+        id: cache_list
+        env:
+          PRIMARY: ${{ steps.image_name.outputs.cache_from }}
+          SECONDARY: ${{ steps.image_name.outputs.cache_from_secondary }}
+        run: |
+          CACHE_FROM="type=registry,ref=${PRIMARY}"
+          if [[ -n "$SECONDARY" ]]; then
+            CACHE_FROM="${CACHE_FROM}"$'\n'"type=registry,ref=${SECONDARY}"
+          fi
+          {
+            echo "cache_from<<EOF"
+            echo "$CACHE_FROM"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push platform-specific image
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform.name }}
+          tags: ${{ steps.image_name.outputs.image_name }}:${{ needs.prepare-metadata.outputs.version }}-${{ needs.prepare-metadata.outputs.short_sha }}-${{ matrix.platform.tag_suffix }}
+          push: ${{ fromJSON(inputs.push_to_ecr) }}
+          load: ${{ !fromJSON(inputs.push_to_ecr) }}
+          cache-from: ${{ steps.cache_list.outputs.cache_from }}
+          cache-to: ${{ steps.image_name.outputs.cache_to }}
+          provenance: false
+          sbom: false
+          build-args: |
+            INSTALL_LIBREOFFICE=${{ secrets.INSTALL_LIBREOFFICE || 'false' }}
+
+      - name: Run Prisma Cloud scan
+        if: ${{ fromJSON(inputs.run_container_scan) }}
+        id: prisma_scan
+        continue-on-error: true
+        uses: SolaceDev/solace-public-workflows/prisma-cloud-scan@main
+        with:
+          image_registry: ${{ steps.login-ecr.outputs.registry }}
+          image_repo: ${{ github.event.repository.name }}
+          image_tag: ${{ format('{0}-{1}-{2}', needs.prepare-metadata.outputs.version, needs.prepare-metadata.outputs.short_sha, matrix.platform.tag_suffix) }}
+          pcc_console_url: ${{ vars.PRISMACLOUD_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PRISMA_ACCESS_KEY_ID }}
+          pcc_pass: ${{ secrets.PRISMA_SECRET_ACCESS_KEY }}
+          twistcli_publish: "true"
+          vulnerability_grace_period_days: "7"
+          skip_image_pull: ${{ !fromJSON(inputs.push_to_ecr) }}
+
+  merge-manifest:
+    name: Create Multi-Platform Manifest
+    needs: [prepare-metadata, build-platform]
+    if: ${{ fromJSON(inputs.push_to_ecr) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.SAM_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.SAM_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Create and push multi-platform manifest
+        env:
+          REGISTRY: ${{ secrets.SAM_AWS_ECR_REGISTRY }}
+          VERSION: ${{ needs.prepare-metadata.outputs.version }}
+          SHORT_SHA: ${{ needs.prepare-metadata.outputs.short_sha }}
+          RELEASE_TAG: ${{ needs.prepare-metadata.outputs.release_tag }}
+          COMMIT_SHA: ${{ needs.prepare-metadata.outputs.commit_hash }}
+          IS_RELEASE_MERGE: ${{ inputs.is_release_merge }}
+        run: |
+          set -euo pipefail
+
+          IMG="${REGISTRY}/solace-agent-mesh"
+          AMD="${IMG}:${VERSION}-${SHORT_SHA}-amd64"
+          ARM="${IMG}:${VERSION}-${SHORT_SHA}-arm64"
+          BUILD_TIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          TAGS=("${IMG}:${VERSION}-${SHORT_SHA}")
+          if [[ "$IS_RELEASE_MERGE" == "true" ]]; then
+            TAGS+=("${IMG}:${VERSION}")
+            TAGS+=("${IMG}:${RELEASE_TAG}")
+          fi
+          TAGS+=("${IMG}:${RELEASE_TAG}-${SHORT_SHA}")
+
+          for TAG in "${TAGS[@]}"; do
+            echo "Creating manifest for: $TAG"
+            docker buildx imagetools create \
+              --annotation "index:org.opencontainers.image.revision=${COMMIT_SHA}" \
+              --annotation "index:org.opencontainers.image.created=${BUILD_TIME}" \
+              --annotation "index:org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+              --tag "$TAG" \
+              "$AMD" "$ARM"
+          done
+
+      - name: Update DynamoDB release manifest
+        env:
+          VERSION: ${{ needs.prepare-metadata.outputs.version }}
+          SHORT_SHA: ${{ needs.prepare-metadata.outputs.short_sha }}
+          COMMIT_SHA: ${{ needs.prepare-metadata.outputs.commit_hash }}
+        run: |
+          ATTRS="$(jq -nc \
+            --arg version "$VERSION" \
+            --arg image_tag "${VERSION}-${SHORT_SHA}" \
+            --arg chart_version "n/a" \
+            --arg sha "$COMMIT_SHA" \
+            --arg release_version "${VERSION}-${SHORT_SHA}" \
+            '{":r": {"M": {"version": {"S": $version}, "image_tag": {"S": $image_tag}, "chart_version": {"S": $chart_version}, "sha": {"S": $sha}, "release_version": {"S": $release_version}}}}')"
+          aws dynamodb update-item \
+            --table-name solace-cloud-manifest \
+            --key '{"squad":{"S":"ai"},"repository":{"S":"solace-agent-mesh"}}' \
+            --update-expression "SET dev = :r" \
+            --expression-attribute-values "$ATTRS"

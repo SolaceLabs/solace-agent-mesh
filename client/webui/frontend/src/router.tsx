@@ -116,7 +116,7 @@ export const createRouter = () => {
                     ],
                 },
                 {
-                    path: "schedules",
+                    path: "scheduled-tasks",
                     element: <ScheduledTasksPage />,
                 },
                 {

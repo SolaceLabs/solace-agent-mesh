@@ -3,7 +3,8 @@ import { getArtifactContent as getArtifactContentUtil, validIdOrUndefined } from
 import type { BulkArtifactsResponse } from "./types";
 
 /**
- * Retrieves artifact content for preview.
+ * Retrieves artifact content for preview, with ID validation and a "latest" version default.
+ * Thin wrapper around `getArtifactContent` from `@/lib/utils/file`.
  * Supports both session-scoped and project-scoped artifacts (sessionId takes priority).
  *
  * @param options.sessionId - Optional session ID for session-scoped artifacts
@@ -12,7 +13,7 @@ import type { BulkArtifactsResponse } from "./types";
  * @param options.version - Optional specific version number (defaults to "latest")
  * @returns Promise with content (base64) and mimeType
  */
-export async function getArtifactContent({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
+export async function getArtifactContentWithValidation({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
     const validSession = validIdOrUndefined(sessionId);
     const validProject = validIdOrUndefined(projectId);
     return getArtifactContentUtil({

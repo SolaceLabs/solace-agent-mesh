@@ -98,19 +98,68 @@ class ArtifactUploadResponse(BaseModel):
 router = APIRouter()
 
 
+# ── Scheduled session ID naming convention ──────────────────────────
+#
+# Per-execution sessions:  "scheduled_{execution_id}"   — used as the chat session
+# Stable storage sessions: "scheduled_task_{task_id}"   — used as the ADK context_id
+#                                                         where agents store artifacts
+#
+# _is_execution_session distinguishes the two by checking for the "scheduled_"
+# prefix while excluding the "scheduled_task_" prefix.
+# ─────────────────────────────────────────────────────────────────────
+
+
+from ..services.scheduler.session_resolver import (
+    get_execution_from_db as _get_execution_from_db,
+    is_execution_session as _is_execution_session,
+    resolve_execution_context as _resolve_execution_context,
+)
+
+
+def _user_owns_execution_session(session_id: str, user_id: str) -> bool:
+    """Return True if ``user_id`` owns the scheduled task behind ``session_id``.
+
+    Used to gate artifact access for per-execution scheduled sessions so a
+    user who obtains another user's execution/session id cannot fetch their
+    artifacts.
+    """
+    execution = _get_execution_from_db(session_id, "_user_owns_execution_session")
+    if not execution:
+        return False
+
+    try:
+        from ..repository.scheduled_task_repository import ScheduledTaskRepository
+        from ..dependencies import SessionLocal
+
+        if SessionLocal is None:
+            return False
+
+        repo = ScheduledTaskRepository()
+        with SessionLocal() as db:
+            task = repo.find_by_id(db, execution.scheduled_task_id)
+    except Exception as e:
+        log.warning("[_user_owns_execution_session] lookup failed for %s: %s", session_id, e)
+        return False
+
+    if not task:
+        return False
+    return task.created_by == user_id
+
+
 def _resolve_storage_context(
     session_id: str,
     project_id: str | None,
     user_id: str,
     validate_session: Callable[[str, str], bool],
     project_service: ProjectService | None,
-    log_prefix: str
-) -> tuple[str, str, str]:
+    log_prefix: str,
+) -> tuple[str, str, str, dict[str, int | None] | None]:
     """
     Resolve storage context from session or project parameters.
 
     Returns:
-        tuple: (storage_user_id, storage_session_id, context_type)
+        tuple: (storage_user_id, storage_session_id, context_type, execution_artifact_info)
+               execution_artifact_info is non-None only for per-execution scheduled sessions.
 
     Raises:
         HTTPException: If no valid context found
@@ -123,7 +172,31 @@ def _resolve_storage_context(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found or access denied.",
             )
-        return user_id, session_id, "session"
+
+        # For scheduled execution sessions, resolve to the stable task-level
+        # session where artifacts are actually stored by the agent.
+        # A single DB lookup returns both the storage session and artifact info.
+        stable_session, artifact_info = _resolve_execution_context(session_id)
+        if stable_session:
+            # Ownership check: ensure the requesting user owns the scheduled
+            # task that produced these artifacts. Return 404 (not 403) to avoid
+            # confirming existence to unauthorized users.
+            if not _user_owns_execution_session(session_id, user_id):
+                log.warning(
+                    "%s User %s not authorized for scheduled session %s",
+                    log_prefix, user_id, session_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Session not found or access denied.",
+                )
+            log.info(
+                "%s Resolved scheduled storage session: %s -> %s",
+                log_prefix, session_id, stable_session,
+            )
+            return user_id, stable_session, "session", artifact_info
+
+        return user_id, session_id, "session", None
 
     # Priority 2: Project context (only if persistence is enabled)
     elif project_id and project_id.strip() and project_id not in ["null", "undefined"]:
@@ -152,7 +225,7 @@ def _resolve_storage_context(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Project not found or access denied.",
                 )
-            return project.user_id, f"project-{project_id}", "project"
+            return project.user_id, f"project-{project_id}", "project", None
         except HTTPException:
             raise
         except Exception as e:
@@ -1004,7 +1077,7 @@ async def list_artifact_versions(
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context
-    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+    storage_user_id, storage_session_id, context_type, _ = _resolve_storage_context(
         session_id, project_id, user_id, validate_session, project_service, log_prefix
     )
 
@@ -1089,7 +1162,7 @@ async def list_artifacts(
     # Resolve storage context (projects vs sessions). This allows for project artiacts
     # to be listed before a session is created.
     try:
-        storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+        storage_user_id, storage_session_id, context_type, execution_artifact_info = _resolve_storage_context(
             session_id, project_id, user_id, validate_session, project_service, log_prefix
         )
     except HTTPException:
@@ -1123,6 +1196,22 @@ async def list_artifacts(
             if not artifact.filename.endswith('.converted.txt')
             and artifact.filename != 'project_bm25_index.zip'
         ]
+
+        # For scheduled execution sessions, further filter to only show
+        # artifacts produced by this specific execution (not all artifacts
+        # accumulated across all executions of the same scheduled task).
+        # The artifact info was already fetched in _resolve_storage_context.
+        if execution_artifact_info is not None:
+            before_count = len(original_artifacts_only)
+            original_artifacts_only = [
+                a for a in original_artifacts_only
+                if a.filename in execution_artifact_info
+            ]
+            log.info(
+                "%s Filtered scheduled execution artifacts: %d -> %d (execution produced: %s)",
+                log_prefix, before_count, len(original_artifacts_only),
+                list(execution_artifact_info.keys()),
+            )
 
         log.info(
             "%s Returning %d artifact details (filtered from %d total, excluded %d generated files).",
@@ -1184,8 +1273,8 @@ async def get_latest_artifact(
     )
     log.info("%s Request received.", log_prefix)
 
-    # Resolve storage context
-    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+    # Resolve storage context (single DB lookup also returns artifact version info)
+    storage_user_id, storage_session_id, context_type, execution_artifact_info = _resolve_storage_context(
         session_id, project_id, user_id, validate_session, project_service, log_prefix
     )
 
@@ -1199,14 +1288,27 @@ async def get_latest_artifact(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
-        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s", 
+        log.info("%s Using %s context: storage_user_id=%s, storage_session_id=%s",
                 log_prefix, context_type, storage_user_id, storage_session_id)
+
+        # For scheduled execution sessions, pin to the version produced by
+        # this specific execution so the user sees the correct artifact state.
+        # The artifact info was already fetched in _resolve_storage_context.
+        pinned_version = None
+        if execution_artifact_info and filename in execution_artifact_info:
+            pinned_version = execution_artifact_info[filename]
+            if pinned_version is not None:
+                log.info(
+                    "%s Using pinned version %d for scheduled execution artifact %s",
+                    log_prefix, pinned_version, filename,
+                )
 
         artifact_part = await artifact_service.load_artifact(
             app_name=app_name,
             user_id=storage_user_id,
             session_id=storage_session_id,
             filename=filename,
+            version=pinned_version,
         )
 
         if artifact_part is None or artifact_part.inline_data is None:
@@ -1371,7 +1473,7 @@ async def get_specific_artifact_version(
     log.info("%s Request received.", log_prefix)
 
     # Resolve storage context
-    storage_user_id, storage_session_id, context_type = _resolve_storage_context(
+    storage_user_id, storage_session_id, context_type, _ = _resolve_storage_context(
         session_id, project_id, user_id, validate_session, project_service, log_prefix
     )
 
@@ -1617,11 +1719,32 @@ async def get_scheduled_task_artifact(
     try:
         app_name = component.get_config("name", "A2A_WebUI_App")
 
+        # Artifacts are stored under the stable task-level context_id
+        # (scheduled_task_{task_id}), not the per-execution chat session
+        # (scheduled_{execution_id}).  Resolve the correct storage session.
+        storage_session_id = f"scheduled_task_{execution.scheduled_task_id}"
+
+        # Pin to the version produced by this execution (if available)
+        pinned_version = None
+        if execution.artifacts:
+            for art in execution.artifacts:
+                if isinstance(art, dict):
+                    art_name = art.get("name") or art.get("filename")
+                    if art_name == filename and art.get("version") is not None:
+                        pinned_version = art["version"]
+                        break
+
+        log.info(
+            "%s Resolved storage session: %s (from chat session %s, pinned_version=%s)",
+            log_prefix, storage_session_id, session_id, pinned_version,
+        )
+
         artifact_part = await artifact_service.load_artifact(
             app_name=app_name,
             user_id=user_id,
-            session_id=session_id,
+            session_id=storage_session_id,
             filename=filename,
+            version=pinned_version,
         )
 
         if artifact_part is None or artifact_part.inline_data is None:

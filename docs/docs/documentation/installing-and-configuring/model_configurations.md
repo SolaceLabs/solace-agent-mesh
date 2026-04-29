@@ -97,6 +97,7 @@ To create a new model configuration from the UI:
 | **Authentication Type** | Yes | The authentication method for the provider |
 | **Auth Credentials** | Varies | Provider-specific credentials (API key, OAuth2 settings, AWS IAM, and so on) |
 | **Model Name** | Yes | The specific model to use. The drop-down list fetches available models from the provider using your credentials. If the fetch fails, you can type the model name manually |
+| **Max Input Tokens** | No | The model's maximum input token limit. Drives the chat context-usage indicator shown below the chat input. Check the model provider's documentation for the current value for this model version. Leave blank to fall back to the agent's `shared_config.yaml` value, then to the platform's built-in model registry for well-known models |
 
 4. Optionally expand **Advanced Settings** to configure:
 
@@ -215,6 +216,28 @@ The `model_provider` field accepts an alias or model ID in a form of a list. Whe
 | **Runtime behavior** | Resolved at startup from env vars | Dynamically fetched from platform service |
 | **Configuration updates** | Requires redeployment | Agents receive updates automatically |
 | **Best for** | Simple deployments, CI/CD pipelines | Multi-agent deployments, teams, credential rotation |
+
+## Context Usage Indicator
+
+The chat UI shows a per-session context-usage indicator below the chat input. It tracks how much of the model's context window has been consumed by the current session and helps users anticipate when auto-compaction will kick in or decide when to compact/compress manually.
+
+The indicator is only rendered when the model's context window is known. The platform resolves the limit in the following order:
+
+1. **Model Configuration** — the `Max Input Tokens` value set in the Models UI, matched first by model name, then by alias.
+2. **Agent-reported value** — if the agent's model configuration in `shared_config.yaml` sets `max_input_tokens`, that value is stamped on each completed task and used when no UI override exists:
+
+   ```yaml
+   planning: &planning_model
+     model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
+     api_base: ${LLM_SERVICE_ENDPOINT}
+     api_key: ${LLM_SERVICE_API_KEY}
+     max_tokens: 32000
+     max_input_tokens: 200000  # surfaces on the context-usage indicator
+   ```
+
+3. **Built-in model registry** — for well-known models, the platform's model-info lookup provides the context window automatically.
+
+If none of these resolve, the indicator is hidden rather than displayed against a guessed limit. Set `Max Input Tokens` explicitly in the Models UI whenever you connect a Custom provider or a model the registry does not recognize, and check the provider's documentation for the current value — providers publish this per model and can change it over time.
 
 ## Next Steps
 

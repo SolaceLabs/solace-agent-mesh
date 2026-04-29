@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DBSession
 
 from solace_agent_mesh.common import a2a
+from solace_agent_mesh.common.middleware.config_resolver import AUTH_MODE_SCHEDULED
 from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
@@ -29,6 +30,7 @@ from ...repository.models import (
     ScheduledTaskExecutionModel,
     ScheduledTaskModel,
     ScheduleType,
+    TriggerType,
 )
 from ...repository.models import SessionModel
 from ...repository.scheduled_task_repository import ScheduledTaskRepository
@@ -56,6 +58,14 @@ _SAFE_METADATA_KEYS = frozenset({
 })
 
 
+class TaskNotFoundError(Exception):
+    """Raised when a manual trigger targets a missing or deleted task."""
+
+
+class TaskAlreadyRunningError(Exception):
+    """Raised when a manual trigger is issued while an execution is in-flight."""
+
+
 class SchedulerService:
     """
     Core scheduling service for single-instance deployments.
@@ -71,10 +81,16 @@ class SchedulerService:
         core_a2a_service: CoreA2AService,
         config: Optional[Dict[str, Any]] = None,
         sse_manager: Optional[Any] = None,
+        gateway_id: Optional[str] = None,
     ):
         self.session_factory = session_factory
         self.namespace = namespace
         self.instance_id = instance_id
+        # Host gateway id (e.g. the webui_backend gateway). Used when resolving
+        # user config for scheduled fires so RBAC scopes / role lookups hit the
+        # same authorization service the user is enrolled in.  Falls back to a
+        # synthetic id only for legacy callers that don't pass it.
+        self.gateway_id = gateway_id or f"scheduler_{instance_id}"
         self.publish_func = publish_func
         self.core_a2a_service = core_a2a_service
 
@@ -104,6 +120,7 @@ class SchedulerService:
             session_factory=session_factory,
             namespace=namespace,
             instance_id=instance_id,
+            sse_manager=sse_manager,
         )
 
         # Initialize notification service
@@ -125,6 +142,10 @@ class SchedulerService:
     async def start(self):
         """Start the scheduler service."""
         log.info("[SchedulerService:%s] Starting scheduler service", self.instance_id)
+
+        # Mark any executions left in RUNNING/PENDING state from a previous
+        # crash as FAILED so they don't appear stuck in the UI forever.
+        await self._recover_orphaned_executions()
 
         self.scheduler.start()
         log.info("[SchedulerService:%s] APScheduler started", self.instance_id)
@@ -217,6 +238,56 @@ class SchedulerService:
                 exc_info=True,
             )
 
+    async def _recover_orphaned_executions(self):
+        """Mark executions left in RUNNING/PENDING state as FAILED on startup.
+
+        When the backend crashes or restarts, any in-flight executions lose
+        their in-memory tracking (result_handler, completion events, etc.)
+        and can never complete normally.  This method runs once at startup
+        to mark them as failed so they don't appear stuck in the UI.
+        """
+        try:
+            with self.session_factory() as session:
+                stmt = select(ScheduledTaskExecutionModel).where(
+                    ScheduledTaskExecutionModel.status.in_([
+                        ExecutionStatus.RUNNING,
+                        ExecutionStatus.PENDING,
+                    ]),
+                )
+                orphaned = session.execute(stmt).scalars().all()
+
+                if not orphaned:
+                    log.info(
+                        "[SchedulerService:%s] No orphaned executions found on startup",
+                        self.instance_id,
+                    )
+                    return
+
+                now = now_epoch_ms()
+                for execution in orphaned:
+                    log.warning(
+                        "[SchedulerService:%s] Marking orphaned execution %s (status=%s) as FAILED",
+                        self.instance_id, execution.id, execution.status,
+                    )
+                    execution.status = ExecutionStatus.FAILED
+                    execution.completed_at = now
+                    execution.error_message = (
+                        "Execution was interrupted by a server restart"
+                    )
+
+                session.commit()
+                log.info(
+                    "[SchedulerService:%s] Recovered %d orphaned executions on startup",
+                    self.instance_id, len(orphaned),
+                )
+
+        except Exception as e:
+            log.error(
+                "[SchedulerService:%s] Failed to recover orphaned executions: %s",
+                self.instance_id, e,
+                exc_info=True,
+            )
+
     async def _load_scheduled_tasks(self):
         """Load all enabled scheduled tasks from database and schedule them."""
         log.info("[SchedulerService:%s] Loading scheduled tasks from database", self.instance_id)
@@ -264,18 +335,27 @@ class SchedulerService:
                     exc_info=True,
                 )
 
-    async def schedule_task(self, task: ScheduledTaskModel):
-        """Schedule a single task in APScheduler."""
+    async def schedule_task(self, task: ScheduledTaskModel, fire_immediately: bool = False):
+        """Schedule a single task in APScheduler.
+
+        When ``fire_immediately`` is True and the task is an interval schedule,
+        the trigger's start anchor is set to ``now`` so the first fire happens
+        on the next scheduler tick instead of waiting a full interval. This is
+        used at task-creation time so users see immediate feedback on interval
+        schedules that don't have a specific start time. Reschedules
+        (edit/enable/server-restart) must pass ``False`` so tasks don't
+        spuriously fire every time they're reloaded.
+        """
         job_id = f"scheduled_task_{task.id}"
 
         log.info(
             "[SchedulerService:%s] Scheduling task '%s' "
-            "(ID: %s, Type: %s)",
-            self.instance_id, task.name, task.id, task.schedule_type,
+            "(ID: %s, Type: %s, fire_immediately=%s)",
+            self.instance_id, task.name, task.id, task.schedule_type, fire_immediately,
         )
 
         try:
-            trigger = self._create_trigger(task)
+            trigger = self._create_trigger(task, fire_immediately=fire_immediately)
 
             job = self.scheduler.add_job(
                 self._execute_scheduled_task,
@@ -329,8 +409,12 @@ class SchedulerService:
         # in long-running deployments where tasks are created/deleted.
         self._task_locks.pop(task_id, None)
 
-    def _create_trigger(self, task: ScheduledTaskModel):
-        """Create an APScheduler trigger based on task configuration."""
+    def _create_trigger(self, task: ScheduledTaskModel, fire_immediately: bool = False):
+        """Create an APScheduler trigger based on task configuration.
+
+        ``fire_immediately`` only applies to interval schedules and only makes
+        sense at task-creation time (see ``schedule_task``).
+        """
         if task.schedule_type == ScheduleType.CRON:
             if not croniter.is_valid(task.schedule_expression):
                 raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
@@ -338,7 +422,22 @@ class SchedulerService:
 
         elif task.schedule_type == ScheduleType.INTERVAL:
             interval_seconds = self._parse_interval(task.schedule_expression)
-            return IntervalTrigger(seconds=interval_seconds, timezone=task.timezone)
+            # APScheduler's default schedules the first fire one interval from
+            # now, which feels wrong for "every 30m" tasks the user just
+            # created — they'd wait 30m to see anything happen. Anchoring the
+            # series at `now` makes the first fire happen on the next tick.
+            start_date = None
+            if fire_immediately:
+                try:
+                    tz = pytz.timezone(task.timezone)
+                except Exception:
+                    tz = pytz.UTC
+                start_date = datetime.now(tz)
+            return IntervalTrigger(
+                seconds=interval_seconds,
+                timezone=task.timezone,
+                start_date=start_date,
+            )
 
         elif task.schedule_type == ScheduleType.ONE_TIME:
             run_date = datetime.fromisoformat(task.schedule_expression)
@@ -351,7 +450,12 @@ class SchedulerService:
         """Parse interval string to seconds (delegates to shared utility)."""
         return parse_interval_to_seconds(interval_str)
 
-    async def _execute_scheduled_task(self, task_id: str):
+    async def _execute_scheduled_task(
+        self,
+        task_id: str,
+        trigger_type: TriggerType = TriggerType.SCHEDULED,
+        triggered_by: Optional[str] = None,
+    ):
         """Execute a scheduled task by submitting it to the agent mesh.
 
         Retries are handled iteratively (not recursively) to avoid deep call
@@ -372,9 +476,45 @@ class SchedulerService:
             return
 
         async with task_lock:
-            await self._execute_scheduled_task_inner(task_id)
+            await self._execute_scheduled_task_inner(task_id, trigger_type, triggered_by)
 
-    async def _execute_scheduled_task_inner(self, task_id: str):
+    async def trigger_task_now(self, task_id: str, triggered_by: Optional[str] = None) -> str:
+        """Manually execute a task "Run Now".
+
+        Rejects with TaskAlreadyRunningError if an execution is already
+        in-flight for this task (per-task concurrency gate). Unlike scheduled
+        fires, manual triggers are allowed on disabled tasks so users can
+        verify a task before enabling it.
+
+        The actual execution runs in the background; this returns once the
+        trigger has been accepted.
+        """
+        with self.session_factory() as session:
+            task = session.get(ScheduledTaskModel, task_id)
+            if not task or task.deleted_at:
+                raise TaskNotFoundError(task_id)
+
+        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
+        if task_lock.locked():
+            raise TaskAlreadyRunningError(task_id)
+
+        # Fire-and-forget — the scheduler owns the lifecycle. Swallow exceptions
+        # here so they don't surface as "Task was destroyed but it is pending".
+        asyncio.create_task(
+            self._execute_scheduled_task(
+                task_id,
+                trigger_type=TriggerType.MANUAL,
+                triggered_by=triggered_by,
+            )
+        )
+        return task_id
+
+    async def _execute_scheduled_task_inner(
+        self,
+        task_id: str,
+        trigger_type: TriggerType = TriggerType.SCHEDULED,
+        triggered_by: Optional[str] = None,
+    ):
         """Inner implementation of scheduled task execution (holds per-task lock)."""
         log.info(
             "[SchedulerService:%s] Executing scheduled task: %s",
@@ -429,6 +569,8 @@ class SchedulerService:
                                     scheduled_for=now_epoch_ms(),
                                     completed_at=now_epoch_ms(),
                                     error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
+                                    trigger_type=trigger_type,
+                                    triggered_by=triggered_by,
                                 )
                                 session.add(execution)
                                 session.commit()
@@ -436,7 +578,11 @@ class SchedulerService:
 
                     with self.session_factory() as session:
                         task = session.get(ScheduledTaskModel, task_id)
-                        if not task or not task.enabled or task.deleted_at:
+                        # Manual "Run Now" bypasses the enabled check so users
+                        # can test a task before enabling it. Deleted tasks are
+                        # always rejected.
+                        is_manual = trigger_type == TriggerType.MANUAL
+                        if not task or task.deleted_at or (not task.enabled and not is_manual):
                             log.warning("[SchedulerService:%s] Task %s not found, disabled, or deleted", self.instance_id, task_id)
                             return
 
@@ -449,10 +595,43 @@ class SchedulerService:
                             status=ExecutionStatus.PENDING,
                             scheduled_for=current_time,
                             retry_count=attempt,
+                            trigger_type=trigger_type,
+                            triggered_by=triggered_by,
                         )
                         session.add(execution)
                         task.last_run_at = current_time
                         session.commit()
+
+                    # Push an SSE event as soon as the PENDING row is committed
+                    # so the frontend execution history can render it immediately
+                    # — otherwise fast-completing runs jump from empty to
+                    # "completed" without ever showing pending/running.
+                    notification_user_id = (
+                        triggered_by
+                        or task_snapshot.get("user_id")
+                        or task_snapshot.get("created_by")
+                    )
+                    if self.notification_service.sse_manager and notification_user_id:
+                        try:
+                            await self.notification_service.sse_manager.send_user_notification(
+                                user_id=notification_user_id,
+                                event_type="execution_queued",
+                                event_data={
+                                    "execution_id": execution_id,
+                                    "task_id": task_id,
+                                    "task_name": task_snapshot.get("name"),
+                                    "trigger_type": (
+                                        trigger_type.value
+                                        if hasattr(trigger_type, "value")
+                                        else str(trigger_type)
+                                    ),
+                                },
+                            )
+                        except Exception as notify_err:
+                            log.warning(
+                                "[SchedulerService:%s] Failed to send execution_queued notification: %s",
+                                self.instance_id, notify_err,
+                            )
 
                     execution_task = asyncio.create_task(
                         self._submit_task_to_agent_mesh(task_id, execution_id, task_snapshot)
@@ -473,6 +652,13 @@ class SchedulerService:
                             if task:
                                 task.consecutive_failure_count = 0
                                 task.run_count = (task.run_count or 0) + 1
+                                # Update next_run_at from APScheduler so the frontend shows
+                                # the correct countdown for the next execution.
+                                job_info = self.active_tasks.get(task_id)
+                                if job_info and job_info.get("job") and job_info["job"].next_run_time:
+                                    task.next_run_at = int(job_info["job"].next_run_time.timestamp() * 1000)
+                                elif task.schedule_type == "one_time":
+                                    task.next_run_at = None
                                 session.commit()
                                 await self.notification_service.notify_execution_complete(
                                     execution=execution, task=task,
@@ -509,6 +695,14 @@ class SchedulerService:
                         execution = session.get(ScheduledTaskExecutionModel, execution_id)
                         task = session.get(ScheduledTaskModel, task_id)
                         if execution and task:
+                            # Update next_run_at even on failure so the card
+                            # shows the next scheduled time, not "Overdue".
+                            job_info = self.active_tasks.get(task_id)
+                            if job_info and job_info.get("job") and job_info["job"].next_run_time:
+                                task.next_run_at = int(job_info["job"].next_run_time.timestamp() * 1000)
+                            elif task.schedule_type == "one_time":
+                                task.next_run_at = None
+                            session.commit()
                             await self.notification_service.notify_execution_complete(
                                 execution=execution, task=task,
                             )
@@ -669,6 +863,26 @@ class SchedulerService:
                         raise RuntimeError(
                             "Session %s was not found after commit" % session_id
                         )
+
+                # Notify the frontend that an execution has started so the
+                # execution history list shows the "running" status immediately.
+                if self.notification_service.sse_manager and user_id:
+                    try:
+                        await self.notification_service.sse_manager.send_user_notification(
+                            user_id=user_id,
+                            event_type="execution_started",
+                            event_data={
+                                "execution_id": execution_id,
+                                "task_id": task_id,
+                                "task_name": task_name,
+                            },
+                        )
+                    except Exception as notify_err:
+                        log.warning(
+                            "[SchedulerService:%s] Failed to send execution_started notification: %s",
+                            self.instance_id, notify_err,
+                        )
+
             except Exception as e:
                 log.error(
                     "[SchedulerService:%s] Failed to create session for execution %s: %s",
@@ -702,6 +916,7 @@ class SchedulerService:
                 }
             message_metadata["sessionBehavior"] = "RUN_BASED"
             message_metadata["returnArtifacts"] = True
+            message_metadata["agent_name"] = target_agent_name
 
             a2a_message = a2a.create_user_message(
                 parts=message_parts,
@@ -776,38 +991,81 @@ class SchedulerService:
     ) -> Optional[Dict[str, Any]]:
         """Resolve user configuration for a scheduled task execution.
 
-        The enterprise capability filter requires ``_enterprise_capabilities``
-        in the ``a2aUserConfig`` user-property so that the orchestrator's
-        ``_filter_tools_by_capability_callback`` does not strip peer-agent
-        tools.  Regular chat requests get this from the gateway's
-        ``resolve_user_config`` call; scheduled tasks must do the same.
+        Scheduled fires have no live HTTP request, so the enterprise
+        ``ConfigResolver`` cannot extract auth material from
+        ``request.state``.  We pass ``auth_mode="scheduled"`` in
+        ``gateway_context`` so a resolver implementation can route to a
+        no-request path (e.g. load the scheduling user's stored OAuth
+        credentials from a persistent credential service and refresh via
+        their refresh token) and still produce a ``a2aUserConfig`` that
+        carries the user's identity, RBAC scopes, and any per-agent
+        delegated tokens needed by downstream peer agents.
+
+        The scheduling user is preserved (not replaced with a synthetic
+        service identity) so RBAC scopes and per-user audit trails resolve
+        the same way as in interactive chat.
 
         Returns the resolved user config dict, or ``None`` on failure.
         """
         effective_user = user_id or created_by or "system-scheduler"
         try:
             config_resolver = MiddlewareRegistry.get_config_resolver()
-            user_identity = {"id": effective_user, "name": effective_user}
+            # Match the shape produced by the interactive path's
+            # _extract_initial_claims (gateway/http_sse/component.py).
+            # Downstream agents (e.g. the Salesforce agent's _get_user_email)
+            # walk _user_identity["user_info"]["email"] to scope per-user
+            # behavior; without these fields the agent fails with
+            # "User email not available. Cannot load schema."
+            # Only populate email when the identity actually looks like one.
+            # Downstream agents (e.g. the Salesforce agent's _get_user_email)
+            # treat a missing key as "no email available" and fail cleanly;
+            # handing them a non-email value (UUID, "system-scheduler", etc.)
+            # would silently produce wrong behavior.
+            user_email = (
+                effective_user
+                if isinstance(effective_user, str) and "@" in effective_user
+                else None
+            )
+            user_info = {
+                "id": effective_user,
+                "user_id": effective_user,
+                "name": effective_user,
+                "authenticated": True,
+                "auth_method": "scheduled",
+            }
+            user_identity = {
+                "id": effective_user,
+                "name": effective_user,
+                "user_info": user_info,
+            }
+            if user_email:
+                user_info["email"] = user_email
+                user_identity["email"] = user_email
             gateway_context = {
-                "gateway_id": f"scheduler_{self.instance_id}",
+                "gateway_id": self.gateway_id,
                 "gateway_app_config": {},
+                "auth_mode": AUTH_MODE_SCHEDULED,
+                "scheduling_user_id": effective_user,
             }
             user_config = await config_resolver.resolve_user_config(
                 user_identity, gateway_context, {}
             )
             user_config["user_profile"] = user_identity
             log.info(
-                "[SchedulerService:%s] Resolved user config for '%s' with %d enterprise capabilities",
+                "[SchedulerService:%s] Resolved user config for '%s' (auth_mode=%s) "
+                "with %d enterprise capabilities",
                 self.instance_id,
                 effective_user,
+                AUTH_MODE_SCHEDULED,
                 len(user_config.get("_enterprise_capabilities", [])),
             )
             return user_config
         except Exception as e:
             log.warning(
-                "[SchedulerService:%s] Failed to resolve user config for '%s': %s. "
-                "Proceeding without user config — enterprise capability filter may restrict tools.",
-                self.instance_id, effective_user, e,
+                "[SchedulerService:%s] Failed to resolve user config for '%s' "
+                "(auth_mode=%s): %s. Peer-agent calls that require "
+                "user-delegated credentials will fail.",
+                self.instance_id, effective_user, AUTH_MODE_SCHEDULED, e,
             )
             return None
 
@@ -821,6 +1079,7 @@ class SchedulerService:
                     execution.error_message = error_message
                     execution.completed_at = now_epoch_ms()
                     session.commit()
+                    await self._notify_execution_status_change(execution)
         except Exception as e:
             log.error(
                 "[SchedulerService:%s] Failed to mark execution %s as failed: %s",
@@ -838,11 +1097,44 @@ class SchedulerService:
                     execution.error_message = "Execution timed out"
                     execution.completed_at = now_epoch_ms()
                     session.commit()
+                    await self._notify_execution_status_change(execution)
         except Exception as e:
             log.error(
                 "[SchedulerService:%s] Failed to mark execution %s as timeout: %s",
                 self.instance_id, execution_id, e,
                 exc_info=True,
+            )
+
+    async def _notify_execution_status_change(self, execution: ScheduledTaskExecutionModel):
+        """Send an SSE notification when an execution's status changes.
+
+        Used by failure/timeout handlers to notify the frontend so the
+        execution history list updates in real time.
+        """
+        sse_manager = self.notification_service.sse_manager
+        if not sse_manager:
+            return
+        try:
+            with self.session_factory() as session:
+                task = session.get(ScheduledTaskModel, execution.scheduled_task_id)
+                if not task:
+                    return
+                user_id = task.user_id or task.created_by
+                if user_id:
+                    await sse_manager.send_user_notification(
+                        user_id=user_id,
+                        event_type="session_created",
+                        event_data={
+                            "execution_id": execution.id,
+                            "task_id": task.id,
+                            "task_name": task.name,
+                            "status": execution.status,
+                        },
+                    )
+        except Exception as e:
+            log.warning(
+                "[SchedulerService:%s] Failed to send status change notification for execution %s: %s",
+                self.instance_id, execution.id, e,
             )
 
     async def is_leader(self) -> bool:

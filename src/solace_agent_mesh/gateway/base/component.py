@@ -114,6 +114,7 @@ class BaseGatewayComponent(SamComponentBase):
         resolve_artifact_uris_in_gateway: bool = True,
         supports_inline_artifact_resolution: bool = False,
         filter_tool_data_parts: bool = True,
+        supports_interactive_plan_verification: bool = False,
         **kwargs: Any
     ):
         """
@@ -129,12 +130,18 @@ class BaseGatewayComponent(SamComponentBase):
                 tool_result, etc.) from final Task messages before sending to gateway. Use True for
                 gateways that don't want to display internal tool execution details (e.g., Slack),
                 False for gateways that display all parts (e.g., HTTP SSE Web UI).
+            supports_interactive_plan_verification: If True, advertises that this gateway can render
+                the deep_research_plan signal and POST a plan response. Set True for gateways with
+                a UI capable of round-tripping the plan (e.g. HTTP SSE Web UI). Leave False for
+                Slack/Teams/MCP/voice-style gateways that have no transport for returning the
+                user's approval; tools gate the verification flow on this flag.
             **kwargs: Additional arguments passed to parent class.
         """
         super().__init__(info, **kwargs)
         self.resolve_artifact_uris_in_gateway = resolve_artifact_uris_in_gateway
         self.supports_inline_artifact_resolution = supports_inline_artifact_resolution
         self.filter_tool_data_parts = filter_tool_data_parts
+        self.supports_interactive_plan_verification = supports_interactive_plan_verification
         log.info("%s Initializing Base Gateway Component...", self.log_identifier)
 
         try:
@@ -218,6 +225,17 @@ class BaseGatewayComponent(SamComponentBase):
         log.info(
             "%s Initialized Base Gateway Component.", self.log_identifier
         )
+
+    def _get_gateway_capabilities(self) -> Dict[str, bool]:
+        """
+        Capability flags published with every outbound A2A request so agents can
+        gate interactive flows on what the gateway can actually render and round
+        trip - not on a brittle client_id allowlist. Subclasses can extend this
+        dict if they introduce new capabilities.
+        """
+        return {
+            "interactive_plan_verification": self.supports_interactive_plan_verification,
+        }
 
     def _setup_auth(self) -> None:
         """
@@ -478,6 +496,7 @@ class BaseGatewayComponent(SamComponentBase):
         user_properties = {
             "clientId": self.gateway_id,
             "userId": user_id_for_a2a,
+            "gatewayCapabilities": self._get_gateway_capabilities(),
         }
         if user_config:
             user_properties["a2aUserConfig"] = user_config

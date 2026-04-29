@@ -895,6 +895,379 @@ Respond with ONLY the title, nothing else."""
         return research_question[:60] + "..." if len(research_question) > 60 else research_question
 
 
+async def _generate_research_plan(
+    research_question: str,
+    queries: List[str],
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> List[str]:
+    """
+    Generate human-readable research plan steps from queries using LLM.
+    
+    Converts raw search queries into user-friendly plan step descriptions
+    suitable for display in the verification UI.
+    
+    Args:
+        research_question: The original research question
+        queries: List of generated search queries
+        tool_context: Tool context for accessing agent
+        tool_config: Optional tool configuration
+    
+    Returns:
+        List of human-readable plan step descriptions
+    """
+    log_identifier = "[DeepResearch:PlanGen]"
+    
+    try:
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
+        
+        queries_text = "\n".join(f"- {q}" for q in queries)
+        plan_prompt = f"""You are a research planning specialist. Convert these search queries into a clear,
+human-readable research plan with 3-6 concise steps.
+
+Research Question: {research_question}
+
+Search Queries:
+{queries_text}
+
+Requirements:
+1. Each step should be a clear, actionable description (one sentence)
+2. Steps should be in logical order
+3. Use plain language, not search query syntax
+4. Cover the key aspects of the research
+5. Include a final synthesis/compilation step
+
+Respond in JSON format:
+{{
+  "steps": ["step1 description", "step2 description", ...]
+}}"""
+
+        llm_request = LlmRequest(
+            model=llm.model,
+            contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=plan_prompt)])],
+            config=adk_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.5,
+                max_output_tokens=4096
+            )
+        )
+        
+        response = None
+        if hasattr(llm, 'generate_content_async'):
+            async for response_event in llm.generate_content_async(llm_request):
+                response = response_event
+                break
+        else:
+            response = llm.generate_content(request=llm_request)
+        
+        response_text = _extract_text_from_llm_response(response, log_identifier)
+        if not response_text or not response_text.strip():
+            # Fallback: use queries as steps
+            return queries
+        
+        plan_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="steps")
+        if plan_data is None:
+            return queries
+        
+        steps = plan_data.get("steps", queries)[:6]
+        
+        log.info("%s Generated %d plan steps", log_identifier, len(steps))
+        return steps
+        
+    except Exception as e:
+        log.error("%s Plan generation failed: %s, using queries as fallback", log_identifier, str(e))
+        return queries
+
+
+# Hard cap on how long the agent will block waiting for a user plan response
+# before giving up. Keeps non-interactive or abandoned sessions from hanging
+# the tool indefinitely.
+_PLAN_RESPONSE_TIMEOUT_SECONDS = 600
+
+
+# Capability flag a gateway publishes (in user_properties.gatewayCapabilities)
+# when it can render the deep_research_plan signal and POST a plan response.
+# Set by BaseGatewayComponent / its subclasses; see
+# ``gateway/base/component.py::_get_gateway_capabilities``.
+_PLAN_VERIFICATION_CAPABILITY = "interactive_plan_verification"
+
+
+def _is_interactive_plan_client(
+    tool_context: ToolContext, tool_config: Optional[Dict[str, Any]]
+) -> bool:
+    """Whether the invoking gateway can render and respond to plan signals.
+
+    Primary check: the gateway capability flag the gateway stamped on every
+    A2A request. Capability-based gating means the agent does not need to
+    know the gateway's client_id - the gateway itself declares what it can
+    render. Falls back to the legacy ``interactive_plan_verification_clients``
+    allowlist (matched against ``a2a_context.client_id``) for back-compat
+    with deployments that set it before the capability flag existed. Returns
+    False when neither signal says yes, so unknown surfaces fall through to
+    the auto-approve path rather than blocking on a publish+wait that no one
+    can satisfy.
+    """
+    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
+    if isinstance(a2a_context, dict):
+        capabilities = a2a_context.get("gateway_capabilities")
+        if isinstance(capabilities, dict) and capabilities.get(_PLAN_VERIFICATION_CAPABILITY):
+            return True
+
+    # Legacy fallback: explicit client_id allowlist from tool_config.
+    config = tool_config or {}
+    allowlist = config.get("interactive_plan_verification_clients")
+    if not allowlist:
+        return False
+    if "*" in allowlist:
+        return True
+    if not isinstance(a2a_context, dict):
+        return False
+    client_id = a2a_context.get("client_id") or ""
+    return client_id in allowlist
+
+
+async def _send_plan_verification(
+    plan_id: str,
+    title: str,
+    research_question: str,
+    steps: List[str],
+    research_type: str,
+    max_iterations: int,
+    max_runtime_seconds: int,
+    sources: List[str],
+    tool_context: ToolContext
+) -> None:
+    """Send research plan verification signal to frontend via SSE."""
+    log_identifier = "[DeepResearch:PlanVerify]"
+    
+    try:
+        a2a_context = tool_context.state.get("a2a_context")
+        if not a2a_context:
+            log.warning("%s No a2a_context found, cannot send plan verification", log_identifier)
+            return
+
+        invocation_context = getattr(tool_context, '_invocation_context', None)
+        if not invocation_context:
+            log.warning("%s No invocation context found", log_identifier)
+            return
+            
+        agent = getattr(invocation_context, 'agent', None)
+        if not agent:
+            log.warning("%s No agent found in invocation context", log_identifier)
+            return
+            
+        host_component = getattr(agent, 'host_component', None)
+        if not host_component:
+            log.warning("%s No host component found on agent", log_identifier)
+            return
+
+        from ...common.data_parts import DeepResearchPlanData
+
+        # Carry the publishing agent's name so the frontend can echo it back
+        # in the plan-response POST. The gateway uses this to publish the
+        # control signal to the correct agent's topic, which matters when
+        # deep research runs on a peer agent rather than the main agent the
+        # user is chatting with.
+        plan_data = DeepResearchPlanData(
+            plan_id=plan_id,
+            agent_name=getattr(host_component, "agent_name", ""),
+            title=title,
+            research_question=research_question,
+            steps=steps,
+            research_type=research_type,
+            max_iterations=max_iterations,
+            max_runtime_seconds=max_runtime_seconds,
+            sources=sources,
+        )
+        
+        log.info("%s Sending plan verification: plan_id=%s, title='%s', %d steps",
+                log_identifier, plan_id, title, len(steps))
+        
+        host_component.publish_data_signal_from_thread(
+            a2a_context=a2a_context,
+            signal_data=plan_data,
+            skip_buffer_flush=False,
+            log_identifier=log_identifier,
+        )
+        
+    except Exception as e:
+        log.error("%s Error sending plan verification: %s", log_identifier, str(e))
+
+
+async def _wait_for_plan_response(
+    plan_id: str,
+    steps: List[str],
+    tool_context: ToolContext
+) -> Dict[str, Any]:
+    """Wait for the user's response to a plan verification card.
+
+    The gateway delivers the response as a fire-and-forget control signal on
+    the ``sam/events/deep_research/plan_response`` topic. The agent's event
+    handler resolves an asyncio.Future registered here via the component's
+    plan-waiter registry. On timeout, we publish a
+    ``DeepResearchPlanStaleData`` signal so the frontend can lock the card.
+
+    Auto-approve (returning ``{"action": "start", ...}``) is the defensive
+    fallback for environments that cannot support the signal path - missing
+    host_component, missing user_id, registry not available, etc.
+
+    Returns:
+        Dict with "action" ("start" or "cancel") and, for "start", the steps
+        the research should run (either the original steps or the user's
+        edits from the frontend).
+    """
+    log_identifier = "[DeepResearch:PlanWait]"
+
+    invocation_context = getattr(tool_context, "_invocation_context", None)
+    agent = getattr(invocation_context, "agent", None) if invocation_context else None
+    host_component = getattr(agent, "host_component", None) if agent else None
+
+    if host_component is None or not hasattr(
+        host_component, "register_deep_research_plan_waiter"
+    ):
+        log.warning(
+            "%s Host component does not support plan waiters; auto-approving.",
+            log_identifier,
+        )
+        return {"action": "start", "steps": steps}
+
+    a2a_context = tool_context.state.get("a2a_context") or {}
+    user_id = a2a_context.get("user_id") if isinstance(a2a_context, dict) else None
+    if not user_id:
+        log.warning("%s No user_id on a2a_context, auto-approving plan.", log_identifier)
+        return {"action": "start", "steps": steps}
+
+    try:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
+        host_component.register_deep_research_plan_waiter(
+            plan_id=plan_id, user_id=str(user_id), future=future, loop=loop
+        )
+    except Exception as e:
+        log.error(
+            "%s Could not register plan waiter (%s); auto-approving.",
+            log_identifier,
+            e,
+        )
+        return {"action": "start", "steps": steps}
+
+    log.info(
+        "%s Waiting for plan response: plan_id=%s (timeout=%ds)",
+        log_identifier,
+        plan_id,
+        _PLAN_RESPONSE_TIMEOUT_SECONDS,
+    )
+    try:
+        response = await asyncio.wait_for(
+            future, timeout=_PLAN_RESPONSE_TIMEOUT_SECONDS
+        )
+        log.info(
+            "%s Received plan response: action=%s",
+            log_identifier,
+            response.get("action", "unknown") if isinstance(response, dict) else "unknown",
+        )
+        return response
+    except asyncio.TimeoutError:
+        log.warning(
+            "%s Plan verification timed out after %ds; publishing stale signal.",
+            log_identifier,
+            _PLAN_RESPONSE_TIMEOUT_SECONDS,
+        )
+        host_component.drop_deep_research_plan_waiter(plan_id)
+        try:
+            from ...common.data_parts import DeepResearchPlanStaleData
+            host_component.publish_data_signal_from_thread(
+                a2a_context=a2a_context,
+                signal_data=DeepResearchPlanStaleData(
+                    plan_id=plan_id, reason="timed_out"
+                ),
+                skip_buffer_flush=False,
+                log_identifier=log_identifier,
+            )
+        except Exception as e:
+            log.error("%s Failed to publish timed-out signal: %s", log_identifier, e)
+        return {
+            "action": "cancel",
+            "reason": "timeout",
+            "timeout_seconds": _PLAN_RESPONSE_TIMEOUT_SECONDS,
+        }
+    except Exception as e:
+        host_component.drop_deep_research_plan_waiter(plan_id)
+        log.error(
+            "%s Error waiting for plan response: %s; auto-approving.",
+            log_identifier,
+            e,
+        )
+        return {"action": "start", "steps": steps}
+
+
+async def _regenerate_queries_from_steps(
+    steps: List[str],
+    research_question: str,
+    tool_context: ToolContext,
+    tool_config: Optional[Dict[str, Any]] = None
+) -> List[str]:
+    """
+    Regenerate search queries from user-modified plan steps.
+    
+    When the user edits plan steps, we need to convert them back into
+    effective search queries for the research loop.
+    """
+    log_identifier = "[DeepResearch:QueryRegen]"
+    
+    try:
+        llm = _get_model_for_phase("query_generation", tool_context, tool_config)
+        
+        steps_text = "\n".join(f"- {s}" for s in steps)
+        regen_prompt = f"""Convert these research plan steps into effective search engine queries.
+
+Research Question: {research_question}
+
+Plan Steps:
+{steps_text}
+
+Generate one search query per step, optimized for web search engines.
+
+Respond in JSON format:
+{{
+  "queries": ["query1", "query2", ...]
+}}"""
+
+        llm_request = LlmRequest(
+            model=llm.model,
+            contents=[adk_types.Content(role="user", parts=[adk_types.Part(text=regen_prompt)])],
+            config=adk_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.5,
+                max_output_tokens=4096
+            )
+        )
+        
+        response = None
+        if hasattr(llm, 'generate_content_async'):
+            async for response_event in llm.generate_content_async(llm_request):
+                response = response_event
+                break
+        else:
+            response = llm.generate_content(request=llm_request)
+        
+        response_text = _extract_text_from_llm_response(response, log_identifier)
+        if not response_text or not response_text.strip():
+            return steps  # Use steps as queries as fallback
+        
+        query_data = _parse_json_from_llm_response(response_text, log_identifier, fallback_key="queries")
+        if query_data is None:
+            return steps
+        
+        queries = query_data.get("queries", steps)[:len(steps)]
+        log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
+        return queries
+        
+    except Exception as e:
+        log.error("%s Query regeneration failed: %s, using steps as queries", log_identifier, str(e))
+        return steps
+
+
 def _prepare_findings_summary(findings: List[SearchResult], max_findings: int = 20) -> str:
     """Prepare a concise summary of findings for LLM reflection"""
     if not findings:
@@ -1727,6 +2100,138 @@ async def deep_research(
         # Send initial RAG info update with title (no sources yet)
         # This allows the UI to display the title in the RAG info panel immediately
         await _send_rag_info_update(citation_tracker, tool_context, is_complete=False)
+        
+        # === VERIFICATION STEP ===
+        # Interactive plan verification is opt-in via config. The publish+wait
+        # path only works when the originating gateway can render the plan card
+        # and POST a plan-response back; today that's the WebUI's http_sse
+        # gateway. For every other surface (Slack, Teams, MCP, scheduled tasks)
+        # we still generate the plan so it lands in the run log, then
+        # auto-approve - blocking on a response that can never arrive would
+        # just stall the tool until _PLAN_RESPONSE_TIMEOUT_SECONDS and cancel.
+        from ..utils.context_helpers import get_original_session_id
+        session_id = ""
+        inv_ctx = getattr(tool_context, "_invocation_context", None)
+        if inv_ctx is not None:
+            try:
+                session_id = get_original_session_id(inv_ctx)
+            except Exception:
+                session_id = ""
+        is_scheduled_session = session_id.startswith("scheduled_")
+
+        # Defaults to True: gateway capability gating already auto-approves on
+        # surfaces that can't render the plan (Slack/Teams/MCP), so the right
+        # behavior is "verify whenever the gateway can". Agents can still
+        # opt out by setting this to False in tool_config.
+        verification_flag_on = bool(config.get("interactive_plan_verification", True))
+        client_supports_verification = _is_interactive_plan_client(tool_context, tool_config)
+
+        interactive_verification = (
+            verification_flag_on
+            and client_supports_verification
+            and not is_scheduled_session
+        )
+
+        if interactive_verification:
+            # Only generate plan steps when verification is actually needed
+            plan_steps = await _generate_research_plan(research_question, queries, tool_context, tool_config)
+            log.info("%s Generated %d plan steps for verification", log_identifier, len(plan_steps))
+
+            plan_id = str(uuid.uuid4())
+
+            log.info("%s Sending plan verification to frontend: plan_id=%s", log_identifier, plan_id)
+
+            # Send plan to frontend for user review
+            await _send_plan_verification(
+                plan_id=plan_id,
+                title=research_title,
+                research_question=research_question,
+                steps=plan_steps,
+                research_type=research_type,
+                max_iterations=max_iterations,
+                max_runtime_seconds=max_runtime_seconds or 0,
+                sources=sources,
+                tool_context=tool_context
+            )
+
+            # Wait for user response (blocks until user responds or hard timeout)
+            verification_result = await _wait_for_plan_response(
+                plan_id=plan_id,
+                steps=plan_steps,
+                tool_context=tool_context
+            )
+
+            if verification_result.get("action") == "cancel":
+                if verification_result.get("reason") == "timeout":
+                    log.info("%s Research cancelled: plan verification timed out", log_identifier)
+                    return {
+                        "status": "cancelled",
+                        "message": (
+                            f"Research was cancelled because the plan was not confirmed "
+                            f"within {verification_result.get('timeout_seconds')} seconds. "
+                            "Do not retry; acknowledge to the user and wait for their next "
+                            "instruction."
+                        ),
+                    }
+                log.info("%s Research cancelled by user", log_identifier)
+                return {
+                    "status": "cancelled",
+                    "message": (
+                        "The user explicitly cancelled this research. Do NOT re-invoke "
+                        "deep research on this request. Acknowledge the cancellation "
+                        "briefly and wait for the user's next instruction."
+                    ),
+                }
+
+            # User may have edited steps - regenerate queries if steps were modified.
+            # Tolerate malformed payloads (null, non-list, non-string entries) by
+            # falling back to the originally-generated plan steps.
+            raw_steps = verification_result.get("steps")
+            if isinstance(raw_steps, list) and all(isinstance(s, str) for s in raw_steps):
+                user_steps = raw_steps
+            else:
+                user_steps = plan_steps
+            if user_steps != plan_steps:
+                log.info("%s User modified plan steps, regenerating queries", log_identifier)
+                queries = await _regenerate_queries_from_steps(
+                    user_steps, research_question, tool_context, tool_config
+                )
+                log.info("%s Regenerated %d queries from modified steps", log_identifier, len(queries))
+
+            log.info("%s Plan approved, proceeding with research", log_identifier)
+        elif verification_flag_on and is_scheduled_session:
+            # Scheduled task: generate plan for the run log, then auto-approve.
+            plan_steps = await _generate_research_plan(
+                research_question, queries, tool_context, tool_config
+            )
+            log.info(
+                "%s Scheduled session (session_id=%s); auto-approving plan with %d steps",
+                log_identifier, session_id, len(plan_steps),
+            )
+        elif verification_flag_on and not client_supports_verification:
+            # Non-interactive gateway (Slack, Teams, MCP, custom). Generate the
+            # plan for the run log, then auto-approve. Falling into the
+            # publish+wait branch here would block for
+            # _PLAN_RESPONSE_TIMEOUT_SECONDS and then cancel the research,
+            # giving the user nothing.
+            a2a_ctx = tool_context.state.get("a2a_context") if tool_context.state else None
+            client_id = (
+                a2a_ctx.get("client_id", "<unknown>")
+                if isinstance(a2a_ctx, dict)
+                else "<unknown>"
+            )
+            plan_steps = await _generate_research_plan(
+                research_question, queries, tool_context, tool_config
+            )
+            log.info(
+                "%s Non-interactive client (client_id=%s); auto-approving plan with %d steps",
+                log_identifier, client_id, len(plan_steps),
+            )
+        else:
+            log.info("%s Interactive plan verification disabled, skipping", log_identifier)
+        
+        # Reset start time after verification (don't count verification wait time)
+        start_time = time.time()
         
         # Iterative research loop
         all_findings: List[SearchResult] = []

@@ -776,6 +776,7 @@ async def extract_content_from_artifact(
             "supported_binary_mime_types", []
         )
         model_config_for_extraction = extraction_config.get("model")
+        extraction_timeout_seconds = extraction_config.get("timeout_seconds", 300)
     except Exception as e:
         log.exception("%s Error retrieving tool configuration: %s", log_identifier, e)
         return ToolResult.error(
@@ -1014,7 +1015,50 @@ Based on analyzing the CSV data, I found 102 records containing 'Employee' in th
     )
 
     extracted_content_str = ""
+    # Surface a "starting" progress update so the user sees the agent is working
+    # during the long internal LLM call (typically 30-300s). Without this, the
+    # tool is opaque between tool_invocation_start and tool_result.
+    a2a_context = tool_context.state.get("a2a_context") if tool_context.state else None
+    if a2a_context and hasattr(host_component, "_publish_agent_status_signal_update"):
+        try:
+            artifact_kb = (
+                len(source_artifact_content_bytes) // 1024
+                if source_artifact_content_bytes else 0
+            )
+            await host_component._publish_agent_status_signal_update(
+                f"Extracting content from `{filename}` "
+                f"(~{artifact_kb}KB)... this can take 1-3 minutes for larger artifacts.",
+                a2a_context,
+            )
+        except Exception as e:
+            log.debug(
+                "%s Failed to publish extract-start status update: %s",
+                log_identifier,
+                e,
+            )
+
+    # Override the per-call HTTP timeout and disable client-side retries for the
+    # internal LLM call. The agent's main LiteLlm carries timeout=120s in its
+    # _model_config, which is too short for extraction prompts that legitimately
+    # need 130-300s on richer artifacts (e.g. structured Chatter feeds). When the
+    # natural completion exceeds 120s, the litellm client times out and num_retries
+    # fires another full attempt against the proxy — observed in production as
+    # 4-7 sequential 120-180s upstream calls totalling ~840s wall time. The
+    # override is a per-async-task ContextVar, so it does not affect the agent's
+    # main reasoning loop or any concurrent task.
+    from ..adk.models.lite_llm import set_model_override, get_model_override
+    timeout_override: dict[str, Any] | None = None
+    if extraction_timeout_seconds:
+        timeout_override = {
+            "timeout": extraction_timeout_seconds,
+            "num_retries": 0,
+        }
+    previous_override = get_model_override()
     try:
+        if timeout_override is not None:
+            merged_override = dict(previous_override or {})
+            merged_override.update(timeout_override)
+            set_model_override(merged_override)
         log.info(
             "%s Executing internal LLM call for extraction. Goal: %s",
             log_identifier,
@@ -1166,6 +1210,9 @@ Based on analyzing the CSV data, I found 102 records containing 'Employee' in th
             f"The LLM failed to process the artifact content for your goal '{extraction_goal}'. Error: {e}",
             data={"filename": filename, "version_requested": str(version)}
         )
+    finally:
+        if timeout_override is not None:
+            set_model_override(previous_override)
 
     extracted_content_bytes = extracted_content_str.encode("utf-8")
     extracted_content_size_bytes = len(extracted_content_bytes)
@@ -1822,7 +1869,31 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
 extract_content_from_artifact_tool_def = BuiltinTool(
     name="extract_content_from_artifact",
     implementation=extract_content_from_artifact,
-    description="Loads an existing artifact, uses an internal LLM to process its content based on an 'extraction_goal,' and manages the output by returning it or saving it as a new artifact. IMPORTANT: If the tool returns an error status (e.g., 'error_encoding_failed', 'error_artifact_not_found'), you MUST relay this error to the user - do NOT attempt to generate or fabricate data. The tool will return a 'message_to_llm' field explaining the error.",
+    description=(
+        "Use an internal LLM to summarise, paraphrase, or qualitatively extract "
+        "information from a TEXT-BASED artifact (PDF, Markdown, plain text, "
+        "transcripts, HTML, source code, meeting notes, prose-style content). "
+        "Also handles supported binary types (e.g. images) when configured. "
+        "Each call makes one LLM request which may take 30s to several minutes "
+        "depending on artifact size and the LLM's generation rate.\n\n"
+        "USE WHEN: the goal is qualitative on unstructured/natural-language "
+        "content — e.g. \"summarise the meeting notes\", \"extract action items "
+        "from the transcript\", \"find references to product X in the doc\", "
+        "\"describe what is in this image\".\n\n"
+        "DO NOT USE for STRUCTURED data (JSON, CSV, TSV, YAML, XML, JSON Lines, "
+        "API response payloads, tabular query results). Running an LLM over "
+        "structured data to count/filter/aggregate fields is slow, wastes "
+        "tokens, and is unreliable compared to deterministic parsing. For "
+        "structured data, prefer (in order): a domain-specific tool that "
+        "already returns the field you need, query_data_with_sql for tabular "
+        "files when available, or load_artifact and reason over the parsed "
+        "content directly.\n\n"
+        "IMPORTANT: If the tool returns an error status (e.g. "
+        "'error_encoding_failed', 'error_artifact_not_found', "
+        "'error_llm_call_failed'), you MUST relay this error to the user - do "
+        "NOT attempt to generate or fabricate data. The tool returns a "
+        "'message_to_llm' field explaining the error."
+    ),
     category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
@@ -1836,7 +1907,16 @@ extract_content_from_artifact_tool_def = BuiltinTool(
             ),
             "extraction_goal": adk_types.Schema(
                 type=adk_types.Type.STRING,
-                description="Natural language instruction for the LLM on what to extract or how to transform the content. May contain embeds.",
+                description=(
+                    "Natural-language instruction describing the qualitative "
+                    "extraction or transformation to perform on the artifact "
+                    "(e.g. 'summarise the meeting notes', 'list action items', "
+                    "'find every mention of product X with surrounding context'). "
+                    "Avoid goals that ask for exhaustive structured output over "
+                    "many records (e.g. 'for each of the 200 rows, extract every "
+                    "field') — those should use deterministic parsing or "
+                    "query_data_with_sql instead. May contain embeds."
+                ),
             ),
             "version": adk_types.Schema(
                 type=adk_types.Type.STRING,

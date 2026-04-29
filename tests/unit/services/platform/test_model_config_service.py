@@ -39,6 +39,10 @@ def _make_db_model(**overrides):
     m.updated_by = overrides.get("updated_by", "admin")
     m.created_time = overrides.get("created_time", 1700000000000)
     m.updated_time = overrides.get("updated_time", 1700000000000)
+    # None by default — tests exercising the override supply an int explicitly.
+    # Without this, Mock auto-vivifies a Mock() that both leaks into raw
+    # LiteLLM dicts and fails Pydantic int validation in the response model.
+    m.max_input_tokens = overrides.get("max_input_tokens", None)
     return m
 
 

@@ -120,7 +120,7 @@ class TestResolve:
 
 
 class TestReceiverRouting:
-    def test_own_model_updates_litellm(self):
+    def test_own_model_updates_litellm_and_completes_resolve(self):
         from solace_agent_mesh.agent.adk.models.dynamic_model_provider import (
             ModelConfigReceiverComponent,
         )
@@ -142,7 +142,9 @@ class TestReceiverRouting:
 
         provider.mark_initialized.assert_called_once()
         provider.update_litellm_model.assert_called_once_with({"model": "openai/gpt-4o"})
-        provider.complete_pending_resolve.assert_not_called()
+        # complete_pending_resolve is always called so that resolve() works
+        # even when the alias matches the agent's own model_id
+        provider.complete_pending_resolve.assert_called_once_with("my-model", {"model": "openai/gpt-4o"})
         message.call_acknowledgements.assert_called_once()
 
     def test_different_model_routes_to_resolve(self):

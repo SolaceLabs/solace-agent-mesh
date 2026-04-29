@@ -1,4 +1,5 @@
 import React, { useState, useEffect, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { api, scheduleProactiveRefresh, cancelProactiveRefresh } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
@@ -12,6 +13,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const { configUseAuthorization, configAuthLoginUrl } = useConfigContext();
     const { fetchCsrfToken, clearCsrfToken } = useCsrfContext();
+    const queryClient = useQueryClient();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [userInfo, setUserInfo] = useState<Record<string, unknown> | null>(null);
@@ -101,6 +103,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             localStorage.removeItem("access_token");
             localStorage.removeItem("sam_access_token");
             localStorage.removeItem("refresh_token");
+
+            // Drop every cached response synchronously — `removeQueries` evicts
+            // immediately (unlike `invalidateQueries`, which leaves stale data
+            // visible until the next refetch resolves), so no fragment of the
+            // previous user's data can render before the page reload below.
+            queryClient.removeQueries();
 
             // Clear local state
             setIsAuthenticated(false);
