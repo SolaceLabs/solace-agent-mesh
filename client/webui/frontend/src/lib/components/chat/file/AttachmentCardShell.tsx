@@ -88,19 +88,27 @@ export const AttachmentCardShell: React.FC<AttachmentCardShellProps> = ({ filena
 
 /**
  * Inline text snippet preview shared by attachment cards. Shows up to two
- * trimmed/truncated lines plus an ellipsis when more content is available.
+ * non-blank trimmed/truncated lines plus an ellipsis when more content is
+ * available. Blank lines are skipped so the snippet doesn't waste a row on a
+ * paragraph break (which used to leave the card looking like "first line +
+ * blank row + ellipsis").
  */
-export const AttachmentInlineText: React.FC<{ lines: string[] }> = ({ lines }) => (
-    <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
-        {lines.slice(0, 2).map((line, index) => {
-            const trimmed = line.trim();
-            const display = trimmed.length > 40 ? trimmed.substring(0, 37) + "..." : trimmed;
-            return (
-                <div key={`${index}-${line}`} className="truncate">
-                    {display || " "}
-                </div>
-            );
-        })}
-        {lines.length > 2 && <div className="text-(--secondary-text-w50)">...</div>}
-    </div>
-);
+export const AttachmentInlineText: React.FC<{ lines: string[] }> = ({ lines }) => {
+    const nonBlank = lines.map(l => l.trim()).filter(l => l.length > 0);
+    const visible = nonBlank.slice(0, 2);
+    const hasMore = nonBlank.length > visible.length;
+
+    return (
+        <div className="overflow-hidden px-3 pt-3 pb-2 font-mono text-xs leading-relaxed text-(--secondary-text-wMain)">
+            {visible.map((line, index) => {
+                const display = line.length > 40 ? line.substring(0, 37) + "..." : line;
+                return (
+                    <div key={`${index}-${line}`} className="truncate">
+                        {display}
+                    </div>
+                );
+            })}
+            {hasMore && <div className="text-(--secondary-text-w50)">...</div>}
+        </div>
+    );
+};
