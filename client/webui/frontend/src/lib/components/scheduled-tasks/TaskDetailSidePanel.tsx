@@ -1,11 +1,12 @@
 import React from "react";
-import { X, Calendar, CalendarClock, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, ChevronRight } from "lucide-react";
+import { X, Calendar, CalendarDays, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, Zap } from "lucide-react";
 import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
-import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Badge } from "@/lib/components/ui";
+import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
 import { formatDuration } from "@/lib/utils/format";
 import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
+import { getStatusBadge } from "./ExecutionList";
 
 const RECENT_RUNS_COUNT = 5;
 
@@ -30,20 +31,17 @@ const executionStatusIcon = (status: TaskExecution["status"]): { Icon: React.Com
     }
 };
 
-const RecentRuns: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskId, onViewAll }) => {
+const ExecutionHistory: React.FC<{ taskId: string; onViewAll: () => void }> = ({ taskId, onViewAll }) => {
     const { data, isLoading } = useTaskExecutions(taskId, 1, RECENT_RUNS_COUNT);
     const executions = data?.executions ?? [];
 
     return (
         <div>
-            <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-(--secondary-text-wMain)">Recent Runs</h3>
-                {executions.length > 0 && (
-                    <button type="button" onClick={onViewAll} className="flex items-center gap-0.5 text-xs text-(--primary-wMain) hover:underline">
-                        View all
-                        <ChevronRight className="h-3 w-3" />
-                    </button>
-                )}
+            <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Execution History</h3>
+                <button type="button" onClick={onViewAll} className="text-xs text-(--primary-wMain) hover:underline">
+                    View Executions
+                </button>
             </div>
 
             {isLoading ? (
@@ -88,160 +86,133 @@ interface TaskDetailSidePanelProps {
     onDelete: (taskId: string, taskName: string) => void;
     onViewExecutions: (task: ScheduledTask) => void;
     onToggleEnabled: (task: ScheduledTask) => void;
+    onRunNow?: (task: ScheduledTask) => void;
+    isRunNowPending?: boolean;
 }
 
-// Helper to format timestamp
 const formatTimestamp = (timestamp: number): string => {
     // Auto-detect if timestamp is in seconds or milliseconds
     const ts = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
-    const date = new Date(ts);
-    return date.toLocaleString();
+    return new Date(ts).toLocaleString();
 };
 
-export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, onClose, onEdit, onDelete, onViewExecutions, onToggleEnabled }) => {
+export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, onClose, onEdit, onDelete, onViewExecutions, onToggleEnabled, onRunNow, isRunNowPending = false }) => {
     if (!task) return null;
 
-    const handleEdit = () => {
-        onEdit(task);
-    };
+    // One-time tasks are terminal after their run; config-sourced tasks are read-only.
+    const canRunNow = !!onRunNow && task.scheduleType !== "one_time" && task.source !== "config";
 
-    const handleDelete = () => {
-        onDelete(task.id, task.name);
-    };
-
-    const handleViewExecutions = () => {
-        onViewExecutions(task);
-    };
-
-    const handleToggleEnabled = () => {
-        onToggleEnabled(task);
-    };
+    const taskMessageText = task.taskMessage?.[0]?.text || "";
 
     return (
         <div className="flex h-full w-full flex-col border-l bg-(--background-w10)">
             {/* Header */}
-            <div className="border-b p-4">
-                <div className="mb-2 flex items-center justify-between">
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <CalendarClock className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
-                        <Tooltip delayDuration={300}>
-                            <TooltipTrigger asChild>
-                                <h2 className="cursor-default truncate text-lg font-semibold">{task.name}</h2>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">
-                                <p>{task.name}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                    <div className="ml-2 flex flex-shrink-0 items-center gap-1">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Actions">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleEdit}>
-                                    <Pencil size={14} className="mr-2" />
-                                    Edit Task
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleViewExecutions}>
-                                    <History size={14} className="mr-2" />
-                                    View Execution History
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleToggleEnabled}>
-                                    {task.enabled ? (
-                                        <>
-                                            <Pause size={14} className="mr-2" />
-                                            Pause Task
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Play size={14} className="mr-2" />
-                                            Resume Task
-                                        </>
-                                    )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={handleDelete}>
-                                    <Trash2 size={14} className="mr-2" />
-                                    Delete Task
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" tooltip="Close">
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
+            <div className="flex items-center justify-between border-b p-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <CalendarDays className="h-5 w-5 flex-shrink-0 text-(--secondary-text-wMain)" />
+                    <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                            <h2 className="cursor-default truncate text-lg font-semibold">{task.name}</h2>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                            <p>{task.name}</p>
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Badge variant={task.status === "active" ? "default" : task.status === "error" ? "destructive" : "secondary"}>
-                        {task.status === "active" ? "Active" : task.status === "paused" ? "Paused" : task.status === "error" ? "Error" : task.status}
-                    </Badge>
-                    {task.source === "config" && <Badge variant="outline">Config</Badge>}
+                <div className="ml-2 flex flex-shrink-0 items-center gap-1">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Actions">
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onEdit(task)}>
+                                <Pencil size={14} className="mr-2" />
+                                Edit Task
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onViewExecutions(task)}>
+                                <History size={14} className="mr-2" />
+                                View Execution History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onToggleEnabled(task)}>
+                                {task.enabled ? (
+                                    <>
+                                        <Pause size={14} className="mr-2" />
+                                        Pause Task
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play size={14} className="mr-2" />
+                                        Resume Task
+                                    </>
+                                )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onDelete(task.id, task.name)}>
+                                <Trash2 size={14} className="mr-2" />
+                                Delete Task
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0" tooltip="Close">
+                        <X className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
 
             {/* Content */}
             <div className="flex-1 space-y-6 overflow-y-auto p-4">
-                {/* Description and Schedule - with background */}
-                <div className="space-y-6 rounded bg-(--secondary-w20) p-4">
-                    {/* Description */}
-                    <div>
-                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Description</h3>
-                        <div className="text-sm leading-relaxed">{task.description || "No description provided."}</div>
-                    </div>
+                {/* Task Details card — description, status/schedule, primary actions */}
+                <section className="space-y-4 rounded-md bg-(--secondary-w10) p-4">
+                    <h3 className="text-sm font-semibold">Task Details</h3>
 
-                    {/* Schedule */}
-                    <div>
-                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Schedule</h3>
-                        <div className="text-sm">
-                            <div className="font-medium">{formatSchedule(task)}</div>
-                            <div className="mt-1 text-xs text-(--secondary-text-wMain)">Timezone: {task.timezone}</div>
+                    <div className="text-sm leading-relaxed">{task.description || <span className="text-(--secondary-text-wMain) italic">No description</span>}</div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <div className="mb-1 text-xs text-(--secondary-text-wMain)">Status</div>
+                            {task.status ? getStatusBadge(task.status) : null}
+                        </div>
+                        <div>
+                            <div className="mb-1 text-xs text-(--secondary-text-wMain)">Schedule</div>
+                            <div className="text-sm">{formatSchedule(task)}</div>
                         </div>
                     </div>
 
-                    {/* Target Agent/Workflow */}
-                    <div>
-                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Target {task.targetType === "workflow" ? "Workflow" : "Agent"}</h3>
-                        <div className="inline-block rounded bg-(--primary-w10) px-2 py-0.5 font-mono text-xs text-(--primary-wMain)">{task.targetAgentName}</div>
-                    </div>
-                </div>
-
-                {/* Task Message - no background */}
-                {task.taskMessage && task.taskMessage.length > 0 && (
-                    <div>
-                        <h3 className="mb-2 text-xs font-semibold text-(--secondary-text-wMain)">Task Message</h3>
-                        <div className="rounded bg-(--secondary-w10) p-3 font-mono text-xs break-words whitespace-pre-wrap">{task.taskMessage[0]?.text || "No message"}</div>
-                    </div>
-                )}
-
-                {/* Recent Runs — surfaces execution results without requiring
-                    a full navigation to the history page. */}
-                <RecentRuns taskId={task.id} onViewAll={handleViewExecutions} />
-
-                {/* Execution Stats */}
-                {(task.lastRunAt || task.nextRunAt) && (
-                    <div className="space-y-4 rounded bg-(--secondary-w20) p-4">
-                        <h3 className="text-xs font-semibold text-(--secondary-text-wMain)">Execution Schedule</h3>
-
-                        {task.lastRunAt && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-(--secondary-text-wMain)">Last Run:</span>
-                                <span className="font-medium">{formatTimestamp(task.lastRunAt)}</span>
-                            </div>
+                    <div className="space-y-2 pt-2">
+                        {canRunNow && (
+                            <Button onClick={() => onRunNow!(task)} disabled={isRunNowPending} className="w-full">
+                                {isRunNowPending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Running…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Zap className="mr-2 h-4 w-4" />
+                                        Run Now
+                                    </>
+                                )}
+                            </Button>
                         )}
-
-                        {task.nextRunAt && (
-                            <div className="flex justify-between text-sm">
-                                <span className="text-(--secondary-text-wMain)">Next Run:</span>
-                                <span className="font-medium">{formatTimestamp(task.nextRunAt)}</span>
-                            </div>
-                        )}
+                        <Button variant="outline" onClick={() => onEdit(task)} className="w-full">
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit Task
+                        </Button>
                     </div>
-                )}
+                </section>
+
+                {/* Instructions card */}
+                <section className="space-y-3 rounded-md bg-(--secondary-w10) p-4">
+                    <h3 className="text-sm font-semibold">Instructions</h3>
+                    {taskMessageText ? <div className="text-sm break-words whitespace-pre-wrap">{taskMessageText}</div> : <div className="text-sm text-(--secondary-text-wMain) italic">No instructions</div>}
+                </section>
+
+                {/* Execution History — compact recent-runs list with link to full page. */}
+                <ExecutionHistory taskId={task.id} onViewAll={() => onViewExecutions(task)} />
             </div>
 
-            {/* Metadata - Sticky at bottom */}
+            {/* Metadata footer */}
             <div className="space-y-2 border-t bg-(--background-w10) p-4">
                 <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
                     <User size={12} />

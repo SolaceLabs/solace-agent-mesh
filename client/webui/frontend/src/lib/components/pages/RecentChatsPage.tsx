@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
-import { Loader2, Check, X, Plus, MessageCircle, CalendarClock, Share2 } from "lucide-react";
+import { Loader2, Check, X, Plus, MessageCircle, CalendarDays, Share2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
@@ -359,7 +359,7 @@ export const RecentChatsPage: React.FC = () => {
                                     </TabsTrigger>
                                     {configFeatureEnablement?.scheduler && (
                                         <TabsTrigger value="scheduler" className={`rounded-none border-l-0 px-6 ${chatSharingEnabled ? "" : "rounded-r-md"}`}>
-                                            <CalendarClock className="h-4 w-4 shrink-0" />
+                                            <CalendarDays className="h-4 w-4 shrink-0" />
                                             Scheduled Tasks
                                         </TabsTrigger>
                                     )}
@@ -518,7 +518,7 @@ export const RecentChatsPage: React.FC = () => {
                                                                 }}
                                                                 className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
                                                             >
-                                                                <CalendarClock size={12} />
+                                                                <CalendarDays size={12} />
                                                                 <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
                                                             </button>
                                                         </TooltipTrigger>

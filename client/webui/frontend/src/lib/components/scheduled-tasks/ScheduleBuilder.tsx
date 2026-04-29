@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, ChevronDown, X } from "lucide-react";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
-import { Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, TimePicker } from "@/lib/components/ui";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { describeScheduleExpression } from "./utils";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -78,6 +78,125 @@ const DaysOfWeekPicker: React.FC<{ selected: number[]; onChange: (days: number[]
     );
 };
 
+// Format an HH:MM (24h) string as a user-facing 12h string, e.g. "9:30 AM".
+function formatTime12h(hour24: number, minute: number): string {
+    const period = hour24 >= 12 ? "PM" : "AM";
+    const hour12 = hour24 % 12 || 12;
+    return `${hour12}:${String(minute).padStart(2, "0")} ${period}`;
+}
+
+// Parse a free-typed 12h time, e.g. "9:30 AM", "12:00pm", "1:5 PM" → {hour24, minute}.
+// Returns null on anything we can't unambiguously interpret.
+function parseTime12h(input: string): { hour24: number; minute: number } | null {
+    const trimmed = input.trim().toUpperCase();
+    const match = /^(\d{1,2}):(\d{1,2})\s*(AM|PM)$/.exec(trimmed);
+    if (!match) return null;
+    const h12 = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const period = match[3];
+    if (h12 < 1 || h12 > 12 || m < 0 || m > 59) return null;
+    let hour24 = h12 % 12;
+    if (period === "PM") hour24 += 12;
+    return { hour24, minute: m };
+}
+
+// 30-minute step options spanning midnight → 11:30 PM (48 entries).
+const TIME_OF_DAY_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+    const hour24 = Math.floor(i / 2);
+    const minute = (i % 2) * 30;
+    return { hour24, minute, label: formatTime12h(hour24, minute) };
+});
+
+// Single-field time picker styled like a Select. Users can either click the
+// chevron to pick a 30-minute step from the popover, or type any specific
+// time (validated as `H:MM AM/PM`). Invalid input on blur reverts to the
+// last valid value so the parent never sees a malformed time.
+export const TimeOfDayPicker: React.FC<{ value: string; onChange: (hhmm: string) => void; invalid?: boolean }> = ({ value, onChange, invalid }) => {
+    const [open, setOpen] = useState(false);
+    const [parts, setParts] = useState(() => value.split(":").map(Number));
+    const initialDisplay = !isNaN(parts[0]) && !isNaN(parts[1]) ? formatTime12h(parts[0], parts[1]) : "9:00 AM";
+    const [draft, setDraft] = useState(initialDisplay);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Sync draft when the parent's value changes (e.g. AI builder updated it,
+    // or user opened an existing task).
+    useEffect(() => {
+        const [h, m] = value.split(":").map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+            setParts([h, m]);
+            setDraft(formatTime12h(h, m));
+        }
+    }, [value]);
+
+    const commit = () => {
+        const parsed = parseTime12h(draft);
+        if (parsed) {
+            const hhmm = `${String(parsed.hour24).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}`;
+            setDraft(formatTime12h(parsed.hour24, parsed.minute));
+            if (hhmm !== value) onChange(hhmm);
+        } else {
+            // Revert to last valid value rather than silently emitting garbage.
+            const [h, m] = parts;
+            setDraft(formatTime12h(h || 9, m || 0));
+        }
+    };
+
+    const pick = (hour24: number, minute: number) => {
+        const hhmm = `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        setDraft(formatTime12h(hour24, minute));
+        setParts([hour24, minute]);
+        onChange(hhmm);
+        setOpen(false);
+        inputRef.current?.blur();
+    };
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverAnchor asChild>
+                <div className={`relative inline-flex w-[8rem] items-center rounded-xs border bg-transparent shadow-xs transition-colors focus-within:border-(--brand-wMain) ${invalid ? "border-(--error-w100)" : ""}`}>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        className="w-full bg-transparent py-2 pr-8 pl-3 text-sm outline-none"
+                        value={draft}
+                        onChange={e => setDraft(e.target.value)}
+                        onBlur={commit}
+                        onKeyDown={e => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                commit();
+                                setOpen(false);
+                            } else if (e.key === "Escape") {
+                                setOpen(false);
+                            } else if (e.key === "ArrowDown" && !open) {
+                                e.preventDefault();
+                                setOpen(true);
+                            }
+                        }}
+                    />
+                    <PopoverTrigger asChild>
+                        <button type="button" tabIndex={-1} aria-label="Open time options" className="absolute right-2 flex h-6 w-6 items-center justify-center text-(--secondary-text-wMain) opacity-50 hover:opacity-100">
+                            <ChevronDown className="h-4 w-4" />
+                        </button>
+                    </PopoverTrigger>
+                </div>
+            </PopoverAnchor>
+            <PopoverContent align="start" sideOffset={4} className="max-h-[16rem] w-(--radix-popover-trigger-width) overflow-y-auto p-1" onOpenAutoFocus={e => e.preventDefault()}>
+                <div className="flex flex-col">
+                    {TIME_OF_DAY_OPTIONS.map(opt => {
+                        const isSelected = parts[0] === opt.hour24 && parts[1] === opt.minute;
+                        return (
+                            <button key={opt.label} type="button" onClick={() => pick(opt.hour24, opt.minute)} className={`rounded-sm px-2 py-1.5 text-left text-sm hover:bg-(--secondary-w10) ${isSelected ? "font-medium" : ""}`}>
+                                {opt.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+};
+
 // Light-gray "Preview" box rendered below schedule controls so the user can
 // see the human-readable cadence as they tweak inputs. Same look-and-feel as
 // the AI builder's TaskPreviewPanel preview.
@@ -91,12 +210,24 @@ export const SchedulePreviewBox: React.FC<{ description: string }> = ({ descript
 // Schedule builder types
 type FrequencyType = "daily" | "weekly" | "monthly" | "custom";
 
+// Nth occurrence within a month: "1"=First, "2"=Second, "3"=Third, "4"=Fourth, "L"=Last.
+type MonthNth = "1" | "2" | "3" | "4" | "L";
+
+const MONTH_NTH_LABELS: Record<MonthNth, string> = {
+    "1": "First",
+    "2": "Second",
+    "3": "Third",
+    "4": "Fourth",
+    L: "Last",
+};
+
 interface ScheduleConfig {
     frequency: FrequencyType;
     time: string; // HH:MM format
     ampm: "AM" | "PM";
     weekDays: number[]; // 0-6 (Sunday-Saturday)
-    monthDay: number; // 1-31
+    monthNth: MonthNth; // which occurrence of the chosen weekday in the month
+    monthWeekday: number; // 0-6 (Sunday-Saturday)
 }
 
 // Convert schedule config to cron expression
@@ -129,8 +260,14 @@ function scheduleToCron(config: ScheduleConfig): string {
             return `${minutes} ${hour} * * ${days}`;
         }
 
-        case "monthly":
-            return `${minutes} ${hour} ${config.monthDay} * *`;
+        case "monthly": {
+            const wd = config.monthWeekday;
+            // croniter accepts both `D#N` (Nth weekday) and `DL` (last weekday).
+            if (config.monthNth === "L") {
+                return `${minutes} ${hour} * * ${wd}L`;
+            }
+            return `${minutes} ${hour} * * ${wd}#${config.monthNth}`;
+        }
 
         default:
             return `${minutes} ${hour} * * *`;
@@ -190,7 +327,8 @@ function cronToSchedule(cron: string): ScheduleConfig | null {
         time,
         ampm,
         weekDays: [],
-        monthDay: 1,
+        monthNth: "1",
+        monthWeekday: 1,
     };
 
     let candidate: ScheduleConfig;
@@ -199,13 +337,26 @@ function cronToSchedule(cron: string): ScheduleConfig | null {
         // Step patterns (e.g. "*/15 * * * *", "0 */6 * * *") have no preset
         // representation now that Hourly is gone — preserve verbatim as custom.
         return customFallback;
-    } else if (dayOfWeek !== "*") {
+    } else if (dayOfMonth === "*" && /^\d#[1-4]$/.test(dayOfWeek)) {
+        // Nth weekday of month, e.g. "1#1" = first Monday.
+        const [wdStr, nStr] = dayOfWeek.split("#");
+        const wd = parseInt(wdStr);
+        if (wd < 0 || wd > 6) return customFallback;
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthNth: nStr as MonthNth, monthWeekday: wd };
+    } else if (dayOfMonth === "*" && /^\dL$/i.test(dayOfWeek)) {
+        // Last weekday of month, e.g. "5L" = last Friday.
+        const wd = parseInt(dayOfWeek[0]);
+        if (wd < 0 || wd > 6) return customFallback;
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthNth: "L", monthWeekday: wd };
+    } else if (dayOfWeek !== "*" && /^\d+(,\d+)*$/.test(dayOfWeek)) {
         const days = dayOfWeek.split(",").map(d => parseInt(d));
-        candidate = { frequency: "weekly", time, ampm, weekDays: days, monthDay: 1 };
-    } else if (dayOfMonth !== "*") {
-        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthDay: parseInt(dayOfMonth) };
+        candidate = { frequency: "weekly", time, ampm, weekDays: days, monthNth: "1", monthWeekday: 1 };
+    } else if (dayOfMonth === "*" && dayOfWeek === "*") {
+        candidate = { frequency: "daily", time, ampm, weekDays: [], monthNth: "1", monthWeekday: 1 };
     } else {
-        candidate = { frequency: "daily", time, ampm, weekDays: [], monthDay: 1 };
+        // Anything else (plain day-of-month, ranges, lists in dayOfMonth, etc.)
+        // doesn't fit the Nth-weekday Monthly preset — fall back to Custom.
+        return customFallback;
     }
 
     // If the preset candidate doesn't roundtrip to the input, the cron has
@@ -235,8 +386,9 @@ function getScheduleDescription(config: ScheduleConfig): string {
         }
 
         case "monthly": {
-            const suffix = config.monthDay === 1 ? "st" : config.monthDay === 2 ? "nd" : config.monthDay === 3 ? "rd" : "th";
-            return `Monthly on the ${config.monthDay}${suffix} at ${timeStr}`;
+            const dayName = DAY_LABELS[config.monthWeekday] || "Monday";
+            const ordinal = MONTH_NTH_LABELS[config.monthNth].toLowerCase();
+            return `${ordinal === "last" ? "Last" : ordinal[0].toUpperCase() + ordinal.slice(1)} ${dayName} of every month at ${timeStr}`;
         }
 
         default:
@@ -339,7 +491,8 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
         time: "09:00",
         ampm: "AM",
         weekDays: [],
-        monthDay: 1,
+        monthNth: "1",
+        monthWeekday: 1,
     };
 
     const [config, setConfig] = useState<ScheduleConfig>(initialConfig);
@@ -521,7 +674,7 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
 
                 <div>
                     <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Time</label>
-                    <TimePicker
+                    <TimeOfDayPicker
                         value={time24}
                         onChange={val => {
                             const [h24, m] = val.split(":").map(Number);
@@ -536,21 +689,41 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
                 </div>
 
                 {config.frequency === "monthly" && (
-                    <div>
-                        <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Day of Month</label>
-                        <Select value={String(config.monthDay)} onValueChange={val => updateConfig({ monthDay: parseInt(val) })}>
-                            <SelectTrigger className="min-w-[5rem]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                                    <SelectItem key={day} value={String(day)}>
-                                        {day}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <>
+                        <div>
+                            <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Day</label>
+                            <Select value={config.monthNth} onValueChange={val => updateConfig({ monthNth: val as MonthNth })}>
+                                <SelectTrigger className="min-w-[7rem]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(Object.keys(MONTH_NTH_LABELS) as MonthNth[]).map(key => (
+                                        <SelectItem key={key} value={key}>
+                                            {MONTH_NTH_LABELS[key]}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            {/* Pairs with the "Day" dropdown above — no separate label
+                                so the two ordinal+weekday selects read as one phrase. */}
+                            <label className="mb-2 block text-xs text-(--secondary-text-wMain)">&nbsp;</label>
+                            <Select value={String(config.monthWeekday)} onValueChange={val => updateConfig({ monthWeekday: parseInt(val) })}>
+                                <SelectTrigger className="min-w-[8rem]">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {DAY_LABELS.map((dayName, idx) => (
+                                        <SelectItem key={idx} value={String(idx)}>
+                                            {dayName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </>
                 )}
 
                 {config.frequency === "weekly" && (

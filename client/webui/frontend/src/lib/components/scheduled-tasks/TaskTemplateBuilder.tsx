@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker } from "@/lib/components/ui";
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker } from "@/lib/components/ui";
 import { Sparkles, Loader2, Pencil } from "lucide-react";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
 import { TaskBuilderChat } from "./TaskBuilderChat";
 import { TaskPreviewPanel } from "./TaskPreviewPanel";
-import { ScheduleBuilder, SchedulePreviewBox } from "./ScheduleBuilder";
+import { ScheduleBuilder, SchedulePreviewBox, TimeOfDayPicker } from "./ScheduleBuilder";
 import { describeScheduleExpression } from "./utils";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
-import { useCreateScheduledTask, useUpdateScheduledTask } from "@/lib/api/scheduled-tasks";
+import { useCreateScheduledTask, useUpdateScheduledTask, validateTaskConflict } from "@/lib/api/scheduled-tasks";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
 
 // Common timezones for the dropdown
@@ -91,7 +91,7 @@ const IntervalValueInput: React.FC<{ value: number; unit: IntervalUnit; onChange
                     setDraft(Number.isFinite(value) ? String(value) : "");
                 }
             }}
-            className={`max-w-[7rem] ${invalid ? "border-red-500" : ""}`}
+            className={`max-w-[7rem] ${invalid ? "border-(--error-w100)" : ""}`}
             aria-invalid={invalid}
         />
     );
@@ -123,10 +123,22 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+    // LLM-detected semantic conflict between instructions and schedule. Surfaces
+    // as inline error text + red borders on the affected fields. The first save
+    // attempt that triggers a conflict aborts and shows the warning; a second
+    // save attempt with the same content overrides and proceeds (so the user
+    // can dismiss false positives without leaving the form).
+    type ConflictState = { reason: string; fields: Array<"instructions" | "schedule">; signature: string } | null;
+    const [conflictError, setConflictError] = useState<ConflictState>(null);
+    const [isCheckingConflict, setIsCheckingConflict] = useState(false);
+    // Tracks which footer button is currently in-flight so only that one shows
+    // its spinner. Without this, both Create and Create-and-Activate would
+    // show the spinner whenever either was clicked.
+    const [pendingAction, setPendingAction] = useState<"create" | "create-activate" | "save" | null>(null);
     const { agents } = useAgentCards();
     const createTaskMutation = useCreateScheduledTask();
     const updateTaskMutation = useUpdateScheduledTask();
-    const isLoading = createTaskMutation.isPending || updateTaskMutation.isPending;
+    const isLoading = createTaskMutation.isPending || updateTaskMutation.isPending || isCheckingConflict;
 
     // For unsaved changes detection
     const [initialConfig, setInitialConfig] = useState<TaskConfig | null>(null);
@@ -335,9 +347,55 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         }
     };
 
+    // Signature used to detect "user has not changed anything since the
+    // conflict warning" — second Create click with same data acts as override.
+    const conflictSignature = (cfg: TaskConfig) => `${cfg.scheduleType}|${cfg.scheduleExpression}|${cfg.timezone}|${cfg.taskMessage}`;
+
+    // Any edit to the conflict-relevant fields invalidates the prior verdict.
+    useEffect(() => {
+        if (!conflictError) return;
+        if (conflictSignature(config) !== conflictError.signature) {
+            setConflictError(null);
+        }
+    }, [config.scheduleType, config.scheduleExpression, config.timezone, config.taskMessage, conflictError]);
+
     const handleSave = async (activate?: boolean) => {
         if (!validateConfig()) {
             return;
+        }
+
+        const action: "create" | "create-activate" | "save" = isEditing ? "save" : activate ? "create-activate" : "create";
+        setPendingAction(action);
+
+        // Conflict-check on first save attempt. If the user clicks Create
+        // again with the exact same content, treat that as an explicit override.
+        const signature = conflictSignature(config);
+        const alreadyWarned = !!conflictError && conflictError.signature === signature;
+        if (!alreadyWarned) {
+            setIsCheckingConflict(true);
+            try {
+                const result = await validateTaskConflict({
+                    instructions: config.taskMessage,
+                    scheduleType: config.scheduleType,
+                    scheduleExpression: config.scheduleExpression,
+                    timezone: config.timezone,
+                    targetAgent: config.targetAgentName,
+                });
+                if (result.conflict) {
+                    setConflictError({
+                        reason: result.reason || "Instructions are conflicting with the schedule configuration. Review the task instructions and schedule.",
+                        fields: result.affectedFields.length > 0 ? result.affectedFields : ["instructions", "schedule"],
+                        signature,
+                    });
+                    setIsCheckingConflict(false);
+                    setPendingAction(null);
+                    return;
+                }
+            } catch (e) {
+                // Fail open — don't block the user if validation itself errors.
+                console.warn("Conflict validation failed, proceeding with save:", e);
+            }
+            setIsCheckingConflict(false);
         }
 
         const enabled = isEditing ? config.enabled : activate === true;
@@ -373,6 +431,8 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : `An error occurred while ${isEditing ? "updating" : "creating"} the task`;
             setValidationErrors({ general: errorMsg });
+        } finally {
+            setPendingAction(null);
         }
     };
 
@@ -462,8 +522,8 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                         <Label htmlFor="task-name">
                                             Task Name <span className="text-[var(--color-primary-wMain)]">*</span>
                                         </Label>
-                                        <Input id="task-name" placeholder="e.g., Daily Report Generation" value={config.name} onChange={e => updateConfig({ name: e.target.value })} className={validationErrors.name ? "border-red-500" : ""} />
-                                        {validationErrors.name && <p className="text-sm text-red-600">{validationErrors.name}</p>}
+                                        <Input id="task-name" placeholder="e.g., Daily Report Generation" value={config.name} onChange={e => updateConfig({ name: e.target.value })} className={validationErrors.name ? "border-(--error-w100)" : ""} />
+                                        {validationErrors.name && <p className="text-sm text-(--error-wMain)">{validationErrors.name}</p>}
                                     </div>
 
                                     <div className="space-y-2">
@@ -488,7 +548,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                     updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
                                                 }}
                                             >
-                                                <SelectTrigger className="w-full">
+                                                <SelectTrigger className={`w-full ${conflictError?.fields.includes("schedule") ? "border-(--error-w100)" : ""}`}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -497,6 +557,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                     <SelectItem value="one_time">One Time</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {conflictError?.fields.includes("schedule") && <p className="text-sm text-(--error-wMain)">{conflictError.reason}</p>}
                                         </div>
 
                                         <div className="space-y-2">
@@ -535,7 +596,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                         <div className="flex items-center gap-2">
                                                             <IntervalValueInput value={parsed.value} unit={parsed.unit} onChange={n => updateConfig({ scheduleExpression: `${n}${parsed.unit}` })} invalid={invalid} />
                                                             <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
-                                                                <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-red-500" : ""}`} aria-invalid={invalid}>
+                                                                <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-(--error-w100)" : ""}`} aria-invalid={invalid}>
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -547,7 +608,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
-                                                        {invalid && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
+                                                        {invalid && <p className="text-sm text-(--error-wMain)">{validationErrors.scheduleExpression}</p>}
                                                         <p className="text-xs text-(--secondary-text-wMain)">Minimum interval is {MIN_INTERVAL_SECONDS} seconds.</p>
                                                     </div>
                                                 </>
@@ -571,7 +632,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                         min={new Date().toISOString().split("T")[0]}
                                                         invalid={!!validationErrors.scheduleExpression}
                                                     />
-                                                    <TimePicker
+                                                    <TimeOfDayPicker
                                                         value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
                                                         onChange={time => {
                                                             const date = config.scheduleExpression.split("T")[0] || "";
@@ -580,7 +641,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                         invalid={!!validationErrors.scheduleExpression}
                                                     />
                                                 </div>
-                                                {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
+                                                {validationErrors.scheduleExpression && <p className="text-sm text-(--error-wMain)">{validationErrors.scheduleExpression}</p>}
                                             </div>
                                             {!validationErrors.scheduleExpression && config.scheduleExpression && <SchedulePreviewBox description={describeScheduleExpression("one_time", config.scheduleExpression)} />}
                                         </>
@@ -612,7 +673,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                 {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-[var(--color-primary-wMain)]">*</span>
                                             </Label>
                                             <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
-                                                <SelectTrigger className={`w-full ${validationErrors.targetAgentName ? "border-red-500" : ""}`}>
+                                                <SelectTrigger className={`w-full ${validationErrors.targetAgentName ? "border-(--error-w100)" : ""}`}>
                                                     <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -625,7 +686,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                         ))}
                                                 </SelectContent>
                                             </Select>
-                                            {validationErrors.targetAgentName && <p className="text-sm text-red-600">{validationErrors.targetAgentName}</p>}
+                                            {validationErrors.targetAgentName && <p className="text-sm text-(--error-wMain)">{validationErrors.targetAgentName}</p>}
                                         </div>
                                     </div>
 
@@ -640,10 +701,15 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                             value={config.taskMessage}
                                             onChange={e => updateConfig({ taskMessage: e.target.value })}
                                             rows={6}
-                                            className={validationErrors.taskMessage ? "border-red-500" : ""}
+                                            className={validationErrors.taskMessage || conflictError?.fields.includes("instructions") ? "border-(--error-w100)" : ""}
                                         />
                                         <p className="text-xs text-(--secondary-text-wMain)">Ensure the instructions match the schedule and task configuration.</p>
-                                        {validationErrors.taskMessage && <p className="text-sm text-red-600">{validationErrors.taskMessage}</p>}
+                                        {validationErrors.taskMessage && <p className="text-sm text-(--error-wMain)">{validationErrors.taskMessage}</p>}
+                                        {conflictError?.fields.includes("instructions") && (
+                                            <p className="text-sm text-(--error-wMain)">
+                                                {conflictError.reason} <span className="text-xs text-(--secondary-text-wMain)">— click Create again to save anyway.</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -658,7 +724,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     </Button>
                     {isEditing ? (
                         <Button onClick={() => handleSave()} disabled={isLoading}>
-                            {isLoading ? (
+                            {pendingAction === "save" ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Saving...
@@ -670,7 +736,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     ) : (
                         <>
                             <Button variant="outline" onClick={() => handleSave(false)} disabled={isLoading}>
-                                {isLoading ? (
+                                {pendingAction === "create" ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         Creating...
@@ -680,7 +746,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                 )}
                             </Button>
                             <Button onClick={() => handleSave(true)} disabled={isLoading}>
-                                {isLoading ? (
+                                {pendingAction === "create-activate" ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         Creating...

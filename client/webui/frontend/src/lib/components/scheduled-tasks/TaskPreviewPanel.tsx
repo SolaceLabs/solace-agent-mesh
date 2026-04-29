@@ -60,9 +60,7 @@ const UpdatedBadge: React.FC = () => (
 // text aligned with the label — used for fields that would be a Select.
 const FieldRow: React.FC<{ label: string; value?: string; emptyLabel?: string; updated?: boolean; mono?: boolean; multiline?: boolean; indented?: boolean }> = ({ label, value, emptyLabel, updated, mono, multiline, indented }) => {
     const isEmpty = !value || !value.trim();
-    const valueClasses = indented
-        ? `rounded-md bg-(--background-w10) px-3 py-2 text-sm ${multiline ? "min-h-[120px] whitespace-pre-wrap" : ""} ${mono ? "font-mono" : ""}`
-        : `text-sm ${mono ? "font-mono" : ""} ${multiline ? "min-h-[120px] whitespace-pre-wrap" : ""}`;
+    const valueClasses = indented ? `rounded-md px-3 py-2 text-sm ${multiline ? "min-h-[120px] whitespace-pre-wrap" : ""} ${mono ? "font-mono" : ""}` : `text-sm ${mono ? "font-mono" : ""} ${multiline ? "min-h-[120px] whitespace-pre-wrap" : ""}`;
     return (
         <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -146,7 +144,7 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                                 <div className="flex items-center gap-3 text-sm">
                                     {interval ? (
                                         <>
-                                            <span className="min-w-[6rem] rounded-md bg-(--background-w10) px-3 py-2">{interval.value}</span>
+                                            <span>{interval.value}</span>
                                             <span className="text-(--secondary-text-wMain)">{INTERVAL_UNIT_LABELS[interval.unit]}</span>
                                         </>
                                     ) : (
@@ -167,8 +165,8 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                                 <div className="flex items-center gap-3 text-sm">
                                     {oneTimeDate || oneTimeTime ? (
                                         <>
-                                            <span className="min-w-[10rem] rounded-md bg-(--background-w10) px-3 py-2">{oneTimeDate || "—"}</span>
-                                            <span className="min-w-[7rem] rounded-md bg-(--background-w10) px-3 py-2">{oneTimeTime || "—"}</span>
+                                            <span>{oneTimeDate || "—"}</span>
+                                            <span>{oneTimeTime || "—"}</span>
                                         </>
                                     ) : (
                                         <span className="text-(--secondary-text-wMain) italic">No date selected yet</span>

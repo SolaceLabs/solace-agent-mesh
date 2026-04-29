@@ -62,6 +62,10 @@ export interface ScheduledTask {
     lastRunAt?: number;
 
     lastExecution?: LastExecutionSummary;
+    /** Most recent *terminal* execution. Stays populated even while a new
+     *  run is in flight, so cards/details can keep showing "Succeeded N min
+     *  ago" alongside the running pill. */
+    lastCompletedExecution?: LastExecutionSummary;
 }
 
 export interface LastExecutionSummary {
@@ -222,6 +226,7 @@ interface ApiScheduledTask {
     next_run_at?: number;
     last_run_at?: number;
     last_execution?: ApiLastExecutionSummary;
+    last_completed_execution?: ApiLastExecutionSummary;
 }
 
 interface ApiLastExecutionSummary {
@@ -319,6 +324,18 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
                   durationMs: apiTask.last_execution.duration_ms,
                   errorMessage: apiTask.last_execution.error_message,
                   triggerType: apiTask.last_execution.trigger_type,
+              }
+            : undefined,
+        lastCompletedExecution: apiTask.last_completed_execution
+            ? {
+                  id: apiTask.last_completed_execution.id,
+                  status: apiTask.last_completed_execution.status,
+                  scheduledFor: apiTask.last_completed_execution.scheduled_for,
+                  startedAt: apiTask.last_completed_execution.started_at,
+                  completedAt: apiTask.last_completed_execution.completed_at,
+                  durationMs: apiTask.last_completed_execution.duration_ms,
+                  errorMessage: apiTask.last_completed_execution.error_message,
+                  triggerType: apiTask.last_completed_execution.trigger_type,
               }
             : undefined,
     };

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { cva } from "class-variance-authority";
-import { MessageCircle, CalendarClock, Share2 } from "lucide-react";
+import { MessageCircle, CalendarDays, Share2 } from "lucide-react";
 
 import { useMarkSessionViewed, useRecentSessions } from "@/lib/api/sessions";
 import { useSharedWithMe } from "@/lib/api/share";
@@ -210,7 +210,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
                             <TooltipTrigger asChild>
                                 <button onClick={() => handleSessionClick(session)} className={sessionButtonStyles({ active: isActive })}>
                                     {hasUnseen && <span aria-label="Unseen updates" className="absolute top-1/2 left-[10px] h-[42px] w-1 -translate-y-1/2 rounded-sm bg-(--info-wMain)" />}
-                                    {session.source === "scheduler" ? <CalendarClock className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
+                                    {session.source === "scheduler" ? <CalendarDays className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" /> : <MessageCircle className="h-4 w-4 flex-shrink-0 text-(--darkSurface-textMuted)" />}
                                     <div className="min-w-0 flex-1">
                                         <SessionName session={session} respondingSessionId={respondingSessionId} isActive={isActive} hasRunningBackgroundTask={session.hasRunningBackgroundTask} />
                                     </div>

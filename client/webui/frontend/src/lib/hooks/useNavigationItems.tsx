@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, CalendarClock } from "lucide-react";
+import { FolderOpen, BookOpenText, Bot, User, LogOut, Files, CalendarDays } from "lucide-react";
 import type { NavItemConfig } from "@/lib/types/fe";
 
 interface UseNavigationItemsProps {
@@ -45,7 +45,7 @@ export function useNavigationItems({ projectsEnabled, promptLibraryEnabled, arti
             navItems.push({
                 id: "schedules",
                 label: "Scheduled Tasks",
-                icon: CalendarClock,
+                icon: CalendarDays,
                 route: "/scheduled-tasks",
                 routeMatch: "/scheduled-tasks",
                 tooltip: "Experimental Feature",

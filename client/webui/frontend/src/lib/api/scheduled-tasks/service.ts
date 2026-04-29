@@ -71,6 +71,35 @@ export const fetchRecentExecutions = async (limit: number = 50): Promise<Executi
     };
 };
 
+export interface ConflictValidationRequest {
+    instructions: string;
+    scheduleType: string;
+    scheduleExpression: string;
+    timezone: string;
+    targetAgent?: string | null;
+}
+
+export interface ConflictValidationResult {
+    conflict: boolean;
+    reason: string | null;
+    affectedFields: Array<"instructions" | "schedule">;
+}
+
+export const validateTaskConflict = async (input: ConflictValidationRequest): Promise<ConflictValidationResult> => {
+    const data = await api.webui.post(`/api/v1/scheduled-tasks/builder/validate-conflict`, {
+        instructions: input.instructions,
+        schedule_type: input.scheduleType,
+        schedule_expression: input.scheduleExpression,
+        timezone: input.timezone,
+        target_agent: input.targetAgent ?? null,
+    });
+    return {
+        conflict: !!data.conflict,
+        reason: data.reason ?? null,
+        affectedFields: Array.isArray(data.affected_fields) ? data.affected_fields.filter((f: string) => f === "instructions" || f === "schedule") : [],
+    };
+};
+
 export const fetchSchedulerStatus = async (): Promise<SchedulerStatus> => {
     const data = await api.webui.get(`/api/v1/scheduled-tasks/scheduler/status`);
     return {
