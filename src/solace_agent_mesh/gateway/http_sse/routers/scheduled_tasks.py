@@ -795,11 +795,14 @@ async def get_task_executions(
     task_id: str,
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    scheduled_after: Optional[int] = Query(default=None, alias="scheduledAfter", description="Filter to executions whose scheduled_for >= this epoch ms"),
+    scheduled_before: Optional[int] = Query(default=None, alias="scheduledBefore", description="Filter to executions whose scheduled_for <= this epoch ms"),
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
     task_service: ScheduledTaskService = Depends(get_task_service),
 ):
-    """Get execution history for a scheduled task."""
+    """Get execution history for a scheduled task. Optional `scheduledAfter`
+    and `scheduledBefore` (epoch ms) bound the result by `scheduled_for`."""
     user_id = user.get("id")
     try:
         task = task_service.get_task(db, task_id, user_id=user_id)
@@ -809,7 +812,9 @@ async def get_task_executions(
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
 
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        executions, total = task_service.get_task_executions(db, task_id, pagination)
+        executions, total = task_service.get_task_executions(
+            db, task_id, pagination, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
 
         return ExecutionListResponse(
             executions=[ExecutionResponse.from_orm(ex) for ex in executions],

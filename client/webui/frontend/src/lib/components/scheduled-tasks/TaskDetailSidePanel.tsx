@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Calendar, CalendarDays, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle, Zap } from "lucide-react";
+import { X, Calendar, CalendarDays, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
@@ -188,16 +188,12 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                                         Running…
                                     </>
                                 ) : (
-                                    <>
-                                        <Zap className="mr-2 h-4 w-4" />
-                                        Run Now
-                                    </>
+                                    "Run Now"
                                 )}
                             </Button>
                         )}
-                        <Button variant="outline" onClick={() => onEdit(task)} className="w-full">
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit Task
+                        <Button variant="outline" onClick={() => onViewExecutions(task)} className="w-full">
+                            Task Details
                         </Button>
                     </div>
                 </section>

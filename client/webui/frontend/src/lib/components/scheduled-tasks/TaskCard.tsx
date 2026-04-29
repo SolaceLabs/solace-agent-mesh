@@ -199,15 +199,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                         </div>
                     )}
                     {task.description && (
-                        <div className="mb-2 truncate text-sm" title={task.description}>
+                        <div className="mb-2 flex-shrink-0 truncate text-sm leading-6" title={task.description}>
                             {task.description}
                         </div>
                     )}
-                    {/* Info rows nudged down with mt-4 so the body has room
-                        above the schedule lines but the last-execution row
-                        always has space to render below them. The status pill
-                        is anchored to the bottom via mt-auto. */}
-                    <div className="mt-4 space-y-1.5">
+                    {/* Info rows nudged down slightly from the description; kept tight
+                        on vertical space so the pill below always fits inside the
+                        fixed card height (h-50). */}
+                    <div className="mt-2 space-y-1.5">
                         <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
                             <Clock className="h-3 w-3 flex-shrink-0" />
                             <span className="truncate">
@@ -244,7 +243,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                                 );
                             })()}
                     </div>
-                    <div className="mt-auto pt-3">
+                    <div className="mt-auto pt-2">
                         {isRunning ? (
                             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-(--brand-wMain)">
                                 Running

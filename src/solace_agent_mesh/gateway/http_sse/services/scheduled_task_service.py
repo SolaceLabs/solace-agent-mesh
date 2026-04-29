@@ -159,10 +159,17 @@ class ScheduledTaskService:
         db: DBSession,
         task_id: str,
         pagination: Optional[PaginationParams] = None,
+        scheduled_after: Optional[int] = None,
+        scheduled_before: Optional[int] = None,
     ) -> tuple:
-        """Get executions for a task. Returns (executions, total_count)."""
-        executions = self.repo.find_executions_by_task(db, task_id, pagination)
-        total = self.repo.count_executions_by_task(db, task_id)
+        """Get executions for a task, optionally bounded by `scheduled_for`
+        in epoch ms. Returns (executions, total_count)."""
+        executions = self.repo.find_executions_by_task(
+            db, task_id, pagination, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
+        total = self.repo.count_executions_by_task(
+            db, task_id, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
         return executions, total
 
     def get_recent_executions(
