@@ -5,7 +5,8 @@ import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
 import { TaskBuilderChat } from "./TaskBuilderChat";
 import { TaskPreviewPanel } from "./TaskPreviewPanel";
-import { ScheduleBuilder } from "./ScheduleBuilder";
+import { ScheduleBuilder, SchedulePreviewBox } from "./ScheduleBuilder";
+import { describeScheduleExpression } from "./utils";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
 import { useCreateScheduledTask, useUpdateScheduledTask } from "@/lib/api/scheduled-tasks";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
@@ -50,6 +51,51 @@ function parseInterval(expr: string): { value: number; unit: IntervalUnit } {
 function intervalToSeconds(value: number, unit: IntervalUnit): number {
     return value * (INTERVAL_UNITS.find(u => u.value === unit)?.seconds ?? 1);
 }
+
+// Local-state-driven interval value input. The previous implementation read
+// directly from the cron-derived `parsed.value` and rejected empty/invalid
+// keystrokes, which trapped the user — they couldn't even delete the digits
+// to type a different number. This component lets the field accept any raw
+// digits while typing, and only commits back to the parent when the value
+// becomes a valid positive integer.
+const IntervalValueInput: React.FC<{ value: number; unit: IntervalUnit; onChange: (newValue: number) => void; invalid?: boolean }> = ({ value, unit, onChange, invalid }) => {
+    const [draft, setDraft] = useState(Number.isFinite(value) ? String(value) : "");
+
+    // When the parent expression changes (e.g. the AI builder set a new
+    // interval, or the user switched units), sync the visible draft.
+    useEffect(() => {
+        setDraft(Number.isFinite(value) ? String(value) : "");
+    }, [value, unit]);
+
+    return (
+        <Input
+            id="interval-value"
+            type="text"
+            inputMode="numeric"
+            value={draft}
+            onChange={e => {
+                const next = e.target.value;
+                // Allow empty or digits-only while typing — don't reject the keystroke.
+                if (next === "" || /^\d+$/.test(next)) {
+                    setDraft(next);
+                    const n = parseInt(next, 10);
+                    if (Number.isFinite(n) && n >= 1) {
+                        onChange(n);
+                    }
+                }
+            }}
+            onBlur={() => {
+                // If the user left the field empty or zero, snap back to the last
+                // committed valid value so the cron expression stays well-formed.
+                if (!draft || parseInt(draft, 10) < 1) {
+                    setDraft(Number.isFinite(value) ? String(value) : "");
+                }
+            }}
+            className={`max-w-[7rem] ${invalid ? "border-red-500" : ""}`}
+            aria-invalid={invalid}
+        />
+    );
+};
 
 interface TaskConfig {
     name: string;
@@ -262,12 +308,16 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
             }
         }
 
+        if (!config.timezone.trim()) {
+            errors.timezone = "Timezone is required";
+        }
+
         if (!config.targetAgentName.trim()) {
             errors.targetAgentName = "Target agent is required";
         }
 
         if (!config.taskMessage.trim()) {
-            errors.taskMessage = "Task message is required";
+            errors.taskMessage = "Instructions are required";
         }
 
         setValidationErrors(errors);
@@ -418,7 +468,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-description">Description</Label>
-                                        <Input id="task-description" placeholder="e.g., Generates a daily summary report" value={config.description} onChange={e => updateConfig({ description: e.target.value })} />
+                                        <Textarea id="task-description" placeholder="e.g., Generates a daily summary report" value={config.description} onChange={e => updateConfig({ description: e.target.value })} rows={3} />
                                     </div>
                                 </div>
 
@@ -426,24 +476,46 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Schedule</h3>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="schedule-type">Schedule Type</Label>
-                                        <Select
-                                            value={config.scheduleType}
-                                            onValueChange={value => {
-                                                const newType = value as TaskConfig["scheduleType"];
-                                                updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
-                                            }}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="cron">Recurring Schedule</SelectItem>
-                                                <SelectItem value="interval">Interval</SelectItem>
-                                                <SelectItem value="one_time">One Time</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="schedule-type">
+                                                Schedule Type <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            </Label>
+                                            <Select
+                                                value={config.scheduleType}
+                                                onValueChange={value => {
+                                                    const newType = value as TaskConfig["scheduleType"];
+                                                    updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
+                                                }}
+                                            >
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="cron">Recurring Schedule</SelectItem>
+                                                    <SelectItem value="interval">Interval</SelectItem>
+                                                    <SelectItem value="one_time">One Time</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="timezone">
+                                                Timezone <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            </Label>
+                                            <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Select timezone" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {COMMON_TIMEZONES.map(tz => (
+                                                        <SelectItem key={tz} value={tz}>
+                                                            {tz}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
 
                                     {/* Use ScheduleBuilder for cron */}
@@ -455,133 +527,113 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                             const parsed = parseInterval(config.scheduleExpression);
                                             const invalid = !!validationErrors.scheduleExpression;
                                             return (
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="interval-value">
-                                                        Interval <span className="text-[var(--color-primary-wMain)]">*</span>
-                                                    </Label>
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            id="interval-value"
-                                                            type="number"
-                                                            min={1}
-                                                            step={1}
-                                                            value={Number.isFinite(parsed.value) ? parsed.value : ""}
-                                                            onChange={e => {
-                                                                const n = parseInt(e.target.value, 10);
-                                                                if (isNaN(n) || n < 1) return;
-                                                                updateConfig({ scheduleExpression: `${n}${parsed.unit}` });
-                                                            }}
-                                                            className={`max-w-[7rem] ${invalid ? "border-red-500" : ""}`}
-                                                            aria-invalid={invalid}
-                                                        />
-                                                        <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
-                                                            <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-red-500" : ""}`} aria-invalid={invalid}>
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {INTERVAL_UNITS.map(u => (
-                                                                    <SelectItem key={u.value} value={u.value}>
-                                                                        {u.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                <>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="interval-value">
+                                                            Interval <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                        </Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <IntervalValueInput value={parsed.value} unit={parsed.unit} onChange={n => updateConfig({ scheduleExpression: `${n}${parsed.unit}` })} invalid={invalid} />
+                                                            <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
+                                                                <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-red-500" : ""}`} aria-invalid={invalid}>
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {INTERVAL_UNITS.map(u => (
+                                                                        <SelectItem key={u.value} value={u.value}>
+                                                                            {u.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        {invalid && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
+                                                        <p className="text-xs text-(--secondary-text-wMain)">Minimum interval is {MIN_INTERVAL_SECONDS} seconds.</p>
                                                     </div>
-                                                    {invalid && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
-                                                    <p className="text-xs text-(--secondary-text-wMain)">Minimum interval is {MIN_INTERVAL_SECONDS} seconds.</p>
-                                                </div>
+                                                </>
                                             );
                                         })()}
 
                                     {/* One Time Date & Time Picker */}
                                     {config.scheduleType === "one_time" && (
-                                        <div className="space-y-2">
-                                            <Label>
-                                                Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
-                                            </Label>
-                                            <div className="flex items-center gap-2">
-                                                <DatePicker
-                                                    value={config.scheduleExpression.split("T")[0] || ""}
-                                                    onChange={date => {
-                                                        const time = config.scheduleExpression.split("T")[1] || "09:00:00";
-                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}` : "" });
-                                                    }}
-                                                    min={new Date().toISOString().split("T")[0]}
-                                                    invalid={!!validationErrors.scheduleExpression}
-                                                />
-                                                <TimePicker
-                                                    value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
-                                                    onChange={time => {
-                                                        const date = config.scheduleExpression.split("T")[0] || "";
-                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}:00` : "" });
-                                                    }}
-                                                    invalid={!!validationErrors.scheduleExpression}
-                                                />
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label>
+                                                    Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                </Label>
+                                                <div className="flex items-center gap-2">
+                                                    <DatePicker
+                                                        value={config.scheduleExpression.split("T")[0] || ""}
+                                                        onChange={date => {
+                                                            const time = config.scheduleExpression.split("T")[1] || "09:00:00";
+                                                            updateConfig({ scheduleExpression: date ? `${date}T${time}` : "" });
+                                                        }}
+                                                        min={new Date().toISOString().split("T")[0]}
+                                                        invalid={!!validationErrors.scheduleExpression}
+                                                    />
+                                                    <TimePicker
+                                                        value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
+                                                        onChange={time => {
+                                                            const date = config.scheduleExpression.split("T")[0] || "";
+                                                            updateConfig({ scheduleExpression: date ? `${date}T${time}:00` : "" });
+                                                        }}
+                                                        invalid={!!validationErrors.scheduleExpression}
+                                                    />
+                                                </div>
+                                                {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
                                             </div>
-                                            {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
-                                        </div>
+                                            {!validationErrors.scheduleExpression && config.scheduleExpression && <SchedulePreviewBox description={describeScheduleExpression("one_time", config.scheduleExpression)} />}
+                                        </>
                                     )}
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="timezone">Timezone</Label>
-                                        <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
-                                            <SelectTrigger className="max-w-md">
-                                                <SelectValue placeholder="Select timezone" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {COMMON_TIMEZONES.map(tz => (
-                                                    <SelectItem key={tz} value={tz}>
-                                                        {tz}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <p className="text-xs text-(--secondary-text-wMain)">Your local timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
-                                    </div>
                                 </div>
 
                                 {/* Task Configuration */}
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Task Configuration</h3>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="target-type">Target Type</Label>
-                                        <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
-                                            <SelectTrigger className="max-w-xs">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="agent">Agent</SelectItem>
-                                                <SelectItem value="workflow">Workflow</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="target-type">
+                                                Target <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            </Label>
+                                            <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="agent">Agent</SelectItem>
+                                                    <SelectItem value="workflow">Workflow</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="target-agent">
-                                            Target {config.targetType === "workflow" ? "Workflow" : "Agent"} <span className="text-[var(--color-primary-wMain)]">*</span>
-                                        </Label>
-                                        <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
-                                            <SelectTrigger className={validationErrors.targetAgentName ? "border-red-500" : ""}>
-                                                <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {agents
-                                                    .filter(agent => (config.targetType === "workflow" ? agent.isWorkflow : !agent.isWorkflow))
-                                                    .map(agent => (
-                                                        <SelectItem key={agent.name} value={agent.name}>
-                                                            {agent.displayName || agent.name}
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {validationErrors.targetAgentName && <p className="text-sm text-red-600">{validationErrors.targetAgentName}</p>}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="target-agent">
+                                                {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            </Label>
+                                            <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
+                                                <SelectTrigger className={`w-full ${validationErrors.targetAgentName ? "border-red-500" : ""}`}>
+                                                    <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {agents
+                                                        .filter(agent => (config.targetType === "workflow" ? agent.isWorkflow : !agent.isWorkflow))
+                                                        .map(agent => (
+                                                            <SelectItem key={agent.name} value={agent.name}>
+                                                                {agent.displayName || agent.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {validationErrors.targetAgentName && <p className="text-sm text-red-600">{validationErrors.targetAgentName}</p>}
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-message">
-                                            Task Message <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Instructions <span className="text-[var(--color-primary-wMain)]">*</span>
                                         </Label>
+                                        <p className="text-sm text-(--secondary-text-wMain)">Enter the task instructions for the agent to execute on the configured schedule.</p>
                                         <Textarea
                                             id="task-message"
                                             placeholder="Enter the message to send to the agent..."
@@ -590,6 +642,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                             rows={6}
                                             className={validationErrors.taskMessage ? "border-red-500" : ""}
                                         />
+                                        <p className="text-xs text-(--secondary-text-wMain)">Ensure the instructions match the schedule and task configuration.</p>
                                         {validationErrors.taskMessage && <p className="text-sm text-red-600">{validationErrors.taskMessage}</p>}
                                     </div>
                                 </div>
