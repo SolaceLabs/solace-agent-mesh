@@ -99,7 +99,8 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     const { persistenceEnabled } = useConfigContext();
     const chatSharingEnabled = useIsChatSharingEnabled();
 
-    const { data: sessions = [], isLoading } = useRecentSessions(maxItems);
+    const { data: sessionsData, isLoading, isFetching } = useRecentSessions(maxItems);
+    const sessions = useMemo(() => sessionsData ?? [], [sessionsData]);
     const { data: sharedItems = [] } = useSharedWithMe();
     const markViewedMutation = useMarkSessionViewed();
 
@@ -180,7 +181,12 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
         }
     };
 
-    if (isLoading && entries.length === 0 && persistenceEnabled) {
+    // Show the spinner whenever the recent-sessions query has no resolved data
+    // for the current user yet — covers initial load and the brief window
+    // after a user-scoped cache key changes (e.g. user switch). Prevents any
+    // chance of rendering another user's stale list before the fetch settles.
+    const recentNotReady = sessionsData === undefined && isFetching;
+    if ((isLoading || recentNotReady) && entries.length === 0 && persistenceEnabled) {
         return (
             <div className="flex h-full flex-col items-center pt-[25%] text-xs text-(--secondary-text-wMain)">
                 <Spinner />

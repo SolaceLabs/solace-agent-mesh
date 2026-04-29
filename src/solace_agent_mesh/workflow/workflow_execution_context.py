@@ -75,6 +75,7 @@ class WorkflowExecutionContext:
         # Sub-task tracking
         self.sub_task_to_node: Dict[str, str] = {}  # sub_task_id -> node_id
         self.node_to_sub_task: Dict[str, str] = {}  # node_id -> sub_task_id
+        self.sub_task_timeouts: Dict[str, float] = {}  # sub_task_id -> resolved timeout seconds
         self.lock = threading.Lock()
         self.cancellation_event = threading.Event()
 
@@ -102,6 +103,16 @@ class WorkflowExecutionContext:
         """Get all tracked sub-task IDs."""
         with self.lock:
             return list(self.sub_task_to_node.keys())
+
+    def set_sub_task_timeout(self, sub_task_id: str, timeout_seconds: float):
+        """Record the resolved timeout (in seconds) used for a sub-task."""
+        with self.lock:
+            self.sub_task_timeouts[sub_task_id] = timeout_seconds
+
+    def get_sub_task_timeout(self, sub_task_id: str) -> Optional[float]:
+        """Get the resolved timeout used for a sub-task, if known."""
+        with self.lock:
+            return self.sub_task_timeouts.get(sub_task_id)
 
     def cancel(self):
         """Signal cancellation."""
