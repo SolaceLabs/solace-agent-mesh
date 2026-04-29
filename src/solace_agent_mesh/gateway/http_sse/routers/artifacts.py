@@ -36,7 +36,7 @@ except ImportError:
 import io
 import json
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from ....common.a2a.types import ArtifactInfo
 from ....common.constants import ARTIFACT_TAG_WORKING
@@ -1830,14 +1830,16 @@ async def get_artifact_by_uri(
         if parsed_uri.scheme != "artifact":
             raise ValueError("Invalid URI scheme, must be 'artifact'.")
 
-        app_name = parsed_uri.netloc
+        app_name = unquote(parsed_uri.netloc)
         path_parts = parsed_uri.path.strip("/").split("/")
         if not app_name or len(path_parts) != 3:
             raise ValueError(
                 "Invalid URI path structure. Expected artifact://app_name/user_id/session_id/filename"
             )
 
-        owner_user_id, session_id, filename = path_parts
+        # Path segments need percent-decoding — WHATWG URL re-serialization
+        # encodes spaces and reserved chars in the path.
+        owner_user_id, session_id, filename = (unquote(p) for p in path_parts)
 
         query_params = parse_qs(parsed_uri.query)
         version_list = query_params.get("version")

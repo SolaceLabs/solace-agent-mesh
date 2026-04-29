@@ -7,7 +7,7 @@ import uuid
 import base64
 from datetime import datetime, timezone
 from typing import Any, List, Optional, TYPE_CHECKING
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 from .types import ContentPart
 from a2a.types import (
@@ -257,7 +257,7 @@ async def resolve_file_part_uri(
     try:
         log.info("%s Found artifact URI to resolve: %s", log_id_prefix, uri)
         parsed_uri = urlparse(uri)
-        app_name = parsed_uri.netloc
+        app_name = unquote(parsed_uri.netloc)
         path_parts = parsed_uri.path.strip("/").split("/")
 
         if not app_name or len(path_parts) != 3:
@@ -265,7 +265,9 @@ async def resolve_file_part_uri(
                 "Invalid URI structure. Expected artifact://app_name/user_id/session_id/filename"
             )
 
-        user_id, session_id, filename = path_parts
+        # Path segments need percent-decoding — clients re-serialize URIs
+        # with WHATWG URL semantics, which encodes spaces and reserved chars.
+        user_id, session_id, filename = (unquote(p) for p in path_parts)
         version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
         # Same fallback as `_prepare_a2a_filepart_for_adk` in translation.py:
         # URIs may legitimately omit `?version=N` (e.g. the WebUI bulk-list

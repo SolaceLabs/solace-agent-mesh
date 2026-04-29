@@ -9,7 +9,7 @@ import json
 import base64
 import uuid
 from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 
@@ -190,10 +190,14 @@ async def _prepare_a2a_filepart_for_adk(
             if len(path_parts) < 3:
                 raise ValueError(f"Invalid artifact URI format: {uri}")
             # Canonical layout: artifact://{app_name}/{user_id}/{session_id}/{filename}
-            filename = path_parts[-1]
-            source_user_id = path_parts[-3]
-            source_session_id = path_parts[-2]
-            source_app_name = parsed_uri.netloc or app_name
+            # Path segments need percent-decoding — clients (notably the WebUI
+            # attach-artifact dialog, via WHATWG URL re-serialization) emit
+            # `Financial%20Sample.xlsx` for filenames containing spaces, but
+            # the artifact store keys are the raw filenames.
+            filename = unquote(path_parts[-1])
+            source_user_id = unquote(path_parts[-3])
+            source_session_id = unquote(path_parts[-2])
+            source_app_name = unquote(parsed_uri.netloc) if parsed_uri.netloc else app_name
 
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
             # Fall back to "latest" so callers (e.g. the WebUI attach-artifact

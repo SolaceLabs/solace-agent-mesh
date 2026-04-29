@@ -14,7 +14,7 @@ import yaml
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, TYPE_CHECKING
-from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
+from urllib.parse import urlparse, parse_qs, unquote, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from ...common.a2a.types import ArtifactInfo
@@ -210,7 +210,12 @@ def _format_artifact_path_uri(
 
 
 def parse_artifact_uri(uri: str) -> Dict[str, Any]:
-    """Parses an artifact:// URI into its constituent parts."""
+    """Parses an artifact:// URI into its constituent parts.
+
+    Path segments are percent-decoded — clients (notably WHATWG URL
+    re-serialization in the WebUI) encode spaces and reserved chars,
+    but the artifact-store keys are the raw values.
+    """
     parsed = urlparse(uri)
     if parsed.scheme != "artifact":
         raise ValueError("Invalid URI scheme, must be 'artifact'.")
@@ -225,10 +230,10 @@ def parse_artifact_uri(uri: str) -> Dict[str, Any]:
         raise ValueError("Version is missing from URI query parameters.")
 
     return {
-        "app_name": parsed.netloc,
-        "user_id": path_parts[0],
-        "session_id": path_parts[1],
-        "filename": path_parts[2],
+        "app_name": unquote(parsed.netloc),
+        "user_id": unquote(path_parts[0]),
+        "session_id": unquote(path_parts[1]),
+        "filename": unquote(path_parts[2]),
         "version": int(version) if version.isdigit() else version,
     }
 
