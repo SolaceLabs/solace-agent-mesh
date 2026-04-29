@@ -8,6 +8,7 @@ import type { CompactSessionRequest, CompactSessionResponse, ContextUsage } from
 import { fetchModelConfigs } from "@/lib/api/models/service";
 import type { ModelConfig } from "@/lib/api/models/types";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
+import { useCacheUserId } from "@/lib/hooks/useCacheUserId";
 
 /**
  * Hook to fetch recent sessions for the navigation sidebar.
@@ -15,20 +16,21 @@ import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
  */
 export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
     const queryClient = useQueryClient();
+    const userId = useCacheUserId();
 
     // Set up event listeners for automatic invalidation
     useEffect(() => {
         const handleSessionEvent = () => {
-            queryClient.invalidateQueries({ queryKey: sessionKeys.recent(maxItems) });
+            queryClient.invalidateQueries({ queryKey: sessionKeys.recent(userId, maxItems) });
         };
 
         const events = ["new-chat-session", "session-updated", "session-title-updated", "background-task-completed"];
         events.forEach(e => window.addEventListener(e, handleSessionEvent));
         return () => events.forEach(e => window.removeEventListener(e, handleSessionEvent));
-    }, [maxItems, queryClient]);
+    }, [maxItems, queryClient, userId]);
 
     return useQuery({
-        queryKey: sessionKeys.recent(maxItems),
+        queryKey: sessionKeys.recent(userId, maxItems),
         queryFn: () => sessionService.getRecentSessions(maxItems),
         refetchOnMount: "always",
     });
@@ -40,6 +42,7 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
  */
 export function useInfiniteSessions(pageSize: number = 20, source?: string, options?: { enabled?: boolean }) {
     const queryClient = useQueryClient();
+    const userId = useCacheUserId();
     const enabled = options?.enabled ?? true;
 
     useEffect(() => {
@@ -51,7 +54,7 @@ export function useInfiniteSessions(pageSize: number = 20, source?: string, opti
     }, [queryClient, enabled]);
 
     return useInfiniteQuery({
-        queryKey: [...sessionKeys.lists(), "infinite", pageSize, source],
+        queryKey: sessionKeys.infinite(userId, pageSize, source),
         queryFn: ({ pageParam }) => sessionService.getPaginatedSessions(pageParam, pageSize, source),
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,

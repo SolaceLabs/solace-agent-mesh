@@ -9,7 +9,6 @@ import { Header } from "@/lib/components/header";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
-import type { TextPart } from "@/lib/types";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
@@ -65,7 +64,6 @@ export function ChatPage() {
         openSidePanelTab,
         setTaskIdInSidePanel,
         isResponding,
-        latestStatusText,
         isLoadingSession,
         sessionToDelete,
         closeSessionDeleteModal,
@@ -453,19 +451,6 @@ export function ChatPage() {
         [shareNotificationInsertions]
     );
 
-    // --- LoadingMessageRow support (when inline-activity-timeline is disabled) ---
-    const loadingMessage = useMemo(() => {
-        if (inlineActivityTimelineEnabled) return undefined;
-        return messages.find(message => message.isStatusBubble);
-    }, [messages, inlineActivityTimelineEnabled]);
-
-    const backendStatusText = useMemo(() => {
-        if (inlineActivityTimelineEnabled) return null;
-        if (!loadingMessage || !loadingMessage.parts) return null;
-        const textPart = loadingMessage.parts.find(p => p.kind === "text") as TextPart | undefined;
-        return textPart?.text || null;
-    }, [loadingMessage, inlineActivityTimelineEnabled]);
-
     const handleViewProgressClick = useMemo(() => {
         if (inlineActivityTimelineEnabled) return undefined;
         if (!currentTaskId) return undefined;
@@ -670,9 +655,9 @@ export function ChatPage() {
                                                         </div>
                                                     );
                                                 })}
+                                                {isResponding && <LoadingMessageRow onViewWorkflow={handleViewProgressClick} />}
                                             </ChatMessageList>
                                             <div style={CHAT_STYLES}>
-                                                {!inlineActivityTimelineEnabled && isResponding && <LoadingMessageRow statusText={(backendStatusText || latestStatusText.current) ?? undefined} onViewWorkflow={handleViewProgressClick} />}
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
                                         </>
