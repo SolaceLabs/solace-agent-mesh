@@ -12,6 +12,7 @@ export { ComboBox, type ComboBoxItem } from "./combobox";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormInputLabel } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
+export { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./sheet";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Switch } from "./switch";
 export { Progress } from "./progress";
