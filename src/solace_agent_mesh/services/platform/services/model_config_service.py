@@ -320,6 +320,25 @@ class ModelConfigService:
             return self._to_raw_litellm_config(db_config)
         return self._to_response(db_config)
 
+    def get_for_snapshot(
+        self, db: Session, alias_or_id: str
+    ) -> Tuple[Optional[Dict], Optional[ModelConfigurationResponse]]:
+        """Single-fetch dual projection for callers that need both shapes.
+
+        Returns ``(raw_litellm_dict, response)`` for the same row. Used by eval
+        snapshotting which captures both the live LiteLlm config (for the
+        actual eval invocation) and the redacted response shape (for the
+        persisted point-in-time snapshot). Performs one DB read instead of
+        two, so callers don't need to reach into ``_to_raw_litellm_config`` /
+        ``_to_response`` / ``repository`` to keep the single-read property.
+
+        Returns ``(None, None)`` if no row matches.
+        """
+        db_config = self.repository.get_by_alias_or_id(db, alias_or_id)
+        if not db_config:
+            return None, None
+        return self._to_raw_litellm_config(db_config), self._to_response(db_config)
+
     def create(
         self, db: Session, request: ModelConfigurationCreateRequest, created_by: str
     ) -> ModelConfigurationResponse:
