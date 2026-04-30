@@ -226,6 +226,38 @@
     border-radius: 0.125rem;
 }
 
+/* DocumentThumbnail (react-pdf) sizing.
+   Base rules intentionally crop to the top of the page via object-fit: cover —
+   right fit for the larger Artifacts-page grid tiles. Small attachment cards
+   opt into `.thumbnail-fit-contain` to show the whole page letterboxed. */
+.thumbnail-document {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.thumbnail-page {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.thumbnail-page canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: top center !important;
+}
+
+.thumbnail-fit-contain .thumbnail-page canvas {
+    object-fit: contain !important;
+    object-position: center !important;
+}
+
 /* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */
 mark.citation-highlight {
     background-color: color-mix(in srgb, var(--accent-n6-wMain), transparent 40%);

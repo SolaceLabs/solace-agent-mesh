@@ -1,4 +1,4 @@
-import type { MessageFE, PartFE } from "@/lib/types";
+import type { AttachedArtifactRef, MessageFE, PartFE } from "@/lib/types";
 
 // ============ Types ============
 
@@ -21,6 +21,7 @@ interface StoredBubble {
     parts?: PartFE[];
     files?: StoredFileAttachment[];
     uploadedFiles?: StoredUploadedFile[];
+    attachedArtifacts?: AttachedArtifactRef[];
     artifactNotification?: unknown;
     isError?: boolean;
     displayHtml?: string;
@@ -152,6 +153,7 @@ export function deserializeChatMessages(task: StoredTask, sessionId: string): Me
             isComplete: true,
             files: bubble.files,
             uploadedFiles: bubble.uploadedFiles as MessageFE["uploadedFiles"],
+            attachedArtifacts: bubble.attachedArtifacts,
             artifactNotification: bubble.artifactNotification,
             isError: bubble.isError,
             displayHtml: bubble.displayHtml,

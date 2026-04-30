@@ -577,16 +577,20 @@ const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; cla
 });
 
 const getUploadedFiles = (message: MessageFE, alignRight: boolean = true) => {
-    if (message.uploadedFiles && message.uploadedFiles.length > 0) {
-        return (
-            <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
-                {message.uploadedFiles.map((file, fileIdx) => (
-                    <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
-                ))}
-            </MessageWrapper>
-        );
-    }
-    return null;
+    const hasUploads = !!message.uploadedFiles && message.uploadedFiles.length > 0;
+    const hasAttached = !!message.attachedArtifacts && message.attachedArtifacts.length > 0;
+    if (!hasUploads && !hasAttached) return null;
+
+    return (
+        <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
+            {message.uploadedFiles?.map((file, fileIdx) => (
+                <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
+            ))}
+            {message.attachedArtifacts?.map((ref, refIdx) => (
+                <FileMessage key={`attached-${message.metadata?.messageId}-${refIdx}`} filename={ref.filename} mimeType={ref.mimeType} />
+            ))}
+        </MessageWrapper>
+    );
 };
 
 interface DeepResearchReportInfo {

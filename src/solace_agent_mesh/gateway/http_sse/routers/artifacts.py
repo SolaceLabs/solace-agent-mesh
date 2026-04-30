@@ -36,9 +36,10 @@ except ImportError:
 import io
 import json
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.constants import ARTIFACT_TAG_WORKING
 from ....common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
@@ -548,26 +549,31 @@ async def upload_artifact_with_session(
 
 class ArtifactWithContext(BaseModel):
     """Artifact info with session/project context for bulk listing."""
-    
+
     # Core artifact fields from ArtifactInfo
     filename: str
     size: int
     mime_type: Optional[str] = Field(None, alias="mimeType")
     last_modified: Optional[str] = Field(None, alias="lastModified")  # ISO date string
     uri: Optional[str] = None
-    
+    # Resolved-latest version captured during the metadata load (free —
+    # load_artifact_content_or_metadata had to call list_versions anyway).
+    # The WebUI uses this so the attach-artifact dialog can default its
+    # version picker to a concrete number instead of a "Latest" sentinel.
+    version: Optional[int] = None
+
     # Context fields
     session_id: str = Field(..., alias="sessionId")
     session_name: Optional[str] = Field(None, alias="sessionName")
     project_id: Optional[str] = Field(None, alias="projectId")
     project_name: Optional[str] = Field(None, alias="projectName")
-    
+
     # Source field for origin badges (upload, generated, project)
     source: Optional[str] = None
-    
+
     # Tags for categorization (e.g., ["__working"] to mark as internal)
     tags: Optional[list[str]] = None
-    
+
     model_config = {"populate_by_name": True}
 
 
@@ -828,13 +834,19 @@ async def list_all_artifacts(
                 for artifact in artifacts:
                     if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
                         continue
-                    
+                    # Internal artifacts produced by tools (RAG intermediates,
+                    # workflow scratch files, etc.) are tagged __working and
+                    # are not meant for direct user consumption.
+                    if artifact.tags and ARTIFACT_TAG_WORKING in artifact.tags:
+                        continue
+
                     result.append(ArtifactWithContext(
                         filename=artifact.filename,
                         size=artifact.size,
                         mime_type=artifact.mime_type,
                         last_modified=artifact.last_modified,
                         uri=artifact.uri,
+                        version=artifact.version,
                         session_id=session_id,
                         session_name=session_name,
                         project_id=project_id,
@@ -1818,14 +1830,16 @@ async def get_artifact_by_uri(
         if parsed_uri.scheme != "artifact":
             raise ValueError("Invalid URI scheme, must be 'artifact'.")
 
-        app_name = parsed_uri.netloc
+        app_name = unquote(parsed_uri.netloc)
         path_parts = parsed_uri.path.strip("/").split("/")
         if not app_name or len(path_parts) != 3:
             raise ValueError(
                 "Invalid URI path structure. Expected artifact://app_name/user_id/session_id/filename"
             )
 
-        owner_user_id, session_id, filename = path_parts
+        # Path segments need percent-decoding — WHATWG URL re-serialization
+        # encodes spaces and reserved chars in the path.
+        owner_user_id, session_id, filename = (unquote(p) for p in path_parts)
 
         query_params = parse_qs(parsed_uri.query)
         version_list = query_params.get("version")

@@ -3,19 +3,80 @@
  * Tests for ChatInputArea — input state restoration on submit failure
  * and aggregated upload error reporting.
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect, vi, afterEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
+import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 
 import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
+import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { artifactKeys } from "@/lib/api/artifacts/keys";
+import { queryClient } from "@/lib/providers/QueryClient";
 import { StoryProvider } from "../mocks/StoryProvider";
 
 expect.extend(matchers);
 
 // jsdom does not implement execCommand (used by MentionContentEditable)
 document.execCommand = vi.fn().mockReturnValue(true);
+
+// IntersectionObserver is not available in jsdom — AttachArtifactDialog uses it
+// for its infinite-scroll sentinel. A no-op stub is enough for these tests.
+class NoopIntersectionObserver {
+    observe = vi.fn();
+    unobserve = vi.fn();
+    disconnect = vi.fn();
+    takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+    root: Element | Document | null = null;
+    rootMargin = "";
+    thresholds: ReadonlyArray<number> = [];
+    constructor(_cb: IntersectionObserverCallback) {
+        void _cb;
+    }
+}
+vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver);
+
+// Short-circuit debounce so artifact-dialog searches happen synchronously.
+vi.mock("@/lib/hooks", async () => {
+    const actual = await vi.importActual<typeof import("@/lib/hooks")>("@/lib/hooks");
+    return {
+        ...actual,
+        useDebounce: <T,>(value: T) => value,
+    };
+});
+
+// Seed the shared React Query cache so AttachArtifactDialog's
+// `useAllArtifacts` resolves without touching the network. Vitest mock
+// hoisting can't reliably replace transitive hook imports in this config,
+// so pre-populating the query cache is the stable way to stand up a
+// dialog with known artifacts.
+function seedArtifacts(artifacts: ArtifactWithSession[]) {
+    // transformArtifacts in useAllArtifacts expects the raw API shape
+    // (camelCase: mimeType, lastModified, sessionId, etc.), not the
+    // already-transformed ArtifactWithSession shape that the dialog consumes.
+    const raw = artifacts.map(a => ({
+        filename: a.filename,
+        size: a.size,
+        mimeType: a.mime_type,
+        lastModified: a.last_modified,
+        uri: a.uri,
+        sessionId: a.sessionId,
+        sessionName: a.sessionName,
+        projectId: a.projectId ?? null,
+        projectName: a.projectName,
+        source: a.source ?? null,
+        tags: a.tags ?? null,
+    }));
+    queryClient.setQueryData([...artifactKeys.lists(), { search: undefined }], {
+        pages: [{ artifacts: raw, nextPage: null, totalCount: raw.length }],
+        pageParams: [1],
+    });
+}
+
+afterEach(() => {
+    queryClient.clear();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,9 +85,11 @@ document.execCommand = vi.fn().mockReturnValue(true);
 function renderComponent(chatContextValues = {}) {
     return render(
         <MemoryRouter>
-            <StoryProvider chatContextValues={chatContextValues}>
-                <ChatInputArea agents={[]} />
-            </StoryProvider>
+            <OpenFeatureTestProvider flagValueMap={{ artifact_attachment: true }}>
+                <StoryProvider chatContextValues={chatContextValues} skipFeatureFlagProvider>
+                    <ChatInputArea agents={[]} />
+                </StoryProvider>
+            </OpenFeatureTestProvider>
         </MemoryRouter>
     );
 }
@@ -229,5 +292,207 @@ describe("ChatInputArea aggregated upload error reporting", () => {
 
         // No error should be shown for successful uploads
         expect(displayError).not.toHaveBeenCalledWith(expect.objectContaining({ title: "Some uploads failed" }));
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Attach-dialog helper + fixtures
+// ---------------------------------------------------------------------------
+
+const makeArtifact = (overrides: Partial<ArtifactWithSession> = {}): ArtifactWithSession => ({
+    filename: "ref.txt",
+    size: 100,
+    mime_type: "text/plain",
+    last_modified: "2026-01-01T00:00:00Z",
+    uri: "artifact://sess-1/ref.txt",
+    sessionId: "sess-1",
+    sessionName: "Session One",
+    ...overrides,
+});
+
+/** Open the Paperclip dropdown, choose "Attach existing artifact", select
+ *  each artifact by filename, and confirm. The paperclip trigger is
+ *  aria-labelled "Attach" — there is no other button with exactly that
+ *  accessible name before the dialog opens. */
+async function attachArtifactsViaDialog(filenames: string[]) {
+    await userEvent.click(screen.getByRole("button", { name: "Attach" }));
+    await userEvent.click(await screen.findByText(/attach existing artifact/i));
+
+    for (const name of filenames) {
+        await userEvent.click(await screen.findByText(name));
+    }
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(`^attach ${filenames.length}$`, "i") }));
+
+    // Radix Dialog pins `pointer-events: none` on body while the dialog is
+    // mounted. In jsdom the cleanup is async — wait for the dialog to fully
+    // unmount before the next user interaction.
+    await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    document.body.style.pointerEvents = "";
+}
+
+// ---------------------------------------------------------------------------
+// Typed artifactReferences arg (replaces the application/x-artifact-reference envelope)
+// ---------------------------------------------------------------------------
+
+describe("ChatInputArea — artifactReferences arg to handleSubmit", () => {
+    test("submit passes attached artifacts as a typed artifactReferences arg, not as fake-File envelopes", async () => {
+        seedArtifacts([makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt", mime_type: "text/plain" })]);
+        const handleSubmit = vi.fn().mockResolvedValue(undefined);
+
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("hello");
+
+        await attachArtifactsViaDialog(["ref.txt"]);
+
+        await userEvent.click(screen.getByTestId("sendMessage"));
+
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+
+        // handleSubmit(event, files, message, sessionId, html, quote, quoteId, artifactReferences)
+        const callArgs = handleSubmit.mock.calls[0];
+        const files = callArgs[1] as File[];
+        const artifactReferences = callArgs[7] as Array<{ uri: string; filename: string; mimeType: string }>;
+
+        // No fake-File envelopes survive in the files arg.
+        expect(files.find(f => f.type === "application/x-artifact-reference")).toBeUndefined();
+
+        // The reference is delivered as a typed object on the new arg.
+        expect(artifactReferences).toEqual([{ uri: "artifact://sess-1/ref.txt", filename: "ref.txt", mimeType: "text/plain" }]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Restore-on-failure for selectedArtifactRefs
+// ---------------------------------------------------------------------------
+
+describe("ChatInputArea — selectedArtifactRefs restore on submit failure", () => {
+    test("restores the attached artifact card when handleSubmit rejects", async () => {
+        seedArtifacts([makeArtifact({ filename: "ref.txt", uri: "artifact://sess-1/ref.txt" })]);
+        const handleSubmit = vi.fn().mockRejectedValue(new Error("Network error"));
+
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("attached message");
+
+        await attachArtifactsViaDialog(["ref.txt"]);
+
+        // The attachment card shows the filename in a pill before submit.
+        expect(screen.getByTitle("ref.txt")).toBeInTheDocument();
+
+        await userEvent.click(screen.getByTestId("sendMessage"));
+
+        // After the rejection, the artifact card should be restored.
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+        await waitFor(() => {
+            expect(screen.getByTitle("ref.txt")).toBeInTheDocument();
+        });
+    });
+
+    test("suppresses restore for a slice the user explicitly cleared during the in-flight submit", async () => {
+        // The pre-flag behavior would re-add the captured ref if the user's
+        // explicit removal left the slice empty (length === 0). The intentional-
+        // clear flag distinguishes "user didn't touch it" from "user wiped it on
+        // purpose" so the restore doesn't undo their action.
+        seedArtifacts([makeArtifact({ filename: "to-remove.txt", uri: "artifact://sess-1/to-remove.txt" })]);
+        let rejectFn: (err: Error) => void;
+        const handleSubmit = vi.fn().mockImplementation(
+            () =>
+                new Promise<void>((_resolve, reject) => {
+                    rejectFn = reject;
+                })
+        );
+
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("message");
+
+        await attachArtifactsViaDialog(["to-remove.txt"]);
+        await userEvent.click(screen.getByTestId("sendMessage"));
+
+        // Card cleared immediately after resetInputState runs.
+        await waitFor(() => {
+            expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+        });
+
+        // Re-attach during the in-flight submit so we have something to remove.
+        await attachArtifactsViaDialog(["to-remove.txt"]);
+        await waitFor(() => {
+            expect(screen.getByTitle("to-remove.txt")).toBeInTheDocument();
+        });
+
+        // Now explicitly remove it (X on the card).
+        await userEvent.click(screen.getByRole("button", { name: /remove attached artifact/i }));
+        await waitFor(() => {
+            expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+        });
+
+        // Submit rejects — the captured ref must NOT be restored, since the
+        // user just deliberately dropped it.
+        await act(async () => {
+            rejectFn!(new Error("Network error"));
+        });
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+
+        expect(screen.queryByTitle("to-remove.txt")).not.toBeInTheDocument();
+    });
+
+    test("does not clobber newly-attached artifacts if the user attached a different ref during the async gap", async () => {
+        seedArtifacts([makeArtifact({ filename: "original.txt", uri: "artifact://sess-1/original.txt" }), makeArtifact({ filename: "new.txt", uri: "artifact://sess-1/new.txt" })]);
+        let rejectFn: (err: Error) => void;
+        const handleSubmit = vi.fn().mockImplementation(
+            () =>
+                new Promise<void>((_resolve, reject) => {
+                    rejectFn = reject;
+                })
+        );
+
+        renderComponent({ handleSubmit, isResponding: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("message");
+
+        // Attach the first ref, then submit.
+        await attachArtifactsViaDialog(["original.txt"]);
+        await userEvent.click(screen.getByTestId("sendMessage"));
+
+        // Card should clear immediately after resetInputState runs.
+        await waitFor(() => {
+            expect(screen.queryByTitle("original.txt")).not.toBeInTheDocument();
+        });
+
+        // User attaches a different artifact while the submit is in flight.
+        await attachArtifactsViaDialog(["new.txt"]);
+        await waitFor(() => {
+            expect(screen.getByTitle("new.txt")).toBeInTheDocument();
+        });
+
+        // Now the submit rejects — restore must NOT overwrite the new ref.
+        await act(async () => {
+            rejectFn!(new Error("Network error"));
+        });
+
+        await waitFor(() => {
+            expect(handleSubmit).toHaveBeenCalled();
+        });
+
+        // Only "new.txt" should remain; the original must not reappear.
+        expect(screen.getByTitle("new.txt")).toBeInTheDocument();
+        expect(screen.queryByTitle("original.txt")).not.toBeInTheDocument();
     });
 });
