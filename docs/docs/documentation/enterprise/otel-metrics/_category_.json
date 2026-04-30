@@ -1,0 +1,10 @@
+{
+  "position": 25,
+  "label": "Application Metrics",
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "doc",
+    "id": "documentation/enterprise/otel-metrics/otel-metrics"
+  }
+}
