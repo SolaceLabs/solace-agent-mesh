@@ -30,6 +30,7 @@ export function serializeChatMessage(message: MessageFE) {
             name: f.name,
             type: f.type,
         })),
+        attachedArtifacts: message.attachedArtifacts,
         isError: message.isError,
         displayHtml: message.displayHtml,
         contextQuote: message.contextQuote,

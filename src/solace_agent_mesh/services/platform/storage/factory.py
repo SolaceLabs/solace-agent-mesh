@@ -37,8 +37,12 @@ def create_storage_client(
         return _create_gcs_client(bucket_name)
     if backend == "azure":
         return _create_azure_client(bucket_name)
+    if backend in ("filesystem", "fs", "local"):
+        return _create_filesystem_client(bucket_name)
 
-    raise ValueError(f"Unsupported storage type: {backend!r}. Supported: s3, gcs, azure")
+    raise ValueError(
+        f"Unsupported storage type: {backend!r}. Supported: s3, gcs, azure, filesystem"
+    )
 
 
 def _create_s3_client(bucket_name: str) -> ObjectStorageClient:
@@ -73,3 +77,10 @@ def _create_azure_client(bucket_name: str) -> ObjectStorageClient:
         account_name=os.getenv("AZURE_STORAGE_ACCOUNT_NAME"),
         account_key=os.getenv("AZURE_STORAGE_ACCOUNT_KEY"),
     )
+
+
+def _create_filesystem_client(bucket_name: str) -> ObjectStorageClient:
+    from .filesystem_client import FileSystemStorageClient
+
+    root_path = os.getenv("OBJECT_STORAGE_FS_ROOT", "~/.sam-data/object-storage")
+    return FileSystemStorageClient(bucket_name=bucket_name, root_path=root_path)

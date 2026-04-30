@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.22.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.1...1.22.0) (2026-04-30)
+
+
+### Features
+
+* **DATAGO-133319:** Support attaching existing artifacts to chat messages ([#1429](https://github.com/SolaceLabs/solace-agent-mesh/issues/1429)) ([d84f8fb](https://github.com/SolaceLabs/solace-agent-mesh/commit/d84f8fb30479274895a54b84b83fd6f72c7065cb))
+
+## [1.21.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.0...1.21.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* **DATAGO-134263:** honour per-node timeout in workflow agent calls ([#1476](https://github.com/SolaceLabs/solace-agent-mesh/issues/1476)) ([97dbb3f](https://github.com/SolaceLabs/solace-agent-mesh/commit/97dbb3f0d621aeb83fbf0f2f2f9c9642666cbc20))
+* **DATAGO-134293:** Recent chats navigation randomly displays other users' chat history ([#1477](https://github.com/SolaceLabs/solace-agent-mesh/issues/1477)) ([aa9d6ad](https://github.com/SolaceLabs/solace-agent-mesh/commit/aa9d6ad27d9a849c2cac49126db9b7f765c15cd2))
+* **DATAGO-134388:** Implement immediate UI feedback for sent prompts ([#1480](https://github.com/SolaceLabs/solace-agent-mesh/issues/1480)) ([cc348f0](https://github.com/SolaceLabs/solace-agent-mesh/commit/cc348f00ecf324c194ef7da4114ef771712f1c86))
+
+## [1.21.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.5...1.21.0) (2026-04-29)
+
+
+### Features
+
+* **DATAGO-131493:** User can run the experiment and view the result ([#1473](https://github.com/SolaceLabs/solace-agent-mesh/issues/1473)) ([a42a3f5](https://github.com/SolaceLabs/solace-agent-mesh/commit/a42a3f5c60ab5229555ef2246cbe10c39872d70a))
+
+
+### Bug Fixes
+
+* **DATAGO-134139:** stop cascading auth prompts in solace-chat's Atlassian heavy-query flow ([#1474](https://github.com/SolaceLabs/solace-agent-mesh/issues/1474)) ([18e7386](https://github.com/SolaceLabs/solace-agent-mesh/commit/18e7386b190faa9beceab10b26907846f3e4f40b))
+
+## [1.20.5](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.4...1.20.5) (2026-04-28)
+
+
+### Bug Fixes
+
+* **DATAGO-133254:** fixing minor UX issues. ([#1445](https://github.com/SolaceLabs/solace-agent-mesh/issues/1445)) ([c322084](https://github.com/SolaceLabs/solace-agent-mesh/commit/c322084da33bc772c057d9a31e3eb0dedcaca199))
+* **DATAGO-134083:** Fix cryptic code rendering for citations during response streaming in projects ([#1468](https://github.com/SolaceLabs/solace-agent-mesh/issues/1468)) ([b75ead3](https://github.com/SolaceLabs/solace-agent-mesh/commit/b75ead325e409a3def350b4688fabd52fff247de))
+* **DATAGO-134087:** Audit and optimize Database indexing for performance ([#1469](https://github.com/SolaceLabs/solace-agent-mesh/issues/1469)) ([d235de2](https://github.com/SolaceLabs/solace-agent-mesh/commit/d235de24164056504ca772ae37ef395d76ac3927))
+
 ## [1.20.4](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.3...1.20.4) (2026-04-28)
 
 

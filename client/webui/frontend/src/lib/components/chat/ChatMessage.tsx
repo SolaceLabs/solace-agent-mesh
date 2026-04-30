@@ -17,7 +17,6 @@ import { Sources } from "@/lib/components/web/Sources";
 import { ImageSearchGrid } from "@/lib/components/research";
 import { isDeepResearchReportFilename } from "@/lib/utils/deepResearchUtils";
 import { hasDocumentSearchResults } from "@/lib/utils/sourceUrlHelpers";
-import { TextWithCitations } from "./Citation";
 import { parseCitations } from "@/lib/utils/citations";
 
 import DOMPurify from "dompurify";
@@ -547,27 +546,13 @@ const MessageContent = React.memo<{ message: MessageFE; isStreaming?: boolean; h
         }
 
         if (embeddedContent.length === 0) {
-            // Use MarkdownWrapper for streaming (smooth animation), TextWithCitations otherwise (citation support)
-            if (isStreaming) {
-                return <MarkdownWrapper content={displayText} isStreaming={isStreaming} />;
-            }
-            // Render text with citations if any exist
-            if (citations.length > 0) {
-                return <TextWithCitations text={displayText} citations={citations} onCitationClick={handleCitationClick} />;
-            }
-            return <MarkdownHTMLConverter>{displayText}</MarkdownHTMLConverter>;
+            return <MarkdownWrapper content={displayText} isStreaming={isStreaming} citations={citations} onCitationClick={handleCitationClick} />;
         }
 
         return (
             <div>
                 {renderError && <MessageBanner variant="error" message="Error rendering preview" />}
-                {isStreaming ? (
-                    <MarkdownWrapper content={modifiedText} isStreaming={isStreaming} />
-                ) : modifiedCitations.length > 0 ? (
-                    <TextWithCitations text={modifiedText} citations={modifiedCitations} onCitationClick={handleCitationClick} />
-                ) : (
-                    <MarkdownHTMLConverter>{modifiedText}</MarkdownHTMLConverter>
-                )}
+                <MarkdownWrapper content={modifiedText} isStreaming={isStreaming} citations={modifiedCitations} onCitationClick={handleCitationClick} />
                 {contentElements}
             </div>
         );
@@ -592,16 +577,20 @@ const MessageWrapper = React.memo<{ message: MessageFE; children: ReactNode; cla
 });
 
 const getUploadedFiles = (message: MessageFE, alignRight: boolean = true) => {
-    if (message.uploadedFiles && message.uploadedFiles.length > 0) {
-        return (
-            <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
-                {message.uploadedFiles.map((file, fileIdx) => (
-                    <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
-                ))}
-            </MessageWrapper>
-        );
-    }
-    return null;
+    const hasUploads = !!message.uploadedFiles && message.uploadedFiles.length > 0;
+    const hasAttached = !!message.attachedArtifacts && message.attachedArtifacts.length > 0;
+    if (!hasUploads && !hasAttached) return null;
+
+    return (
+        <MessageWrapper message={message} className={`flex flex-wrap gap-2 ${alignRight ? "justify-end" : "justify-start"}`}>
+            {message.uploadedFiles?.map((file, fileIdx) => (
+                <FileMessage key={`uploaded-${message.metadata?.messageId}-${fileIdx}`} filename={file.name} mimeType={file.type} />
+            ))}
+            {message.attachedArtifacts?.map((ref, refIdx) => (
+                <FileMessage key={`attached-${message.metadata?.messageId}-${refIdx}`} filename={ref.filename} mimeType={ref.mimeType} />
+            ))}
+        </MessageWrapper>
+    );
 };
 
 interface DeepResearchReportInfo {
@@ -803,7 +792,7 @@ const getChatBubble = (
             {/* Render inline progress updates at the top of AI messages (only when inline-activity-timeline is enabled).
                 Also renders when active with no updates yet to show the "Processing..." placeholder. */}
             {inlineActivityTimelineEnabled && !message.isUser && (!message.isComplete || (message.progressUpdates && message.progressUpdates.length > 0)) && (
-                <div className="pl-4">
+                <div>
                     <InlineProgressUpdates
                         updates={showThinkingContentEnabled ? (message.progressUpdates ?? []) : (message.progressUpdates ?? []).filter(u => u.type !== "thinking")}
                         isActive={!message.isComplete}

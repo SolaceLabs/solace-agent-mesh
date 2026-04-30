@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useContext, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, EyeOff, FileImage, FileCode, FileText, Presentation, FolderOpen, X, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, Download, Trash2, File, MoreHorizontal, MessageCircle, Eye, EyeOff, FileImage, FileCode, FileText, Presentation, FolderOpen, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import {
     Button,
     Input,
@@ -19,30 +19,22 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@/lib/components/ui";
 import { useChatContext, useDebounce } from "@/lib/hooks";
-import { useAllArtifacts } from "@/lib/api/artifacts";
+import { type ArtifactWithSession, acquireFetchSlotOrAbort, getArtifactApiUrl, isProjectArtifact, releaseFetchSlot, useAllArtifacts } from "@/lib/api/artifacts";
 import { api } from "@/lib/api";
-import { formatTimestamp, cn, getArtifactUrl, getArtifactContent, createSemaphore, createPersistentCache } from "@/lib/utils";
+import { formatTimestamp, cn, createPersistentCache } from "@/lib/utils";
 import { ARTIFACT_TAG_WORKING } from "@/lib/constants";
 import { formatBytes } from "@/lib/utils/format";
 import { DocumentThumbnail, supportsThumbnail } from "@/lib/components/chat/file/DocumentThumbnail";
 import { ProjectBadge } from "@/lib/components/chat/file/ProjectBadge";
 import { getFileTypeColor } from "@/lib/components/chat/file/FileIcon";
+import { StandaloneArtifactPreview } from "@/lib/components/chat/file/StandaloneArtifactPreview";
 import { ConfigContext } from "@/lib/contexts/ConfigContext";
-import { ContentRenderer } from "@/lib/components/chat/preview/ContentRenderer";
-import { canPreviewArtifact, getFileContent, getRenderType } from "@/lib/components/chat/preview/previewUtils";
 import { Header } from "@/lib/components/header/Header";
 import { PageLayout } from "@/lib/components/layout";
 import { LifecycleBadge } from "@/lib/components/ui";
-import type { FileAttachment } from "@/lib/types";
-import type { ArtifactWithSession } from "@/lib/api/artifacts";
+import { ConfirmationDialog } from "../common";
 
 // Persistent cache for document thumbnails (base64 PDF/DOCX data).
 // Survives page refreshes via IndexedDB with an in-memory LRU fast path.
@@ -67,36 +59,6 @@ const textPreviewCache = createPersistentCache<string>({
 // Generate cache key for document content, including lastModified to bust stale entries
 function getDocumentCacheKey(sessionId: string, filename: string, lastModified?: string | null): string {
     return `${sessionId}:${filename}:${lastModified ?? ""}`;
-}
-
-/**
- * Concurrency limiter for preview fetches.
- * Browsers typically allow ~6 concurrent connections per origin.
- * We cap at 4 to leave headroom for user-initiated requests (navigation, downloads, etc.).
- */
-const { release: releaseFetchSlot, acquireOrAbort: acquireFetchSlotOrAbort } = createSemaphore(4);
-
-// Helper to check if artifact is a project artifact
-// Note: Backend uses "project-{id}" format, but we also check "project:{id}" for backward compatibility
-function isProjectArtifact(artifact: ArtifactWithSession): boolean {
-    return artifact.sessionId.startsWith("project:") || artifact.sessionId.startsWith("project-") || artifact.source === "project";
-}
-
-/**
- * Helper to get the correct API URL for an artifact.
- *
- * NOTE: For project artifacts, we use "null" as a placeholder session ID in the URL path
- * because the backend artifacts endpoint requires a session_id path parameter.
- * The actual project is identified via the project_id query parameter.
- * This is a known API design quirk - ideally there would be a separate endpoint
- * like /api/v1/projects/{project_id}/artifacts/{filename} for project artifacts.
- */
-function getArtifactApiUrl(artifact: ArtifactWithSession): string {
-    if (isProjectArtifact(artifact) && artifact.projectId) {
-        // Project artifacts use "null" as session placeholder with project_id query param
-        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
-    }
-    return `/api/v1/artifacts/${artifact.sessionId}/${encodeURIComponent(artifact.filename)}`;
 }
 
 /**
@@ -175,8 +137,16 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     // Only enable document thumbnail if: it's a PDF (always works) OR it's an Office doc and conversion is enabled
     const canAttemptDocumentThumbnail = isDocumentThumbnailSupported && (isPdfFile || binaryArtifactPreviewEnabled);
 
+    // Office-document mimes (e.g. .spreadsheetml.sheet, .wordprocessingml.document)
+    // contain the substring "xml" and would otherwise be picked up by
+    // `supportsTextPreview` — rendering the binary zip as garbage characters
+    // when the conversion service is unavailable. Documents take precedence:
+    // if a file qualifies for the document-thumbnail pipeline, it must NEVER
+    // fall through to text preview, even when the binary-preview flag is off.
+    const canShowTextPreview = !isDocumentThumbnailSupported && supportsTextPreview(artifact.mime_type);
+
     // Determine whether this card needs a network fetch for its preview
-    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || supportsTextPreview(artifact.mime_type);
+    const needsPreviewFetch = isImageType(artifact.mime_type) || canAttemptDocumentThumbnail || canShowTextPreview;
 
     // Use IntersectionObserver to defer ALL preview loading until card is near the viewport.
     // This prevents hundreds of simultaneous fetches when the page first loads with many artifacts.
@@ -311,7 +281,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                         if (isMounted) setIsLoadingPreview(false);
                     }
                 }
-            } else if (supportsTextPreview(artifact.mime_type)) {
+            } else if (canShowTextPreview) {
                 // For text files — check cache first, then fetch a preview snippet
                 const cacheKey = getDocumentCacheKey(artifact.sessionId, artifact.filename, artifact.last_modified);
                 const cachedPreview = await textPreviewCache.get(cacheKey);
@@ -481,7 +451,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                     <div className="flex flex-col items-center justify-center gap-2">
                         {isImageType(artifact.mime_type) ? (
                             <FileImage className="h-12 w-12 text-(--secondary-text-wMain)" />
-                        ) : supportsTextPreview(artifact.mime_type) ? (
+                        ) : canShowTextPreview ? (
                             <FileCode className="h-12 w-12 text-(--secondary-text-wMain)" />
                         ) : isDocumentThumbnailSupported ? (
                             // Show appropriate icon for document types while loading or if thumbnail failed
@@ -533,274 +503,6 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
                 </span>
             </div>
         </Card>
-    );
-});
-
-/**
- * Standalone preview panel for artifacts page
- * Fetches and displays artifact content directly without requiring chat context
- */
-interface StandalonePreviewPanelProps {
-    artifact: ArtifactWithSession;
-    onClose: () => void;
-    onDownload: (artifact: ArtifactWithSession) => void;
-    onGoToChat: (artifact: ArtifactWithSession) => void;
-    onGoToProject: (artifact: ArtifactWithSession) => void;
-}
-
-const StandalonePreviewPanel = memo(function StandalonePreviewPanel({ artifact, onClose, onDownload, onGoToChat, onGoToProject }: StandalonePreviewPanelProps) {
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [fileContent, setFileContent] = useState<FileAttachment | null>(null);
-    const [availableVersions, setAvailableVersions] = useState<number[]>([]);
-    const [currentVersion, setCurrentVersion] = useState<number | null>(null);
-
-    // Cache of version number → FileAttachment so switching versions is instant
-    const versionCache = useRef<Map<number, FileAttachment>>(new Map());
-
-    // Check if preview is supported
-    const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
-
-    // Determine session/project context for API calls
-    const sessionId = isProjectArtifact(artifact) ? undefined : artifact.sessionId;
-    const projectId = isProjectArtifact(artifact) ? artifact.projectId : undefined;
-
-    // Build a FileAttachment for a given version's fetched content
-    const buildFileAttachment = useCallback(
-        (content: string, mimeType: string, version: number): FileAttachment => {
-            const artifactUrl = getArtifactUrl({ filename: artifact.filename, sessionId, projectId, version });
-            return {
-                name: artifact.filename,
-                mime_type: mimeType,
-                content,
-                last_modified: artifact.last_modified,
-                url: api.webui.getFullUrl(artifactUrl),
-            };
-        },
-        [artifact.filename, artifact.last_modified, sessionId, projectId]
-    );
-
-    // Helper function to fetch content for a specific version
-    const fetchContentForVersion = useCallback(
-        async (version: number | "latest") => {
-            // Serve from cache instantly — no spinner, no flash
-            if (typeof version === "number" && versionCache.current.has(version)) {
-                setFileContent(versionCache.current.get(version)!);
-                return;
-            }
-
-            setIsLoading(true);
-            setError(null);
-            // Keep old fileContent visible (overlay spinner) while the new version loads
-
-            try {
-                const { content, mimeType } = await getArtifactContent({ filename: artifact.filename, sessionId, projectId, version });
-                const resolvedVersion = typeof version === "number" ? version : (currentVersion ?? 0);
-                const file = buildFileAttachment(content, mimeType, resolvedVersion);
-                if (typeof version === "number") versionCache.current.set(version, file);
-                setFileContent(file);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to load artifact content");
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [artifact.filename, sessionId, projectId, currentVersion, buildFileAttachment]
-    );
-
-    // Fetch available versions and initial content when artifact changes
-    useEffect(() => {
-        let isMounted = true;
-        versionCache.current.clear();
-
-        async function initialize() {
-            setAvailableVersions([]);
-            setCurrentVersion(null);
-            setFileContent(null);
-            setError(null);
-
-            if (!preview?.canPreview) {
-                setIsLoading(false);
-                return;
-            }
-
-            setIsLoading(true);
-
-            try {
-                // Fetch available versions
-                const versionsUrl = getArtifactUrl({ filename: artifact.filename, sessionId, projectId });
-                const versions: number[] = await api.webui.get(versionsUrl);
-
-                if (!isMounted) return;
-
-                if (versions && versions.length > 0) {
-                    const sortedVersions = versions.sort((a, b) => a - b);
-                    const latestVersion = Math.max(...sortedVersions);
-                    setAvailableVersions(sortedVersions);
-                    setCurrentVersion(latestVersion);
-
-                    // Fetch content for the latest version
-                    const { content, mimeType } = await getArtifactContent({ filename: artifact.filename, sessionId, projectId, version: latestVersion });
-                    if (!isMounted) return;
-
-                    const file = buildFileAttachment(content, mimeType, latestVersion);
-                    versionCache.current.set(latestVersion, file);
-                    setFileContent(file);
-
-                    // Pre-fetch adjacent versions (latest ± 1) in the background so switching is instant.
-                    // We intentionally limit pre-fetching to avoid firing N-1 parallel requests
-                    // when an artifact has many versions.
-                    const latestIdx = sortedVersions.indexOf(latestVersion);
-                    const adjacentVersions = [sortedVersions[latestIdx - 1], sortedVersions[latestIdx + 1]].filter((v): v is number => v !== undefined && v !== latestVersion);
-                    for (const version of adjacentVersions) {
-                        getArtifactContent({ filename: artifact.filename, sessionId, projectId, version })
-                            .then(({ content: c, mimeType: mt }) => {
-                                if (!isMounted) return;
-                                versionCache.current.set(version, buildFileAttachment(c, mt, version));
-                            })
-                            .catch(() => {
-                                /* ignore background pre-fetch errors */
-                            });
-                    }
-                } else {
-                    setAvailableVersions([]);
-                }
-            } catch (err) {
-                if (isMounted) {
-                    setError(err instanceof Error ? err.message : "Failed to load artifact");
-                }
-            } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
-            }
-        }
-
-        initialize();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [artifact.filename, sessionId, projectId, preview?.canPreview, buildFileAttachment]);
-
-    // Handle version change — instant if cached, overlay spinner if not yet cached
-    const handleVersionChange = useCallback(
-        async (version: string) => {
-            const versionNum = parseInt(version, 10);
-            setCurrentVersion(versionNum);
-            await fetchContentForVersion(versionNum);
-        },
-        [fetchContentForVersion]
-    );
-
-    // Get renderer type and content - memoize to prevent re-renders when Select opens
-    const rendererType = useMemo(() => getRenderType(artifact.filename, artifact.mime_type), [artifact.filename, artifact.mime_type]);
-    const content = useMemo(() => getFileContent(fileContent), [fileContent]);
-    const effectiveUrl = fileContent?.url;
-
-    // Memoize the content renderer to prevent re-renders when Select dropdown opens
-    const memoizedContentRenderer = useMemo(() => {
-        if (!preview?.canPreview || !rendererType || !content) return null;
-        return <ContentRenderer content={content} rendererType={rendererType} mime_type={artifact.mime_type} url={effectiveUrl} filename={artifact.filename} setRenderError={setError} />;
-    }, [content, rendererType, artifact.mime_type, effectiveUrl, artifact.filename, preview?.canPreview]);
-
-    return (
-        <div className="flex h-full flex-col border-l">
-            {/* Compact Header - filename, metadata, actions, and close button in one bar */}
-            <div className="flex items-center gap-3 border-b px-3 py-2">
-                {/* Left side: filename, version selector, and metadata */}
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold" title={artifact.filename}>
-                            {artifact.filename}
-                        </h3>
-                        {artifact.projectName && <ProjectBadge text={artifact.projectName} className="flex-shrink-0" />}
-                        {/* Version Selector - only show when there are multiple versions */}
-                        {availableVersions.length > 1 && currentVersion !== null && (
-                            <Select value={currentVersion.toString()} onValueChange={handleVersionChange}>
-                                <SelectTrigger className="h-[16px] py-0 text-xs shadow-none">
-                                    <SelectValue placeholder="Version" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {availableVersions.map(version => (
-                                        <SelectItem key={version} value={version.toString()}>
-                                            Version {version}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
-                        <span>{formatBytes(artifact.size)}</span>
-                        <span>•</span>
-                        <span>{formatTimestamp(artifact.last_modified)}</span>
-                    </div>
-                </div>
-
-                {/* Right side: action buttons and close */}
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => onDownload(artifact)}>
-                        <Download className="mr-1 h-4 w-4" />
-                        Download
-                    </Button>
-                    {isProjectArtifact(artifact) ? (
-                        <Button variant="ghost" size="sm" onClick={() => onGoToProject(artifact)}>
-                            <FolderOpen className="mr-1 h-4 w-4" />
-                            Go to Project
-                        </Button>
-                    ) : (
-                        <Button variant="ghost" size="sm" onClick={() => onGoToChat(artifact)}>
-                            <MessageCircle className="mr-1 h-4 w-4" />
-                            Go to Chat
-                        </Button>
-                    )}
-                    <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
-                        <X className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-
-            {/* Content Area */}
-            <div className="min-h-0 flex-1 overflow-auto">
-                {/* Full-screen spinner only during initial load (no content yet) */}
-                {isLoading && !memoizedContentRenderer && (
-                    <div className="flex h-full items-center justify-center">
-                        <Spinner size="medium" variant="muted" />
-                    </div>
-                )}
-
-                {error && (
-                    <div className="flex h-full flex-col items-center justify-center p-4">
-                        <div className="mb-2 text-sm text-(--error-wMain)">Error loading preview</div>
-                        <div className="text-xs text-(--secondary-text-wMain)">{error}</div>
-                    </div>
-                )}
-
-                {!isLoading && !error && !preview?.canPreview && (
-                    <div className="flex h-full flex-col items-center justify-center p-4">
-                        <File className="mb-4 h-12 w-12 text-(--secondary-text-wMain)" />
-                        <div className="text-sm text-(--secondary-text-wMain)">{preview?.reason || "Preview not available"}</div>
-                        <Button variant="default" className="mt-4" onClick={() => onDownload(artifact)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download File
-                        </Button>
-                    </div>
-                )}
-
-                {memoizedContentRenderer && (
-                    <div className="relative h-full w-full">
-                        {memoizedContentRenderer}
-                        {/* Overlay spinner during version switching — keeps old content visible */}
-                        {isLoading && (
-                            <div className="overlay-backdrop absolute inset-0 flex items-center justify-center">
-                                <Spinner size="medium" variant="muted" />
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
     );
 });
 
@@ -1080,10 +782,9 @@ export function ArtifactsPage() {
 
     const handleGoToProject = useCallback(
         (artifact: ArtifactWithSession) => {
-            // Navigate to the project page
-            if (artifact.projectId) {
-                navigate(`/projects/${artifact.projectId}`);
-            }
+            // The preview dialog hides Go-to-Project when projectId is missing,
+            // so this path is only reached for valid project artifacts.
+            navigate(`/projects/${artifact.projectId}`);
         },
         [navigate]
     );
@@ -1241,34 +942,32 @@ export function ArtifactsPage() {
                     </div>
                 </div>
 
-                {/* Preview Panel */}
+                {/* Preview Panel — side-panel context, gets a left border to
+                    visually separate it from the artifact grid. (The same
+                    component renders without the border when used inside a
+                    centered dialog modal.) */}
                 {previewArtifact && (
-                    <div className="w-1/2">
-                        <StandalonePreviewPanel artifact={previewArtifact} onClose={handleClosePreview} onDownload={handleDownload} onGoToChat={handleGoToChat} onGoToProject={handleGoToProject} />
+                    <div className="w-1/2 border-l">
+                        <StandaloneArtifactPreview artifact={previewArtifact} onClose={handleClosePreview} onDownload={handleDownload} onGoToChat={handleGoToChat} onGoToProject={handleGoToProject} />
                     </div>
                 )}
             </div>
 
             {/* Delete Confirmation Dialog */}
-            <Dialog open={!!deleteConfirmArtifact} onOpenChange={open => !open && setDeleteConfirmArtifact(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Delete Artifact</DialogTitle>
-                        <DialogDescription>
-                            Are you sure you want to delete <strong>{deleteConfirmArtifact?.filename}</strong>? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteConfirmArtifact(null)}>
-                            Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDeleteConfirm}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ConfirmationDialog
+                open={!!deleteConfirmArtifact}
+                onOpenChange={open => !open && setDeleteConfirmArtifact(null)}
+                title="Delete Artifact"
+                content={
+                    <>
+                        This action cannot be undone. This artifact will be permanently deleted: <strong>{deleteConfirmArtifact?.filename}</strong>
+                    </>
+                }
+                actionLabels={{
+                    confirm: "Delete",
+                }}
+                onConfirm={handleDeleteConfirm}
+            />
         </PageLayout>
     );
 }
