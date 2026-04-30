@@ -366,6 +366,51 @@ class S3ArtifactService(BaseArtifactService):
         logger.debug("%sFound %d artifact keys.", log_prefix, len(sorted_filenames))
         return sorted_filenames
 
+    async def list_sessions_with_artifacts_for_user(
+        self, *, app_name: str, user_id: str
+    ) -> set[str]:
+        """Single S3 list to find every session_id that has artifacts for this user.
+
+        S3 keys are structured ``{app_name}/{user_id}/{session_id}/{filename}/{version}``,
+        so a single ListObjectsV2 with the user prefix is enough to enumerate every
+        session that has produced artifacts.
+
+        Used by the ``/api/v1/artifacts/all`` endpoint to skip sessions that have no
+        artifacts in storage, instead of doing one ``list_artifact_keys`` round-trip
+        per user session. For users with many empty sessions (test runs, abandoned
+        chats) this collapses N S3 calls into 1.
+
+        Returns the set of session ids; the caller is responsible for joining back
+        to session metadata via the DB.
+        """
+        log_prefix = "[S3Artifact:ListUserSessions] "
+        app_name = app_name.strip('/')
+        prefix = f"{app_name}/{user_id}/"
+        sessions: set[str] = set()
+
+        def _list_user_objects():
+            paginator = self.s3.get_paginator("list_objects_v2")
+            return paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
+
+        try:
+            pages = await asyncio.to_thread(_list_user_objects)
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    parts = obj["Key"].split("/")
+                    # scope/user/session/filename/version  (≥5 segments)
+                    if len(parts) >= 5:
+                        sessions.add(parts[2])
+        except ClientError as e:
+            logger.warning(
+                "%sError listing user objects with prefix '%s': %s",
+                log_prefix, prefix, e,
+            )
+            # Best-effort: empty set means caller falls back to scanning every session
+            return set()
+
+        logger.debug("%sFound %d sessions with artifacts for user.", log_prefix, len(sessions))
+        return sessions
+
     @override
     async def delete_artifact(
         self, *, app_name: str, user_id: str, session_id: str, filename: str
