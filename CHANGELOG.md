@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.23.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.1...1.23.0) (2026-04-30)
+
+
+### Features
+
+* **DATAGO-134503:** Experiment runs shows agent generated artifacts ([#1489](https://github.com/SolaceLabs/solace-agent-mesh/issues/1489)) ([496e671](https://github.com/SolaceLabs/solace-agent-mesh/commit/496e67196e4b7cc7b8008abecb87e828130d61ce))
+
+
+### Bug Fixes
+
+* **DATAGO-130894:** Update search input styling and positioning ([#1483](https://github.com/SolaceLabs/solace-agent-mesh/issues/1483)) ([53fd48f](https://github.com/SolaceLabs/solace-agent-mesh/commit/53fd48fad112a0c4806c7ec9e6949ec614dc5d91))
+
+
+### Documentation
+
+* **DATAGO-128303:** observability | documentation ([#1467](https://github.com/SolaceLabs/solace-agent-mesh/issues/1467)) ([31897dd](https://github.com/SolaceLabs/solace-agent-mesh/commit/31897dd2ed6872959cea6ebbe46970f27fe13259))
+
 ## [1.22.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.0...1.22.1) (2026-04-30)
 
 
