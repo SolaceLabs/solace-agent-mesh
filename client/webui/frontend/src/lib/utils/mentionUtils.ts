@@ -30,13 +30,23 @@ export function formatInternalMention(person: Person): string {
     return `@[${person.displayName}](${person.id})`;
 }
 
+/** Maximum length of a mention query before the dropdown auto-closes. */
+const MAX_MENTION_QUERY_LENGTH = 50;
+
 /**
  * Detects if cursor is in a mention trigger position
- * Returns the query string after "@" or null if not in mention mode
- * Updated to handle internal format - doesn't trigger inside @[...](...)
+ * Returns the query string after "@" or null if not in mention mode.
+ *
+ * Multi-word queries are supported (e.g. "michael du" for "Michael Du Plessis").
+ * The dropdown closes when the query contains a newline, starts with whitespace,
+ * contains two consecutive spaces, or exceeds {@link MAX_MENTION_QUERY_LENGTH} characters.
+ * Doesn't trigger inside an existing internal mention `@[...](...)`.
  */
 export function detectMentionTrigger(text: string, cursorPosition: number): string | null {
-    const textBeforeCursor = text.substring(0, cursorPosition);
+    // contenteditable elements often substitute regular spaces with non-breaking
+    // spaces ( ) — normalize them so our space-handling logic and the
+    // returned query (which is sent to the backend search) use plain spaces.
+    const textBeforeCursor = text.substring(0, cursorPosition).replaceAll("\u00A0", " ");
 
     // Find the last "@" before cursor
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
@@ -54,8 +64,17 @@ export function detectMentionTrigger(text: string, cursorPosition: number): stri
     // Extract query after "@"
     const query = textBeforeCursor.substring(lastAtIndex + 1);
 
-    // Check if query contains spaces or newlines (mention should be contiguous)
-    if (query.includes(" ") || query.includes("\n")) return null;
+    // Newlines always close the mention dropdown.
+    if (query.includes("\n")) return null;
+
+    // Don't trigger when the query begins with whitespace (e.g. "@ foo").
+    if (query.startsWith(" ")) return null;
+
+    // Two consecutive spaces signal the end of the mention
+    if (query.includes("  ")) return null;
+
+    // Bound the query so a forgotten dropdown doesn't search across long sentences.
+    if (query.length > MAX_MENTION_QUERY_LENGTH) return null;
 
     return query;
 }
