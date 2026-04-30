@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.22.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.0...1.22.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **DATAGO-122712:** Enhance mention detection and add tests for multi-word queries ([#1484](https://github.com/SolaceLabs/solace-agent-mesh/issues/1484)) ([a02ef89](https://github.com/SolaceLabs/solace-agent-mesh/commit/a02ef890fdd68ef1a03f6b2daa8ec14f7ae505ff))
+* **DATAGO-134531:** bump npm to 11.13.0 to fix brace-expansion CVE-&lt;&gt; ([#1487](https://github.com/SolaceLabs/solace-agent-mesh/issues/1487)) ([6478aea](https://github.com/SolaceLabs/solace-agent-mesh/commit/6478aea5834538d94515fdb15bdeea949f74deb1))
+
 ## [1.22.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.1...1.22.0) (2026-04-30)
 
 
