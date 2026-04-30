@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.1...1.22.0) (2026-04-30)
+
+
+### Features
+
+* **DATAGO-133319:** Support attaching existing artifacts to chat messages ([#1429](https://github.com/SolaceLabs/solace-agent-mesh/issues/1429)) ([d84f8fb](https://github.com/SolaceLabs/solace-agent-mesh/commit/d84f8fb30479274895a54b84b83fd6f72c7065cb))
+
 ## [1.21.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.0...1.21.1) (2026-04-29)
 
 
