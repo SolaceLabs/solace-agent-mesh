@@ -47,8 +47,6 @@ export function detectMentionTrigger(text: string, cursorPosition: number): stri
     // spaces ( ) — normalize them so our space-handling logic and the
     // returned query (which is sent to the backend search) use plain spaces.
     const textBeforeCursor = text.substring(0, cursorPosition).replaceAll("\u00A0", " ");
-    console.log("text", text, "cursorPosition", cursorPosition, "textBeforeCursor", textBeforeCursor);
-
 
     // Find the last "@" before cursor
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
