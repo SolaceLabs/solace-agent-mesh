@@ -133,19 +133,29 @@ samDeployment:
 ```
 
 **New Format (2.0.0):**
+
+:::info Update Your Tags
+Do not carry forward 1.x `tag` values. Each release ships with new image versions. The correct `tag` for your 2.0.0 chart is defined in the chart's `values.yaml`. Confirm the expected tags before editing your values file:
+
+```bash
+helm show values /path/to/charts/solace-agent-mesh-<version>.tgz \
+  | grep -E "repository:|tag:"
+```
+:::
+
 ```yaml
 # global.imageRegistry defaults to gcr.io/gcp-maas-prod — no change needed for GCR users
 samDeployment:
   image:
     repository: solace-agent-mesh-enterprise  # registry prefix removed
-    tag: "1.97.2"
+    tag: "<tag from chart values.yaml>"
   agentDeployer:
     image:
       repository: sam-agent-deployer          # registry prefix removed
-      tag: "1.7.0"
+      tag: "<tag from chart values.yaml>"
 ```
 
-**For air-gap or internal registry users**, set `global.imageRegistry` to redirect all images with a single value:
+**For air-gapped or internal registry users**, set `global.imageRegistry` to redirect all images with a single value:
 ```yaml
 global:
   imageRegistry: my-registry.internal  # all images redirect here
@@ -153,16 +163,21 @@ global:
 samDeployment:
   image:
     repository: solace-agent-mesh-enterprise  # registry prefix removed
-    tag: "1.97.2"
+    tag: "<tag from chart values.yaml>"
   agentDeployer:
     image:
       repository: sam-agent-deployer          # registry prefix removed
-      tag: "1.7.0"
+      tag: "<tag from chart values.yaml>"
 ```
 
 **Migration Steps:**
 
-**Step 1:** Remove the registry hostname from `samDeployment.image.repository` and `samDeployment.agentDeployer.image.repository` in your values file. If you use an internal registry, set `global.imageRegistry` to that registry hostname.
+**Step 1:** Remove the registry hostname from `samDeployment.image.repository` and `samDeployment.agentDeployer.image.repository`. If you use an internal registry, set `global.imageRegistry` to that registry hostname. Then confirm the correct tag values for your release from the chart's `values.yaml` and update your values file accordingly:
+
+```bash
+helm show values /path/to/charts/solace-agent-mesh-<version>.tgz \
+  | grep -E "repository:|tag:"
+```
 
 **Step 2:** Validate your updated values file before upgrading. Check that all image references resolve correctly:
 ```bash
