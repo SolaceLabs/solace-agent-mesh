@@ -260,8 +260,8 @@ export function DocumentThumbnail({ content, filename, mimeType, width = 52, hei
     // Using 0.5 (50%) provides good quality while keeping memory usage reasonable
     const scale = 0.5;
 
-    // Note: thumbnail-document and thumbnail-page CSS classes are defined in App.css
-    // to avoid injecting duplicate <style> tags for each thumbnail instance
+    // thumbnail-document / thumbnail-page / thumbnail-fit-contain rules live in
+    // src/lib/index.css (the only global stylesheet imported at app entry).
     // Document canvas is always light — mimics paper/PDF page background
     return (
         <div className={cn("relative overflow-hidden bg-(--lightSurface-bgActive)", className)} style={className?.includes("h-full") || className?.includes("w-full") ? undefined : { width, height }}>

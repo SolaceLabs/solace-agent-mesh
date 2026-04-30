@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 interface OfficeDocumentRendererProps {
     content: string;
     filename: string;
-    documentType: "docx" | "pptx";
+    documentType: "docx" | "pptx" | "xlsx";
     setRenderError: (error: string | null) => void;
 }
 

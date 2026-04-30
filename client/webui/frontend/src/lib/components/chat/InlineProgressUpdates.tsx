@@ -41,16 +41,8 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
         }
     }, [isActive, updates.length]);
 
-    // Show a placeholder spinner while waiting for the first update to arrive
-    if (!updates || updates.length === 0) {
-        if (!isActive) return null;
-        return (
-            <div className="mb-3 flex items-center gap-2 pl-5">
-                <Loader2 className="h-[14px] w-[14px] animate-spin text-(--secondary-text-wMain) opacity-60" />
-                <span className="text-sm text-(--secondary-text-wMain) opacity-60">Processing...</span>
-            </div>
-        );
-    }
+    // No updates yet — the inline breathing indicator under the message provides feedback.
+    if (!updates || updates.length === 0) return null;
 
     // Deduplicate consecutive identical updates (by text), but never deduplicate thinking items
     const deduped = updates.filter((update, index) => update.type === "thinking" || index === 0 || update.text !== updates[index - 1].text);

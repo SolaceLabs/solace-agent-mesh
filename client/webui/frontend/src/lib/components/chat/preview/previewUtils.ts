@@ -271,6 +271,23 @@ function isPptxFile(fileName?: string, mimeType?: string): boolean {
 }
 
 /**
+ * Checks if a filename or MIME type indicates an XLSX file.
+ * @param fileName The name of the file.
+ * @param mimeType The MIME type of the file.
+ * @returns True if it's likely an XLSX file.
+ */
+function isXlsxFile(fileName?: string, mimeType?: string): boolean {
+    if (mimeType) {
+        const lowerMime = mimeType.toLowerCase();
+        if (lowerMime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+            return true;
+        }
+    }
+    if (!fileName) return false;
+    return fileName.toLowerCase().endsWith(".xlsx");
+}
+
+/**
  * Determines the appropriate renderer type based on filename and/or MIME type.
  * Checks all available file types and returns the corresponding renderer type.
  * @param fileName The name of the file (optional).
@@ -316,6 +333,10 @@ export function getRenderType(fileName?: string, mimeType?: string): string | nu
 
     if (isPptxFile(fileName, mimeType)) {
         return "pptx";
+    }
+
+    if (isXlsxFile(fileName, mimeType)) {
+        return "xlsx";
     }
 
     if (isPdfFile(fileName, mimeType)) {
@@ -402,8 +423,8 @@ export function decodeBase64Content(content: string): string {
     }
 }
 
-const RENDER_TYPES = ["csv", "html", "json", "mermaid", "image", "markdown", "audio", "text", "yaml", "docx", "pptx", "pdf"];
-const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio", "docx", "pptx"];
+const RENDER_TYPES = ["csv", "html", "json", "mermaid", "image", "markdown", "audio", "text", "yaml", "docx", "pptx", "xlsx", "pdf"];
+const RENDER_TYPES_WITH_RAW_CONTENT = ["image", "audio", "docx", "pptx", "xlsx"];
 const RENDER_TYPES_WITH_URL_ONLY = ["pdf"];
 
 export const getFileContent = (file: FileAttachment | null) => {

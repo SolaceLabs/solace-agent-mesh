@@ -9,7 +9,7 @@ import json
 import base64
 import uuid
 from datetime import datetime, timezone
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 from google.genai import types as adk_types
 from google.adk.events import Event as ADKEvent
 
@@ -189,15 +189,94 @@ async def _prepare_a2a_filepart_for_adk(
             path_parts = parsed_uri.path.strip("/").split("/")
             if len(path_parts) < 3:
                 raise ValueError(f"Invalid artifact URI format: {uri}")
-            filename = path_parts[-1]
+            # Canonical layout: artifact://{app_name}/{user_id}/{session_id}/{filename}
+            # Path segments need percent-decoding — clients (notably the WebUI
+            # attach-artifact dialog, via WHATWG URL re-serialization) emit
+            # `Financial%20Sample.xlsx` for filenames containing spaces, but
+            # the artifact store keys are the raw filenames.
+            filename = unquote(path_parts[-1])
+            source_user_id = unquote(path_parts[-3])
+            source_session_id = unquote(path_parts[-2])
+            source_app_name = unquote(parsed_uri.netloc) if parsed_uri.netloc else app_name
+
             version_str = parse_qs(parsed_uri.query).get("version", [None])[0]
-            version = int(version_str) if version_str else None
-            mime_type = part.file.mime_type or resolve_mime_type(filename, None)
+            # Fall back to "latest" so callers (e.g. the WebUI attach-artifact
+            # dialog) don't have to know the numeric version up front; the
+            # downstream loader resolves it against the live version list.
+            source_version: int | str = int(version_str) if version_str else "latest"
+
+            agent_session_id = get_original_session_id(session_id)
+            same_namespace = (
+                source_app_name == app_name
+                and source_user_id == user_id
+                and source_session_id == agent_session_id
+            )
+
+            if same_namespace:
+                # The URI already points at the agent's own namespace — no need
+                # to copy. Use the URI's coordinates for the metadata load
+                # below; `load_artifact` later will find the artifact at the
+                # same coords with no resave.
+                version = source_version
+                mime_type = part.file.mime_type or resolve_mime_type(filename, None)
+            else:
+                # Cross-namespace reference (e.g. a WebUI-uploaded artifact
+                # attached by reference into an agent task). The LLM's
+                # `load_artifact` tool only knows the agent's context, so we
+                # rehydrate the bytes here and save a fresh copy under the
+                # agent's namespace.
+                source_load = await load_artifact_content_or_metadata(
+                    artifact_service=artifact_service,
+                    app_name=source_app_name,
+                    user_id=source_user_id,
+                    session_id=source_session_id,
+                    filename=filename,
+                    version=source_version,
+                    load_metadata_only=False,
+                    return_raw_bytes=True,
+                )
+                if source_load["status"] != "success":
+                    raise RuntimeError(
+                        f"Failed to load referenced artifact: {source_load.get('message', 'unknown error')}"
+                    )
+
+                content_bytes = source_load.get("raw_bytes")
+                mime_type = part.file.mime_type or source_load.get("mime_type") or resolve_mime_type(filename, None)
+                if content_bytes is None:
+                    raise RuntimeError(
+                        f"Referenced artifact '{filename}' returned no bytes."
+                    )
+
+                save_result = await save_artifact_with_metadata(
+                    artifact_service=artifact_service,
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                    content_bytes=content_bytes,
+                    mime_type=mime_type,
+                    metadata_dict={
+                        "source": "a2a_filepart_uri_reference",
+                        "source_uri": uri,
+                    },
+                    timestamp=datetime.now(timezone.utc),
+                )
+                if save_result["status"] != "success":
+                    raise IOError(
+                        f"Failed to save resolved artifact and its metadata: {save_result['message']}"
+                    )
+                version = save_result["data_version"]
+                log.info(
+                    "%s Resolved URI to bytes and saved '%s' as v%d under agent namespace.",
+                    log_id, filename, version,
+                )
 
         else:
             raise TypeError("FilePart contains neither bytes nor a valid URI.")
 
-        # At this point, we must have filename and version to proceed
+        # At this point, we must have a filename to proceed. `version` may be
+        # a concrete int or the sentinel "latest" — load_artifact_content_or_metadata
+        # resolves "latest" against list_versions on the metadata file.
         if filename is None or version is None:
             raise ValueError("Could not determine filename and version for artifact.")
 
@@ -241,7 +320,11 @@ async def _prepare_a2a_filepart_for_adk(
                     tracker["bytes_inlined"] += image_size
                     return vision_part
 
-        # Default: fetch metadata only and return text summary
+        # Default: fetch metadata only and return text summary. By this point
+        # both the bytes branch and the URI-reference branch have placed a
+        # copy of the artifact under the agent's own (app_name, user_id,
+        # session_id) namespace, so the LLM's `load_artifact` tool can find
+        # it via its tool_context later.
         load_result = await load_artifact_content_or_metadata(
             artifact_service=artifact_service,
             app_name=app_name,
@@ -257,7 +340,9 @@ async def _prepare_a2a_filepart_for_adk(
 
         metadata_dict = load_result.get("metadata", {})
         metadata_dict["filename"] = filename
-        metadata_dict["version"] = version
+        # Use the resolved version from the load result rather than the URI
+        # input — which may be the sentinel "latest".
+        metadata_dict["version"] = load_result.get("version", version)
 
         # Format the final text for the LLM
         formatted_summary = format_metadata_for_llm(metadata_dict)
