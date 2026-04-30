@@ -126,7 +126,7 @@ features:
   - key: artifact_attachment
     name: Artifact Attachment
     release_phase: early_access
-    default: true
+    default: false
     jira: DATAGO-133319
     description: >
       New chat input attachment UX: dropdown for uploading new files or
