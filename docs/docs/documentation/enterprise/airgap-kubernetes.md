@@ -90,17 +90,30 @@ The Agent Mesh delivery package folder contains everything needed for an air-gap
 | `bom.yaml` | Production (external broker + datastores) | Agent Mesh core images only (`solace-agent-mesh-enterprise`, `sam-agent-deployer`) |
 | `bom-quickStart.yaml` | Evaluation (embedded broker + datastores) | All images including `solace-pubsub-enterprise`, `postgres`, `seaweedfs` |
 
-Each BOM file lists charts and images with per-architecture paths and `sha256` digests for integrity verification. For a first-time evaluation install, use `bom-quickStart.yaml`.
+Each BOM file lists charts and images with per-architecture paths, `file_checksum` values for verifying files before loading, and `image_id` values for verifying images after loading. For a first-time evaluation install, use `bom-quickStart.yaml`.
 
 ### Verifying Image Integrity (Optional)
 
-For environments with compliance requirements, verify each image digest against the BOM before loading. Run the following command to get the hash value of an image file:
+For environments with compliance requirements, verify each image against the BOM in two steps.
+
+**Step 1: Verify file integrity before loading**
 
 ```bash
 sha256sum /path/to/amd64/solace-agent-mesh-enterprise.tar.gz
 ```
 
-The `sha256sum` output must match the related `digest` value in the BOM (excluding the `sha256:` prefix). Discard and re-download the file if they differ. Repeat for each image you want to load.
+The output must match the `file_checksum` value in the BOM (excluding the `sha256:` prefix). Discard and re-download the file if they differ.
+
+**Step 2: Verify image content after loading**
+
+```bash
+docker load -i /path/to/amd64/solace-agent-mesh-enterprise.tar.gz
+docker inspect solace-agent-mesh-enterprise:<version> --format '{{.Id}}'
+```
+
+The output must match the `image_id` value in the BOM.
+
+Repeat both steps for each image you want to load.
 
 ## Step 2: Loading Container Images
 
