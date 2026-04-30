@@ -143,4 +143,22 @@ describe("MentionsCommand", () => {
         // No crash and the item is still present
         expect(btn).toBeInTheDocument();
     });
+
+    test("renders search results for a multi-word query and URL-encodes the space", async () => {
+        const multiWordPerson: Person = {
+            id: "michael.du.plessis@example.com",
+            displayName: "Michael Du Plessis",
+            workEmail: "michael.du.plessis@example.com",
+            jobTitle: "Engineer",
+        };
+        mockFetch.mockClear();
+        mockFetch.mockResolvedValue(makeFetchResponse({ data: [multiWordPerson] }));
+        renderMentions({ searchQuery: "michael du" });
+
+        await screen.findByText("Michael Du Plessis");
+
+        const calledUrl = mockFetch.mock.calls.find(call => typeof call[0] === "string" && call[0].includes("/api/v1/people/search"))?.[0] as string | undefined;
+        expect(calledUrl).toBeDefined();
+        expect(calledUrl).toContain("q=michael%20du");
+    });
 });
