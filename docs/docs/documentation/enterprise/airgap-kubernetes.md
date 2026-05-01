@@ -173,6 +173,10 @@ This configuration is sufficient for **evaluation**. Embedded broker and persist
 
 For **production** air-gapped deployments, also configure external components. See [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
 
+:::tip Forward Proxy
+If your air-gapped network uses a forward proxy, see [Proxy Configuration → Kubernetes](../deploying/proxy_configuration.md#kubernetes) for setup.
+:::
+
 ## Step 5: Custom CA Certificates (If Required)
 
 If your environment uses custom or self-signed CA certificates for internal infrastructure (Solace broker, OIDC providers, LLM services), configure this before the Helm install. Pods make outbound calls to these endpoints at startup and the CA bundle must be in place first.
