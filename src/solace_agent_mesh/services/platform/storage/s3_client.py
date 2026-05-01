@@ -47,6 +47,10 @@ class S3StorageClient(ObjectStorageClient):
                 region_name=region,
                 signature_version="s3v4",
                 retries={"max_attempts": 3, "mode": "standard"},
+                # Default boto3 pool is 10; too small for a high-concurrency
+                # gateway. Saturating the pool stalls the event loop on TLS
+                # handshakes for unrelated requests.
+                max_pool_connections=200,
             ),
         }
         if aws_access_key_id and aws_secret_access_key:

@@ -8,6 +8,7 @@ import unicodedata
 
 import boto3
 from botocore.client import BaseClient
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts.base_artifact_service import ArtifactVersion
@@ -15,6 +16,12 @@ from google.genai import types as adk_types
 from typing_extensions import override
 
 logger = logging.getLogger(__name__)
+
+# boto3's default urllib3 pool size is 10. Under heavy concurrent artifact
+# traffic this saturates instantly, forcing per-request TLS handshakes and
+# stalling the FastAPI event loop on unrelated requests. Sized for a
+# high-concurrency gateway, not a CLI tool.
+_DEFAULT_S3_POOL_SIZE = 200
 
 
 class S3ArtifactService(BaseArtifactService):
@@ -76,6 +83,10 @@ class S3ArtifactService(BaseArtifactService):
         self.bucket_name = bucket_name
 
         if s3_client is None:
+            # Default to a larger urllib3 pool unless caller passed their own
+            # Config. Caller-provided config wins so power users can opt out.
+            if "config" not in kwargs:
+                kwargs["config"] = Config(max_pool_connections=_DEFAULT_S3_POOL_SIZE)
             try:
                 self.s3 = boto3.client("s3", **kwargs)
             except NoCredentialsError as e:

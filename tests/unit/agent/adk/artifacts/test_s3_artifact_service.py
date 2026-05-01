@@ -72,14 +72,20 @@ class TestS3ArtifactServiceInit:
 
     @patch('boto3.client')
     def test_init_creates_client_when_none_provided(self, mock_boto_client, mock_s3_client):
-        """Test initialization creates S3 client when none provided"""
+        """Test initialization creates S3 client when none provided, with a tuned urllib3 pool size."""
         mock_boto_client.return_value = mock_s3_client
-        
+
         service = S3ArtifactService("test-bucket")
-        
+
         assert service.bucket_name == "test-bucket"
         assert service.s3 == mock_s3_client
-        mock_boto_client.assert_called_once_with("s3")
+
+        mock_boto_client.assert_called_once()
+        args, kwargs = mock_boto_client.call_args
+        assert args == ("s3",)
+        # boto3's default pool size of 10 starves the FastAPI loop under load —
+        # we override unless the caller passes their own Config.
+        assert kwargs["config"].max_pool_connections == 200
 
     def test_init_with_empty_bucket_name(self):
         """Test initialization with empty bucket name raises ValueError"""
