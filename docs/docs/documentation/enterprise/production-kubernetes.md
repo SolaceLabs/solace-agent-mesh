@@ -1030,6 +1030,7 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `samDeployment.agentDeployer.image.pullPolicy` | string | `"IfNotPresent"` | Agent deployer pull policy |
 | `samDeployment.agentDeployer.version` | string | `"k8s-1.500.0"` | Agent deployer version identifier |
 | `samDeployment.agentDeployer.chartVersion` | string | `"1.500.0"` | Agent chart version |
+| `samDeployment.agentDeployer.kubeApiHost` | string | `"kubernetes.default.svc"` | Kubernetes API host the agent-deployer's `helm` client dials. Applied only when `HTTP_PROXY`/`HTTPS_PROXY` is set, so the chart's `.svc` `NO_PROXY` rule bypasses the proxy. Set to `""` to use the kubelet-injected cluster IP (required if your API server cert lacks a `kubernetes.default.svc` SAN). |
 | `samDeployment.dbInit.image.registry` | string | `""` | Database init container image registry override |
 | `samDeployment.dbInit.image.repository` | string | `"postgres"` | Database init container image |
 | `samDeployment.dbInit.image.tag` | string | `"18.0-trixie"` | Database init container tag |
