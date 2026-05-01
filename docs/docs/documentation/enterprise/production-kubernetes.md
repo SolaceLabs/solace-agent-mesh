@@ -1028,8 +1028,8 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `samDeployment.agentDeployer.image.tag` | string | `"1.8.2"` | Agent deployer image tag |
 | `samDeployment.agentDeployer.image.digest` | string | `""` | Agent deployer image digest |
 | `samDeployment.agentDeployer.image.pullPolicy` | string | `"IfNotPresent"` | Agent deployer pull policy |
-| `samDeployment.agentDeployer.version` | string | `"k8s-2.0.0"` | Agent deployer version identifier |
-| `samDeployment.agentDeployer.chartVersion` | string | `"2.0.0"` | Agent chart version |
+| `samDeployment.agentDeployer.version` | string | `"k8s-1.500.0"` | Agent deployer version identifier |
+| `samDeployment.agentDeployer.chartVersion` | string | `"1.500.0"` | Agent chart version |
 | `samDeployment.dbInit.image.registry` | string | `""` | Database init container image registry override |
 | `samDeployment.dbInit.image.repository` | string | `"postgres"` | Database init container image |
 | `samDeployment.dbInit.image.tag` | string | `"18.0-trixie"` | Database init container tag |

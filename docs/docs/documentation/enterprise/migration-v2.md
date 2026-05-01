@@ -1,14 +1,14 @@
 ---
-title: Migration to Chart 2.0.0
+title: Migration to Chart 1.500.0
 sidebar_position: 7
 ---
 
-# Migration to Chart 2.0.0
+# Migration to Chart 1.500.0
 
-This guide covers breaking changes when upgrading from Helm chart 1.x to 2.0.0.
+This guide covers breaking changes when upgrading from a prior Helm chart version to 1.500.0.
 
 :::warning Breaking Changes
-Chart 2.0.0 introduces several breaking changes to configuration structure, default values, and resource naming. Review this guide carefully before upgrading.
+Chart 1.500.0 introduces several breaking changes to configuration structure, default values, and resource naming. Review this guide carefully before upgrading.
 :::
 
 ## Quick Decision Guide
@@ -17,7 +17,7 @@ Chart 2.0.0 introduces several breaking changes to configuration structure, defa
 
 | Your Situation | Action Required |
 |---------------|-----------------|
-| **New installation (never used 1.x)** | No action - skip this guide |
+| **New installation (no prior installation)** | No action - skip this guide |
 | **Upgrading from 1.2.x** | **CRITICAL** - Multiple required changes before upgrade (see the following sections) |
 | **Using `localCharts` or `chartBaseUrl` in values** | **SCHEMA FAILURE** - Must remove before upgrade or `helm upgrade` fails immediately |
 | **Have `broker.url` set (all 1.2.x users)** | **SCHEMA FAILURE** - Must add `global.broker.embedded: false` or `helm upgrade` fails immediately |
@@ -25,13 +25,13 @@ Chart 2.0.0 introduces several breaking changes to configuration structure, defa
 | **Using external references (External Secrets, ArgoCD, and so on)** | Required - Update secret/configmap names |
 | **Using `samDeployment.imagePullSecret`** | Required - Move to `global.imagePullSecrets` |
 | **Using bundled persistence and upgrading from 1.1.0 or earlier** | **CRITICAL** - Must migrate StatefulSets before upgrade |
-| **Relying on 1.x defaults** | Required - Explicitly set production values |
+| **Relying on pre-1.500.0 defaults** | Required - Explicitly set production values |
 
 **Most critical issues for 1.2.x upgrades:** `localCharts`/`chartBaseUrl` removal causes schema failure and `sam.sessionSecretKey` change logs out all users. See the full breaking changes in the following sections.
 
-## What's New in 2.0.0
+## What's New in 1.500.0
 
-In addition to the breaking changes listed in the following sections, 2.0.0 introduces the following new capabilities:
+In addition to the breaking changes listed in the following sections, 1.500.0 introduces the following new capabilities:
 
 | Feature | Description | Values Key |
 |---------|-------------|------------|
@@ -49,7 +49,7 @@ In addition to the breaking changes listed in the following sections, 2.0.0 intr
 If upgrading from 1.1.0 or earlier with bundled persistence, also address:
 - [Bundled Persistence VCT Labels](#9-bundled-persistence-vct-labels)
 
-### From 1.2.x to 2.0.0
+### From 1.2.x to 1.500.0
 
 All users upgrading from 1.2.x must address:
 - [localCharts and chartBaseUrl Keys Removed](#1-localcharts-and-chartbaseurl-keys-removed)
@@ -63,7 +63,7 @@ All users upgrading from 1.2.x must address:
 
 ### 1. localCharts and chartBaseUrl Keys Removed
 
-In 2.0.0, the agent chart is always bundled inside the main chart. These keys no longer exist in the schema.
+In 1.500.0, the agent chart is always bundled inside the main chart. These keys no longer exist in the schema.
 
 **Old values (1.2.x) - remove these:**
 ```yaml
@@ -79,14 +79,14 @@ Also update the version fields:
 ```yaml
 samDeployment:
   agentDeployer:
-    version: "k8s-2.0.0"   # was k8s-1.2.x
-    chartVersion: "2.0.0"   # was 1.2.x
+    version: "k8s-1.500.0"   # was k8s-1.2.x
+    chartVersion: "1.500.0"   # was 1.2.x
 ```
 
 ### 2. Embedded Broker Enabled by Default
 
 :::danger Schema Failure If You Have External Broker Credentials
-`global.broker.embedded` defaults to `false` in 1.2.x and `true` in 2.0.0. If your values file contains `broker.url` (or any external broker credentials), running `helm template` or `helm upgrade` without setting this flag will produce:
+`global.broker.embedded` defaults to `false` in 1.2.x and `true` in 1.500.0. If your values file contains `broker.url` (or any external broker credentials), running `helm template` or `helm upgrade` without setting this flag will produce:
 
 ```
 Error: Conflicting broker configuration: cannot set broker.url when
@@ -94,7 +94,7 @@ global.broker.embedded is true.
 ```
 :::
 
-All 1.2.x customers used an external broker. Add this to your 2.0.0 values file:
+All 1.2.x customers used an external broker. Add this to your 1.500.0 values file:
 
 ```yaml
 global:
@@ -107,10 +107,10 @@ global:
 ### 3. Image Configuration Restructured
 
 :::warning Critical - Pods Will Fail Without This Change
-All users upgrading from 1.2.x must update their values file before running `helm upgrade`. The default `repository` value in 1.2.x included the registry hostname (`gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise`). In 2.0.0, the chart prepends `global.imageRegistry` to `repository` automatically. Upgrading without updating your values produces a double-prefixed image reference that Kubernetes cannot pull, and pods immediately enter `ImagePullBackOff`.
+All users upgrading from 1.2.x must update their values file before running `helm upgrade`. The default `repository` value in 1.2.x included the registry hostname (`gcr.io/gcp-maas-prod/solace-agent-mesh-enterprise`). In 1.500.0, the chart prepends `global.imageRegistry` to `repository` automatically. Upgrading without updating your values produces a double-prefixed image reference that Kubernetes cannot pull, and pods immediately enter `ImagePullBackOff`.
 :::
 
-Starting with 2.0.0, the registry is separated from the repository. The chart constructs the full image reference as `registry/repository:tag`, where `registry` defaults to `global.imageRegistry` (`gcr.io/gcp-maas-prod`).
+Starting with 1.500.0, the registry is separated from the repository. The chart constructs the full image reference as `registry/repository:tag`, where `registry` defaults to `global.imageRegistry` (`gcr.io/gcp-maas-prod`).
 
 **What breaks without migration:**
 ```
@@ -132,10 +132,10 @@ samDeployment:
       pullPolicy: Always
 ```
 
-**New Format (2.0.0):**
+**New Format (1.500.0):**
 
 :::info Update Your Tags
-Do not carry forward 1.x `tag` values. Each release ships with new image versions. The correct `tag` for your 2.0.0 chart is defined in the chart's `values.yaml`. Confirm the expected tags before editing your values file:
+Do not carry forward pre-1.500.0 `tag` values. Each release ships with new image versions. The correct `tag` for your 1.500.0 chart is defined in the chart's `values.yaml`. Confirm the expected tags before editing your values file:
 
 ```bash
 helm show values /path/to/charts/solace-agent-mesh-<version>.tgz \
@@ -190,7 +190,7 @@ Every image should show the correct registry prefix exactly once (for example, `
 ### 4. Session Key Secret Location Changed
 
 :::danger All Users Logged Out Without This Step
-In 1.2.x the session key was stored in `<release>-environment`. In 2.0.0 it moves to a new secret with a different name. On first upgrade, the chart cannot find the old value and generates a new random key, instantly logging out all active users.
+In 1.2.x the session key was stored in `<release>-environment`. In 1.500.0 it moves to a new secret with a different name. On first upgrade, the chart cannot find the old value and generates a new random key, instantly logging out all active users.
 :::
 
 **If `sam.sessionSecretKey` was already set explicitly in your 1.2.x values:** carry it forward unchanged. No action needed.
@@ -202,7 +202,7 @@ kubectl get secret <release>-environment -n <namespace> \
   -o go-template='{{index .data "SESSION_SECRET_KEY" | base64decode}}{{"\n"}}'
 ```
 
-Then set it explicitly in your 2.0.0 values:
+Then set it explicitly in your 1.500.0 values:
 
 ```yaml
 sam:
@@ -211,7 +211,7 @@ sam:
 
 ### 5. Pull Secret Migration
 
-In 1.2.x, pull secrets were attached to the shared `solace-agent-mesh-sa` ServiceAccount. In 2.0.0, core and agent-deployer pods use new auto-generated ServiceAccounts with no pull secret attached.
+In 1.2.x, pull secrets were attached to the shared `solace-agent-mesh-sa` ServiceAccount. In 1.500.0, core and agent-deployer pods use new auto-generated ServiceAccounts with no pull secret attached.
 
 **Old values (1.2.x):**
 ```yaml
@@ -219,7 +219,7 @@ samDeployment:
   imagePullSecret: "my-reg-secret"
 ```
 
-**New values (2.0.0):**
+**New values (1.500.0):**
 ```yaml
 global:
   imagePullSecrets:
@@ -235,11 +235,11 @@ Alternatively, use `global.imagePullKey` with `--set-file` to let the chart crea
 
 The monolithic secret and configmap have been split into multiple focused resources for improved security and organization.
 
-**Old Resources (1.x):**
+**Old Resources (pre-1.500.0):**
 - `solace-agent-mesh-secret` (single monolithic secret)
 - `solace-agent-mesh-config` (single monolithic configmap)
 
-**New Resources (2.0.0):**
+**New Resources (1.500.0):**
 
 All resources follow the naming pattern `{release}-solace-agent-mesh-{component}`. To see the exact names in your deployment:
 
@@ -258,9 +258,9 @@ kubectl get configmaps -n <namespace> -l app.kubernetes.io/instance=<release>
 
 ### 7. Default Values Changed
 
-Chart 2.0.0 changes several default values to suit quickstart evaluation.
+Chart 1.500.0 changes several default values to suit quickstart evaluation.
 
-| Setting | 1.x Default | 2.0.0 Default | Impact |
+| Setting | Pre-1.500.0 Default | 1.500.0 Default | Impact |
 |---------|--------------|----------------|--------|
 | `global.broker.embedded` | N/A (new field) | `true` | Deploys embedded Solace broker |
 | `global.persistence.enabled` | `false` | `true` | Deploys PostgreSQL and SeaweedFS |
@@ -330,7 +330,7 @@ The new StatefulSets automatically reattach to the existing PVCs, preserving all
 
 The default `pullPolicy` for all images has changed from `Always` to `IfNotPresent`.
 
-**Old Behavior (1.x):**
+**Old Behavior (pre-1.500.0):**
 ```yaml
 samDeployment:
   image:
@@ -340,7 +340,7 @@ samDeployment:
       pullPolicy: Always
 ```
 
-**New Behavior (2.0.0):**
+**New Behavior (1.500.0):**
 ```yaml
 samDeployment:
   image:
@@ -416,13 +416,13 @@ After completing the migration checklist:
 **Step 1: Validate the values file (catches schema errors before touching the cluster)**
 
 ```bash
-helm template <release> <chart> -n <namespace> -f values-2.0.0.yaml > /dev/null
+helm template <release> <chart> -n <namespace> -f values-1.500.0.yaml > /dev/null
 ```
 
 Also verify image references have no double-prefix:
 
 ```bash
-helm template <release> <chart> -f values-2.0.0.yaml \
+helm template <release> <chart> -f values-1.500.0.yaml \
   | grep "image:" | sort -u
 ```
 
@@ -434,7 +434,7 @@ helm template <release> <chart> -f values-2.0.0.yaml \
 ```bash
 helm diff upgrade <release> <chart> \
   --namespace <namespace> \
-  -f values-2.0.0.yaml
+  -f values-1.500.0.yaml
 ```
 
 **Step 3: Run the upgrade**
@@ -442,11 +442,11 @@ helm diff upgrade <release> <chart> \
 ```bash
 helm upgrade <release> <chart> \
   --namespace <namespace> \
-  -f values-2.0.0.yaml
+  -f values-1.500.0.yaml
 ```
 
 :::info Running Agents Are Unaffected
-`helm upgrade` on the main chart does not touch `sam-agent-*` pods. They continue running on the old agent chart throughout the upgrade with no intervention required. After the upgrade, new agents use the 2.0.0 agent chart. Existing agents can be redeployed from the Agent Mesh UI to pick up the new version.
+`helm upgrade` on the main chart does not touch `sam-agent-*` pods. They continue running on the old agent chart throughout the upgrade with no intervention required. After the upgrade, new agents use the 1.500.0 agent chart. Existing agents can be redeployed from the Agent Mesh UI to pick up the new version.
 :::
 
 **Step 4: Verify the upgrade**
@@ -538,6 +538,6 @@ If you encounter migration issues:
 
 ## Related Documentation
 
-- [Kubernetes Quick Start](./quickstart-kubernetes.md) - Updated for 2.0.0
+- [Kubernetes Quick Start](./quickstart-kubernetes.md) - Updated for 1.500.0
 - [Production Kubernetes Installation](./production-kubernetes.md) - Production configuration examples
 - [Air-Gapped Kubernetes Installation](./airgap-kubernetes.md) - Air-gapped deployment guidance
