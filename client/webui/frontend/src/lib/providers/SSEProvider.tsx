@@ -1,4 +1,5 @@
 import React, { type ReactNode, useState, useRef, useEffect, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
 
 import { SSEContext, type SSEContextValue } from "@/lib/contexts/SSEContext";
 import { useSessionStorage } from "@/lib/hooks";
@@ -227,7 +228,7 @@ export const SSEProvider = ({ children }: SSEProviderProps) => {
 
     const subscribe = useCallback(
         (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void, eventType: string = "message"): (() => void) => {
-            const subscriberId = crypto.randomUUID();
+            const subscriberId = uuidv4({});
 
             let entry = connectionsRef.current.get(endpoint);
 

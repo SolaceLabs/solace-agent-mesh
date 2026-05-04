@@ -20,6 +20,10 @@ React 19, TanStack Query v5, Tailwind v4, Radix UI, Vitest, Playwright
 - Use `cn()` for class merging — never template literals
 - Use Tailwind v4 `(--var)` syntax — not bracket `[var(--var)]`
 
+## Utilities
+
+- For UUIDs, use `uuidv4({})` from `uuid` — never `crypto.randomUUID()` (breaks in HTTP contexts)
+
 ## Tests
 
 ```sh

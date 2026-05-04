@@ -1,5 +1,6 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { Brain, CircleDashed, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
 import { useSubmitPlanResponse } from "@/lib/api";
 import { Button } from "@/lib/components/ui/button";
@@ -37,7 +38,7 @@ interface EditableStep {
     value: string;
 }
 
-const makeStepId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `step-${Math.random().toString(36).slice(2)}-${Date.now()}`);
+const makeStepId = () => uuidv4({});
 
 const toEditableSteps = (steps: string[]): EditableStep[] => steps.map(value => ({ id: makeStepId(), value }));
 
