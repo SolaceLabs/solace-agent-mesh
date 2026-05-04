@@ -1,12 +1,8 @@
-import { v4 as uuidv4 } from "uuid";
-
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
+import { uuid } from "@/lib/utils/uuid";
 import { markPlanResponded } from "@/lib/components/research/respondedPlansStore";
 
 import type { DataPart, FileAttachment, SendStreamingMessageSuccessResponse, JSONRPCErrorResponse, TaskStatusUpdateEvent, ArtifactPart, PartFE, MessageFE, RAGSearchResult, ProgressUpdate, ArtifactInfo, Part } from "@/lib/types";
-
-// Force uuid to use crypto.getRandomValues() fallback for non-secure (HTTP) contexts
-const v4 = () => uuidv4({});
 
 // ============ Data Part Payloads ============
 
@@ -236,7 +232,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             isError: true,
             isComplete: true,
             metadata: {
-                messageId: `msg-${v4()}`,
+                messageId: `msg-${uuid()}`,
                 lastProcessedEventSequence: eventSequence,
             },
         });
@@ -417,7 +413,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                                     },
                                     isUser: false,
                                     isComplete: true,
-                                    metadata: { messageId: `auth-${v4()}` },
+                                    metadata: { messageId: `auth-${uuid()}` },
                                 };
                                 messages = [...messages, authMessage];
                             }
@@ -500,7 +496,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
 
     // --- Update messages with content ---
-    const responseMessageId = rpcResponse.id?.toString() ?? `msg-${v4()}`;
+    const responseMessageId = rpcResponse.id?.toString() ?? `msg-${uuid()}`;
     const responseContextId = "result" in rpcResponse && rpcResponse.result && "contextId" in rpcResponse.result ? (rpcResponse.result as unknown as { contextId?: string }).contextId : undefined;
 
     messages = applyContentToMessages(messages, newContentParts, {
@@ -551,7 +547,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                     isUser: false,
                     isComplete: true,
                     metadata: {
-                        messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                        messageId: rpcResponse.id?.toString() || `msg-${uuid()}`,
                         sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
                         lastProcessedEventSequence: eventSequence,
                     },
@@ -656,7 +652,7 @@ function appendProgressUpdate(
             isComplete: false,
             progressUpdates: [update],
             metadata: {
-                messageId: `msg-${v4()}`,
+                messageId: `msg-${uuid()}`,
                 lastProcessedEventSequence: eventSequence,
             },
             ...extraFields,
