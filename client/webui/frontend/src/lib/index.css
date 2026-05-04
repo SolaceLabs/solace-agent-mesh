@@ -40,8 +40,6 @@
 
 :root {
     --radius: 0.5rem;
-    /* Semantic theme variables are set by ThemeProvider via inline styles */
-    --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
 
 
@@ -88,6 +86,10 @@
 }
 
 @layer components {
+    .card-surface-shadow {
+        box-shadow: 0px 1px 4px 0px var(--stateLayer-w10);
+    }
+
     .card-surface {
         border-width: 1px;
         border-style: solid;

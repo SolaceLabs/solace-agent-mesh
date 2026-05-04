@@ -171,23 +171,15 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
 
     return (
         <div
-            className={`w-full ${isClickable ? "cursor-pointer" : ""} ${context === "list" ? "border-b" : ""} ${isDeleted ? "opacity-60" : ""} transition-shadow duration-200 ease-in-out`}
-            style={{
-                backgroundColor: "var(--background-w10)",
-                boxShadow: showShadow ? "0px 1px 4px 0px var(--secondary-w8040)" : undefined,
-                borderRadius: context === "list" ? undefined : "4px",
-            }}
-            onMouseEnter={e => {
-                if (isClickable) {
-                    e.currentTarget.style.boxShadow = "0px 2px 8px 0px var(--secondary-w8040)";
-                }
-            }}
-            onMouseLeave={e => {
-                if (isClickable) {
-                    e.currentTarget.style.boxShadow = "0px 1px 4px 0px var(--secondary-w8040)";
-                }
-            }}
-            onClick={isDeleted ? undefined : handleBarClick}
+            className={cn(
+                "w-full bg-(--background-w10) transition-shadow duration-200 ease-in-out",
+                context === "list" ? "border-b" : "rounded",
+                isClickable && "cursor-pointer",
+                isDeleted && "opacity-60",
+                showShadow && "card-surface-shadow",
+                isClickable && "card-surface-hover"
+            )}
+            onClick={isClickable ? handleBarClick : undefined}
             onKeyDown={
                 isClickable
                     ? e => {
@@ -201,9 +193,9 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
             role={isClickable ? "button" : undefined}
             tabIndex={isClickable ? 0 : undefined}
         >
-            <div className="flex min-h-[60px] items-center gap-3 p-3">
+            <div className="flex min-h-15 items-center gap-3 p-3">
                 {/* File Icon */}
-                <FileIcon filename={filename} mimeType={mimeType} size={size} className="flex-shrink-0" />
+                <FileIcon filename={filename} mimeType={mimeType} size={size} className="shrink-0" />
 
                 {/* File Info Section */}
                 <div className="min-w-0 flex-1 py-1">
@@ -213,7 +205,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                             {primaryLabel}
                         </div>
                         {/* Project badge */}
-                        {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} className="max-w-[360px]" />}
+                        {source === "project" && sourceProjectName && <ProjectBadge text={sourceProjectName} className="max-w-90" />}
                     </div>
 
                     {/* Secondary line: Filename (if description shown) or status */}
@@ -241,7 +233,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 </div>
 
                 {/* Actions Section */}
-                <div className="flex flex-shrink-0 items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                     {status === "completed" && actions?.onInfo && !isDeleted && (
                         <Button
                             variant="ghost"
