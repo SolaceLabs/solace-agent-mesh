@@ -74,6 +74,9 @@ class SamComponentBase(ComponentBase, abc.ABC):
 
         # DynamicModelProvider ref for per-request model alias resolution
         self._dynamic_model_provider: Optional[DynamicModelProvider] = None
+        # Coordinates lazy-init of the override-only provider when an agent has
+        # no ``model_provider`` configured but receives a per-request override.
+        self._dynamic_model_provider_init_lock: Optional[asyncio.Lock] = None
 
         feature_flags.initialize()
 

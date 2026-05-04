@@ -40,6 +40,7 @@ def _make_provider_no_init(component=None, litellm_instance=None, model_id="gene
     provider._component = component or _make_mock_component()
     provider._litellm_instance = litellm_instance or LiteLlm(model=None)
     provider._model_id = model_id
+    provider._skip_bootstrap = False
     provider._internal_app = None
     provider._broker_input = None
     provider._initialized = False
@@ -209,6 +210,22 @@ class TestDynamicModelProviderInitialize:
             await provider.initialize()
 
         assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_initialize_skip_bootstrap_subscribes_only(self):
+        """skip_bootstrap=True must wire up the listener subscription but never
+        send a bootstrap request — that's what protects an agent's static
+        litellm config from being clobbered by the auto-update path when the
+        provider is lazy-initialised purely to handle per-request overrides."""
+        provider = _make_provider_no_init()
+        provider._skip_bootstrap = True
+        provider.listen_for_model_config_change = AsyncMock()
+        provider.request_model_config = AsyncMock()
+
+        await provider.initialize()
+
+        provider.listen_for_model_config_change.assert_awaited_once()
+        provider.request_model_config.assert_not_awaited()
 
 
 class TestDynamicModelProviderEnsureConfigListener:
