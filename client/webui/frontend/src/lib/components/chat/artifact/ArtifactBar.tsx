@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Download, ChevronDown, Trash, Info, ChevronUp, CircleAlert, Pencil } from "lucide-react";
 
 import { Button, Spinner } from "@/lib/components/ui";
+import { clickableNodeProps } from "@/lib/components/utils/nodeInteraction";
 import { cn, formatBytes } from "@/lib/utils";
 
 import { FileIcon, ProjectBadge } from "../file";
@@ -168,30 +169,20 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
     const isClickable = status === "completed" && actions?.onPreview && !isDeleted;
     // Show shadow for all artifacts in chat context (not deleted), but only enable hover for clickable ones
     const showShadow = context === "chat" && !isDeleted;
+    const interactiveProps = isClickable ? clickableNodeProps(handleBarClick) : {};
 
     return (
         <div
             className={cn(
                 "w-full bg-(--background-w10) transition-shadow duration-200 ease-in-out",
                 context === "list" ? "border-b" : "rounded",
-                isClickable && "cursor-pointer",
+                isClickable && "cursor-pointer outline-none focus-visible:border-(--brand-wMain)",
                 isDeleted && "opacity-60",
                 showShadow && "card-surface",
                 isClickable && "card-surface-hover"
             )}
-            onClick={isClickable ? handleBarClick : undefined}
-            onKeyDown={
-                isClickable
-                    ? e => {
-                          if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              handleBarClick();
-                          }
-                      }
-                    : undefined
-            }
-            role={isClickable ? "button" : undefined}
-            tabIndex={isClickable ? 0 : undefined}
+            aria-label={isClickable ? `Preview ${filename}` : undefined}
+            {...interactiveProps}
         >
             <div className="flex min-h-15 items-center gap-3 p-3">
                 {/* File Icon */}
