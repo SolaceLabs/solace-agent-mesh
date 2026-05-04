@@ -392,11 +392,8 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     setPendingAction(null);
                     return;
                 }
-            } catch (e) {
-                // Fail open — don't block the user if validation itself errors,
-                // but surface the failure so a regression in the conflict
-                // endpoint or schema doesn't disappear silently.
-                console.warn("Conflict validation failed, proceeding with save:", e);
+            } catch {
+                // Fail open — don't block the user if validation itself errors.
             }
             setIsCheckingConflict(false);
         }

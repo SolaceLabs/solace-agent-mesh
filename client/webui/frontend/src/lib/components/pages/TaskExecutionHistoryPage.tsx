@@ -12,7 +12,7 @@
  *   └──────────────┴────────────────────────────────────────────┘
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, Play, Pause, Trash2, Zap, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -32,13 +32,9 @@ import {
     Table,
     TableBody,
     TableCell,
+    TableHead,
     TableHeader,
     TableRow,
-    SortableTableHead,
-    Tabs,
-    TabsList,
-    TabsTrigger,
-    TabsContent,
     DatePicker,
 } from "@/lib/components/ui";
 import { ExecutionArtifactsView, ExecutionInlineArtifacts } from "@/lib/components/scheduled-tasks/ExecutionArtifactsView";
@@ -46,18 +42,11 @@ import { MarkdownWrapper } from "@/lib/components";
 import { useChatContext, useAgentCards } from "@/lib/hooks";
 import { useTaskExecutions, useRunScheduledTaskNow, useEnableScheduledTask, useDisableScheduledTask, useDeleteExecution, useExecutionArtifacts } from "@/lib/api/scheduled-tasks";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
-import { formatDuration } from "@/lib/utils/format";
+import { formatDuration, formatEpochTimestampShort } from "@/lib/utils/format";
+import { paginationPages } from "@/lib/utils/pagination";
 import { cn } from "@/lib/utils";
 import { formatSchedule } from "@/lib/components/scheduled-tasks/utils";
 import { getStatusBadge } from "@/lib/components/scheduled-tasks/ExecutionList";
-
-// "YYYY-MM-DD HH:MM:SS" in the user's local timezone — matches the executions
-// page mock. Auto-detects whether the timestamp is in seconds or milliseconds.
-const pad = (n: number) => String(n).padStart(2, "0");
-function formatExecutionTimestamp(ts: number): string {
-    const d = new Date(ts < 10_000_000_000 ? ts * 1000 : ts);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 // Spell out a duration with the two largest non-zero units, properly pluralized
 // (e.g. "30 seconds", "1 minute", "2 hours 5 minutes"). Used in the history
@@ -89,7 +78,7 @@ const IN_PROGRESS_STATUSES: ReadonlySet<TaskExecution["status"]> = new Set(["pen
  *  "YYYY-MM-DD HH:MM:SS". Falls back to the ID prefix when no scheduled
  *  timestamp is available. */
 function executionDisplayName(ex: TaskExecution): string {
-    if (ex.scheduledFor) return formatExecutionTimestamp(ex.scheduledFor);
+    if (ex.scheduledFor) return formatEpochTimestampShort(ex.scheduledFor);
     return ex.id.slice(0, 8);
 }
 
@@ -188,7 +177,7 @@ const ConfigurationSidebar: React.FC<{
                 <ConfigField label="Schedule">{formatSchedule({ scheduleType, scheduleExpression })}</ConfigField>
                 <ConfigField label="Timezone">{timezone}</ConfigField>
                 <ConfigField label={targetType === "workflow" ? "Workflow" : "Agent"}>
-                    <span className="text-(--info-wMain)">{agentDisplay}</span>
+                    <span className="text-(--primary-text-wMain)">{agentDisplay}</span>
                 </ConfigField>
                 <ConfigField label="Output">Chat</ConfigField>
                 <ConfigField label="Instructions" multiline>
@@ -240,7 +229,7 @@ const LatestExecutionPanel: React.FC<{
     }
 
     const isInFlight = IN_PROGRESS_STATUSES.has(execution.status);
-    const completedAt = execution.completedAt ? formatExecutionTimestamp(execution.completedAt) : "—";
+    const completedAt = execution.completedAt ? formatEpochTimestampShort(execution.completedAt) : "—";
     const duration = execution.durationMs ? formatDuration(execution.durationMs) : "—";
 
     return (
@@ -273,17 +262,15 @@ const LatestExecutionPanel: React.FC<{
 
 const ExecutionDetailPanel: React.FC<{
     execution: TaskExecution;
-    onGoToChat: (executionId: string) => void;
-    onDeleteExecution: (execution: TaskExecution) => void;
     activeTab: "output" | "artifacts";
     onTabChange: (tab: "output" | "artifacts") => void;
-}> = ({ execution, onGoToChat, onDeleteExecution, activeTab, onTabChange }) => {
+}> = ({ execution, activeTab, onTabChange }) => {
     const { data: artifacts } = useExecutionArtifacts(execution.id);
     const hasArtifacts = (artifacts?.length ?? 0) > 0;
 
     const isInFlight = IN_PROGRESS_STATUSES.has(execution.status);
-    const startedAt = execution.startedAt ? formatExecutionTimestamp(execution.startedAt) : "—";
-    const completedAt = execution.completedAt ? formatExecutionTimestamp(execution.completedAt) : "—";
+    const startedAt = execution.startedAt ? formatEpochTimestampShort(execution.startedAt) : "—";
+    const completedAt = execution.completedAt ? formatEpochTimestampShort(execution.completedAt) : "—";
     const duration = execution.durationMs ? formatDuration(execution.durationMs) : "—";
 
     const metrics = (
@@ -295,62 +282,42 @@ const ExecutionDetailPanel: React.FC<{
         </>
     );
 
-    const outputBody = (
-        <div className="space-y-4">
-            <div>
-                <div className="mb-2 text-sm font-semibold">Output</div>
-                {renderOutput(execution, true)}
-            </div>
-            {hasArtifacts && <ExecutionInlineArtifacts executionId={execution.id} />}
-        </div>
-    );
+    const fullText = execution.resultSummary?.agentResponseFull || execution.resultSummary?.agentResponse || execution.resultSummary?.messages?.find(m => m.role === "agent")?.text || "";
 
-    const actions = (
-        <div className="flex flex-shrink-0 items-center gap-1">
-            <Button onClick={() => onGoToChat(execution.id)} disabled={isInFlight && !execution.startedAt}>
-                <MessageSquare className="mr-2 h-4 w-4" />
-                View Chat Output
-            </Button>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="Actions">
-                        <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onDeleteExecution(execution)}>
-                        <Trash2 size={14} className="mr-2" />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+    const outputBody = (
+        <div className="space-y-4 text-sm break-words">
+            {fullText ? (
+                <MarkdownWrapper content={fullText} className="text-sm" />
+            ) : execution.errorMessage ? (
+                <div className="whitespace-pre-wrap text-(--error-wMain)">{execution.errorMessage}</div>
+            ) : (
+                <div className="text-(--secondary-text-wMain) italic">No output yet.</div>
+            )}
+            {hasArtifacts && <ExecutionInlineArtifacts executionId={execution.id} />}
         </div>
     );
 
     return (
         <section className="space-y-4">
             {hasArtifacts ? (
-                <Tabs value={activeTab} onValueChange={v => onTabChange(v as "output" | "artifacts")}>
+                <>
                     <div className="-mt-6 -ml-8 flex items-center gap-8 border-b py-3 pl-8">
-                        <TabsList>
-                            <TabsTrigger value="output">Output</TabsTrigger>
-                            <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
-                        </TabsList>
+                        <div className="flex items-center overflow-hidden rounded-lg border">
+                            <button type="button" onClick={() => onTabChange("output")} className={cn("border-r px-4 py-2 hover:bg-(--secondary-w20)", activeTab === "output" && "rounded-l-lg bg-(--primary-w20)")}>
+                                Output
+                            </button>
+                            <button type="button" onClick={() => onTabChange("artifacts")} className={cn("px-4 py-2 hover:bg-(--secondary-w20)", activeTab === "artifacts" && "rounded-r-lg bg-(--primary-w20)")}>
+                                Artifacts
+                            </button>
+                        </div>
                         <div className="flex flex-1 items-center gap-8">{metrics}</div>
-                        {actions}
                     </div>
-                    <TabsContent value="output" className="mt-4">
-                        {outputBody}
-                    </TabsContent>
-                    <TabsContent value="artifacts" className="mt-4">
-                        <ExecutionArtifactsView executionId={execution.id} />
-                    </TabsContent>
-                </Tabs>
+                    <div className="mt-4">{activeTab === "output" ? outputBody : <ExecutionArtifactsView executionId={execution.id} />}</div>
+                </>
             ) : (
                 <>
                     <div className="-mt-6 -ml-8 flex items-center gap-8 border-b py-3 pl-8">
                         <div className="flex flex-1 items-center gap-8">{metrics}</div>
-                        {actions}
                     </div>
                     {outputBody}
                 </>
@@ -360,9 +327,6 @@ const ExecutionDetailPanel: React.FC<{
 };
 
 // ─── Execution history table ──────────────────────────────────────────────
-
-type SortKey = "status" | "duration" | "completedOn";
-type SortDir = "asc" | "desc";
 
 const ExecutionHistoryTable: React.FC<{
     executions: TaskExecution[];
@@ -377,50 +341,10 @@ const ExecutionHistoryTable: React.FC<{
     onFilterFromChange: (value: string) => void;
     onFilterToChange: (value: string) => void;
 }> = ({ executions, totalCount, page, onPageChange, onRowClick, isLoading, onDeleteExecution, filterFrom, filterTo, onFilterFromChange, onFilterToChange }) => {
-    const [sortKey, setSortKey] = useState<SortKey>("completedOn");
-    const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-    const handleSort = (key: SortKey) => {
-        if (sortKey === key) {
-            setSortDir(d => (d === "asc" ? "desc" : "asc"));
-        } else {
-            setSortKey(key);
-            setSortDir("desc");
-        }
-    };
-
-    // Sort applies to the current page only (server provides pagination).
-    const sorted = useMemo(() => {
-        const arr = [...executions];
-        const dirMul = sortDir === "asc" ? 1 : -1;
-        arr.sort((a, b) => {
-            const av = (() => {
-                switch (sortKey) {
-                    case "status":
-                        return a.status;
-                    case "duration":
-                        return a.durationMs ?? -1;
-                    case "completedOn":
-                        return a.completedAt ?? a.startedAt ?? a.scheduledFor ?? 0;
-                }
-            })();
-            const bv = (() => {
-                switch (sortKey) {
-                    case "status":
-                        return b.status;
-                    case "duration":
-                        return b.durationMs ?? -1;
-                    case "completedOn":
-                        return b.completedAt ?? b.startedAt ?? b.scheduledFor ?? 0;
-                }
-            })();
-            if (av < bv) return -1 * dirMul;
-            if (av > bv) return 1 * dirMul;
-            return 0;
-        });
-        return arr;
-    }, [executions, sortKey, sortDir]);
-
+    // Column sort is intentionally not exposed: the table is server-paginated,
+    // so sorting only the current page would mislead users into thinking they
+    // were seeing the global top-N by their chosen sort. Server-side sort can
+    // be added later if/when a sort param is plumbed through the API.
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
     const showingFrom = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
     const showingTo = Math.min(page * PAGE_SIZE, totalCount);
@@ -454,16 +378,10 @@ const ExecutionHistoryTable: React.FC<{
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <SortableTableHead column="completedOn" currentSortKey={sortKey} sortDir={sortDir} onSort={k => handleSort(k as SortKey)}>
-                                Completed On
-                            </SortableTableHead>
-                            <SortableTableHead column="status" currentSortKey={sortKey} sortDir={sortDir} onSort={k => handleSort(k as SortKey)}>
-                                Status
-                            </SortableTableHead>
-                            <SortableTableHead column="duration" currentSortKey={sortKey} sortDir={sortDir} onSort={k => handleSort(k as SortKey)}>
-                                Duration
-                            </SortableTableHead>
-                            <th className="w-10" />
+                            <TableHead className="px-4 font-semibold">Completed On</TableHead>
+                            <TableHead className="px-4 font-semibold">Status</TableHead>
+                            <TableHead className="px-4 font-semibold">Duration</TableHead>
+                            <TableHead className="w-10" />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -473,33 +391,33 @@ const ExecutionHistoryTable: React.FC<{
                                     <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                                 </TableCell>
                             </TableRow>
-                        ) : sorted.length === 0 ? (
+                        ) : executions.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={4} className="py-8 text-center text-sm text-(--secondary-text-wMain) italic">
                                     No executions yet.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            sorted.map(ex => {
+                            executions.map(ex => {
                                 const isInFlight = IN_PROGRESS_STATUSES.has(ex.status);
                                 return (
                                     <TableRow key={ex.id} className="hover:bg-(--secondary-w10)">
-                                        <TableCell>
+                                        <TableCell className="px-4">
                                             <Button variant="link" className="h-auto p-0" onClick={() => onRowClick(ex.id)}>
                                                 {formatExecutionLabel(ex)}
                                             </Button>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="px-4">
                                             {isInFlight ? (
-                                                <span className="inline-flex items-center gap-1.5 text-sm text-(--brand-wMain)">
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                <span className="inline-flex items-center gap-1.5 text-sm text-(--primary-text-wMain)">
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-(--brand-wMain)" />
                                                     {ex.status === "pending" ? "Pending" : "In progress"}
                                                 </span>
                                             ) : (
                                                 getStatusBadge(ex.status)
                                             )}
                                         </TableCell>
-                                        <TableCell>{ex.durationMs ? formatDurationVerbose(ex.durationMs) : "—"}</TableCell>
+                                        <TableCell className="px-4">{ex.durationMs ? formatDurationVerbose(ex.durationMs) : "—"}</TableCell>
                                         <TableCell className="w-10" onClick={e => e.stopPropagation()}>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -564,30 +482,9 @@ const ExecutionHistoryTable: React.FC<{
     );
 };
 
-/** Pagination page list with ellipsis collapse — same logic as common/PaginationControls. */
-const paginationPages = (currentPage: number, totalPages: number): (number | "ellipsis")[] => {
-    const pages: (number | "ellipsis")[] = [];
-    if (totalPages <= 5) {
-        for (let i = 1; i <= totalPages; i++) pages.push(i);
-        return pages;
-    }
-    if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
-        pages.push("ellipsis", totalPages);
-    } else if (currentPage >= totalPages - 2) {
-        pages.push(1, "ellipsis");
-        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
-    } else {
-        pages.push(1, "ellipsis");
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
-        pages.push("ellipsis", totalPages);
-    }
-    return pages;
-};
-
 const formatExecutionLabel = (ex: TaskExecution): string => {
     const ts = ex.completedAt ?? ex.startedAt ?? ex.scheduledFor;
-    return ts ? formatExecutionTimestamp(ts) : "—";
+    return ts ? formatEpochTimestampShort(ts) : "—";
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────
@@ -634,7 +531,15 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     const disableMutation = useDisableScheduledTask();
     const deleteExecutionMutation = useDeleteExecution(task.id);
     const [executionToDelete, setExecutionToDelete] = useState<TaskExecution | null>(null);
-    const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
+    // Stash the row alongside its id so the detail panel survives smart-poll
+    // refetches that push the row to another page (or out of the current
+    // date filter).
+    const [stashedSelectedExecution, setStashedSelectedExecution] = useState<TaskExecution | null>(null);
+    const selectedExecutionId = stashedSelectedExecution?.id ?? null;
+    const handleSelectExecution = (executionId: string) => {
+        const row = executions.find(e => e.id === executionId) ?? null;
+        if (row) setStashedSelectedExecution(row);
+    };
     const [detailTab, setDetailTab] = useState<"output" | "artifacts">("output");
 
     // Smart polling — fast while a run is in flight, slow otherwise. Mirrors
@@ -664,7 +569,10 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     }, [refetch, refetchLatest, hasActive]);
 
     const latestExecution = latestExecutionFromQuery;
-    const selectedExecution = selectedExecutionId ? (executions.find(e => e.id === selectedExecutionId) ?? null) : null;
+    // Prefer the freshest copy of the selected row from either the current
+    // page or the latest-execution query (so live updates flow through), and
+    // fall back to the stashed copy when neither query contains it any more.
+    const selectedExecution = selectedExecutionId ? (executions.find(e => e.id === selectedExecutionId) ?? (latestExecutionFromQuery?.id === selectedExecutionId ? latestExecutionFromQuery : null) ?? stashedSelectedExecution) : null;
     // The Configuration sidebar reflects the currently-displayed execution's
     // snapshot — latest by default, or the row the user opened.
     const displayedExecution = selectedExecution ?? latestExecution;
@@ -675,14 +583,36 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     };
 
     const breadcrumbs = selectedExecution
-        ? [{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name, onClick: () => setSelectedExecutionId(null) }, { label: formatExecutionLabel(selectedExecution) }]
+        ? [{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name, onClick: () => setStashedSelectedExecution(null) }, { label: formatExecutionLabel(selectedExecution) }]
         : [{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name }];
 
     const headerTitle = selectedExecution ? formatExecutionLabel(selectedExecution) : task.name;
 
+    const headerButtons = selectedExecution
+        ? [
+              <Button key="view-chat" onClick={() => handleGoToChat(selectedExecution.id)} disabled={IN_PROGRESS_STATUSES.has(selectedExecution.status) && !selectedExecution.startedAt}>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  View Chat Output
+              </Button>,
+              <DropdownMenu key="actions">
+                  <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="Actions">
+                          <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setExecutionToDelete(selectedExecution)}>
+                          <Trash2 size={14} className="mr-2" />
+                          Delete
+                      </DropdownMenuItem>
+                  </DropdownMenuContent>
+              </DropdownMenu>,
+          ]
+        : undefined;
+
     return (
         <div className="flex h-full flex-col">
-            <Header title={headerTitle} breadcrumbs={breadcrumbs} />
+            <Header title={headerTitle} breadcrumbs={breadcrumbs} buttons={headerButtons} />
 
             <div className="flex min-h-0 flex-1">
                 <ConfigurationSidebar
@@ -697,7 +627,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
                 <main className="flex-1 space-y-8 overflow-y-auto px-8 py-6">
                     {selectedExecution ? (
-                        <ExecutionDetailPanel execution={selectedExecution} onGoToChat={handleGoToChat} onDeleteExecution={setExecutionToDelete} activeTab={detailTab} onTabChange={setDetailTab} />
+                        <ExecutionDetailPanel execution={selectedExecution} activeTab={detailTab} onTabChange={setDetailTab} />
                     ) : (
                         <>
                             <LatestExecutionPanel execution={latestExecution} onGoToChat={handleGoToChat} />
@@ -707,7 +637,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 totalCount={totalCount}
                                 page={page}
                                 onPageChange={setPage}
-                                onRowClick={setSelectedExecutionId}
+                                onRowClick={handleSelectExecution}
                                 isLoading={isLoading}
                                 onDeleteExecution={setExecutionToDelete}
                                 filterFrom={filterFrom}
@@ -741,7 +671,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                     await deleteExecutionMutation.mutateAsync(deletedId);
                     setExecutionToDelete(null);
                     if (selectedExecutionId === deletedId) {
-                        setSelectedExecutionId(null);
+                        setStashedSelectedExecution(null);
                     }
                 }}
             />

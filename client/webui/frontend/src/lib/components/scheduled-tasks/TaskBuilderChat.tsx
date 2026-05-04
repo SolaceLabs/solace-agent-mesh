@@ -5,6 +5,7 @@ import { useAudioSettings, useConfigContext, useChatContext } from "@/lib/hooks"
 import { api } from "@/lib/api/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AgentPickerCard, type AgentPickerSuggestion } from "./AgentPickerCard";
+import { cn } from "@/lib/utils";
 
 interface InlineAgentPicker {
     type: "agent_picker";
@@ -338,8 +339,8 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             {/* Messages */}
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {messages.map((message, index) => (
-                    <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-                        <div className={`${message.inlineComponent ? "w-full py-3" : "max-w-[80%] rounded-2xl px-4 py-3"} ${message.role === "user" ? "bg-(--secondary-w20)" : ""}`}>
+                    <div key={index} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+                        <div className={cn(message.inlineComponent ? "w-full py-3" : "max-w-[80%] rounded-2xl px-4 py-3", message.role === "user" && "bg-(--secondary-w20)")}>
                             {message.role === "assistant" ? <MarkdownWrapper content={message.content} className="text-sm leading-relaxed" /> : <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
                             {message.inlineComponent?.type === "agent_picker" && (
                                 <AgentPickerCard

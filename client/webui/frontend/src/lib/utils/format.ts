@@ -62,6 +62,17 @@ export const formatEpochTimestamp = (timestamp: number): string => {
     return date.toLocaleString();
 };
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Format a numeric epoch timestamp (seconds or milliseconds) as
+ * "YYYY-MM-DD HH:MM:SS" in the user's local timezone.
+ */
+export const formatEpochTimestampShort = (timestamp: number): string => {
+    const d = new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 /**
  * Format a duration in milliseconds to a human-readable string.
  */

@@ -109,14 +109,18 @@ export const ExecutionInlineArtifacts: React.FC<{ executionId: string }> = ({ ex
     return (
         <div className="space-y-2">
             {artifacts.map(artifact => {
-                const isExpanded = !!expanded[artifact.filename];
+                // Two artifacts in one execution can share a filename if they
+                // are different versions; key on uri (stable, unique) and
+                // fall back to a `${filename}@${version}` composite.
+                const artifactKey = artifact.uri ?? `${artifact.filename}@${artifact.version ?? "latest"}`;
+                const isExpanded = !!expanded[artifactKey];
                 const expandedBody = isExpanded ? (
                     <div className="border-t bg-(--background-w10) p-4">
                         <ArtifactPreviewBody artifact={artifact} sessionId={sessionId} onDownload={() => handleDownload(artifact)} />
                     </div>
                 ) : null;
                 return (
-                    <div key={artifact.filename} className="overflow-hidden rounded-md border border-(--secondary-w40)">
+                    <div key={artifactKey} className="overflow-hidden rounded-md border border-(--secondary-w40)">
                         <ArtifactBar
                             filename={artifact.filename}
                             mimeType={artifact.mime_type}
@@ -125,7 +129,7 @@ export const ExecutionInlineArtifacts: React.FC<{ executionId: string }> = ({ ex
                             context="chat"
                             expandable
                             expanded={isExpanded}
-                            onToggleExpand={() => setExpanded(prev => ({ ...prev, [artifact.filename]: !prev[artifact.filename] }))}
+                            onToggleExpand={() => setExpanded(prev => ({ ...prev, [artifactKey]: !prev[artifactKey] }))}
                             expandedContent={expandedBody}
                             actions={{
                                 onDownload: () => handleDownload(artifact),

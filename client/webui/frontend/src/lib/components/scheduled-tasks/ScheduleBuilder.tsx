@@ -202,7 +202,7 @@ export const TimeOfDayPicker: React.FC<{ value: string; onChange: (hhmm: string)
 // see the human-readable cadence as they tweak inputs. Same look-and-feel as
 // the AI builder's TaskPreviewPanel preview.
 export const SchedulePreviewBox: React.FC<{ description: string }> = ({ description }) => (
-    <div className="rounded-md bg-(--background-w10) px-3 py-2">
+    <div className="rounded-md bg-(--secondary-w10) px-3 py-2">
         <p className="text-xs text-(--secondary-text-wMain)">Preview</p>
         <p className="mt-0.5 text-sm">{description}</p>
     </div>

@@ -3,10 +3,25 @@ import { X, CalendarDays, MoreHorizontal, Pencil, Trash2, History, Play, Pause, 
 import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
-import { formatDuration } from "@/lib/utils/format";
 import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
 import { getStatusBadge } from "./ExecutionList";
+
+/** "5 minutes ago", "Yesterday", "YYYY-MM-DD HH:MM" — long-form relative time. */
+const formatRelativeLong = (epochMs: number): string => {
+    const diffSec = Math.floor((Date.now() - epochMs) / 1000);
+    if (diffSec < 60) return `${diffSec} second${diffSec === 1 ? "" : "s"} ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? "" : "s"} ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay === 1) return "Yesterday";
+    if (diffDay < 7) return `${diffDay} days ago`;
+    const d = new Date(epochMs);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 const RECENT_RUNS_COUNT = 5;
 
@@ -37,12 +52,7 @@ const ExecutionHistory: React.FC<{ taskId: string; onViewAll: () => void }> = ({
 
     return (
         <div>
-            <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Execution History</h3>
-                <button type="button" onClick={onViewAll} className="text-xs text-(--primary-wMain) hover:underline">
-                    View Executions
-                </button>
-            </div>
+            <h3 className="mb-3 text-sm font-semibold">Execution History</h3>
 
             {isLoading ? (
                 <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
@@ -55,20 +65,18 @@ const ExecutionHistory: React.FC<{ taskId: string; onViewAll: () => void }> = ({
                 <ul className="space-y-1">
                     {executions.map(ex => {
                         const { Icon, className, label } = executionStatusIcon(ex.status);
-                        const when = toEpochMs(ex.completedAt ?? ex.startedAt ?? ex.scheduledFor);
-                        const duration = ex.durationMs ? formatDuration(ex.durationMs) : null;
+                        const isInFlight = ex.status === "running" || ex.status === "pending";
+                        // Running rows show "Started X ago" (anchored on startedAt);
+                        // terminal rows show "X ago" (anchored on completedAt).
+                        const anchorMs = toEpochMs(isInFlight ? (ex.startedAt ?? ex.scheduledFor) : (ex.completedAt ?? ex.startedAt ?? ex.scheduledFor));
+                        const relative = formatRelativeLong(anchorMs);
+                        const timeText = isInFlight ? `Started ${relative}` : relative;
                         return (
                             <li key={ex.id}>
-                                <button type="button" onClick={onViewAll} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-(--secondary-w10)" title={ex.errorMessage ?? label}>
-                                    <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${className}`} />
-                                    <span className="min-w-0 flex-1 truncate">
-                                        <span className="font-medium">{label}</span>
-                                        <span className="text-(--secondary-text-wMain)">
-                                            {" · "}
-                                            {new Date(when).toLocaleString()}
-                                            {duration && ` · ${duration}`}
-                                        </span>
-                                    </span>
+                                <button type="button" onClick={onViewAll} className="flex w-full items-center gap-2 rounded py-1.5 text-left text-sm hover:bg-(--secondary-w10)" title={ex.errorMessage ?? label}>
+                                    <Icon className={`h-4 w-4 flex-shrink-0 ${className}`} />
+                                    <span className="min-w-0 flex-1 truncate">{timeText}</span>
+                                    <span className={`flex-shrink-0 text-xs ${className}`}>{label}</span>
                                 </button>
                             </li>
                         );
@@ -95,8 +103,6 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
 
     // One-time tasks are terminal after their run; config-sourced tasks are read-only.
     const canRunNow = !!onRunNow && task.scheduleType !== "one_time" && task.source !== "config";
-
-    const taskMessageText = task.taskMessage?.[0]?.text || "";
 
     return (
         <div className="flex h-full w-full flex-col border-l bg-(--background-w10)">
@@ -190,12 +196,6 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
                             Task Details
                         </Button>
                     </div>
-                </section>
-
-                {/* Instructions card */}
-                <section className="space-y-3 rounded-md bg-(--secondary-w10) p-4">
-                    <h3 className="text-sm font-semibold">Instructions</h3>
-                    {taskMessageText ? <div className="text-sm break-words whitespace-pre-wrap">{taskMessageText}</div> : <div className="text-sm text-(--secondary-text-wMain) italic">No instructions</div>}
                 </section>
 
                 {/* Execution History — compact recent-runs list with link to full page. */}

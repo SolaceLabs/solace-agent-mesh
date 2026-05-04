@@ -8,7 +8,7 @@ import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sess
 import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
+import { cn, formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
@@ -464,7 +464,7 @@ export const RecentChatsPage: React.FC = () => {
                                     <div key={session.id} className={sessionCardStyles({ active: session.id === sessionId })}>
                                         {hasUnseen && <span aria-label="Unseen updates" className="absolute top-1/2 left-[10px] h-[42px] w-1 -translate-y-1/2 rounded-sm bg-(--info-wMain)" />}
                                         {editingSessionId === session.id ? (
-                                            <div className={`flex items-center gap-2 ${contentShift}`}>
+                                            <div className={cn("flex items-center gap-2", contentShift)}>
                                                 <input
                                                     ref={inputRef}
                                                     type="text"
@@ -488,7 +488,7 @@ export const RecentChatsPage: React.FC = () => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className={`flex cursor-pointer items-center gap-4 ${contentShift}`} onClick={() => handleSessionClick(session)}>
+                                            <div className={cn("flex cursor-pointer items-center gap-4", contentShift)} onClick={() => handleSessionClick(session)}>
                                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                     <div className="flex items-center gap-2">
                                                         <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />

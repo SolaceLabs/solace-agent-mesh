@@ -23,8 +23,12 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selected
     // agent, clear any active filter that would hide it, and scroll it into view.
     // Guarded by a ref so a polling refetch of `agents` doesn't clobber the
     // user's manual selection — only react when the deep-link value itself
-    // changes.
+    // changes. The scroll is deferred via requestAnimationFrame because
+    // setSearchQuery("") may unhide the targeted card; the ref isn't attached
+    // until after the next render, so reading it synchronously here would
+    // return null.
     const lastAppliedSelection = useRef<string | null>(null);
+    const pendingScrollTarget = useRef<string | null>(null);
     useEffect(() => {
         if (!selectedAgent) return;
         if (lastAppliedSelection.current === selectedAgent) return;
@@ -32,11 +36,24 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selected
         lastAppliedSelection.current = selectedAgent;
         setExpandedAgentName(selectedAgent);
         setSearchQuery("");
-        const node = cardRefs.current[selectedAgent];
-        if (node) {
-            node.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
+        pendingScrollTarget.current = selectedAgent;
     }, [selectedAgent, agents]);
+
+    // Run the scroll on the next frame after the targeted card has been
+    // rendered and its ref attached. Watching filteredAgents/searchQuery
+    // ensures we re-check after the filter clear flushes.
+    useEffect(() => {
+        const target = pendingScrollTarget.current;
+        if (!target) return;
+        const raf = requestAnimationFrame(() => {
+            const node = cardRefs.current[target];
+            if (node) {
+                node.scrollIntoView({ behavior: "smooth", block: "center" });
+                pendingScrollTarget.current = null;
+            }
+        });
+        return () => cancelAnimationFrame(raf);
+    }, [searchQuery, agents]);
 
     const handleToggleExpand = (agentName: string) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));

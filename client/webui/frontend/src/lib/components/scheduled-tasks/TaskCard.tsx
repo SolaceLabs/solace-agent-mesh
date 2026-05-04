@@ -245,9 +245,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                     </div>
                     <div className="mt-auto pt-2">
                         {isRunning ? (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-(--brand-wMain)">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-(--primary-text-wMain)">
                                 Running
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3 w-3 animate-spin text-(--brand-wMain)" />
                             </span>
                         ) : task.status ? (
                             getStatusBadge(task.status)

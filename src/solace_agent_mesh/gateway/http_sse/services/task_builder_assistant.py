@@ -621,19 +621,27 @@ REMEMBER:
         "- 'Send a weekly summary' scheduled every hour\n"
         "- 'Morning briefing at 8 AM' scheduled at midnight\n"
         "- 'Hourly metrics check' scheduled once a month\n\n"
-        "Be CONSERVATIVE: only flag a conflict when you are highly confident (≥ 0.9) the user "
+        "Be CONSERVATIVE: only flag a conflict when you are highly confident the user "
         "made a mistake. Generic, time-agnostic instructions (e.g., 'Check API health', 'Summarize "
         "yesterday's data') should NOT be flagged. Lower frequency than implied is also usually fine "
         "(a 'minute check' running every 5 minutes is not a conflict).\n\n"
         "Respond with valid JSON ONLY in this exact shape:\n"
         '{\n'
         '  "conflict": true|false,\n'
+        '  "confidence": 0.0-1.0,\n'
         '  "reason": "one short sentence describing the conflict, or null",\n'
         '  "affected_fields": ["instructions"|"schedule"]\n'
         '}\n'
-        "If conflict is false, set reason to null and affected_fields to []. "
-        "If conflict is true, list every field involved (typically both 'instructions' and 'schedule')."
+        "Set conflict=true ONLY when confidence is at least 0.9. If you are uncertain, "
+        "set conflict=false. If conflict is false, set reason to null and affected_fields "
+        "to []. If conflict is true, list every field involved (typically both 'instructions' "
+        "and 'schedule')."
     )
+
+    # Minimum confidence at which we trust the model's `conflict=true` verdict.
+    # Below this we treat the response as a soft signal and fail open so the
+    # user is never blocked from saving by an uncertain false positive.
+    _CONFLICT_CONFIDENCE_THRESHOLD = 0.9
 
     async def validate_conflict(
         self,
@@ -704,6 +712,20 @@ REMEMBER:
                 parsed = json.loads(json_match.group())
 
             conflict = bool(parsed.get("conflict", False))
+            # Gate `conflict=true` on a confidence threshold so the prompt's
+            # "be conservative" rubric has an actual guard. Missing/invalid
+            # confidence means we cannot trust a True verdict, so fail open.
+            raw_confidence = parsed.get("confidence")
+            try:
+                confidence = float(raw_confidence) if raw_confidence is not None else 0.0
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if conflict and confidence < self._CONFLICT_CONFIDENCE_THRESHOLD:
+                log.info(
+                    "Conflict validator suppressed low-confidence verdict (confidence=%.2f)",
+                    confidence,
+                )
+                conflict = False
             reason = parsed.get("reason")
             if reason is not None and not isinstance(reason, str):
                 reason = None
@@ -721,7 +743,7 @@ REMEMBER:
             return ConflictValidationResponse(
                 conflict=conflict,
                 reason=reason if conflict else None,
-                affected_fields=affected_fields,
+                affected_fields=affected_fields if conflict else [],
             )
         except Exception as e:
             log.error("Conflict validation LLM call failed: %s", e, exc_info=True)
