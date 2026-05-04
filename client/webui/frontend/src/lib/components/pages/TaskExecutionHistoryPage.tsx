@@ -127,7 +127,7 @@ const ConfigurationSidebar: React.FC<{
 
     return (
         <aside className="flex h-full w-[320px] flex-col overflow-y-auto border-r bg-(--background-w10)">
-            <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center justify-between px-8 py-4">
                 <h2 className="text-base font-semibold">Configuration</h2>
                 <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" onClick={onEdit} className="h-8 px-2">
@@ -169,7 +169,7 @@ const ConfigurationSidebar: React.FC<{
                 </div>
             </div>
 
-            <div className="space-y-5 px-6 py-5">
+            <div className="space-y-5 px-8 py-5">
                 <ConfigField label="Name">{name}</ConfigField>
                 <ConfigField label="Description" multiline>
                     {description || <span className="text-(--secondary-text-wMain) italic">No description</span>}
