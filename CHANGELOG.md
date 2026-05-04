@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.0...1.23.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **agent:** lazy-init DynamicModelProvider for per-request model_override ([#1496](https://github.com/SolaceLabs/solace-agent-mesh/issues/1496)) ([371d6e9](https://github.com/SolaceLabs/solace-agent-mesh/commit/371d6e93581f1b5c602bc369a075614197a2b763))
+
 ## [1.23.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.1...1.23.0) (2026-04-30)
 
 
