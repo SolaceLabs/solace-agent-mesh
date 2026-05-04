@@ -37,7 +37,7 @@ const getStatusBadge = (status: string) => {
         error: { bg: "bg-(--error-w20)", text: "text-(--error-wMain)", label: "Error" },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
+    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>{config.label}</span>;
 };
 
 export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, selectedExecution, onSelect, isLoading }) => {

@@ -107,6 +107,7 @@ const ConfigurationSidebar: React.FC<{
     onDelete: () => void;
     isRunNowPending: boolean;
 }> = ({ task, execution, onEdit, onRunNow, onToggleEnabled, onDelete, isRunNowPending }) => {
+    const navigate = useNavigate();
     const canRunNow = task.scheduleType !== "one_time" && task.source !== "config";
     const { agentNameMap } = useAgentCards();
     // Prefer the per-execution snapshot so the sidebar reflects the config
@@ -177,7 +178,9 @@ const ConfigurationSidebar: React.FC<{
                 <ConfigField label="Schedule">{formatSchedule({ scheduleType, scheduleExpression })}</ConfigField>
                 <ConfigField label="Timezone">{timezone}</ConfigField>
                 <ConfigField label={targetType === "workflow" ? "Workflow" : "Agent"}>
-                    <span className="text-(--primary-text-wMain)">{agentDisplay}</span>
+                    <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/agents?agent=${encodeURIComponent(targetAgentName)}`)}>
+                        {agentDisplay}
+                    </Button>
                 </ConfigField>
                 <ConfigField label="Output">Chat</ConfigField>
                 <ConfigField label="Instructions" multiline>
@@ -377,7 +380,7 @@ const ExecutionHistoryTable: React.FC<{
             <div className="overflow-hidden rounded-md border">
                 <Table>
                     <TableHeader>
-                        <TableRow>
+                        <TableRow className="hover:bg-transparent">
                             <TableHead className="px-4 font-semibold">Completed On</TableHead>
                             <TableHead className="px-4 font-semibold">Status</TableHead>
                             <TableHead className="px-4 font-semibold">Duration</TableHead>

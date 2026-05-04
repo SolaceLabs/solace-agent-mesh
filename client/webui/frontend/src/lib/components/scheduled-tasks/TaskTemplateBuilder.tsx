@@ -520,7 +520,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-name">
-                                            Task Name <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Task Name <span className="text-(--primary-wMain)">*</span>
                                         </Label>
                                         <Input id="task-name" placeholder="e.g., Daily Report Generation" value={config.name} onChange={e => updateConfig({ name: e.target.value })} className={validationErrors.name ? "border-(--error-w100)" : ""} />
                                         {validationErrors.name && <p className="text-sm text-(--error-wMain)">{validationErrors.name}</p>}
@@ -539,7 +539,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="schedule-type">
-                                                Schedule Type <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                Schedule Type <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Select
                                                 value={config.scheduleType}
@@ -562,7 +562,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                         <div className="space-y-2">
                                             <Label htmlFor="timezone">
-                                                Timezone <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                Timezone <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
                                                 <SelectTrigger className="w-full">
@@ -591,7 +591,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                 <>
                                                     <div className="space-y-2">
                                                         <Label htmlFor="interval-value">
-                                                            Interval <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                            Interval <span className="text-(--primary-wMain)">*</span>
                                                         </Label>
                                                         <div className="flex items-center gap-2">
                                                             <IntervalValueInput value={parsed.value} unit={parsed.unit} onChange={n => updateConfig({ scheduleExpression: `${n}${parsed.unit}` })} invalid={invalid} />
@@ -620,7 +620,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                         <>
                                             <div className="space-y-2">
                                                 <Label>
-                                                    Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                    Date & Time <span className="text-(--primary-wMain)">*</span>
                                                 </Label>
                                                 <div className="flex items-center gap-2">
                                                     <DatePicker
@@ -652,10 +652,17 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Task Configuration</h3>
 
+                                    <div className="space-y-2">
+                                        <Label>
+                                            Output <span className="text-(--primary-wMain)">*</span>
+                                        </Label>
+                                        <p className="text-sm">Chat</p>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
                                             <Label htmlFor="target-type">
-                                                Target <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                Target <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
                                                 <SelectTrigger className="w-full">
@@ -670,7 +677,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                         <div className="space-y-2">
                                             <Label htmlFor="target-agent">
-                                                {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-[var(--color-primary-wMain)]">*</span>
+                                                {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
                                                 <SelectTrigger className={cn("w-full", validationErrors.targetAgentName && "border-(--error-w100)")}>
@@ -692,7 +699,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-message">
-                                            Instructions <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Instructions <span className="text-(--primary-wMain)">*</span>
                                         </Label>
                                         <p className="text-sm text-(--secondary-text-wMain)">Enter the task instructions for the agent to execute on the configured schedule.</p>
                                         <Textarea

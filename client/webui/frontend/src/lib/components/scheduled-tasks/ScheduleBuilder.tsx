@@ -637,28 +637,19 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
 
                 {/* Syntax Guide */}
                 <div className="space-y-2 rounded-lg bg-(--secondary-w10) p-3">
-                    <p className="text-xs font-semibold text-(--secondary-text-wMain)">Common Examples:</p>
-                    <div className="space-y-1 font-mono text-xs">
-                        <div className="flex justify-between">
-                            <span className="text-(--primary-wMain)">0 9 * * *</span>
-                            <span className="text-(--secondary-text-wMain)">Every day at 9:00 AM</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-(--primary-wMain)">0 */6 * * *</span>
-                            <span className="text-(--secondary-text-wMain)">Every 6 hours</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-(--primary-wMain)">0 9 * * 1</span>
-                            <span className="text-(--secondary-text-wMain)">Every Monday at 9:00 AM</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-(--primary-wMain)">0 0 1 * *</span>
-                            <span className="text-(--secondary-text-wMain)">First day of month at midnight</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-(--primary-wMain)">*/15 * * * *</span>
-                            <span className="text-(--secondary-text-wMain)">Every 15 minutes</span>
-                        </div>
+                    <p className="text-xs text-(--secondary-text-wMain)">Examples</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                        {[
+                            ["0 9 * * *", "Every day at 9:00 AM"],
+                            ["0 0 1 * *", "First day of the month at midnight"],
+                            ["0 */6 * * *", "Every 6 hours"],
+                            ["0 9 * * 1", "Every Monday at 9:00 AM"],
+                        ].map(([cron, label]) => (
+                            <div key={cron} className="flex items-center gap-4">
+                                <span className="w-20 font-mono text-(--primary-wMain)">{cron}</span>
+                                <span className="text-(--secondary-text-wMain)">{label}</span>
+                            </div>
+                        ))}
                     </div>
                     <p className="mt-2 text-xs text-(--secondary-text-wMain)">
                         Use <span className="font-mono">*</span> for "any", <span className="font-mono">,</span> for lists, <span className="font-mono">-</span> for ranges, <span className="font-mono">/</span> for intervals

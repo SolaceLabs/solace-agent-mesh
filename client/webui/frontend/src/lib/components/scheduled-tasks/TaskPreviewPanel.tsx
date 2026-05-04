@@ -184,6 +184,7 @@ export const TaskPreviewPanel: React.FC<TaskPreviewPanelProps> = ({ config, high
                 <div>
                     <CardTitle className="mb-4 text-base">Task Configuration</CardTitle>
                     <div className="space-y-4">
+                        <FieldRow label="Output" value="Chat" />
                         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                             <FieldRow label="Target" value={config.targetType === "workflow" ? "Workflow" : "Agent"} updated={isFieldHighlighted("targetType")} />
                             <FieldRow label={config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} value={targetAgentDisplay} updated={isFieldHighlighted("targetAgentName")} emptyLabel="Not set" />
