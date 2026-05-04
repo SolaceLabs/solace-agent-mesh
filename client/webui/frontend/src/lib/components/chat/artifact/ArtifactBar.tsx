@@ -176,7 +176,7 @@ export const ArtifactBar: React.FC<ArtifactBarProps> = ({
                 context === "list" ? "border-b" : "rounded",
                 isClickable && "cursor-pointer",
                 isDeleted && "opacity-60",
-                showShadow && "card-surface-shadow",
+                showShadow && "card-surface",
                 isClickable && "card-surface-hover"
             )}
             onClick={isClickable ? handleBarClick : undefined}
