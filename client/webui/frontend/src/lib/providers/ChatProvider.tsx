@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
@@ -11,7 +10,7 @@ import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -33,11 +32,6 @@ import type {
     RAGSearchResult,
     ArtifactInfo,
 } from "@/lib/types";
-
-// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
-// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
-// Note: may be able to remove this workaround with next version of uuid
-const v4 = () => uuidv4({});
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -892,7 +886,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     api.webui
                         .post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                             jsonrpc: "2.0",
-                            id: `req-${v4()}`,
+                            id: `req-${uuid()}`,
                             method: "tasks/cancel",
                             params: { id: currentTaskId },
                         })
@@ -1012,7 +1006,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     try {
                         await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                             jsonrpc: "2.0",
-                            id: `req-${v4()}`,
+                            id: `req-${uuid()}`,
                             method: "tasks/cancel",
                             params: { id: currentTaskId },
                         });
@@ -1246,7 +1240,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${v4()}`,
+                id: `req-${uuid()}`,
                 method: "tasks/cancel",
                 params: { id: currentTaskId },
             };
@@ -1370,7 +1364,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 contextQuote: contextQuote || undefined,
                 contextQuoteSourceId: contextQuoteSourceId || undefined,
                 metadata: {
-                    messageId: `msg-${v4()}`,
+                    messageId: `msg-${uuid()}`,
                     sessionId: overrideSessionId || sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1498,7 +1492,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${v4()}`,
+                    messageId: `msg-${uuid()}`,
                     kind: "message",
                     contextId: effectiveSessionId,
                     metadata: messageMetadata,
@@ -1509,7 +1503,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${v4()}`,
+                    id: `req-${uuid()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,

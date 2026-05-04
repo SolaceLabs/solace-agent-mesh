@@ -22,7 +22,7 @@ React 19, TanStack Query v5, Tailwind v4, Radix UI, Vitest, Playwright
 
 ## Utilities
 
-- For UUIDs, use `uuidv4({})` from `uuid` — never `crypto.randomUUID()` (breaks in HTTP contexts)
+- For UUIDs, use `uuidv4({})` from `uuid` — never `crypto.randomUUID()`, which is undefined outside secure contexts (HTTPS/localhost) and throws when the app is served over plain HTTP
 
 ## Tests
 

@@ -1,12 +1,12 @@
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { Brain, CircleDashed, Loader2, Pencil, Plus, Trash2, Play } from "lucide-react";
-import { v4 as uuidv4 } from "uuid";
 
 import { useSubmitPlanResponse } from "@/lib/api";
 import { Button } from "@/lib/components/ui/button";
 import { Input } from "@/lib/components/ui/input";
 import { useChatContext } from "@/lib/hooks";
 import type { DataPart } from "@/lib/types";
+import { uuid } from "@/lib/utils/uuid";
 
 import { getRespondedPlansSnapshot, markPlanResponded, subscribeRespondedPlans } from "./respondedPlansStore";
 
@@ -38,7 +38,7 @@ interface EditableStep {
     value: string;
 }
 
-const makeStepId = () => uuidv4({});
+const makeStepId = () => uuid();
 
 const toEditableSteps = (steps: string[]): EditableStep[] => steps.map(value => ({ id: makeStepId(), value }));
 
