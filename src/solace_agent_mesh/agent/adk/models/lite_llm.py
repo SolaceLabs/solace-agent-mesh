@@ -979,7 +979,7 @@ Functions:
 -----------------------------------------------------------
 """
 
-_NON_COMPLETION_KEYS = frozenset({"cache_strategy", "thinking", "type"})
+_NON_COMPLETION_KEYS = frozenset({"cache_strategy", "thinking", "type", "max_input_tokens"})
 """Config keys used during initialization but not valid as litellm.completion() kwargs."""
 
 VALID_CACHE_STRATEGIES = ["none", "5m", "1h"]
