@@ -185,3 +185,13 @@ class ScheduledTaskService:
     def get_execution_by_a2a_task_id(self, db: DBSession, a2a_task_id: str) -> Any:
         """Find an execution by its A2A task ID."""
         return self.repo.find_execution_by_a2a_task_id(db, a2a_task_id)
+
+    def get_execution(self, db: DBSession, execution_id: str) -> Any:
+        """Find a single execution by id."""
+        return self.repo.find_execution_by_id(db, execution_id)
+
+    def delete_execution(self, db: DBSession, execution_id: str) -> bool:
+        """Hard delete a single execution and commit."""
+        deleted = self.repo.delete_execution(db, execution_id)
+        db.commit()
+        return deleted

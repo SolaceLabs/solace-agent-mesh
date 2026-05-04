@@ -326,6 +326,8 @@ class ExecutionResponse(BaseModel):
     artifacts: Optional[List[Union[str, Dict[str, Any], ArtifactInfo]]]
     notifications_sent: Optional[List[Dict[str, Any]]]
 
+    task_snapshot: Optional[Dict[str, Any]] = None
+
     class Config:
         from_attributes = True
 
@@ -347,6 +349,7 @@ class ExecutionResponse(BaseModel):
             'triggered_by': getattr(obj, 'triggered_by', None),
             'artifacts': obj.artifacts,
             'notifications_sent': obj.notifications_sent,
+            'task_snapshot': getattr(obj, 'task_snapshot', None),
         }
 
         if obj.started_at and obj.completed_at:

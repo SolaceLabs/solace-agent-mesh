@@ -531,6 +531,39 @@ async def get_execution_by_a2a_task_id(
         raise HTTPException(status_code=500, detail="Failed to fetch execution") from e
 
 
+@router.delete("/executions/{execution_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_execution(
+    execution_id: str,
+    db: DBSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(get_user_config),
+    config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
+):
+    """Hard-delete a single execution from a task's history."""
+    _validate_scheduling_permission(user_config, config_resolver)
+    user_id = user.get("id")
+    try:
+        execution = task_service.get_execution(db, execution_id)
+        if not execution:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        task = task_service.get_task(db, execution.scheduled_task_id, user_id=user_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Execution not found")
+        _check_task_ownership(task, user_id, user)
+
+        deleted = task_service.delete_execution(db, execution_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Execution not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error("Error deleting execution %s: %s", execution_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete execution") from e
+
+
 @router.get("/scheduler/status", response_model=SchedulerStatusResponse)
 async def get_scheduler_status(
     user: dict = Depends(get_current_user),

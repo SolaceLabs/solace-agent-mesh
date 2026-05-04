@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Calendar, CalendarDays, User, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
+import { X, CalendarDays, MoreHorizontal, Pencil, Trash2, History, Play, Pause, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
@@ -89,12 +89,6 @@ interface TaskDetailSidePanelProps {
     onRunNow?: (task: ScheduledTask) => void;
     isRunNowPending?: boolean;
 }
-
-const formatTimestamp = (timestamp: number): string => {
-    // Auto-detect if timestamp is in seconds or milliseconds
-    const ts = timestamp < 10000000000 ? timestamp * 1000 : timestamp;
-    return new Date(ts).toLocaleString();
-};
 
 export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, onClose, onEdit, onDelete, onViewExecutions, onToggleEnabled, onRunNow, isRunNowPending = false }) => {
     if (!task) return null;
@@ -206,26 +200,6 @@ export const TaskDetailSidePanel: React.FC<TaskDetailSidePanelProps> = ({ task, 
 
                 {/* Execution History — compact recent-runs list with link to full page. */}
                 <ExecutionHistory taskId={task.id} onViewAll={() => onViewExecutions(task)} />
-            </div>
-
-            {/* Metadata footer */}
-            <div className="space-y-2 border-t bg-(--background-w10) p-4">
-                <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
-                    <User size={12} />
-                    <span>Created by: {task.createdBy || task.userId || "System"}</span>
-                </div>
-                {task.createdAt && (
-                    <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
-                        <Calendar size={12} />
-                        <span>Created: {formatTimestamp(task.createdAt)}</span>
-                    </div>
-                )}
-                {task.updatedAt && task.updatedAt !== task.createdAt && (
-                    <div className="flex items-center gap-2 text-xs text-(--secondary-text-wMain)">
-                        <Calendar size={12} />
-                        <span>Last updated: {formatTimestamp(task.updatedAt)}</span>
-                    </div>
-                )}
             </div>
         </div>
     );

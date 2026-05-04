@@ -11,5 +11,6 @@ export const scheduledTaskKeys = {
     executions: (taskId: string) => [...scheduledTaskKeys.detail(taskId), "executions"] as const,
     executionList: (taskId: string, filters?: { pageNumber?: number; pageSize?: number }) => [...scheduledTaskKeys.executions(taskId), { filters }] as const,
     recentExecutions: (limit: number) => [...scheduledTaskKeys.all, "recent-executions", limit] as const,
+    executionArtifacts: (executionId: string) => [...scheduledTaskKeys.all, "execution-artifacts", executionId] as const,
     schedulerStatus: () => [...scheduledTaskKeys.all, "scheduler-status"] as const,
 };
