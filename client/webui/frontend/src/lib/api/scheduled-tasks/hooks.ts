@@ -106,10 +106,13 @@ export function useDeleteExecution(taskId: string) {
 
     return useMutation({
         mutationFn: (executionId: string) => scheduledTaskService.deleteExecution(executionId),
-        onSuccess: () => {
+        onSuccess: (_, executionId) => {
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.executions(taskId) });
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
             queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            // Drop the deleted execution's artifacts cache so a future
+            // execution that reuses the same id can't serve stale artifacts.
+            queryClient.removeQueries({ queryKey: scheduledTaskKeys.executionArtifacts(executionId) });
         },
     });
 }

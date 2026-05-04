@@ -8,7 +8,8 @@ import { TaskPreviewPanel } from "./TaskPreviewPanel";
 import { ScheduleBuilder, SchedulePreviewBox, TimeOfDayPicker } from "./ScheduleBuilder";
 import { describeScheduleExpression } from "./utils";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
-import { useCreateScheduledTask, useUpdateScheduledTask, validateTaskConflict } from "@/lib/api/scheduled-tasks";
+import { useCreateScheduledTask, useUpdateScheduledTask, scheduledTaskService } from "@/lib/api/scheduled-tasks";
+import { cn } from "@/lib/utils";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
 
 // Common timezones for the dropdown
@@ -91,7 +92,7 @@ const IntervalValueInput: React.FC<{ value: number; unit: IntervalUnit; onChange
                     setDraft(Number.isFinite(value) ? String(value) : "");
                 }
             }}
-            className={`max-w-[7rem] ${invalid ? "border-(--error-w100)" : ""}`}
+            className={cn("max-w-[7rem]", invalid && "border-(--error-w100)")}
             aria-invalid={invalid}
         />
     );
@@ -374,7 +375,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (!alreadyWarned) {
             setIsCheckingConflict(true);
             try {
-                const result = await validateTaskConflict({
+                const result = await scheduledTaskService.validateTaskConflict({
                     instructions: config.taskMessage,
                     scheduleType: config.scheduleType,
                     scheduleExpression: config.scheduleExpression,
@@ -392,7 +393,9 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     return;
                 }
             } catch (e) {
-                // Fail open — don't block the user if validation itself errors.
+                // Fail open — don't block the user if validation itself errors,
+                // but surface the failure so a regression in the conflict
+                // endpoint or schema doesn't disappear silently.
                 console.warn("Conflict validation failed, proceeding with save:", e);
             }
             setIsCheckingConflict(false);
@@ -499,7 +502,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 {/* Content area with left and right panels */}
                 <div className="flex min-h-0 flex-1">
                     {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
-                    <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
+                    <div className={cn("w-[40%] overflow-hidden border-r", builderMode === "manual" && "hidden")}>
                         <TaskBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} availableAgents={agents} isEditing={isEditing} />
                     </div>
 
@@ -548,7 +551,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                     updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
                                                 }}
                                             >
-                                                <SelectTrigger className={`w-full ${conflictError?.fields.includes("schedule") ? "border-(--error-w100)" : ""}`}>
+                                                <SelectTrigger className={cn("w-full", conflictError?.fields.includes("schedule") && "border-(--error-w100)")}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -596,7 +599,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                         <div className="flex items-center gap-2">
                                                             <IntervalValueInput value={parsed.value} unit={parsed.unit} onChange={n => updateConfig({ scheduleExpression: `${n}${parsed.unit}` })} invalid={invalid} />
                                                             <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
-                                                                <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-(--error-w100)" : ""}`} aria-invalid={invalid}>
+                                                                <SelectTrigger className={cn("max-w-[10rem]", invalid && "border-(--error-w100)")} aria-invalid={invalid}>
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -673,7 +676,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                 {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-[var(--color-primary-wMain)]">*</span>
                                             </Label>
                                             <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
-                                                <SelectTrigger className={`w-full ${validationErrors.targetAgentName ? "border-(--error-w100)" : ""}`}>
+                                                <SelectTrigger className={cn("w-full", validationErrors.targetAgentName && "border-(--error-w100)")}>
                                                     <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
                                                 </SelectTrigger>
                                                 <SelectContent>

@@ -548,7 +548,7 @@ class SchedulerService:
                 "schedule_type": task.schedule_type.value if hasattr(task.schedule_type, "value") else task.schedule_type,
                 "schedule_expression": task.schedule_expression,
                 "target_agent_name": task.target_agent_name,
-                "target_type": task.target_type,
+                "target_type": task.target_type.value if hasattr(task.target_type, "value") else task.target_type,
                 "user_id": task.user_id,
                 "created_by": task.created_by,
                 "timezone": task.timezone,

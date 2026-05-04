@@ -578,8 +578,11 @@ REMEMBER:
                 allowed_agent_names=sanitized_agent_names,
             )
             # Don't pre-fill target_agent_name when we're asking the user to pick.
+            # Explicitly emit None so any previously-persisted agent on the task
+            # is cleared from the form — otherwise the picker and the stale
+            # selection would render side by side.
             if inline_component is not None:
-                task_updates.pop("target_agent_name", None)
+                task_updates["target_agent_name"] = None
                 ready_to_save = False
 
             return TaskBuilderResponse(

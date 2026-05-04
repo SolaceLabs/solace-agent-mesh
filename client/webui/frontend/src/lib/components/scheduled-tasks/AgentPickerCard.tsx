@@ -40,7 +40,11 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
     const [selectedRadio, setSelectedRadio] = useState<string>(() => {
         if (resolvedIsOther) return OTHER_VALUE;
         if (resolvedAgentName) return resolvedAgentName;
-        return suggestions[0]?.name ?? (allowOther ? OTHER_VALUE : "");
+        if (suggestions[0]?.name) return suggestions[0].name;
+        // Only fall back to OTHER when there's actually an "Other" branch to
+        // render — otherwise the radio would be invisible and Save unusable.
+        if (allowOther && otherAgents.length > 0) return OTHER_VALUE;
+        return "";
     });
     const [otherSelected, setOtherSelected] = useState<string>(() => (resolvedIsOther ? resolvedAgentName! : initialOtherAgent));
 
@@ -54,6 +58,17 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
         if (!canSave) return;
         onSelect(chosenAgent);
     };
+
+    const hasAnyChoice = suggestions.length > 0 || (allowOther && otherAgents.length > 0);
+
+    if (!hasAnyChoice) {
+        return (
+            <div className="not-prose mt-3 rounded-lg border bg-(--background-w10) p-4">
+                <p className="mb-2 text-sm font-medium text-(--primary-text-wMain)">{prompt}</p>
+                <p className="text-xs text-(--secondary-text-wMain)">No agents available to select.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="not-prose mt-3 rounded-lg border bg-(--background-w10) p-4">

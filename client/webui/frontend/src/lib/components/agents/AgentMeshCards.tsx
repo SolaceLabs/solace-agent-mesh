@@ -21,9 +21,15 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selected
 
     // Honor deep-links arriving (or changing) after mount: expand the targeted
     // agent, clear any active filter that would hide it, and scroll it into view.
+    // Guarded by a ref so a polling refetch of `agents` doesn't clobber the
+    // user's manual selection — only react when the deep-link value itself
+    // changes.
+    const lastAppliedSelection = useRef<string | null>(null);
     useEffect(() => {
         if (!selectedAgent) return;
+        if (lastAppliedSelection.current === selectedAgent) return;
         if (!agents.some(a => a.name === selectedAgent)) return;
+        lastAppliedSelection.current = selectedAgent;
         setExpandedAgentName(selectedAgent);
         setSearchQuery("");
         const node = cardRefs.current[selectedAgent];

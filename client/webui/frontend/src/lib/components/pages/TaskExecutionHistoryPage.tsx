@@ -43,10 +43,13 @@ import {
 } from "@/lib/components/ui";
 import { ExecutionArtifactsView, ExecutionInlineArtifacts } from "@/lib/components/scheduled-tasks/ExecutionArtifactsView";
 import { MarkdownWrapper } from "@/lib/components";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useAgentCards } from "@/lib/hooks";
 import { useTaskExecutions, useRunScheduledTaskNow, useEnableScheduledTask, useDisableScheduledTask, useDeleteExecution, useExecutionArtifacts } from "@/lib/api/scheduled-tasks";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 import { formatDuration } from "@/lib/utils/format";
+import { cn } from "@/lib/utils";
+import { formatSchedule } from "@/lib/components/scheduled-tasks/utils";
+import { getStatusBadge } from "@/lib/components/scheduled-tasks/ExecutionList";
 
 // "YYYY-MM-DD HH:MM:SS" in the user's local timezone — matches the executions
 // page mock. Auto-detects whether the timestamp is in seconds or milliseconds.
@@ -78,9 +81,6 @@ function formatDurationVerbose(ms: number): string {
     if (parts.length === 0) return "0 seconds";
     return parts.slice(0, 2).join(" ");
 }
-import { formatSchedule } from "@/lib/components/scheduled-tasks/utils";
-import { getStatusBadge } from "@/lib/components/scheduled-tasks/ExecutionList";
-import { useAgentCards } from "@/lib/hooks";
 
 const PAGE_SIZE = 10;
 const IN_PROGRESS_STATUSES: ReadonlySet<TaskExecution["status"]> = new Set(["pending", "running"]);
@@ -432,10 +432,10 @@ const ExecutionHistoryTable: React.FC<{
             <h3 className="mb-3 text-base font-semibold">Execution History</h3>
 
             <div className="mb-3 flex items-center gap-2">
-                <span className="text-xs text-(--secondary-text-wMain)">From</span>
-                <DatePicker value={filterFrom} onChange={onFilterFromChange} placeholder="Any date" className="w-48" />
-                <span className="text-xs text-(--secondary-text-wMain)">To</span>
-                <DatePicker value={filterTo} onChange={onFilterToChange} min={filterFrom || undefined} placeholder="Any date" className="w-48" />
+                <span className="text-xs text-(--secondary-text-wMain)">Date Range</span>
+                <DatePicker value={filterFrom} onChange={onFilterFromChange} placeholder="YYYY-MM-DD" className={cn("w-48", filterFrom && "text-(--primary-text-wMain)")} />
+                <span className="text-sm text-(--secondary-text-wMain)">to</span>
+                <DatePicker value={filterTo} onChange={onFilterToChange} min={filterFrom || undefined} placeholder="YYYY-MM-DD" className={cn("w-48", filterTo && "text-(--primary-text-wMain)")} />
                 {hasFilter && (
                     <Button
                         variant="ghost"
@@ -599,19 +599,35 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
     const [filterFrom, setFilterFrom] = useState("");
     const [filterTo, setFilterTo] = useState("");
 
-    // Convert YYYY-MM-DD → epoch ms. "From" is start-of-day, "To" is end-of-day
-    // so "2026-05-04" inclusively covers all runs that day.
+    // Convert YYYY-MM-DD → epoch ms in the user's *browser* timezone — that's
+    // the same timezone the row timestamps render in, so picking "May 4" in
+    // the filter matches the rows whose displayed Completed On is May 4.
+    // "From" is start-of-day, "To" is end-of-day so a single date inclusively
+    // covers all runs that day.
     const filterFromMs = filterFrom ? new Date(`${filterFrom}T00:00:00`).getTime() : null;
     const filterToMs = filterTo ? new Date(`${filterTo}T23:59:59.999`).getTime() : null;
 
-    // Reset to page 1 when filter changes so we don't end up on an empty page.
-    React.useEffect(() => {
+    // Reset page in the same handler that updates the filter so we don't fire
+    // a query with the stale page first and then a second query after a
+    // useEffect resets it.
+    const handleFilterFromChange = (value: string) => {
+        setFilterFrom(value);
         setPage(1);
-    }, [filterFrom, filterTo]);
+    };
+    const handleFilterToChange = (value: string) => {
+        setFilterTo(value);
+        setPage(1);
+    };
 
     const { data, isLoading, refetch } = useTaskExecutions(task.id, page, PAGE_SIZE, filterFromMs, filterToMs);
     const executions = data?.executions ?? [];
     const totalCount = data?.total ?? executions.length;
+
+    // The "Latest Execution" panel and the Configuration sidebar's snapshot
+    // must reflect the actual most recent run, independent of the table's
+    // current page or date filter. Fetch page 1, size 1, unfiltered.
+    const { data: latestData, refetch: refetchLatest } = useTaskExecutions(task.id, 1, 1, null, null);
+    const latestExecutionFromQuery = latestData?.executions?.[0] ?? null;
 
     const runNowMutation = useRunScheduledTaskNow();
     const enableMutation = useEnableScheduledTask();
@@ -623,25 +639,31 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
 
     // Smart polling — fast while a run is in flight, slow otherwise. Mirrors
     // the previous page's behavior so users see live updates without a refresh.
-    const hasActive = executions.some(e => IN_PROGRESS_STATUSES.has(e.status));
+    const hasActive = executions.some(e => IN_PROGRESS_STATUSES.has(e.status)) || (latestExecutionFromQuery ? IN_PROGRESS_STATUSES.has(latestExecutionFromQuery.status) : false);
     React.useEffect(() => {
         let timerId: ReturnType<typeof setTimeout>;
         const tick = () => {
-            if (!document.hidden) refetch();
+            if (!document.hidden) {
+                refetch();
+                refetchLatest();
+            }
             timerId = setTimeout(tick, hasActive ? 5_000 : 30_000);
         };
         timerId = setTimeout(tick, hasActive ? 5_000 : 30_000);
         const onVis = () => {
-            if (!document.hidden) refetch();
+            if (!document.hidden) {
+                refetch();
+                refetchLatest();
+            }
         };
         document.addEventListener("visibilitychange", onVis);
         return () => {
             clearTimeout(timerId);
             document.removeEventListener("visibilitychange", onVis);
         };
-    }, [refetch, hasActive]);
+    }, [refetch, refetchLatest, hasActive]);
 
-    const latestExecution = executions[0] ?? null;
+    const latestExecution = latestExecutionFromQuery;
     const selectedExecution = selectedExecutionId ? (executions.find(e => e.id === selectedExecutionId) ?? null) : null;
     // The Configuration sidebar reflects the currently-displayed execution's
     // snapshot — latest by default, or the row the user opened.
@@ -690,8 +712,8 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                                 onDeleteExecution={setExecutionToDelete}
                                 filterFrom={filterFrom}
                                 filterTo={filterTo}
-                                onFilterFromChange={setFilterFrom}
-                                onFilterToChange={setFilterTo}
+                                onFilterFromChange={handleFilterFromChange}
+                                onFilterToChange={handleFilterToChange}
                             />
                         </>
                     )}

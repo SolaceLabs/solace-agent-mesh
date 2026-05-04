@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, ChevronDown, X } from "lucide-react";
 import { MessageBanner } from "@/lib/components/common/MessageBanner";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
+import { cn } from "@/lib/utils";
 import { describeScheduleExpression } from "./utils";
 
 const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -66,7 +67,7 @@ const DaysOfWeekPicker: React.FC<{ selected: number[]; onChange: (days: number[]
                     {DAY_LABELS.map((label, idx) => {
                         const isSelected = selected.includes(idx);
                         return (
-                            <button key={idx} type="button" onClick={() => toggle(idx)} className={`flex items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-(--secondary-w10) ${isSelected ? "font-medium" : ""}`}>
+                            <button key={idx} type="button" onClick={() => toggle(idx)} className={cn("flex items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-(--secondary-w10)", isSelected && "font-medium")}>
                                 <span>{label}</span>
                                 {isSelected && <CheckCircle2 className="h-4 w-4 text-(--primary-wMain)" />}
                             </button>
@@ -213,6 +214,11 @@ type FrequencyType = "daily" | "weekly" | "monthly" | "custom";
 // Nth occurrence within a month: "1"=First, "2"=Second, "3"=Third, "4"=Fourth, "L"=Last.
 type MonthNth = "1" | "2" | "3" | "4" | "L";
 
+// "weekday" → Nth weekday of the month (e.g. "First Monday"); "date" → numeric
+// day-of-month (e.g. "the 15th"). Legacy tasks created before the Nth-weekday
+// builder used the date form, so we still need to parse and emit it.
+type MonthlyMode = "weekday" | "date";
+
 const MONTH_NTH_LABELS: Record<MonthNth, string> = {
     "1": "First",
     "2": "Second",
@@ -226,8 +232,10 @@ interface ScheduleConfig {
     time: string; // HH:MM format
     ampm: "AM" | "PM";
     weekDays: number[]; // 0-6 (Sunday-Saturday)
+    monthlyMode: MonthlyMode;
     monthNth: MonthNth; // which occurrence of the chosen weekday in the month
     monthWeekday: number; // 0-6 (Sunday-Saturday)
+    monthDay: number; // 1-31, used when monthlyMode === "date"
 }
 
 // Convert schedule config to cron expression
@@ -261,6 +269,10 @@ function scheduleToCron(config: ScheduleConfig): string {
         }
 
         case "monthly": {
+            if (config.monthlyMode === "date") {
+                const day = Math.max(1, Math.min(31, Math.floor(config.monthDay) || 1));
+                return `${minutes} ${hour} ${day} * *`;
+            }
             const wd = config.monthWeekday;
             // croniter accepts both `D#N` (Nth weekday) and `DL` (last weekday).
             if (config.monthNth === "L") {
@@ -327,8 +339,10 @@ function cronToSchedule(cron: string): ScheduleConfig | null {
         time,
         ampm,
         weekDays: [],
+        monthlyMode: "weekday",
         monthNth: "1",
         monthWeekday: 1,
+        monthDay: 1,
     };
 
     let candidate: ScheduleConfig;
@@ -342,20 +356,26 @@ function cronToSchedule(cron: string): ScheduleConfig | null {
         const [wdStr, nStr] = dayOfWeek.split("#");
         const wd = parseInt(wdStr);
         if (wd < 0 || wd > 6) return customFallback;
-        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthNth: nStr as MonthNth, monthWeekday: wd };
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthlyMode: "weekday", monthNth: nStr as MonthNth, monthWeekday: wd, monthDay: 1 };
     } else if (dayOfMonth === "*" && /^\dL$/i.test(dayOfWeek)) {
         // Last weekday of month, e.g. "5L" = last Friday.
         const wd = parseInt(dayOfWeek[0]);
         if (wd < 0 || wd > 6) return customFallback;
-        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthNth: "L", monthWeekday: wd };
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthlyMode: "weekday", monthNth: "L", monthWeekday: wd, monthDay: 1 };
+    } else if (dayOfWeek === "*" && /^\d+$/.test(dayOfMonth)) {
+        // Numeric day-of-month, e.g. "0 9 15 * *" = the 15th at 9am. This is
+        // the legacy monthly preset; recognise it so existing tasks open in
+        // the Monthly mode rather than spilling out as raw cron.
+        const day = parseInt(dayOfMonth);
+        if (day < 1 || day > 31) return customFallback;
+        candidate = { frequency: "monthly", time, ampm, weekDays: [], monthlyMode: "date", monthNth: "1", monthWeekday: 1, monthDay: day };
     } else if (dayOfWeek !== "*" && /^\d+(,\d+)*$/.test(dayOfWeek)) {
         const days = dayOfWeek.split(",").map(d => parseInt(d));
-        candidate = { frequency: "weekly", time, ampm, weekDays: days, monthNth: "1", monthWeekday: 1 };
+        candidate = { frequency: "weekly", time, ampm, weekDays: days, monthlyMode: "weekday", monthNth: "1", monthWeekday: 1, monthDay: 1 };
     } else if (dayOfMonth === "*" && dayOfWeek === "*") {
-        candidate = { frequency: "daily", time, ampm, weekDays: [], monthNth: "1", monthWeekday: 1 };
+        candidate = { frequency: "daily", time, ampm, weekDays: [], monthlyMode: "weekday", monthNth: "1", monthWeekday: 1, monthDay: 1 };
     } else {
-        // Anything else (plain day-of-month, ranges, lists in dayOfMonth, etc.)
-        // doesn't fit the Nth-weekday Monthly preset — fall back to Custom.
+        // Anything else (ranges, lists in dayOfMonth, etc.) — preserve verbatim.
         return customFallback;
     }
 
@@ -386,6 +406,12 @@ function getScheduleDescription(config: ScheduleConfig): string {
         }
 
         case "monthly": {
+            if (config.monthlyMode === "date") {
+                const day = Math.max(1, Math.min(31, Math.floor(config.monthDay) || 1));
+                const mod100 = day % 100;
+                const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+                return `Monthly on the ${day}${suffix} at ${timeStr}`;
+            }
             const dayName = DAY_LABELS[config.monthWeekday] || "Monday";
             const ordinal = MONTH_NTH_LABELS[config.monthNth].toLowerCase();
             return `${ordinal === "last" ? "Last" : ordinal[0].toUpperCase() + ordinal.slice(1)} ${dayName} of every month at ${timeStr}`;
@@ -491,8 +517,10 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
         time: "09:00",
         ampm: "AM",
         weekDays: [],
+        monthlyMode: "weekday",
         monthNth: "1",
         monthWeekday: 1,
+        monthDay: 1,
     };
 
     const [config, setConfig] = useState<ScheduleConfig>(initialConfig);
@@ -691,38 +719,70 @@ export function ScheduleBuilder({ value, onChange }: { value: string; onChange: 
                 {config.frequency === "monthly" && (
                     <>
                         <div>
-                            <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Day</label>
-                            <Select value={config.monthNth} onValueChange={val => updateConfig({ monthNth: val as MonthNth })}>
-                                <SelectTrigger className="min-w-[7rem]">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(Object.keys(MONTH_NTH_LABELS) as MonthNth[]).map(key => (
-                                        <SelectItem key={key} value={key}>
-                                            {MONTH_NTH_LABELS[key]}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div>
-                            {/* Pairs with the "Day" dropdown above — no separate label
-                                so the two ordinal+weekday selects read as one phrase. */}
-                            <label className="mb-2 block text-xs text-(--secondary-text-wMain)">&nbsp;</label>
-                            <Select value={String(config.monthWeekday)} onValueChange={val => updateConfig({ monthWeekday: parseInt(val) })}>
+                            <label className="mb-2 block text-xs text-(--secondary-text-wMain)">On</label>
+                            <Select value={config.monthlyMode} onValueChange={val => updateConfig({ monthlyMode: val as MonthlyMode })}>
                                 <SelectTrigger className="min-w-[8rem]">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {DAY_LABELS.map((dayName, idx) => (
-                                        <SelectItem key={idx} value={String(idx)}>
-                                            {dayName}
-                                        </SelectItem>
-                                    ))}
+                                    <SelectItem value="weekday">Weekday</SelectItem>
+                                    <SelectItem value="date">Date</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {config.monthlyMode === "weekday" ? (
+                            <>
+                                <div>
+                                    {/* Pairs with the "On" dropdown above. */}
+                                    <label className="mb-2 block text-xs text-(--secondary-text-wMain)">&nbsp;</label>
+                                    <Select value={config.monthNth} onValueChange={val => updateConfig({ monthNth: val as MonthNth })}>
+                                        <SelectTrigger className="min-w-[7rem]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(Object.keys(MONTH_NTH_LABELS) as MonthNth[]).map(key => (
+                                                <SelectItem key={key} value={key}>
+                                                    {MONTH_NTH_LABELS[key]}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-xs text-(--secondary-text-wMain)">&nbsp;</label>
+                                    <Select value={String(config.monthWeekday)} onValueChange={val => updateConfig({ monthWeekday: parseInt(val) })}>
+                                        <SelectTrigger className="min-w-[8rem]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {DAY_LABELS.map((dayName, idx) => (
+                                                <SelectItem key={idx} value={String(idx)}>
+                                                    {dayName}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </>
+                        ) : (
+                            <div>
+                                <label className="mb-2 block text-xs text-(--secondary-text-wMain)">Day of Month</label>
+                                <Select value={String(config.monthDay)} onValueChange={val => updateConfig({ monthDay: parseInt(val) })}>
+                                    <SelectTrigger className="min-w-[7rem]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                                            <SelectItem key={day} value={String(day)}>
+                                                {day}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                     </>
                 )}
 
