@@ -395,10 +395,18 @@ class ResultHandler:
 
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:
+                # Merge with the existing result_summary (seeded with
+                # xRequestId at row insert) rather than overwriting, so
+                # the run's correlation id remains visible in run history.
+                existing_execution = repo.find_execution_by_id(session, execution_id)
+                existing_summary = (
+                    existing_execution.result_summary if existing_execution else None
+                ) or {}
+                merged_summary = {**existing_summary, **result_summary}
                 update_data = {
                     "status": ExecutionStatus.COMPLETED,
                     "completed_at": now_epoch_ms(),
-                    "result_summary": result_summary,
+                    "result_summary": merged_summary,
                     "artifacts": artifacts if artifacts else None,
                 }
                 repo.update_execution(session, execution_id, update_data)
@@ -434,11 +442,18 @@ class ResultHandler:
         try:
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:
+                # Preserve the seeded xRequestId by merging into the
+                # existing result_summary instead of overwriting.
+                existing_execution = repo.find_execution_by_id(session, execution_id)
+                existing_summary = (
+                    existing_execution.result_summary if existing_execution else None
+                ) or {}
+                merged_summary = {**existing_summary, "error_code": error.code}
                 update_data = {
                     "status": ExecutionStatus.FAILED,
                     "completed_at": now_epoch_ms(),
                     "error_message": _sanitize_error_message(error.message),
-                    "result_summary": {"error_code": error.code},
+                    "result_summary": merged_summary,
                 }
                 repo.update_execution(session, execution_id, update_data)
 

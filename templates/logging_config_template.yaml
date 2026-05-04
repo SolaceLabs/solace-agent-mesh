@@ -3,15 +3,15 @@ disable_existing_loggers: false
 
 formatters:
   simpleFormatter:
-    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | [%(x_request_id)s] | %(message)s"
 
   coloredFormatter:
     class: solace_ai_connector.logging.ColoredFormatter
-    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | %(message)s"
+    format: "%(asctime)s | %(levelname)-5s | %(threadName)s | %(name)s | [%(x_request_id)s] | %(message)s"
 
   jsonFormatter:
     "()": pythonjsonlogger.json.JsonFormatter
-    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(message)s"
+    format: "%(timestamp)s %(levelname)s %(threadName)s %(name)s %(x_request_id)s %(message)s"
     timestamp: "timestamp"
 
 handlers:

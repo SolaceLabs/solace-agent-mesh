@@ -24,6 +24,10 @@ from sqlalchemy.orm import Session as DBSession
 from solace_agent_mesh.common import a2a
 from solace_agent_mesh.common.middleware.config_resolver import AUTH_MODE_SCHEDULED
 from solace_agent_mesh.common.middleware.registry import MiddlewareRegistry
+from solace_agent_mesh.common.observability.request_context import (
+    RequestContext,
+    WIRE_KEY,
+)
 from solace_agent_mesh.core_a2a.service import CoreA2AService
 from ...repository.models import (
     ExecutionStatus,
@@ -458,25 +462,36 @@ class SchedulerService:
     ):
         """Execute a scheduled task by submitting it to the agent mesh.
 
+        Each fire (cadence-driven or manual "Run Now") is a deferred
+        user-initiated event, so we mint a fresh x-request-id at the
+        boundary. The id flows automatically into:
+          - log lines emitted while this run executes (factory stamping)
+          - the published A2A message's user_properties (publish helper)
+          - downstream agent / peer / tool / LLM logs (broker propagation)
+          - the execution row's result_summary (for run-history display)
+
         Retries are handled iteratively (not recursively) to avoid deep call
         stacks and unnecessary resource retention between attempts.
 
         A per-task lock ensures only one execution is in-flight at a time,
         preventing concurrent writes to the shared persistent ADK session.
         """
-        # Acquire a per-task lock so overlapping cron triggers for the same
-        # task wait rather than corrupting the persistent session.
-        task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
+        with RequestContext.start():
+            # Acquire a per-task lock so overlapping cron triggers for the
+            # same task wait rather than corrupting the persistent session.
+            task_lock = self._task_locks.setdefault(task_id, asyncio.Lock())
 
-        if task_lock.locked():
-            log.warning(
-                "[SchedulerService:%s] Task %s already in-flight, skipping overlapping trigger",
-                self.instance_id, task_id,
-            )
-            return
+            if task_lock.locked():
+                log.warning(
+                    "[SchedulerService:%s] Task %s already in-flight, skipping overlapping trigger",
+                    self.instance_id, task_id,
+                )
+                return
 
-        async with task_lock:
-            await self._execute_scheduled_task_inner(task_id, trigger_type, triggered_by)
+            async with task_lock:
+                await self._execute_scheduled_task_inner(
+                    task_id, trigger_type, triggered_by
+                )
 
     async def trigger_task_now(self, task_id: str, triggered_by: Optional[str] = None) -> str:
         """Manually execute a task "Run Now".
@@ -569,6 +584,7 @@ class SchedulerService:
                                     scheduled_for=now_epoch_ms(),
                                     completed_at=now_epoch_ms(),
                                     error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
+                                    result_summary={WIRE_KEY: RequestContext.current()},
                                     trigger_type=trigger_type,
                                     triggered_by=triggered_by,
                                 )
@@ -595,6 +611,11 @@ class SchedulerService:
                             status=ExecutionStatus.PENDING,
                             scheduled_for=current_time,
                             retry_count=attempt,
+                            # Seed with the run's x-request-id so it survives
+                            # subsequent merges and is visible in the run-
+                            # history detail view from the moment the row
+                            # is born.
+                            result_summary={WIRE_KEY: RequestContext.current()},
                             trigger_type=trigger_type,
                             triggered_by=triggered_by,
                         )

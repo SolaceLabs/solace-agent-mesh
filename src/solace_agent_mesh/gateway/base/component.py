@@ -15,6 +15,7 @@ from google.adk.artifacts import BaseArtifactService
 
 from ...common.agent_registry import AgentRegistry
 from ...common.gateway_registry import GatewayRegistry
+from ...common.observability.request_context import RequestContext, WIRE_KEY
 from ...common.sac.sam_component_base import SamComponentBase
 from ...core_a2a.service import CoreA2AService
 from ...agent.adk.services import initialize_artifact_service
@@ -2264,65 +2265,72 @@ class BaseGatewayComponent(SamComponentBase):
                     processed_successfully = False
                     continue
 
-                if a2a.topic_matches_subscription(
-                    topic, a2a.get_discovery_subscription_topic(self.namespace)
+                # Enter a RequestContext only when the inbound message
+                # carries an xRequestId (user-initiated traffic). Internal
+                # discovery / trust-card messages without one leave context
+                # untouched and their log lines show `-`.
+                with RequestContext.from_user_properties(
+                    original_broker_message.get_user_properties() or {}
                 ):
-                    processed_successfully = await self._handle_discovery_message(
-                        payload
-                    )
-                elif (
-                    hasattr(self, "trust_manager")
-                    and self.trust_manager
-                    and self.trust_manager.is_trust_card_topic(topic)
-                ):
-                    await self.trust_manager.handle_trust_card_message(payload, topic)
-                    processed_successfully = True
-                elif a2a.topic_matches_subscription(
-                    topic,
-                    a2a.get_gateway_response_subscription_topic(
-                        self.namespace, self.gateway_id
-                    ),
-                ) or a2a.topic_matches_subscription(
-                    topic,
-                    a2a.get_gateway_status_subscription_topic(
-                        self.namespace, self.gateway_id
-                    ),
-                ):
-                    task_id_from_topic: Optional[str] = None
-                    response_sub = a2a.get_gateway_response_subscription_topic(
-                        self.namespace, self.gateway_id
-                    )
-                    status_sub = a2a.get_gateway_status_subscription_topic(
-                        self.namespace, self.gateway_id
-                    )
-
-                    if a2a.topic_matches_subscription(topic, response_sub):
-                        task_id_from_topic = a2a.extract_task_id_from_topic(
-                            topic, response_sub, self.log_identifier
+                    if a2a.topic_matches_subscription(
+                        topic, a2a.get_discovery_subscription_topic(self.namespace)
+                    ):
+                        processed_successfully = await self._handle_discovery_message(
+                            payload
                         )
-                    elif a2a.topic_matches_subscription(topic, status_sub):
-                        task_id_from_topic = a2a.extract_task_id_from_topic(
-                            topic, status_sub, self.log_identifier
+                    elif (
+                        hasattr(self, "trust_manager")
+                        and self.trust_manager
+                        and self.trust_manager.is_trust_card_topic(topic)
+                    ):
+                        await self.trust_manager.handle_trust_card_message(payload, topic)
+                        processed_successfully = True
+                    elif a2a.topic_matches_subscription(
+                        topic,
+                        a2a.get_gateway_response_subscription_topic(
+                            self.namespace, self.gateway_id
+                        ),
+                    ) or a2a.topic_matches_subscription(
+                        topic,
+                        a2a.get_gateway_status_subscription_topic(
+                            self.namespace, self.gateway_id
+                        ),
+                    ):
+                        task_id_from_topic: Optional[str] = None
+                        response_sub = a2a.get_gateway_response_subscription_topic(
+                            self.namespace, self.gateway_id
+                        )
+                        status_sub = a2a.get_gateway_status_subscription_topic(
+                            self.namespace, self.gateway_id
                         )
 
-                    if task_id_from_topic:
-                        processed_successfully = await self._handle_agent_event(
-                            topic, payload, task_id_from_topic
-                        )
+                        if a2a.topic_matches_subscription(topic, response_sub):
+                            task_id_from_topic = a2a.extract_task_id_from_topic(
+                                topic, response_sub, self.log_identifier
+                            )
+                        elif a2a.topic_matches_subscription(topic, status_sub):
+                            task_id_from_topic = a2a.extract_task_id_from_topic(
+                                topic, status_sub, self.log_identifier
+                            )
+
+                        if task_id_from_topic:
+                            processed_successfully = await self._handle_agent_event(
+                                topic, payload, task_id_from_topic
+                            )
+                        else:
+                            log.error(
+                                "%s Could not extract task_id from topic %s for _handle_agent_event. Ignoring.",
+                                self.log_identifier,
+                                topic,
+                            )
+                            processed_successfully = False
                     else:
-                        log.error(
-                            "%s Could not extract task_id from topic %s for _handle_agent_event. Ignoring.",
+                        log.warning(
+                            "%s Received message on unhandled topic: %s. Acknowledging.",
                             self.log_identifier,
                             topic,
                         )
-                        processed_successfully = False
-                else:
-                    log.warning(
-                        "%s Received message on unhandled topic: %s. Acknowledging.",
-                        self.log_identifier,
-                        topic,
-                    )
-                    processed_successfully = True
+                        processed_successfully = True
 
             except queue.Empty:
                 continue

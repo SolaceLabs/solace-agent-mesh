@@ -64,6 +64,7 @@ from ...agent.adk.setup import (
 )
 from ...agent.adk.tool_wrapper import ADKToolWrapper
 from ...agent.protocol.event_handlers import process_event, publish_agent_card
+from ...common.observability.request_context import RequestContext
 from ...agent.tools.peer_agent_tool import (
     CORRELATION_DATA_PREFIX,
     PEER_TOOL_PREFIX,
@@ -532,15 +533,19 @@ class SamAgentComponent(SamComponentBase):
         """
         Async handler for incoming messages.
 
-        Routes the message to the async event handler.
+        If the inbound user_properties carry a valid ``xRequestId``, the
+        dispatch runs inside a RequestContext bound to that id so every
+        log line emitted while processing carries it. Internal traffic
+        without an inbound id (discovery, health checks) runs with no
+        context — those logs honestly show ``-``.
 
         Args:
             message: The Solace message
             topic: The topic the message was received on
         """
-        # Create event and process asynchronously
-        event = Event(EventType.MESSAGE, message)
-        await process_event(self, event)
+        with RequestContext.from_user_properties(message.get_user_properties()):
+            event = Event(EventType.MESSAGE, message)
+            await process_event(self, event)
 
     def handle_timer_event(self, timer_data: Dict[str, Any]):
         """Handles timer events for agent card publishing and health checks."""

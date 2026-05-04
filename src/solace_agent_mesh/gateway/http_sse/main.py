@@ -22,6 +22,7 @@ from a2a.types import InternalError, InvalidRequestError, JSONRPCError
 from a2a.types import JSONRPCResponse as A2AJSONRPCResponse
 
 from ...common import a2a
+from ...common.observability.request_context import RequestContext, WIRE_KEY
 from ...gateway.http_sse import dependencies
 from ...shared.auth.middleware import create_oauth_middleware
 from .routers import (
@@ -315,6 +316,13 @@ def _setup_middleware(component: "WebUIBackendComponent") -> None:
     app.add_middleware(GatewayObservabilityMiddleware)
     log.info("Gateway observability middleware added (monitoring: tasks, sessions, sse, artifacts, messages)")
 
+    # OUTERMOST: must be added last so it wraps every other middleware.
+    # Every other middleware's logs (CORS, session, auth, observability)
+    # are then emitted inside an active RequestContext and carry x-request-id.
+    from .middleware.request_context import RequestContextMiddleware
+    app.add_middleware(RequestContextMiddleware)
+    log.info("RequestContextMiddleware added (x-request-id propagation)")
+
 def _setup_routers() -> None:
     api_prefix = "/api/v1"
 
@@ -433,7 +441,11 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         )
         response = A2AJSONRPCResponse(error=error_obj)
         return JSONResponse(
-            status_code=exc.status_code, content=response.model_dump(exclude_none=True)
+            status_code=exc.status_code,
+            content={
+                **response.model_dump(exclude_none=True),
+                WIRE_KEY: RequestContext.current(),
+            },
         )
     else:
         # Use standard REST format for sessions and other REST endpoints
@@ -444,7 +456,10 @@ async def http_exception_handler(request: FastAPIRequest, exc: HTTPException):
         else:
             error_response = {"detail": str(exc.detail)}
 
-        return JSONResponse(status_code=exc.status_code, content=error_response)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={**error_response, WIRE_KEY: RequestContext.current()},
+        )
 
 
 @app.exception_handler(RequestValidationError)
@@ -465,7 +480,10 @@ async def validation_exception_handler(
     )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=response.model_dump(exclude_none=True),
+        content={
+            **response.model_dump(exclude_none=True),
+            WIRE_KEY: RequestContext.current(),
+        },
     )
 
 
@@ -486,7 +504,10 @@ async def generic_exception_handler(request: FastAPIRequest, exc: Exception):
     response = a2a.create_error_response(error=error_obj, request_id=None)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=response.model_dump(exclude_none=True),
+        content={
+            **response.model_dump(exclude_none=True),
+            WIRE_KEY: RequestContext.current(),
+        },
     )
 
 

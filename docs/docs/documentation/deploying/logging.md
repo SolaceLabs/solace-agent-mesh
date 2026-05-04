@@ -279,3 +279,34 @@ export LOGGING_FILE_NAME=my_isolated_agent.log && sam run configs/agents/my_agen
 ```
 
 This approach allows you to isolate and analyze a specific agent's behavior without interference from other components in your mesh. Each process writes to its own log file, making debugging much easier.
+
+## Request Correlation
+
+Every external event entering Agent Mesh is assigned an `x-request-id`. The id is propagated across all in-process async work and across the broker into every downstream agent (including delegated sub-tasks), and is stamped on every log record. This is built-in behavior — there is nothing to configure or enable.
+
+### How to read the id
+
+- **HTTP responses**: every response carries the `X-Request-ID` header.
+- **Error responses**: every error JSON envelope contains an `xRequestId` field.
+- **Chat messages**: agent responses include `xRequestId` in message metadata; the Web UI exposes it via the message-details panel.
+- **Logs**: every JSON log record has an `x_request_id` field; text-formatted lines render `[<id>]` inline.
+
+### How to use the id for support
+
+When a customer reports an issue, ask for the id from any of the surfaces above and query the log aggregator on `x_request_id`. The query returns every log line emitted on behalf of that one request — orchestrator, peer agents, tools, LLM calls — across processes.
+
+### Inbound contract
+
+If a client sends `X-Request-ID` on the request, Agent Mesh honors it (after validating that it is alphanumeric plus `._-` and ≤128 characters). Otherwise a UUID4 is generated. Invalid inbound ids are silently replaced — they are not echoed.
+
+### Code that hands work to a thread pool
+
+`ContextVar` does not propagate into raw `loop.run_in_executor` or `threading.Thread.start()`. If you write code that hands work to a thread pool and want logs from that thread to carry the id:
+
+```python
+import contextvars
+ctx = contextvars.copy_context()
+result = await loop.run_in_executor(None, ctx.run, fn, *args)
+```
+
+Or use `asyncio.to_thread(fn, *args)` — it preserves context natively (Python 3.9+).

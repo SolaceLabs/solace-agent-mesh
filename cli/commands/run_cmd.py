@@ -62,6 +62,14 @@ def run(files: tuple[str, ...], skip_files: tuple[str, ...], system_env: bool):
     This command accepts paths to individual YAML files (`.yaml`, `.yml`) or directories.
     When a directory is provided, it is recursively searched for YAML files.
     """
+    # Force x-request-id onto every LogRecord at construction time. Must run
+    # before any logger is used so even very early lines carry the field.
+    # Idempotent: safe across reloads and test reruns.
+    from solace_agent_mesh.common.observability.request_context_logging import (
+        install_log_record_factory,
+    )
+    install_log_record_factory()
+
     # Set up initial logging to root logger (will be overwritten by LOGGING_CONFIG_PATH if provided)
     log = None
     reset_logging = True

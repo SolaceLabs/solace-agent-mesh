@@ -17,6 +17,7 @@ from ...agent.adk.models.lite_llm import LiteLlm
 from ...agent.adk.models.dynamic_model_provider import DynamicModelProvider, start_model_listener
 from ..exceptions import ComponentInitializationError, MessageSizeExceededError
 from ..features import core as feature_flags
+from ..observability.request_context import RequestContext, WIRE_KEY
 from ..utils.message_utils import validate_message_size
 
 log = logging.getLogger(__name__)
@@ -444,9 +445,12 @@ class SamComponentBase(ComponentBase, abc.ABC):
                 list(payload.keys()) if isinstance(payload, dict) else "not_dict",
             )
 
-            # Create user_properties if it doesn't exist
-            if user_properties is None:
-                user_properties = {}
+            # Copy to avoid mutating the caller's dict, and inject the
+            # active x-request-id (caller-supplied value wins via setdefault).
+            user_properties = dict(user_properties or {})
+            current_rid = RequestContext.current()
+            if current_rid is not None:
+                user_properties.setdefault(WIRE_KEY, current_rid)
 
             user_properties["timestamp"] = int(time.time() * 1000)
 
