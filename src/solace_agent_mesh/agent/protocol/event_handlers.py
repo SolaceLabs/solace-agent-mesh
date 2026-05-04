@@ -1084,9 +1084,63 @@ def _send_error_response_and_nack(
     component.handle_error(exception, Event(EventType.MESSAGE, message))
 
 
+_LAZY_OVERRIDE_PROVIDER_SENTINEL = "__lazy_override_resolver__"
+
+
+async def _ensure_override_provider(component: "SamAgentComponent") -> Any:
+    """Lazy-init an override-only ``DynamicModelProvider`` on the component.
+
+    Agents whose YAML lacks a ``model_provider`` field don't start a model
+    listener at boot, so ``component._dynamic_model_provider`` is ``None`` and
+    per-request ``model_override`` resolution would fail with "model config
+    not available". Instead of forcing every agent's YAML to declare
+    ``model_provider``, we spin up an override-only provider on the first
+    override request: it shares the wildcard bootstrap subscription so
+    ``resolve()`` works for any alias/UUID, but skips the auto-update path
+    (``skip_bootstrap=True``) so the agent's static ``model:`` config is
+    never replaced.
+
+    Returns the provider, or ``None`` if the component has no litellm
+    instance to back the resolution flow.
+    """
+    if component._dynamic_model_provider is not None:
+        return component._dynamic_model_provider
+
+    if component._dynamic_model_provider_init_lock is None:
+        component._dynamic_model_provider_init_lock = asyncio.Lock()
+
+    async with component._dynamic_model_provider_init_lock:
+        if component._dynamic_model_provider is not None:
+            return component._dynamic_model_provider
+
+        litellm_instance = component.get_lite_llm_model()
+        if litellm_instance is None:
+            return None
+
+        # Inline import keeps event_handlers free of an agent->adk dependency
+        # at module load and matches the pattern used elsewhere in this file.
+        from ..adk.models.dynamic_model_provider import DynamicModelProvider
+
+        provider = DynamicModelProvider(
+            component,
+            litellm_instance,
+            _LAZY_OVERRIDE_PROVIDER_SENTINEL,
+            skip_bootstrap=True,
+        )
+        # Wait for the broker subscription to be live before returning so the
+        # immediately-following resolve() doesn't race the listener setup.
+        await provider.initialize()
+        component._dynamic_model_provider = provider
+        log.info(
+            "%s Lazy-initialised override-only DynamicModelProvider",
+            component.log_identifier,
+        )
+        return provider
+
+
 async def _resolve_model_override_metadata(
     task_metadata: Dict[str, Any],
-    dynamic_model_provider: Any,
+    component: "SamAgentComponent",
     log_identifier: str,
 ) -> Optional[str]:
     """Resolve model_override alias in task metadata to a raw LiteLLM config dict.
@@ -1126,6 +1180,10 @@ async def _resolve_model_override_metadata(
         return None
 
     model_id = model_override["model_id"]
+    dynamic_model_provider = component._dynamic_model_provider
+    if dynamic_model_provider is None:
+        dynamic_model_provider = await _ensure_override_provider(component)
+
     resolved = None
     if dynamic_model_provider:
         resolved = await dynamic_model_provider.resolve(model_id)
@@ -1231,7 +1289,7 @@ async def _handle_send_message_request(
 
     override_error = await _resolve_model_override_metadata(
         task_metadata,
-        component._dynamic_model_provider,
+        component,
         component.log_identifier,
     )
     if override_error:
