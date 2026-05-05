@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.2...1.23.3) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134691:** improving artifacts appearing deleted during creation ([#1498](https://github.com/SolaceLabs/solace-agent-mesh/issues/1498)) ([ecfff47](https://github.com/SolaceLabs/solace-agent-mesh/commit/ecfff47fbb4dd215de75f8c6dc3d5c96808f0b2f))
+
 ## [1.23.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.1...1.23.2) (2026-05-05)
 
 
