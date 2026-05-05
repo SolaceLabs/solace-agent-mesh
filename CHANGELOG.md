@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.24.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.3...1.24.0) (2026-05-05)
+
+
+### Features
+
+* **DATAGO-134667:** promote offline_evals to beta and default true ([#1504](https://github.com/SolaceLabs/solace-agent-mesh/issues/1504)) ([d7050b0](https://github.com/SolaceLabs/solace-agent-mesh/commit/d7050b0cce143d80ac12e6b2b04cf1826a3e32f6))
+
+## [1.23.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.2...1.23.3) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134691:** improving artifacts appearing deleted during creation ([#1498](https://github.com/SolaceLabs/solace-agent-mesh/issues/1498)) ([ecfff47](https://github.com/SolaceLabs/solace-agent-mesh/commit/ecfff47fbb4dd215de75f8c6dc3d5c96808f0b2f))
+
+## [1.23.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.1...1.23.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134667:** strip max_input_tokens from per-request override ([#1499](https://github.com/SolaceLabs/solace-agent-mesh/issues/1499)) ([3f62e97](https://github.com/SolaceLabs/solace-agent-mesh/commit/3f62e975a7f780ebfebca2252c61a2131d930ca3))
+
+## [1.23.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.0...1.23.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **agent:** lazy-init DynamicModelProvider for per-request model_override ([#1496](https://github.com/SolaceLabs/solace-agent-mesh/issues/1496)) ([371d6e9](https://github.com/SolaceLabs/solace-agent-mesh/commit/371d6e93581f1b5c602bc369a075614197a2b763))
+
 ## [1.23.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.1...1.23.0) (2026-04-30)
 
 

@@ -11,6 +11,7 @@ export * from "./textPreprocessor";
 export * from "./themeHtmlStyles";
 export * from "./guard";
 export * from "./url";
+export * from "./uuid";
 export * from "./sourceUrlHelpers";
 export * from "./mentionUtils";
 export * from "./agentUtils";

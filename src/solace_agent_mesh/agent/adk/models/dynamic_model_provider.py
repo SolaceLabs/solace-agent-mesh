@@ -143,10 +143,20 @@ class ModelConfigReceiverComponent(ComponentBase):
 
 class DynamicModelProvider:
 
-    def __init__(self, component: ComponentBase, litellm_instance: LiteLlm, model_id: str):
+    def __init__(
+        self,
+        component: ComponentBase,
+        litellm_instance: LiteLlm,
+        model_id: str,
+        skip_bootstrap: bool = False,
+    ):
         self._component = component
         self._litellm_instance = litellm_instance
         self._model_id = model_id
+        # When True, set up the broker subscription only — don't send a bootstrap
+        # request for ``model_id``. Used by the override-only path so the agent's
+        # static litellm model isn't replaced via the auto-update flow.
+        self._skip_bootstrap = skip_bootstrap
 
         # Internal SAC flow for subscribing to model config updates
         self._internal_app = None
@@ -176,13 +186,20 @@ class DynamicModelProvider:
         self._loop = asyncio.get_running_loop()
         await self.listen_for_model_config_change()
 
+        if self._skip_bootstrap:
+            # Override-only mode: subscription is up so resolve() works for any
+            # alias via the wildcard receiver, but we never request a bootstrap
+            # for this provider's own model_id. Skipping that avoids the
+            # auto-update path mutating the agent's static litellm instance.
+            return
+
         # Call request_model_config up to 3 times, once every 5 seconds, until initialized
         for i in range(_MAX_BOOTSTRAP_RETRIES):
             await self.request_model_config()
             await asyncio.sleep(_BOOTSTRAP_RETRY_INTERVAL_SECONDS)
             if self._initialized:
                 break
-        
+
         if not self._initialized:
             log.warning(
                 "%s Model configuration not received after multiple attempts. LiteLlm instance may not be configured.",

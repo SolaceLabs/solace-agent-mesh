@@ -20,12 +20,14 @@ class TestSanitizeForCompletion:
             "cache_strategy": "5m",
             "thinking": {"budget_tokens": 10000},
             "type": "custom",
+            "max_input_tokens": 200000,
         }
         result = LiteLlm._sanitize_for_completion(config)
 
         assert "cache_strategy" not in result
         assert "thinking" not in result
         assert "type" not in result
+        assert "max_input_tokens" not in result
 
         assert result["model"] == "openai/gpt-4o"
         assert result["api_key"] == "sk-test"
@@ -106,6 +108,7 @@ class TestOverrideSanitization:
                 "type": "custom",
                 "oauth_client_id": "id",
                 "oauth_audience": "https://api.example.com",
+                "max_input_tokens": 200000,
             }
 
             llm = LiteLlm(model="openai/gpt-4o")
@@ -138,6 +141,7 @@ class TestOverrideSanitization:
             assert "type" not in completion_args
             assert "oauth_client_id" not in completion_args
             assert "oauth_audience" not in completion_args
+            assert "max_input_tokens" not in completion_args
 
             assert completion_args["model"] == "openai/gpt-4o-override"
             assert completion_args["api_key"] == "sk-override"

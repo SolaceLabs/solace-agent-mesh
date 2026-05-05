@@ -137,8 +137,8 @@ features:
 
   - key: offline_evals
     name: Offline Enterprise Evaluations
-    release_phase: experimental
-    default: false
+    release_phase: beta
+    default: true
     jira: DATAGO-104642
     description: >
       Enable the offline enterprise evaluation framework. Allows running
