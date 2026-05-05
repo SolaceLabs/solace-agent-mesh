@@ -62,6 +62,10 @@ export interface ScheduledTask {
     lastRunAt?: number;
 
     lastExecution?: LastExecutionSummary;
+    /** Most recent *terminal* execution. Stays populated even while a new
+     *  run is in flight, so cards/details can keep showing "Succeeded N min
+     *  ago" alongside the running pill. */
+    lastCompletedExecution?: LastExecutionSummary;
 }
 
 export interface LastExecutionSummary {
@@ -94,6 +98,7 @@ export interface TaskExecution {
 
     resultSummary?: {
         agentResponse?: string;
+        agentResponseFull?: string;
         messages?: Array<{ role: string; text: string }>;
         artifacts?: Array<{ name?: string; uri?: string; type?: string }>;
         metadata?: Record<string, unknown>;
@@ -114,6 +119,22 @@ export interface TaskExecution {
         timestamp: number;
         error?: string;
     }>;
+
+    /** Snapshot of the task config at the time this execution ran. NULL for
+     * executions that ran before the task_snapshot column was added — the UI
+     * should fall back to the live task in that case. */
+    taskSnapshot?: TaskExecutionSnapshot | null;
+}
+
+export interface TaskExecutionSnapshot {
+    name: string;
+    description?: string | null;
+    scheduleType: ScheduleType;
+    scheduleExpression: string;
+    timezone: string;
+    targetAgentName: string;
+    targetType: "agent" | "workflow";
+    taskMessage: MessagePart[];
 }
 
 export interface ScheduledTaskListResponse {
@@ -222,6 +243,7 @@ interface ApiScheduledTask {
     next_run_at?: number;
     last_run_at?: number;
     last_execution?: ApiLastExecutionSummary;
+    last_completed_execution?: ApiLastExecutionSummary;
 }
 
 interface ApiLastExecutionSummary {
@@ -246,6 +268,7 @@ interface ApiTaskExecution {
     duration_ms?: number;
     result_summary?: {
         agent_response?: string;
+        agent_response_full?: string;
         messages?: Array<{ role: string; text: string }>;
         artifacts?: Array<{ name?: string; uri?: string; type?: string }>;
         metadata?: Record<string, unknown>;
@@ -264,6 +287,16 @@ interface ApiTaskExecution {
         timestamp: number;
         error?: string;
     }>;
+    task_snapshot?: {
+        name: string;
+        description?: string | null;
+        schedule_type: ScheduleType;
+        schedule_expression: string;
+        timezone: string;
+        target_agent_name: string;
+        target_type: "agent" | "workflow";
+        task_message: MessagePart[];
+    } | null;
 }
 
 // Transformation functions
@@ -321,6 +354,18 @@ export function transformApiTask(apiTask: ApiScheduledTask): ScheduledTask {
                   triggerType: apiTask.last_execution.trigger_type,
               }
             : undefined,
+        lastCompletedExecution: apiTask.last_completed_execution
+            ? {
+                  id: apiTask.last_completed_execution.id,
+                  status: apiTask.last_completed_execution.status,
+                  scheduledFor: apiTask.last_completed_execution.scheduled_for,
+                  startedAt: apiTask.last_completed_execution.started_at,
+                  completedAt: apiTask.last_completed_execution.completed_at,
+                  durationMs: apiTask.last_completed_execution.duration_ms,
+                  errorMessage: apiTask.last_completed_execution.error_message,
+                  triggerType: apiTask.last_completed_execution.trigger_type,
+              }
+            : undefined,
     };
 }
 
@@ -337,6 +382,7 @@ export function transformApiExecution(apiExecution: ApiTaskExecution): TaskExecu
         resultSummary: apiExecution.result_summary
             ? {
                   agentResponse: apiExecution.result_summary.agent_response,
+                  agentResponseFull: apiExecution.result_summary.agent_response_full,
                   messages: apiExecution.result_summary.messages,
                   artifacts: apiExecution.result_summary.artifacts,
                   metadata: apiExecution.result_summary.metadata,
@@ -351,6 +397,18 @@ export function transformApiExecution(apiExecution: ApiTaskExecution): TaskExecu
         triggeredBy: apiExecution.triggered_by,
         artifacts: apiExecution.artifacts,
         notificationsSent: apiExecution.notifications_sent,
+        taskSnapshot: apiExecution.task_snapshot
+            ? {
+                  name: apiExecution.task_snapshot.name,
+                  description: apiExecution.task_snapshot.description,
+                  scheduleType: apiExecution.task_snapshot.schedule_type,
+                  scheduleExpression: apiExecution.task_snapshot.schedule_expression,
+                  timezone: apiExecution.task_snapshot.timezone,
+                  targetAgentName: apiExecution.task_snapshot.target_agent_name,
+                  targetType: apiExecution.task_snapshot.target_type,
+                  taskMessage: apiExecution.task_snapshot.task_message,
+              }
+            : null,
     };
 }
 

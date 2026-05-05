@@ -230,12 +230,16 @@ class ScheduledTaskResponse(BaseModel):
     last_run_at: Optional[int]
 
     last_execution: Optional[LastExecutionSummary] = None
+    # Most recent *terminal* execution. Surfaced separately so cards can keep
+    # showing "Succeeded N min ago" even while a new run is in flight (in which
+    # case `last_execution` reflects the running one).
+    last_completed_execution: Optional[LastExecutionSummary] = None
 
     class Config:
         from_attributes = True
 
     @classmethod
-    def from_orm(cls, obj, last_execution: Optional["LastExecutionSummary"] = None):
+    def from_orm(cls, obj, last_execution: Optional["LastExecutionSummary"] = None, last_completed_execution: Optional["LastExecutionSummary"] = None):
         """Create ScheduledTaskResponse from ORM model, computing status."""
         data = {
             'id': obj.id,
@@ -265,6 +269,7 @@ class ScheduledTaskResponse(BaseModel):
             'next_run_at': obj.next_run_at,
             'last_run_at': obj.last_run_at,
             'last_execution': last_execution,
+            'last_completed_execution': last_completed_execution,
         }
         return cls(**data)
 
@@ -321,6 +326,8 @@ class ExecutionResponse(BaseModel):
     artifacts: Optional[List[Union[str, Dict[str, Any], ArtifactInfo]]]
     notifications_sent: Optional[List[Dict[str, Any]]]
 
+    task_snapshot: Optional[Dict[str, Any]] = None
+
     class Config:
         from_attributes = True
 
@@ -342,6 +349,7 @@ class ExecutionResponse(BaseModel):
             'triggered_by': getattr(obj, 'triggered_by', None),
             'artifacts': obj.artifacts,
             'notifications_sent': obj.notifications_sent,
+            'task_snapshot': getattr(obj, 'task_snapshot', None),
         }
 
         if obj.started_at and obj.completed_at:

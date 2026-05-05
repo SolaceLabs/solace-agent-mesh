@@ -22,6 +22,12 @@ log = logging.getLogger(__name__)
 
 _MAX_USER_ERROR_LENGTH = 256
 
+# Char limit for the snippet stored in result_summary for list views (the
+# Latest Execution panel). The full untruncated text is kept separately in
+# result_summary.agent_response_full and rendered on the per-execution detail
+# page.
+_RESULT_SUMMARY_SNIPPET_CHARS = 1000
+
 
 def _sanitize_error_message(message: str) -> str:
     """Strip internal details from error messages before persisting for the frontend."""
@@ -259,8 +265,11 @@ class ResultHandler:
                 if result.status and result.status.message:
                     agent_text = a2a.get_text_from_message(result.status.message)
                     if agent_text:
-                        result_summary["agent_response"] = agent_text[:1000]
-                        messages.append({"role": "agent", "text": agent_text[:1000]})
+                        # Truncated snippet for list views (Latest Execution
+                        # panel); full text for the per-execution detail view.
+                        result_summary["agent_response"] = agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]
+                        result_summary["agent_response_full"] = agent_text
+                        messages.append({"role": "agent", "text": agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]})
                         full_messages.append({"role": "agent", "text": agent_text})
 
                     # Extract RAG metadata from data parts (inline citations)
@@ -291,7 +300,7 @@ class ResultHandler:
                         text = a2a.get_text_from_message(msg)
                         role = getattr(msg, 'role', 'unknown')
                         if text:
-                            messages.append({"role": str(role), "text": text[:1000]})
+                            messages.append({"role": str(role), "text": text[:_RESULT_SUMMARY_SNIPPET_CHARS]})
                             full_messages.append({"role": str(role), "text": text})
                         file_parts = a2a.get_file_parts_from_message(msg)
                         for file_part in file_parts:

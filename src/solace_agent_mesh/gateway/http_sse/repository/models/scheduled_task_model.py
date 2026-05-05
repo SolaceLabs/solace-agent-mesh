@@ -160,6 +160,11 @@ class ScheduledTaskExecutionModel(Base):
     artifacts = Column(JSON, nullable=True)
     notifications_sent = Column(JSON, nullable=True)
 
+    # Snapshot of task config at run time so the UI can show per-execution
+    # config even after the task is edited or deleted. NULL for rows created
+    # before this column existed.
+    task_snapshot = Column(JSON, nullable=True)
+
     # Relationships
     scheduled_task = relationship(
         "ScheduledTaskModel",

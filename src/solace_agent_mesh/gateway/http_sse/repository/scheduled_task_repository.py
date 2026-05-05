@@ -323,13 +323,20 @@ class ScheduledTaskRepository:
         session: DBSession,
         task_id: str,
         pagination: Optional[PaginationParams] = None,
+        scheduled_after: Optional[int] = None,
+        scheduled_before: Optional[int] = None,
     ) -> List[ScheduledTaskExecutionModel]:
-        """Find all executions for a specific task."""
+        """Find all executions for a specific task. `scheduled_after`/`_before`
+        are epoch ms bounds (inclusive) on `scheduled_for`."""
         query = (
             select(ScheduledTaskExecutionModel)
             .where(ScheduledTaskExecutionModel.scheduled_task_id == task_id)
             .order_by(ScheduledTaskExecutionModel.scheduled_for.desc())
         )
+        if scheduled_after is not None:
+            query = query.where(ScheduledTaskExecutionModel.scheduled_for >= scheduled_after)
+        if scheduled_before is not None:
+            query = query.where(ScheduledTaskExecutionModel.scheduled_for <= scheduled_before)
 
         if pagination:
             query = query.offset(pagination.offset).limit(pagination.page_size)
@@ -341,11 +348,17 @@ class ScheduledTaskRepository:
         self,
         session: DBSession,
         task_id: str,
+        scheduled_after: Optional[int] = None,
+        scheduled_before: Optional[int] = None,
     ) -> int:
-        """Count executions for a specific task."""
+        """Count executions for a specific task, optionally bounded by date."""
         query = select(func.count()).where(
             ScheduledTaskExecutionModel.scheduled_task_id == task_id
         )
+        if scheduled_after is not None:
+            query = query.where(ScheduledTaskExecutionModel.scheduled_for >= scheduled_after)
+        if scheduled_before is not None:
+            query = query.where(ScheduledTaskExecutionModel.scheduled_for <= scheduled_before)
         return session.execute(query).scalar()
 
     @MonitorLatency(DBMonitor.query("scheduled_task_executions"))
@@ -391,6 +404,20 @@ class ScheduledTaskRepository:
             .order_by(ScheduledTaskExecutionModel.started_at.desc())
         )
         return list(session.execute(query).scalars().all())
+
+    def delete_execution(
+        self,
+        session: DBSession,
+        execution_id: str,
+    ) -> bool:
+        """Hard-delete a single execution by id. Returns True if a row was removed."""
+        with MonitorLatency(DBMonitor.delete("scheduled_task_executions")):
+            deleted = (
+                session.query(ScheduledTaskExecutionModel)
+                .filter(ScheduledTaskExecutionModel.id == execution_id)
+                .delete(synchronize_session=False)
+            )
+        return deleted > 0
 
     def delete_oldest_executions(
         self,

@@ -159,10 +159,17 @@ class ScheduledTaskService:
         db: DBSession,
         task_id: str,
         pagination: Optional[PaginationParams] = None,
+        scheduled_after: Optional[int] = None,
+        scheduled_before: Optional[int] = None,
     ) -> tuple:
-        """Get executions for a task. Returns (executions, total_count)."""
-        executions = self.repo.find_executions_by_task(db, task_id, pagination)
-        total = self.repo.count_executions_by_task(db, task_id)
+        """Get executions for a task, optionally bounded by `scheduled_for`
+        in epoch ms. Returns (executions, total_count)."""
+        executions = self.repo.find_executions_by_task(
+            db, task_id, pagination, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
+        total = self.repo.count_executions_by_task(
+            db, task_id, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
         return executions, total
 
     def get_recent_executions(
@@ -178,3 +185,13 @@ class ScheduledTaskService:
     def get_execution_by_a2a_task_id(self, db: DBSession, a2a_task_id: str) -> Any:
         """Find an execution by its A2A task ID."""
         return self.repo.find_execution_by_a2a_task_id(db, a2a_task_id)
+
+    def get_execution(self, db: DBSession, execution_id: str) -> Any:
+        """Find a single execution by id."""
+        return self.repo.find_execution_by_id(db, execution_id)
+
+    def delete_execution(self, db: DBSession, execution_id: str) -> bool:
+        """Hard delete a single execution and commit."""
+        deleted = self.repo.delete_execution(db, execution_id)
+        db.commit()
+        return deleted

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
 import { useInView } from "react-intersection-observer";
 import { useNavigate } from "react-router-dom";
 
-import { Check, X, MessageCircle, Loader2, UserSearch, CalendarClock } from "lucide-react";
+import { Check, X, MessageCircle, Loader2, UserSearch, CalendarDays } from "lucide-react";
 import { cn, formatTimestamp, getErrorMessage } from "@/lib/utils";
 
 import { api } from "@/lib/api";
@@ -474,7 +474,7 @@ export const SessionList: React.FC<SessionListProps> = ({ projects = [] }) => {
                                     Chats
                                 </TabsTrigger>
                                 <TabsTrigger value="scheduler" className="rounded-none rounded-r-md border-l-0">
-                                    <CalendarClock className="h-4 w-4 shrink-0" />
+                                    <CalendarDays className="h-4 w-4 shrink-0" />
                                     Scheduled Tasks
                                 </TabsTrigger>
                             </TabsList>

@@ -69,25 +69,21 @@ describe("TaskCard", () => {
         renderTaskCard({ status: "active" });
         const label = screen.getByText("Active");
         expect(label).toBeInTheDocument();
-        const dot = label.previousElementSibling as HTMLElement | null;
-        expect(dot?.className).toContain("success");
+        expect(label.className).toContain("success");
     });
 
     it("shows correct status indicator - paused (warning dot)", () => {
         renderTaskCard({ status: "paused" });
         const labels = screen.getAllByText("Paused");
-        const label = labels.find(el => el.className.includes("font-medium"));
-        expect(label).toBeInTheDocument();
-        const dot = label!.previousElementSibling as HTMLElement | null;
-        expect(dot?.className).toContain("warning");
+        const badge = labels.find(el => el.className.includes("warning"));
+        expect(badge).toBeInTheDocument();
     });
 
     it("shows correct status indicator - error (red dot)", () => {
         renderTaskCard({ status: "error" });
         const label = screen.getByText("Error");
         expect(label).toBeInTheDocument();
-        const dot = label.previousElementSibling as HTMLElement | null;
-        expect(dot?.className).toContain("error");
+        expect(label.className).toContain("error");
     });
 
     it("shows schedule description from formatSchedule", () => {

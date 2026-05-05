@@ -1,6 +1,13 @@
 import { api } from "@/lib/api/client";
 import type { ScheduledTask, ScheduledTaskListResponse, CreateScheduledTaskRequest, UpdateScheduledTaskRequest, ExecutionListResponse, SchedulerStatus } from "@/lib/types/scheduled-tasks";
 import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi } from "@/lib/types/scheduled-tasks";
+import type { ArtifactInfo } from "@/lib/types";
+
+export const executionSessionId = (executionId: string): string => `scheduled_${executionId}`;
+
+export const fetchExecutionArtifacts = async (executionId: string): Promise<ArtifactInfo[]> => {
+    return api.webui.get<ArtifactInfo[]>(`/api/v1/artifacts/${executionSessionId(executionId)}`);
+};
 
 export const fetchTasks = async (pageNumber: number = 1, pageSize: number = 20, enabledOnly: boolean = false, includeNamespaceTasks: boolean = true): Promise<ScheduledTaskListResponse> => {
     const params = new URLSearchParams({
@@ -50,11 +57,13 @@ export const runTaskNow = async (taskId: string): Promise<void> => {
     await api.webui.post(`/api/v1/scheduled-tasks/${taskId}/run`);
 };
 
-export const fetchExecutions = async (taskId: string, pageNumber: number = 1, pageSize: number = 20): Promise<ExecutionListResponse> => {
+export const fetchExecutions = async (taskId: string, pageNumber: number = 1, pageSize: number = 20, scheduledAfter?: number | null, scheduledBefore?: number | null): Promise<ExecutionListResponse> => {
     const params = new URLSearchParams({
         pageNumber: pageNumber.toString(),
         pageSize: pageSize.toString(),
     });
+    if (scheduledAfter != null) params.set("scheduledAfter", scheduledAfter.toString());
+    if (scheduledBefore != null) params.set("scheduledBefore", scheduledBefore.toString());
 
     const data = await api.webui.get(`/api/v1/scheduled-tasks/${taskId}/executions?${params.toString()}`);
     return {
@@ -63,11 +72,44 @@ export const fetchExecutions = async (taskId: string, pageNumber: number = 1, pa
     };
 };
 
+export const deleteExecution = async (executionId: string): Promise<void> => {
+    await api.webui.delete(`/api/v1/scheduled-tasks/executions/${executionId}`);
+};
+
 export const fetchRecentExecutions = async (limit: number = 50): Promise<ExecutionListResponse> => {
     const data = await api.webui.get(`/api/v1/scheduled-tasks/executions/recent?limit=${limit}`);
     return {
         ...data,
         executions: data.executions.map(transformApiExecution),
+    };
+};
+
+export interface ConflictValidationRequest {
+    instructions: string;
+    scheduleType: string;
+    scheduleExpression: string;
+    timezone: string;
+    targetAgent?: string | null;
+}
+
+export interface ConflictValidationResult {
+    conflict: boolean;
+    reason: string | null;
+    affectedFields: Array<"instructions" | "schedule">;
+}
+
+export const validateTaskConflict = async (input: ConflictValidationRequest): Promise<ConflictValidationResult> => {
+    const data = await api.webui.post(`/api/v1/scheduled-tasks/builder/validate-conflict`, {
+        instructions: input.instructions,
+        schedule_type: input.scheduleType,
+        schedule_expression: input.scheduleExpression,
+        timezone: input.timezone,
+        target_agent: input.targetAgent ?? null,
+    });
+    return {
+        conflict: !!data.conflict,
+        reason: data.reason ?? null,
+        affectedFields: Array.isArray(data.affected_fields) ? data.affected_fields.filter((f: string) => f === "instructions" || f === "schedule") : [],
     };
 };
 

@@ -535,17 +535,38 @@ class SchedulerService:
             timeout_seconds = task.timeout_seconds or self.default_timeout_seconds
             max_retries = task.max_retries or 0
             retry_delay_seconds = task.retry_delay_seconds or DEFAULT_RETRY_DELAY_SECONDS
-            # Snapshot task fields for the retry loop so we don't re-read
+            # Snapshot task fields for the retry loop so we don't re-read.
+            # Also persisted onto the execution row (see "task_snapshot"
+            # column) so the UI can show per-execution config even after the
+            # task is later edited.
             task_snapshot = {
                 "task_message": task.task_message,
                 "name": task.name,
+                "description": task.description,
                 "run_count": task.run_count,
                 "task_metadata": task.task_metadata,
+                "schedule_type": task.schedule_type.value if hasattr(task.schedule_type, "value") else task.schedule_type,
+                "schedule_expression": task.schedule_expression,
                 "target_agent_name": task.target_agent_name,
+                "target_type": task.target_type.value if hasattr(task.target_type, "value") else task.target_type,
                 "user_id": task.user_id,
                 "created_by": task.created_by,
                 "timezone": task.timezone,
             }
+
+        # Subset persisted on the execution row for the UI's per-execution
+        # config view. Excludes internal/stateful fields like run_count and
+        # user_id which aren't shown in the Configuration sidebar.
+        persisted_snapshot = {
+            "name": task_snapshot["name"],
+            "description": task_snapshot["description"],
+            "schedule_type": task_snapshot["schedule_type"],
+            "schedule_expression": task_snapshot["schedule_expression"],
+            "timezone": task_snapshot["timezone"],
+            "target_agent_name": task_snapshot["target_agent_name"],
+            "target_type": task_snapshot["target_type"],
+            "task_message": task_snapshot["task_message"],
+        }
 
         for attempt in range(max_retries + 1):
             execution_id = None
@@ -571,6 +592,7 @@ class SchedulerService:
                                     error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
                                     trigger_type=trigger_type,
                                     triggered_by=triggered_by,
+                                    task_snapshot=persisted_snapshot,
                                 )
                                 session.add(execution)
                                 session.commit()
@@ -597,6 +619,7 @@ class SchedulerService:
                             retry_count=attempt,
                             trigger_type=trigger_type,
                             triggered_by=triggered_by,
+                            task_snapshot=persisted_snapshot,
                         )
                         session.add(execution)
                         task.last_run_at = current_time

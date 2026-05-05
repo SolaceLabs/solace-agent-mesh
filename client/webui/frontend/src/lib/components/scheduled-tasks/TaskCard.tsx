@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { Bot, Pencil, Trash2, Calendar, CalendarClock, Clock, MoreHorizontal, Play, Pause, History, Zap, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, MinusCircle, Pencil, Trash2, CalendarDays, CalendarSync, Clock, MoreHorizontal, Play, Pause, History, XCircle, Zap, Loader2 } from "lucide-react";
 
 import { GridCard } from "@/lib/components/common";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import type { ScheduledTask, TaskStatus, LastExecutionSummary } from "@/lib/types/scheduled-tasks";
+import type { ScheduledTask, LastExecutionSummary } from "@/lib/types/scheduled-tasks";
 import { formatDuration, formatRelativeTime } from "@/lib/utils/format";
 import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
+import { getStatusBadge } from "./ExecutionList";
 
 const lastRunLabel = (last: LastExecutionSummary): string => {
     switch (last.status) {
@@ -29,19 +30,25 @@ const lastRunLabel = (last: LastExecutionSummary): string => {
     }
 };
 
-const renderLastRun = (last: LastExecutionSummary) => {
-    const whenTs = toEpochMs(last.completedAt ?? last.startedAt ?? last.scheduledFor);
-    const whenIso = new Date(whenTs).toISOString();
-    const relative = formatRelativeTime(whenIso);
-    const absolute = new Date(whenTs).toLocaleString();
-    const duration = last.durationMs ? ` · ${formatDuration(last.durationMs)}` : "";
-    const label = lastRunLabel(last);
-
-    return (
-        <span className="truncate text-xs text-(--secondary-text-wMain)" title={last.errorMessage ?? `${label} · ${absolute}${duration}`}>
-            {label} {relative}
-        </span>
-    );
+// Maps an execution status to its leading-icon component and a Tailwind color class.
+// Used to render the "Succeeded 3 min ago" / "Failed …" line on the card.
+const lastRunIconConfig = (last: LastExecutionSummary): { Icon: React.ComponentType<{ className?: string }>; colorClass: string } => {
+    switch (last.status) {
+        case "completed":
+            return { Icon: CheckCircle2, colorClass: "text-(--success-wMain)" };
+        case "failed":
+            return { Icon: XCircle, colorClass: "text-(--error-wMain)" };
+        case "timeout":
+            return { Icon: AlertCircle, colorClass: "text-(--warning-wMain)" };
+        case "skipped":
+        case "cancelled":
+            return { Icon: MinusCircle, colorClass: "text-(--secondary-text-wMain)" };
+        case "running":
+        case "pending":
+            return { Icon: Loader2, colorClass: "text-(--brand-wMain)" };
+        default:
+            return { Icon: Clock, colorClass: "text-(--secondary-text-wMain)" };
+    }
 };
 
 interface TaskCardProps {
@@ -93,12 +100,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
     // Config-sourced tasks are read-only, so manual Run Now would be surprising.
     const canRunNow = !!onRunNow && task.scheduleType !== "one_time" && task.source !== "config";
 
-    const statusDotConfig: Record<TaskStatus, { label: string; dotClass: string }> = {
-        active: { label: "Active", dotClass: "bg-(--success-wMain)" },
-        paused: { label: "Paused", dotClass: "bg-(--warning-wMain)" },
-        error: { label: "Error", dotClass: "bg-(--error-wMain)" },
-    };
-
     const isRunning = !!task.lastExecution && (task.lastExecution.status === "running" || task.lastExecution.status === "pending");
 
     const formatNextRun = (task: ScheduledTask): string => {
@@ -132,7 +133,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <CalendarClock className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <CalendarDays className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={task.name}>
                                 {task.name}
@@ -198,39 +199,59 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
                         </div>
                     )}
                     {task.description && (
-                        <div className="mb-2 line-clamp-1 text-sm leading-5" title={task.description}>
+                        <div className="mb-2 flex-shrink-0 truncate text-sm leading-6" title={task.description}>
                             {task.description}
                         </div>
                     )}
-                    <div className="mt-auto space-y-1">
+                    {/* Info rows nudged down slightly from the description; kept tight
+                        on vertical space so the pill below always fits inside the
+                        fixed card height (h-50). */}
+                    <div className="mt-2 space-y-1.5">
                         <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
-                            <Clock className="h-3 w-3" />
-                            <span className="truncate">{formatSchedule(task)}</span>
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">
+                                <span className="font-medium">Occurs:</span> {formatSchedule(task)}
+                            </span>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
-                            <Calendar className="h-3 w-3" />
-                            <span className="truncate">{formatNextRun(task)}</span>
+                            <CalendarSync className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">
+                                <span className="font-medium">Next run:</span> {formatNextRun(task)}
+                            </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)">
-                            <Bot className="h-3 w-3" />
-                            <span className="truncate">{task.targetAgentName}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 pt-2 text-xs">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                                {isRunning ? (
-                                    <>
-                                        <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin text-(--brand-wMain)" />
-                                        <span className="truncate font-medium text-(--primary-text-wMain)">Running</span>
-                                    </>
-                                ) : task.status ? (
-                                    <>
-                                        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${statusDotConfig[task.status]?.dotClass ?? "bg-(--secondary-wMain)"}`} />
-                                        <span className="truncate font-medium text-(--primary-text-wMain)">{statusDotConfig[task.status]?.label ?? task.status}</span>
-                                    </>
-                                ) : null}
-                            </div>
-                            {task.lastExecution && !isRunning && renderLastRun(task.lastExecution)}
-                        </div>
+                        {/* Last *completed* execution — kept visible even when a new
+                            run is in flight, so the user always sees the latest
+                            success/failure here. The running indicator lives on the
+                            status pill, not on this row. */}
+                        {task.lastCompletedExecution &&
+                            (() => {
+                                const last = task.lastCompletedExecution;
+                                const { Icon, colorClass } = lastRunIconConfig(last);
+                                const whenTs = toEpochMs(last.completedAt ?? last.startedAt ?? last.scheduledFor);
+                                const whenIso = new Date(whenTs).toISOString();
+                                const relative = formatRelativeTime(whenIso);
+                                const absolute = new Date(whenTs).toLocaleString();
+                                const duration = last.durationMs ? ` · ${formatDuration(last.durationMs)}` : "";
+                                const label = lastRunLabel(last);
+                                return (
+                                    <div className="flex items-center gap-1.5 text-xs text-(--secondary-text-wMain)" title={last.errorMessage ?? `${label} · ${absolute}${duration}`}>
+                                        <Icon className={`h-3 w-3 flex-shrink-0 ${colorClass}`} />
+                                        <span className="truncate">
+                                            {label} {relative}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
+                    </div>
+                    <div className="mt-auto pt-2">
+                        {isRunning ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-(--primary-text-wMain)">
+                                Running
+                                <Loader2 className="h-3 w-3 animate-spin text-(--brand-wMain)" />
+                            </span>
+                        ) : task.status ? (
+                            getStatusBadge(task.status)
+                        ) : null}
                     </div>
                 </div>
             </div>

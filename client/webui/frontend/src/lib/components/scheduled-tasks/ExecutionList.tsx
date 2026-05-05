@@ -20,16 +20,24 @@ const STATUS_LABELS: Record<string, string> = {
     timeout: "Timeout",
 };
 
+// Pill-style badge used for both execution statuses (completed/failed/pending/
+// running/timeout) and task statuses (active/paused/error). Reused from TaskCard,
+// ExecutionList, and ExecutionDetail so all three render identical pills.
 const getStatusBadge = (status: string) => {
     const statusConfig = {
-        completed: { bg: "bg-(--color-success-w20)", text: "text-(--color-success-wMain)", label: "Completed" },
-        failed: { bg: "bg-(--color-error-w20)", text: "text-(--color-error-wMain)", label: "Failed" },
-        pending: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Pending" },
-        running: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Running" },
-        timeout: { bg: "bg-(--color-warning-w20)", text: "text-(--color-warning-wMain)", label: "Timeout" },
+        // Execution statuses
+        completed: { bg: "bg-(--success-w20)", text: "text-(--success-wMain)", label: "Completed" },
+        failed: { bg: "bg-(--error-w20)", text: "text-(--error-wMain)", label: "Failed" },
+        pending: { bg: "bg-(--info-w20)", text: "text-(--info-wMain)", label: "Pending" },
+        running: { bg: "bg-(--info-w20)", text: "text-(--info-wMain)", label: "Running" },
+        timeout: { bg: "bg-(--warning-w20)", text: "text-(--warning-wMain)", label: "Timeout" },
+        // Task lifecycle statuses
+        active: { bg: "bg-(--success-w20)", text: "text-(--success-wMain)", label: "Active" },
+        paused: { bg: "bg-(--warning-w20)", text: "text-(--warning-wMain)", label: "Paused" },
+        error: { bg: "bg-(--error-w20)", text: "text-(--error-wMain)", label: "Error" },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
+    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>{config.label}</span>;
 };
 
 export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, selectedExecution, onSelect, isLoading }) => {
@@ -58,10 +66,7 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium">{STATUS_LABELS[execution.status] ?? execution.status}</span>
                                             {execution.triggerType === "manual" && (
-                                                <span
-                                                    className="rounded-full bg-(--color-info-w20) px-2 py-0.5 text-xs text-(--color-info-wMain)"
-                                                    title={execution.triggeredBy ? `Triggered manually by ${execution.triggeredBy}` : "Triggered manually"}
-                                                >
+                                                <span className="rounded-full bg-(--info-w20) px-2 py-0.5 text-xs text-(--info-wMain)" title={execution.triggeredBy ? `Triggered manually by ${execution.triggeredBy}` : "Triggered manually"}>
                                                     Manual
                                                 </span>
                                             )}

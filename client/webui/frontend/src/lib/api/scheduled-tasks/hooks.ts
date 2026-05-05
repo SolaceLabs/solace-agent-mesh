@@ -93,11 +93,35 @@ export function useRunScheduledTaskNow() {
     });
 }
 
-export function useTaskExecutions(taskId: string, pageNumber: number = 1, pageSize: number = 20) {
+export function useTaskExecutions(taskId: string, pageNumber: number = 1, pageSize: number = 20, scheduledAfter?: number | null, scheduledBefore?: number | null) {
     return useQuery({
-        queryKey: scheduledTaskKeys.executionList(taskId, { pageNumber, pageSize }),
-        queryFn: () => scheduledTaskService.fetchExecutions(taskId, pageNumber, pageSize),
+        queryKey: [...scheduledTaskKeys.executionList(taskId, { pageNumber, pageSize }), { scheduledAfter, scheduledBefore }],
+        queryFn: () => scheduledTaskService.fetchExecutions(taskId, pageNumber, pageSize, scheduledAfter, scheduledBefore),
         enabled: !!taskId,
+    });
+}
+
+export function useDeleteExecution(taskId: string) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (executionId: string) => scheduledTaskService.deleteExecution(executionId),
+        onSuccess: (_, executionId) => {
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.executions(taskId) });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.detail(taskId) });
+            queryClient.invalidateQueries({ queryKey: scheduledTaskKeys.lists() });
+            // Drop the deleted execution's artifacts cache so a future
+            // execution that reuses the same id can't serve stale artifacts.
+            queryClient.removeQueries({ queryKey: scheduledTaskKeys.executionArtifacts(executionId) });
+        },
+    });
+}
+
+export function useExecutionArtifacts(executionId: string | null) {
+    return useQuery({
+        queryKey: executionId ? scheduledTaskKeys.executionArtifacts(executionId) : ["execution-artifacts", "empty"],
+        queryFn: () => scheduledTaskService.fetchExecutionArtifacts(executionId!),
+        enabled: !!executionId,
     });
 }
 

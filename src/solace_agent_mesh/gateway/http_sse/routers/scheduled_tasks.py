@@ -47,65 +47,80 @@ def _check_task_ownership(task, user_id: str, user: dict) -> None:
         raise HTTPException(status_code=403, detail="Only administrators can modify namespace-level tasks")
 
 
-def _fetch_last_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
-    """Fetch the most recent execution for each given task id in one query.
+def _row_to_summary(row) -> LastExecutionSummary:
+    """Convert a ScheduledTaskExecutionModel row into a LastExecutionSummary DTO."""
+    duration_ms = None
+    if row.started_at and row.completed_at:
+        duration_ms = row.completed_at - row.started_at
+    status_value = row.status.value if hasattr(row.status, "value") else str(row.status)
+    trigger = getattr(row, "trigger_type", None)
+    trigger_value = trigger.value if hasattr(trigger, "value") else (trigger or "scheduled")
+    return LastExecutionSummary(
+        id=row.id,
+        status=status_value,
+        scheduled_for=row.scheduled_for,
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+        duration_ms=duration_ms,
+        error_message=row.error_message,
+        trigger_type=trigger_value,
+    )
 
-    Used to surface "last run" info directly on task cards so users can see
-    health at a glance instead of drilling into execution history. Returns
-    a map keyed by scheduled_task_id; tasks with no executions are absent.
-    """
+
+def _fetch_latest_executions_by_filter(db: DBSession, task_ids: list[str], status_filter=None) -> dict[str, LastExecutionSummary]:
+    """Fetch the most recent execution per task in one query, optionally filtered
+    by an iterable of status values. Used by both `_fetch_last_executions` (any
+    status) and `_fetch_last_completed_executions` (terminal statuses only)."""
     if not task_ids:
         return {}
 
     from ..repository.models import ScheduledTaskExecutionModel
     from sqlalchemy import func
 
-    # Subquery: max scheduled_for per task. Correlated on scheduled_task_id so
-    # we pick exactly one row per task even when two fires happen at the same
-    # millisecond (use max(id) as a tiebreaker).
-    subq = (
-        db.query(
-            ScheduledTaskExecutionModel.scheduled_task_id.label("tid"),
-            func.max(ScheduledTaskExecutionModel.scheduled_for).label("max_for"),
-        )
-        .filter(ScheduledTaskExecutionModel.scheduled_task_id.in_(task_ids))
-        .group_by(ScheduledTaskExecutionModel.scheduled_task_id)
-        .subquery()
-    )
+    base = db.query(
+        ScheduledTaskExecutionModel.scheduled_task_id.label("tid"),
+        func.max(ScheduledTaskExecutionModel.scheduled_for).label("max_for"),
+    ).filter(ScheduledTaskExecutionModel.scheduled_task_id.in_(task_ids))
+    if status_filter is not None:
+        base = base.filter(ScheduledTaskExecutionModel.status.in_(status_filter))
+    subq = base.group_by(ScheduledTaskExecutionModel.scheduled_task_id).subquery()
 
-    rows = (
-        db.query(ScheduledTaskExecutionModel)
-        .join(
-            subq,
-            (ScheduledTaskExecutionModel.scheduled_task_id == subq.c.tid)
-            & (ScheduledTaskExecutionModel.scheduled_for == subq.c.max_for),
-        )
-        .all()
+    join_condition = (ScheduledTaskExecutionModel.scheduled_task_id == subq.c.tid) & (
+        ScheduledTaskExecutionModel.scheduled_for == subq.c.max_for
     )
+    query = db.query(ScheduledTaskExecutionModel).join(subq, join_condition)
+    if status_filter is not None:
+        query = query.filter(ScheduledTaskExecutionModel.status.in_(status_filter))
+    rows = query.all()
 
     result: dict[str, LastExecutionSummary] = {}
     for row in rows:
-        duration_ms = None
-        if row.started_at and row.completed_at:
-            duration_ms = row.completed_at - row.started_at
-        status_value = row.status.value if hasattr(row.status, "value") else str(row.status)
-        trigger = getattr(row, "trigger_type", None)
-        trigger_value = trigger.value if hasattr(trigger, "value") else (trigger or "scheduled")
-        # If two rows share the same (task_id, scheduled_for) they'll both be
-        # returned — keep the one with the latest completed_at / started_at.
+        # Two rows sharing (task_id, scheduled_for) — keep the most recent run.
         existing = result.get(row.scheduled_task_id)
         if existing is None or (row.started_at or 0) >= (existing.started_at or 0):
-            result[row.scheduled_task_id] = LastExecutionSummary(
-                id=row.id,
-                status=status_value,
-                scheduled_for=row.scheduled_for,
-                started_at=row.started_at,
-                completed_at=row.completed_at,
-                duration_ms=duration_ms,
-                error_message=row.error_message,
-                trigger_type=trigger_value,
-            )
+            result[row.scheduled_task_id] = _row_to_summary(row)
     return result
+
+
+def _fetch_last_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
+    """Most recent execution per task regardless of status — drives the card's
+    pill (running/active/etc.)."""
+    return _fetch_latest_executions_by_filter(db, task_ids)
+
+
+def _fetch_last_completed_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
+    """Most recent *terminal* execution per task — drives the "Succeeded N min
+    ago" line so it stays visible even while a new run is in flight."""
+    from ..repository.models import ExecutionStatus
+
+    terminal = [
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.TIMEOUT,
+        ExecutionStatus.CANCELLED,
+        ExecutionStatus.SKIPPED,
+    ]
+    return _fetch_latest_executions_by_filter(db, task_ids, status_filter=terminal)
 
 
 def get_scheduler_service():
@@ -149,7 +164,9 @@ class TaskBuilderChatRequest(BaseModel):
     message: str = Field(..., max_length=5000)
     conversation_history: List[Dict[str, str]] = Field(default=[], max_length=50)
     current_task: Dict[str, Any] = {}
-    available_agents: List[str] = []
+    # Each entry: {"name": str, "display_name"?: str, "description"?: str}.
+    # Backwards-compatible: a list of plain strings is also accepted.
+    available_agents: List[Any] = Field(default_factory=list, max_length=200)
 
 
 class TaskBuilderChatResponse(BaseModel):
@@ -158,6 +175,7 @@ class TaskBuilderChatResponse(BaseModel):
     task_updates: Dict[str, Any] = {}
     confidence: float
     ready_to_save: bool
+    inline_component: Optional[Dict[str, Any]] = None
 
 
 def get_task_builder_assistant(
@@ -200,6 +218,7 @@ async def task_builder_chat(
             task_updates=response.task_updates,
             confidence=response.confidence,
             ready_to_save=response.ready_to_save,
+            inline_component=response.inline_component.model_dump() if response.inline_component else None,
         )
     except Exception as e:
         log.error("Error in task builder chat: %s", e, exc_info=True)
@@ -207,6 +226,52 @@ async def task_builder_chat(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process task builder message"
         ) from e
+
+
+class ValidateConflictRequest(BaseModel):
+    """Request to check whether task instructions conflict with the configured schedule."""
+    instructions: str = Field(..., max_length=5000)
+    schedule_type: str = Field(..., max_length=50)
+    schedule_expression: str = Field(..., max_length=200)
+    timezone: str = Field("UTC", max_length=100)
+    target_agent: Optional[str] = Field(None, max_length=128)
+
+
+class ValidateConflictResponse(BaseModel):
+    """Outcome of the conflict check. `affected_fields` is a subset of {instructions, schedule}."""
+    conflict: bool
+    reason: Optional[str] = None
+    affected_fields: List[str] = Field(default_factory=list)
+
+
+@router.post("/builder/validate-conflict", response_model=ValidateConflictResponse)
+async def validate_task_conflict(
+    request: ValidateConflictRequest,
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(get_user_config),
+    config_resolver=Depends(get_config_resolver),
+    assistant: TaskBuilderAssistant = Depends(get_task_builder_assistant),
+):
+    """Check if task instructions semantically conflict with the schedule (LLM-backed).
+    On any error, returns conflict=False so a flaky LLM doesn't block saves."""
+    _validate_scheduling_permission(user_config, config_resolver)
+    try:
+        result = await assistant.validate_conflict(
+            instructions=request.instructions,
+            schedule_type=request.schedule_type,
+            schedule_expression=request.schedule_expression,
+            timezone=request.timezone,
+            target_agent=request.target_agent,
+        )
+        return ValidateConflictResponse(
+            conflict=result.conflict,
+            reason=result.reason,
+            affected_fields=result.affected_fields,
+        )
+    except Exception as e:
+        log.error("Error validating task conflict: %s", e, exc_info=True)
+        # Fail open — better to let the user save than block them on a flaky LLM.
+        return ValidateConflictResponse(conflict=False)
 
 
 @router.get("/builder/greeting", response_model=TaskBuilderChatResponse)
@@ -391,9 +456,18 @@ async def list_scheduled_tasks(
             pagination=pagination,
         )
 
-        last_by_task = _fetch_last_executions(db, [t.id for t in tasks])
+        task_ids = [t.id for t in tasks]
+        last_by_task = _fetch_last_executions(db, task_ids)
+        last_completed_by_task = _fetch_last_completed_executions(db, task_ids)
         return ScheduledTaskListResponse(
-            tasks=[ScheduledTaskResponse.from_orm(t, last_execution=last_by_task.get(t.id)) for t in tasks],
+            tasks=[
+                ScheduledTaskResponse.from_orm(
+                    t,
+                    last_execution=last_by_task.get(t.id),
+                    last_completed_execution=last_completed_by_task.get(t.id),
+                )
+                for t in tasks
+            ],
             total=total,
             skip=pagination.offset,
             limit=page_size,
@@ -457,6 +531,39 @@ async def get_execution_by_a2a_task_id(
         raise HTTPException(status_code=500, detail="Failed to fetch execution") from e
 
 
+@router.delete("/executions/{execution_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_execution(
+    execution_id: str,
+    db: DBSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    user_config: dict = Depends(get_user_config),
+    config_resolver=Depends(get_config_resolver),
+    task_service: ScheduledTaskService = Depends(get_task_service),
+):
+    """Hard-delete a single execution from a task's history."""
+    _validate_scheduling_permission(user_config, config_resolver)
+    user_id = user.get("id")
+    try:
+        execution = task_service.get_execution(db, execution_id)
+        if not execution:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        task = task_service.get_task(db, execution.scheduled_task_id, user_id=user_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Execution not found")
+        _check_task_ownership(task, user_id, user)
+
+        deleted = task_service.delete_execution(db, execution_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Execution not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        log.error("Error deleting execution %s: %s", execution_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete execution") from e
+
+
 @router.get("/scheduler/status", response_model=SchedulerStatusResponse)
 async def get_scheduler_status(
     user: dict = Depends(get_current_user),
@@ -491,7 +598,8 @@ async def get_scheduled_task(
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         last = _fetch_last_executions(db, [task.id]).get(task.id)
-        return ScheduledTaskResponse.from_orm(task, last_execution=last)
+        last_completed = _fetch_last_completed_executions(db, [task.id]).get(task.id)
+        return ScheduledTaskResponse.from_orm(task, last_execution=last, last_completed_execution=last_completed)
     except HTTPException:
         raise
     except Exception as e:
@@ -720,11 +828,14 @@ async def get_task_executions(
     task_id: str,
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
+    scheduled_after: Optional[int] = Query(default=None, alias="scheduledAfter", description="Filter to executions whose scheduled_for >= this epoch ms"),
+    scheduled_before: Optional[int] = Query(default=None, alias="scheduledBefore", description="Filter to executions whose scheduled_for <= this epoch ms"),
     db: DBSession = Depends(get_db),
     user: dict = Depends(get_current_user),
     task_service: ScheduledTaskService = Depends(get_task_service),
 ):
-    """Get execution history for a scheduled task."""
+    """Get execution history for a scheduled task. Optional `scheduledAfter`
+    and `scheduledBefore` (epoch ms) bound the result by `scheduled_for`."""
     user_id = user.get("id")
     try:
         task = task_service.get_task(db, task_id, user_id=user_id)
@@ -734,7 +845,9 @@ async def get_task_executions(
             raise HTTPException(status_code=403, detail=UNAUTHORIZED_MSG)
 
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        executions, total = task_service.get_task_executions(db, task_id, pagination)
+        executions, total = task_service.get_task_executions(
+            db, task_id, pagination, scheduled_after=scheduled_after, scheduled_before=scheduled_before
+        )
 
         return ExecutionListResponse(
             executions=[ExecutionResponse.from_orm(ex) for ex in executions],

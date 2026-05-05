@@ -53,6 +53,7 @@ def _mock_execution(scheduled_task_id="task-1", a2a_task_id="a2a-123", **overrid
     execution.triggered_by = overrides.get("triggered_by", None)
     execution.artifacts = None
     execution.notifications_sent = None
+    execution.task_snapshot = None
     return execution
 
 
