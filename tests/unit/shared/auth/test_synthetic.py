@@ -336,6 +336,40 @@ def test_config_empty_endpoint_allowlist_disables():
     assert SyntheticAuthConfig.from_component(_StubComponent(**cfg)) is None
 
 
+def test_config_default_issuers_target_entra_public_cloud():
+    """By default, issuers/jwks point at the Entra public-cloud URLs."""
+    config = SyntheticAuthConfig.from_component(_StubComponent(**_FULL_CONFIG))
+    assert config is not None
+    assert config.issuers == (
+        f"https://sts.windows.net/{TENANT_ID}/",
+        f"https://login.microsoftonline.com/{TENANT_ID}/v2.0",
+    )
+    assert config.jwks_uri == (
+        f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
+    )
+
+
+def test_config_issuer_and_jwks_overrides_apply():
+    """Sovereign clouds / non-public-cloud Entra: override issuers + JWKS URL."""
+    cfg = {
+        **_FULL_CONFIG,
+        "synthetic_auth_issuers": [
+            f"https://login.microsoftonline.us/{TENANT_ID}/v2.0",
+        ],
+        "synthetic_auth_jwks_uri": (
+            f"https://login.microsoftonline.us/{TENANT_ID}/discovery/v2.0/keys"
+        ),
+    }
+    config = SyntheticAuthConfig.from_component(_StubComponent(**cfg))
+    assert config is not None
+    assert config.issuers == (
+        f"https://login.microsoftonline.us/{TENANT_ID}/v2.0",
+    )
+    assert config.jwks_uri == (
+        f"https://login.microsoftonline.us/{TENANT_ID}/discovery/v2.0/keys"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoint allowlist (default deny is the security boundary)
 # ---------------------------------------------------------------------------

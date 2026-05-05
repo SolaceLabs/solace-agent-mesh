@@ -127,9 +127,24 @@ class SyntheticAuthConfig:
             for entry in endpoint_list
         )
 
-        issuer_v1 = f"https://sts.windows.net/{tenant_id}/"
-        issuer_v2 = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
-        jwks_uri = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+        # Defaults target the Entra ID public cloud. Override via config for
+        # sovereign Entra clouds (Government, China) or any Entra-claim-shaped
+        # OIDC provider running at a different URL.
+        issuers_override = component.get_config("synthetic_auth_issuers", []) or []
+        jwks_uri_override = component.get_config("synthetic_auth_jwks_uri", "") or ""
+
+        if issuers_override:
+            issuers = tuple(issuers_override)
+        else:
+            issuers = (
+                f"https://sts.windows.net/{tenant_id}/",
+                f"https://login.microsoftonline.com/{tenant_id}/v2.0",
+            )
+
+        jwks_uri = (
+            jwks_uri_override
+            or f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+        )
 
         return SyntheticAuthConfig(
             enabled=True,
@@ -138,7 +153,7 @@ class SyntheticAuthConfig:
             role_name=role_name,
             appid_allowlist=frozenset(appid_list),
             endpoint_allowlist=compiled_endpoints,
-            issuers=(issuer_v1, issuer_v2),
+            issuers=issuers,
             jwks_uri=jwks_uri,
         )
 
