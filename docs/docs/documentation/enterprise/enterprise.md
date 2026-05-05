@@ -5,7 +5,13 @@ sidebar_position: 700
 
 # Agent Mesh Enterprise
 
-Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. This version provides security through single sign-on integration, access control through role-based permissions, data management for cost optimization, observability tools for monitoring agent workflows and system performance, and offline evaluations for measuring and tracking agent quality over time.
+Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. This version provides:
+
+- Security through single sign-on integration
+- Access control through role-based permissions
+- Data management for cost optimization
+- Observability tools for monitoring agent workflows and system performance
+- Offline evaluations for measuring and tracking agent quality over time
 
 Enterprise is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
 

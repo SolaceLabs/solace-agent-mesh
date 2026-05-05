@@ -9,13 +9,13 @@ sidebar_position: 850
 This feature is under active development. Configuration schemas and behavior may change in future releases. Do not use in production without validating against the current release notes.
 :::
 
-Offline evaluations let you measure agent quality by sending a curated set of prompts to a deployed agent, scoring the responses, and tracking results over time. "Offline" means the inputs are prepared in advance — not sampled from live production traffic. This makes it safe to run evaluations repeatedly against the same prompt set and compare results across model changes, prompt updates, or configuration adjustments.
+Offline evaluations let you measure agent quality by sending a curated set of prompts to a deployed agent, scoring the responses, and tracking results over time. "Offline" means the inputs are prepared in advance — not sampled from live production traffic. This makes it possible to run evaluations repeatedly against the same prompt set and compare results across model changes, prompt updates, or configuration adjustments.
 
 The Offline Evaluations UI provides a browser-based interface for managing the building blocks of this workflow: datasets of example prompts, evaluators that define how responses are scored, and experiments that combine them into reusable run configurations. For the CLI-based evaluation workflow that works with Community and Enterprise deployments alike, see [Evaluating Agents](../developing/evaluations.md).
 
 ## What Offline Evaluations Does
 
-The Offline Evaluations UI lets you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-judge evaluator, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
+The Offline Evaluations UI lets you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-a-judge evaluator, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
 
 The key differences from the CLI evaluation workflow are:
 
@@ -44,10 +44,6 @@ Before using this feature, verify that you have:
 
 The evaluation execution service stores execution data and agent-produced artifact snapshots in object storage. Two backends are available, selected automatically based on environment variables.
 
-:::warning
-The evaluation execution service assumes a single active instance at a time. Running multiple replicas of the Platform Service may cause one instance to mark another's in-progress runs as failed. Set `replicas: 1` (or the equivalent in your deployment platform) for the Platform Service.
-:::
-
 ### Object Storage
 
 | Environment Variable | Required | Default | Description |
@@ -56,7 +52,7 @@ The evaluation execution service assumes a single active instance at a time. Run
 | `OBJECT_STORAGE_FS_ROOT` | No | `<cwd>/tmp/eval-storage` | Filesystem root used when `EVAL_DATA_BUCKET_NAME` is not set. Ignored when a bucket is configured. Defaults to a `tmp/eval-storage` directory relative to the process working directory. |
 
 :::warning
-The local filesystem backend is suitable for development only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. Set `EVAL_DATA_BUCKET_NAME` for any deployment where you want to retain execution traces and artifact snapshots.
+The local filesystem backend is suitable for development and local testing only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. Set `EVAL_DATA_BUCKET_NAME` for any deployment where you want to retain execution traces and artifact snapshots.
 :::
 
 ### Dataset Generation Tuning
@@ -77,7 +73,7 @@ These variables control how long the service waits for and manages individual ev
 | `EVAL_AGENT_TIMEOUT_SECONDS` | `480` | Maximum seconds to wait for the target agent to respond to a single example prompt. |
 | `EVAL_EXAMPLE_BUDGET_SECONDS` | `600` | Total budget per example, including the agent timeout and scoring time. |
 | `EVAL_WATCHDOG_INTERVAL_SECONDS` | `120` | Interval at which the watchdog checks for stale or stuck runs. |
-| `EVAL_SCORING_THREADS` | `8` | Thread pool size for parallel LLM-as-judge scoring calls. |
+| `EVAL_SCORING_THREADS` | `8` | Thread pool size for parallel LLM-as-a-judge scoring calls. |
 
 ## Reports
 
@@ -91,7 +87,7 @@ A run group corresponds to one trigger of a specific experiment. If the experime
 
 Each run group preserves a snapshot of the experiment and evaluator definitions taken when you triggered the run, so editing the experiment afterward does not change historical scores. If you edit the experiment after a run is triggered, the run group is marked with an "outdated configuration" indicator on the Reports page — a signal that the live experiment no longer matches the configuration used to produce these results. Trigger a fresh run to compare against the current configuration.
 
-The watchlist section at the top of the Reports page shows score trend charts for up to five agents you pin. Select agents to watch from the Edit Watchlist dialog, which appears when you click the edit control. Each agent's chart shows one series per experiment that targets it, plotting the primary evaluator score over time. Use the watchlist to spot regressions across deploys or model changes.
+The watchlist section at the top of the Reports page shows score trend charts for up to five agents. Select agents to watch from the Edit Watchlist dialog, which appears when you click the edit control. Each agent's chart shows one series per experiment that targets it, plotting the primary evaluator score over time. Use the watchlist to spot regressions across deploys or model changes.
 
 ## Experiment Lab
 
@@ -166,9 +162,21 @@ Heuristic evaluators that use an expected response produce a score of 0.0 when t
 
 System-seeded evaluators cannot be modified or deleted. The name column shows which evaluators are system-seeded.
 
-#### LLM-as-judge evaluators
+#### LLM-as-a-judge evaluators
 
-LLM-as-judge evaluators use a language model to assign a score based on a prompt template you write. To create one:
+LLM-as-a-judge evaluators use a language model to assign a score based on a prompt template. The platform seeds the following built-in LLM-as-a-judge evaluators at startup:
+
+- `LLM Judge`: General-purpose response quality scored as Fail, Partial, or Pass.
+- `Factuality`: Compares factual content of the agent's response against an expert answer.
+- `Closed QA`: Checks whether the response correctly and completely answers the question in the prompt.
+- `Summary`: Checks whether a summary captures the key points of the source text.
+- `SQL`: Evaluates logical equivalence of a SQL query from the agent against a reference query.
+- `Translation`: Compares the agent's translation against a reference for semantic accuracy and fluency.
+- `Security`: Checks whether the response is free from security risks (prompt injection, harmful content, policy violations).
+
+System-seeded evaluators cannot be modified or deleted. The name column shows which evaluators are system-seeded.
+
+To create your own LLM-as-a-judge evaluator:
 
 1. Navigate to Evaluators on the Experiment Lab tab and click New Evaluator.
 2. Enter a name and description.
@@ -218,8 +226,6 @@ If the agent produced text artifacts during the run (Markdown, JSON, CSV, source
 
 Choice scores map natural-language outcome labels to numeric scores. The judge LLM picks one label per evaluation; its associated score becomes the numeric result for that example.
 
-**How it works:** The platform presents your labels to the judge as lettered options `(A)`, `(B)`, `(C)`… in the order they are defined. The judge returns a letter; the platform maps it back to the label and then to the score. The label (not the letter) is stored in the result for the audit trail.
-
 **Score values:** Scores are entered as percentages (0–100%) in the form and stored internally as 0.0–1.0. Scores at or above 50% are marked as **passed**; scores below 50% are marked as **failed**.
 
 The default set ships three choices as a starting point:
@@ -233,7 +239,7 @@ The default set ships three choices as a starting point:
 **Defining your own choices:**
 
 - **Keep labels short and distinct.** The judge reads your labels when it reasons about which to pick. Short, unambiguous labels like "Correct", "Partially correct", and "Incorrect" are easier for the judge to distinguish than long descriptions that overlap.
-- **Order choices from best to worst or worst to best** and keep the order consistent across evaluators. The judge sees them as `(A)`, `(B)`, `(C)`… and a consistent ordering reduces scoring variance.
+- **Order choices from best to worst or worst to best** and keep the order consistent across evaluators. A consistent ordering reduces scoring variance.
 - **Use a spread of score values.** If all choices cluster near 0% or 100%, the average scores across a dataset will compress into a narrow band that makes it hard to see improvements over time. A spread like 0%, 50%, 100% or 0%, 33%, 67%, 100% gives the trend charts useful range.
 - **Minimum 2, maximum 26 choices.** You can reorder choices by dragging the grip handle on the left.
 
@@ -279,7 +285,7 @@ Click an example row to open the example inspector side panel. The panel shows:
 
 - The prompt sent to the agent.
 - The expected response (if defined on the example).
-- A responses table with one column per model and one row per trial. Expand a trial row to see the agent's response, any artifacts it produced, and LLM-as-a-Judge reasoning per evaluator.
+- A responses table with one column per model and one row per trial. Expand a trial row to see the agent's response, any artifacts it produced, and LLM-as-a-judge reasoning per evaluator.
 
 ### Viewing full details and the activity diagram
 
@@ -289,10 +295,6 @@ The inspector header has an **Open Full Details** button that opens the example 
 - **Activity** — the captured A2A event stream rendered as a flow chart, showing the message flow between the orchestrator, the target agent, and any peer agents involved in producing the response.
 
 If no task events were captured for a result, the Activity tab shows an "Activity diagram unavailable" message.
-
-### Exporting results
-
-You can export the results for a completed run as CSV or JSON. Navigate to the run group, expand the run you want to export, and use the export button. Both formats include the prompt, expected response, agent response, duration, and a score and pass/fail per evaluator for each example. The JSON export additionally includes the evaluator reasoning for each score.
 
 ### Deleting artifacts
 
@@ -306,7 +308,7 @@ The execution service is not running or failed to connect to the broker. Check t
 
 ### Run completes but results show no score
 
-LLM-as-judge scoring failures do not fail the run — the platform stores the result with an empty score and continues. Open a result, expand the evaluator score section, and check the reasoning field. If reasoning is empty, the LLM call failed silently. Verify that the model configuration assigned to the evaluator is active and reachable from the Platform Service.
+LLM-as-a-judge scoring failures do not fail the run — the platform stores the result with an empty score and continues. Open a result, expand the evaluator score section, and check the reasoning field. If reasoning is empty, the LLM call failed silently. Verify that the model configuration assigned to the evaluator is active and reachable from the Platform Service.
 
 ### AI-assisted dataset generation fails
 
@@ -316,7 +318,7 @@ LLM-as-judge scoring failures do not fail the run — the platform stores the re
 
 ### Run shows "completed_with_warnings"
 
-At least one example timed out or returned an error from the agent. Open the result inspector for an errored example and check `errorMessage`. If many examples error, consider increasing `EVAL_AGENT_TIMEOUT_SECONDS` or reducing the experiment's concurrent load.
+At least one example timed out or returned an error from the agent. Open the result inspector for an errored example and check `errorMessage`. If many examples error, consider increasing `EVAL_AGENT_TIMEOUT_SECONDS`, reducing the experiment's runs per example, or running against a smaller dataset.
 
 ### Artifact downloads return 404
 
@@ -331,4 +333,4 @@ An active (`pending` or `running`) run is blocking deletion. Cancel all active r
 - [Evaluating Agents](../developing/evaluations.md) — CLI-based evaluation workflow for Community and Enterprise deployments.
 - [Installing Agent Mesh Enterprise](installation.md) — Installation and database configuration.
 - [Setting Up RBAC](rbac-setup-guide.md) — Configure the `sam:evaluations:read`, `sam:evaluations:write`, and `sam:evaluations:execute` permission scopes to control who can access the Evaluations UI.
-- [Model Configurations](../installing-and-configuring/model_configurations.md) — Create and manage the model configurations you assign to experiments and LLM-as-judge evaluators.
+- [Model Configurations](../installing-and-configuring/model_configurations.md) — Create and manage the model configurations you assign to experiments and LLM-as-a-judge evaluators.
