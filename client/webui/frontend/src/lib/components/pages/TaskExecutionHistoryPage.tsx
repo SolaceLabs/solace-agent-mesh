@@ -101,12 +101,13 @@ const ConfigField: React.FC<{ label: string; children: React.ReactNode; multilin
 const ConfigurationSidebar: React.FC<{
     task: ScheduledTask;
     execution: TaskExecution | null;
+    isReadOnly: boolean;
     onEdit: () => void;
     onRunNow: () => void;
     onToggleEnabled: () => void;
     onDelete: () => void;
     isRunNowPending: boolean;
-}> = ({ task, execution, onEdit, onRunNow, onToggleEnabled, onDelete, isRunNowPending }) => {
+}> = ({ task, execution, isReadOnly, onEdit, onRunNow, onToggleEnabled, onDelete, isRunNowPending }) => {
     const navigate = useNavigate();
     const canRunNow = task.scheduleType !== "one_time" && task.source !== "config";
     const { agentNameMap } = useAgentCards();
@@ -130,44 +131,46 @@ const ConfigurationSidebar: React.FC<{
         <aside className="flex h-full w-[320px] flex-col overflow-y-auto border-r bg-(--background-w10)">
             <div className="flex items-center justify-between px-8 py-4">
                 <h2 className="text-base font-semibold">Configuration</h2>
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={onEdit} className="h-8 px-2">
-                        <Pencil className="mr-1 h-3.5 w-3.5" />
-                        Edit
-                    </Button>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Actions">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {canRunNow && (
-                                <DropdownMenuItem onSelect={onRunNow} disabled={isRunNowPending}>
-                                    <Zap size={14} className="mr-2" />
-                                    {isRunNowPending ? "Running…" : "Run Now"}
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={onToggleEnabled}>
-                                {task.enabled ? (
-                                    <>
-                                        <Pause size={14} className="mr-2" />
-                                        Pause Task
-                                    </>
-                                ) : (
-                                    <>
-                                        <Play size={14} className="mr-2" />
-                                        Resume Task
-                                    </>
+                {!isReadOnly && (
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={onEdit} className="h-8 px-2">
+                            <Pencil className="mr-1 h-3.5 w-3.5" />
+                            Edit
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" tooltip="Actions">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                {canRunNow && (
+                                    <DropdownMenuItem onSelect={onRunNow} disabled={isRunNowPending}>
+                                        <Zap size={14} className="mr-2" />
+                                        {isRunNowPending ? "Running…" : "Run Now"}
+                                    </DropdownMenuItem>
                                 )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={onDelete}>
-                                <Trash2 size={14} className="mr-2" />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
+                                <DropdownMenuItem onClick={onToggleEnabled}>
+                                    {task.enabled ? (
+                                        <>
+                                            <Pause size={14} className="mr-2" />
+                                            Pause Task
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play size={14} className="mr-2" />
+                                            Resume Task
+                                        </>
+                                    )}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={onDelete}>
+                                    <Trash2 size={14} className="mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
             </div>
 
             <div className="space-y-5 px-8 py-5">
@@ -621,6 +624,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                 <ConfigurationSidebar
                     task={task}
                     execution={displayedExecution}
+                    isReadOnly={!!selectedExecution}
                     onEdit={() => onEdit(task)}
                     onRunNow={() => runNowMutation.mutate(task.id)}
                     onToggleEnabled={() => (task.enabled ? disableMutation.mutate(task.id) : enableMutation.mutate(task.id))}
