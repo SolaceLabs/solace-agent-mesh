@@ -42,6 +42,10 @@ const INTERVAL_UNITS: Array<{ value: IntervalUnit; label: string; seconds: numbe
     { value: "d", label: "Days", seconds: 86400 },
 ];
 const MIN_INTERVAL_SECONDS = 60;
+// 1 year. Mirror the backend's MAXIMUM_INTERVAL_SECONDS — APScheduler's
+// IntervalTrigger overflows the underlying C int well past this bound, and
+// no realistic recurring task needs more than yearly cadence.
+const MAX_INTERVAL_SECONDS = 365 * 86400;
 
 function parseInterval(expr: string): { value: number; unit: IntervalUnit } {
     const match = /^(\d+)([smhd])$/i.exec(expr.trim());
@@ -317,6 +321,8 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 const seconds = intervalToSeconds(parseInt(match[1], 10), match[2].toLowerCase() as IntervalUnit);
                 if (seconds < MIN_INTERVAL_SECONDS) {
                     errors.scheduleExpression = `Interval must be at least ${MIN_INTERVAL_SECONDS} seconds`;
+                } else if (seconds > MAX_INTERVAL_SECONDS) {
+                    errors.scheduleExpression = "Interval must be at most 1 year";
                 }
             }
         }
@@ -609,7 +615,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                             </Select>
                                                         </div>
                                                         {invalid && <p className="text-sm text-(--error-wMain)">{validationErrors.scheduleExpression}</p>}
-                                                        <p className="text-xs text-(--secondary-text-wMain)">Minimum interval is {MIN_INTERVAL_SECONDS} seconds.</p>
+                                                        <p className="text-xs text-(--secondary-text-wMain)">Interval must be between {MIN_INTERVAL_SECONDS} seconds and 1 year.</p>
                                                     </div>
                                                 </>
                                             );
