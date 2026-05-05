@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.23.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.2...1.23.3) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134691:** improving artifacts appearing deleted during creation ([#1498](https://github.com/SolaceLabs/solace-agent-mesh/issues/1498)) ([ecfff47](https://github.com/SolaceLabs/solace-agent-mesh/commit/ecfff47fbb4dd215de75f8c6dc3d5c96808f0b2f))
+
+## [1.23.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.1...1.23.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134667:** strip max_input_tokens from per-request override ([#1499](https://github.com/SolaceLabs/solace-agent-mesh/issues/1499)) ([3f62e97](https://github.com/SolaceLabs/solace-agent-mesh/commit/3f62e975a7f780ebfebca2252c61a2131d930ca3))
+
+## [1.23.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.0...1.23.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **agent:** lazy-init DynamicModelProvider for per-request model_override ([#1496](https://github.com/SolaceLabs/solace-agent-mesh/issues/1496)) ([371d6e9](https://github.com/SolaceLabs/solace-agent-mesh/commit/371d6e93581f1b5c602bc369a075614197a2b763))
+
+## [1.23.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.1...1.23.0) (2026-04-30)
+
+
+### Features
+
+* **DATAGO-134503:** Experiment runs shows agent generated artifacts ([#1489](https://github.com/SolaceLabs/solace-agent-mesh/issues/1489)) ([496e671](https://github.com/SolaceLabs/solace-agent-mesh/commit/496e67196e4b7cc7b8008abecb87e828130d61ce))
+
+
+### Bug Fixes
+
+* **DATAGO-130894:** Update search input styling and positioning ([#1483](https://github.com/SolaceLabs/solace-agent-mesh/issues/1483)) ([53fd48f](https://github.com/SolaceLabs/solace-agent-mesh/commit/53fd48fad112a0c4806c7ec9e6949ec614dc5d91))
+
+
+### Documentation
+
+* **DATAGO-128303:** observability | documentation ([#1467](https://github.com/SolaceLabs/solace-agent-mesh/issues/1467)) ([31897dd](https://github.com/SolaceLabs/solace-agent-mesh/commit/31897dd2ed6872959cea6ebbe46970f27fe13259))
+
+## [1.22.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.22.0...1.22.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **DATAGO-122712:** Enhance mention detection and add tests for multi-word queries ([#1484](https://github.com/SolaceLabs/solace-agent-mesh/issues/1484)) ([a02ef89](https://github.com/SolaceLabs/solace-agent-mesh/commit/a02ef890fdd68ef1a03f6b2daa8ec14f7ae505ff))
+* **DATAGO-134531:** bump npm to 11.13.0 to fix brace-expansion CVE-&lt;&gt; ([#1487](https://github.com/SolaceLabs/solace-agent-mesh/issues/1487)) ([6478aea](https://github.com/SolaceLabs/solace-agent-mesh/commit/6478aea5834538d94515fdb15bdeea949f74deb1))
+
+## [1.22.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.1...1.22.0) (2026-04-30)
+
+
+### Features
+
+* **DATAGO-133319:** Support attaching existing artifacts to chat messages ([#1429](https://github.com/SolaceLabs/solace-agent-mesh/issues/1429)) ([d84f8fb](https://github.com/SolaceLabs/solace-agent-mesh/commit/d84f8fb30479274895a54b84b83fd6f72c7065cb))
+
+## [1.21.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.21.0...1.21.1) (2026-04-29)
+
+
+### Bug Fixes
+
+* **DATAGO-134263:** honour per-node timeout in workflow agent calls ([#1476](https://github.com/SolaceLabs/solace-agent-mesh/issues/1476)) ([97dbb3f](https://github.com/SolaceLabs/solace-agent-mesh/commit/97dbb3f0d621aeb83fbf0f2f2f9c9642666cbc20))
+* **DATAGO-134293:** Recent chats navigation randomly displays other users' chat history ([#1477](https://github.com/SolaceLabs/solace-agent-mesh/issues/1477)) ([aa9d6ad](https://github.com/SolaceLabs/solace-agent-mesh/commit/aa9d6ad27d9a849c2cac49126db9b7f765c15cd2))
+* **DATAGO-134388:** Implement immediate UI feedback for sent prompts ([#1480](https://github.com/SolaceLabs/solace-agent-mesh/issues/1480)) ([cc348f0](https://github.com/SolaceLabs/solace-agent-mesh/commit/cc348f00ecf324c194ef7da4114ef771712f1c86))
+
 ## [1.21.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.20.5...1.21.0) (2026-04-29)
 
 

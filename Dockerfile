@@ -193,7 +193,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1
 
 # Node 25.5.0 ships with npm 11.8.0; upgrade to pick up security fixes in bundled dependencies
-RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.11.1
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.13.0
 
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached

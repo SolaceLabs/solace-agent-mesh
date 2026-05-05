@@ -6,6 +6,7 @@ import { Button } from "@/lib/components/ui/button";
 import { Input } from "@/lib/components/ui/input";
 import { useChatContext } from "@/lib/hooks";
 import type { DataPart } from "@/lib/types";
+import { uuid } from "@/lib/utils/uuid";
 
 import { getRespondedPlansSnapshot, markPlanResponded, subscribeRespondedPlans } from "./respondedPlansStore";
 
@@ -37,7 +38,7 @@ interface EditableStep {
     value: string;
 }
 
-const makeStepId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `step-${Math.random().toString(36).slice(2)}-${Date.now()}`);
+const makeStepId = () => uuid();
 
 const toEditableSteps = (steps: string[]): EditableStep[] => steps.map(value => ({ id: makeStepId(), value }));
 

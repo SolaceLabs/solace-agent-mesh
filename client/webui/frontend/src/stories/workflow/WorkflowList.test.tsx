@@ -16,7 +16,7 @@ describe("WorkflowList", () => {
             const user = userEvent.setup();
 
             // Type in search input
-            const searchInput = await screen.findByPlaceholderText("Filter by name...");
+            const searchInput = await screen.findByPlaceholderText("Filter by name");
             await user.type(searchInput, "Complete");
 
             // Verify filtered results
@@ -30,7 +30,7 @@ describe("WorkflowList", () => {
             const user = userEvent.setup();
 
             // Search for non-existent workflow
-            const searchInput = await screen.findByPlaceholderText("Filter by name...");
+            const searchInput = await screen.findByPlaceholderText("Filter by name");
             await user.type(searchInput, "NONEXISTENT123");
 
             // Verify empty state
@@ -49,7 +49,7 @@ describe("WorkflowList", () => {
             const initialCount = initialRows.length - 1; // Subtract header row
 
             // Search for non-matching term
-            const searchInput = await screen.findByPlaceholderText("Filter by name...");
+            const searchInput = await screen.findByPlaceholderText("Filter by name");
             await user.type(searchInput, "NONEXISTENT");
 
             // Verify no results
@@ -71,7 +71,7 @@ describe("WorkflowList", () => {
             const user = userEvent.setup();
 
             // Search with lowercase
-            const searchInput = await screen.findByPlaceholderText("Filter by name...");
+            const searchInput = await screen.findByPlaceholderText("Filter by name");
             await user.type(searchInput, "complete");
 
             // Verify it still finds Complete Order Workflow

@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
-import { v4 as uuidv4 } from "uuid";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 
 import { api } from "@/lib/api";
+import type { AttachedArtifactRef } from "@/lib/types";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
 import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -32,11 +32,6 @@ import type {
     RAGSearchResult,
     ArtifactInfo,
 } from "@/lib/types";
-
-// Wrapper to force uuid to use crypto.getRandomValues() fallback instead of crypto.randomUUID()
-// This ensures compatibility with non-secure (HTTP) contexts where crypto.randomUUID() is unavailable
-// Note: may be able to remove this workaround with next version of uuid
-const v4 = () => uuidv4({});
 
 const INLINE_FILE_SIZE_LIMIT_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -891,7 +886,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     api.webui
                         .post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                             jsonrpc: "2.0",
-                            id: `req-${v4()}`,
+                            id: `req-${uuid()}`,
                             method: "tasks/cancel",
                             params: { id: currentTaskId },
                         })
@@ -1011,7 +1006,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     try {
                         await api.webui.post(`/api/v1/tasks/${currentTaskId}:cancel`, {
                             jsonrpc: "2.0",
-                            id: `req-${v4()}`,
+                            id: `req-${uuid()}`,
                             method: "tasks/cancel",
                             params: { id: currentTaskId },
                         });
@@ -1245,7 +1240,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         try {
             const cancelRequest: CancelTaskRequest = {
                 jsonrpc: "2.0",
-                id: `req-${v4()}`,
+                id: `req-${uuid()}`,
                 method: "tasks/cancel",
                 params: { id: currentTaskId },
             };
@@ -1334,11 +1329,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }, []);
 
     const handleSubmit = useCallback(
-        async (event: FormEvent, files?: File[] | null, userInputText?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => {
+        async (
+            event: FormEvent,
+            files?: File[] | null,
+            userInputText?: string | null,
+            overrideSessionId?: string | null,
+            displayHtml?: string | null,
+            contextQuote?: string | null,
+            contextQuoteSourceId?: string | null,
+            artifactReferences?: AttachedArtifactRef[] | null
+        ) => {
             event.preventDefault();
             const currentInput = userInputText?.trim() || "";
             const currentFiles = files || [];
-            if ((!currentInput && currentFiles.length === 0) || isResponding || isCancelling || !selectedAgentName) {
+            const currentArtifactRefs = artifactReferences || [];
+            if ((!currentInput && currentFiles.length === 0 && currentArtifactRefs.length === 0) || isResponding || isCancelling || !selectedAgentName) {
                 return;
             }
             closeCurrentEventSource();
@@ -1354,11 +1359,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 parts: [{ kind: "text", text: currentInput }],
                 isUser: true,
                 uploadedFiles: currentFiles.length > 0 ? currentFiles : undefined,
+                attachedArtifacts: currentArtifactRefs.length > 0 ? currentArtifactRefs.map(r => ({ uri: r.uri, filename: r.filename, mimeType: r.mimeType })) : undefined,
                 displayHtml: displayHtml || undefined,
                 contextQuote: contextQuote || undefined,
                 contextQuoteSourceId: contextQuoteSourceId || undefined,
                 metadata: {
-                    messageId: `msg-${v4()}`,
+                    messageId: `msg-${uuid()}`,
                     sessionId: overrideSessionId || sessionId,
                     lastProcessedEventSequence: 0,
                 },
@@ -1379,35 +1385,24 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // Use overrideSessionId if provided (e.g., from artifact upload that created a session)
                 let effectiveSessionId = overrideSessionId || sessionId;
 
-                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s)`);
+                console.log(`[handleSubmit] Processing ${currentFiles.length} file(s) and ${currentArtifactRefs.length} artifact reference(s)`);
+
+                // Pointers to existing artifacts: emit a FilePart with URI and
+                // skip the upload pipeline entirely. The backend re-validates
+                // access when the agent fetches the URI.
+                for (const ref of currentArtifactRefs) {
+                    console.log(`[handleSubmit] Adding artifact reference: ${ref.filename} (${ref.uri})`);
+                    uploadedFileParts.push({
+                        kind: "file",
+                        file: {
+                            uri: ref.uri,
+                            name: ref.filename,
+                            mimeType: ref.mimeType || "application/octet-stream",
+                        },
+                    });
+                }
 
                 for (const file of currentFiles) {
-                    // Check if this is an artifact reference (pasted artifact)
-                    if (file.type === "application/x-artifact-reference") {
-                        try {
-                            // Read the artifact reference data
-                            const text = await file.text();
-                            const artifactRef = JSON.parse(text);
-
-                            if (artifactRef.isArtifactReference && artifactRef.uri) {
-                                // This is a pasted artifact - send it as a file part with URI
-                                console.log(`[handleSubmit] Adding artifact reference: ${artifactRef.filename} (${artifactRef.uri})`);
-                                uploadedFileParts.push({
-                                    kind: "file",
-                                    file: {
-                                        uri: artifactRef.uri,
-                                        name: artifactRef.filename,
-                                        mimeType: artifactRef.mimeType || "application/octet-stream",
-                                    },
-                                });
-                                continue; // Skip to next file
-                            }
-                        } catch (error) {
-                            console.error(`[handleSubmit] Error processing artifact reference:`, error);
-                            // Fall through to normal file handling
-                        }
-                    }
-
                     if (file.size < INLINE_FILE_SIZE_LIMIT_BYTES) {
                         // Small file: send inline as base64 (no cleanup needed)
                         const base64Content = await fileToBase64(file);
@@ -1497,7 +1492,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 const a2aMessage: Message = {
                     role: "user",
                     parts: messageParts,
-                    messageId: `msg-${v4()}`,
+                    messageId: `msg-${uuid()}`,
                     kind: "message",
                     contextId: effectiveSessionId,
                     metadata: messageMetadata,
@@ -1508,7 +1503,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 // 4. Construct the SendStreamingMessageRequest
                 const sendMessageRequest: SendStreamingMessageRequest = {
                     jsonrpc: "2.0",
-                    id: `req-${v4()}`,
+                    id: `req-${uuid()}`,
                     method: "message/stream",
                     params: {
                         message: a2aMessage,

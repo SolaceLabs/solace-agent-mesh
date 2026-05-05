@@ -1,6 +1,6 @@
 import React, { createContext, type FormEvent } from "react";
 
-import type { AgentCardInfo, ArtifactInfo, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
+import type { AgentCardInfo, ArtifactInfo, AttachedArtifactRef, BackgroundTaskNotification, BackgroundTaskState, FileAttachment, MessageFE, Notification, Session, RAGSearchResult } from "@/lib/types";
 
 /** Pending prompt data for starting a new chat with a prompt template */
 export interface PendingPromptData {
@@ -85,7 +85,16 @@ export interface ChatActions {
     /** Clear the pending prompt (called after it's been applied) */
     clearPendingPrompt: () => void;
     handleSwitchSession: (sessionId: string) => Promise<void>;
-    handleSubmit: (event: FormEvent, files?: File[] | null, message?: string | null, overrideSessionId?: string | null, displayHtml?: string | null, contextQuote?: string | null, contextQuoteSourceId?: string | null) => Promise<void>;
+    handleSubmit: (
+        event: FormEvent,
+        files?: File[] | null,
+        message?: string | null,
+        overrideSessionId?: string | null,
+        displayHtml?: string | null,
+        contextQuote?: string | null,
+        contextQuoteSourceId?: string | null,
+        artifactReferences?: AttachedArtifactRef[] | null
+    ) => Promise<void>;
     handleCancel: () => void;
     addNotification: (message: string, type?: "success" | "info" | "warning") => void;
     setSelectedAgentName: React.Dispatch<React.SetStateAction<string>>;

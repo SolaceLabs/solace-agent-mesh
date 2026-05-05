@@ -44,7 +44,7 @@ export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectC
                     learnMoreUrl={"https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/projects"}
                     className="mr-6 mb-4"
                 />
-                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} placeholder="Filter by name..." className="mb-4 w-xs" testid="projectSearchInput" /> : null}
+                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} className="mb-4 w-xs" testid="projectSearchInput" /> : null}
 
                 {/* Projects Grid */}
                 {isLoading ? (
