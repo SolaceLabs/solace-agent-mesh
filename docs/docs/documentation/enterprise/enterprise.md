@@ -57,7 +57,7 @@ Gateways connect external systems to your Agent Mesh deployment, enabling users 
 
 ### Offline Evaluations
 
-The Offline Evaluations UI gives you a browser-based workflow for testing deployed agents against curated prompt sets and tracking quality over time. You build a dataset of prompts, configure an evaluator that defines how responses are scored, and set up an experiment that binds them to a target agent and one or more language model configurations. Triggering a run sends each prompt to the live agent, captures the response, scores it, and stores the result for inspection and comparison. Score trends appear on the Reports dashboard, making regressions visible across model updates or prompt changes without any changes to the running system. For the full walkthrough, see [Offline Evaluations UI](offline-evaluations.md).
+Offline evaluations give you a browser-based workflow for testing deployed agents against curated prompt sets and tracking quality over time. You build a dataset of prompts, configure an evaluator that defines how responses are scored, and set up an experiment that binds them to a target agent and one or more language model configurations. Triggering a run sends each prompt to the live agent, captures the response, scores it, and stores the result for inspection and comparison. Score trends appear on the Reports dashboard, making regressions visible across model updates or prompt changes without any changes to the running system. For the full walkthrough, see [Offline Evaluations](offline-evaluations.md).
 
 ## What's Next
 

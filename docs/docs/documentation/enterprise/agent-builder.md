@@ -89,7 +89,7 @@ When you deploy an agent, the system records its configuration. If you later edi
 
 Downloading agents as YAML files provides portability and version control. These files support backing up agent configurations, sharing configurations between deployments, tracking configuration changes in version control systems, and deploying agents using infrastructure-as-code tools.
 
-Once an agent is deployed and available in Chat, you can set up offline evaluations to measure and track its quality over time. Evaluations let you run a curated set of prompts against the live agent, score the responses, and compare results across model updates or configuration changes — without modifying the running system. See [Offline Evaluations UI](offline-evaluations.md).
+Once an agent is deployed and available in Chat, you can set up offline evaluations to measure and track its quality over time. Evaluations let you run a curated set of prompts against the live agent, score the responses, and compare results across model updates or configuration changes — without modifying the running system. See [Offline Evaluations](offline-evaluations.md).
 
 ## Downloading Agent Configurations
 
@@ -145,4 +145,4 @@ For information about connector-related capabilities, see [Connectors](connector
 
 In addition to creating agents through Agent Builder, you can connect external A2A agents that run on separate infrastructure. External agents communicate over HTTPS and integrate with your mesh through a proxy. For more information, see [Connect External Agents](connect-external-agents.md).
 
-Once your agents are deployed, use the [Offline Evaluations UI](offline-evaluations.md) to measure their quality and track performance over time.
+Once your agents are deployed, use [Offline Evaluations](offline-evaluations.md) to measure their quality and track performance over time.

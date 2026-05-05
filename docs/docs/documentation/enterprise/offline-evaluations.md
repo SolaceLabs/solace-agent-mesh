@@ -1,9 +1,9 @@
 ---
-title: Offline Evaluations UI
+title: Offline Evaluations
 sidebar_position: 850
 ---
 
-# Offline Evaluations UI
+# Offline Evaluations
 
 :::warning Experimental Feature
 This feature is under active development. Configuration schemas and behavior may change in future releases. Do not use in production without validating against the current release notes.
@@ -11,15 +11,15 @@ This feature is under active development. Configuration schemas and behavior may
 
 Offline evaluations let you measure agent quality by sending a curated set of prompts to a deployed agent, scoring the responses, and tracking results over time. "Offline" means the inputs are prepared in advance — not sampled from live production traffic. This makes it possible to run evaluations repeatedly against the same prompt set and compare results across model changes, prompt updates, or configuration adjustments.
 
-The Offline Evaluations UI provides a browser-based interface for managing the building blocks of this workflow: datasets of example prompts, evaluators that define how responses are scored, and experiments that combine them into reusable run configurations. For the CLI-based evaluation workflow that works with Community and Enterprise deployments alike, see [Evaluating Agents](../developing/evaluations.md).
+Offline evaluations provide a browser-based interface for managing the building blocks of this workflow: datasets of example prompts, evaluators that define how responses are scored, and experiments that combine them into reusable run configurations. For the CLI-based evaluation workflow that works with Community and Enterprise deployments alike, see [Evaluating Agents](../developing/evaluations.md).
 
-## What Offline Evaluations Does
+## What Offline Evaluations Do
 
-The Offline Evaluations UI lets you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-a-judge evaluator, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
+Offline evaluations let you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-a-judge evaluator, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
 
 The key differences from the CLI evaluation workflow are:
 
-| Aspect | CLI Evaluations | Offline Evaluations UI |
+| Aspect | CLI Evaluations | Offline Evaluations |
 |---|---|---|
 | Interface | Command line + JSON files | Browser-based UI |
 | Edition | Community and Enterprise | Enterprise only |
@@ -29,7 +29,7 @@ The key differences from the CLI evaluation workflow are:
 | Model comparison | Specify models in test suite | Per-experiment model picker |
 | Activity diagram | Not available | Per-result A2A message viewer |
 
-Use the Offline Evaluations UI when you want to measure and track agent quality over time against a live deployment, compare multiple language models against the same prompt set, or inspect the full A2A message trace for a specific result.
+Use offline evaluations when you want to measure and track agent quality over time against a live deployment, compare multiple language models against the same prompt set, or inspect the full A2A message trace for a specific result.
 
 ## Prerequisites
 
@@ -43,6 +43,21 @@ Before using this feature, verify that you have:
 ## Storage Configuration
 
 The evaluation execution service stores execution data and agent-produced artifact snapshots in object storage. Two backends are available, selected automatically based on environment variables.
+
+### Shared Artifact Service
+
+The Platform Service must be configured with an `artifact_service` block that points at the **same backing store the agents write to**. When a run finishes, the eval execution service reads artifact bytes from this shared store and copies them into eval-owned storage so they remain available even after the agent's session ends.
+
+Without this block, artifact metadata is still recorded but bytes are not snapshotted — the inspector will display the artifact filename with "content not available (snapshot failed)" and the result is tagged with reason `artifact_service_unavailable`. Scores and reasoning are not affected.
+
+Add the block to your `platform_service.yaml` under `app_config`. The example below uses the filesystem backend; for production, use the same `s3` (or other cloud) configuration the agents use.
+
+```yaml
+app_config:
+  artifact_service:
+    type: "filesystem"
+    base_path: "/tmp/samv2"
+```
 
 ### Object Storage
 
