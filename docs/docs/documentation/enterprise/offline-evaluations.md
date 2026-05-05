@@ -188,6 +188,50 @@ Reference answer (if provided): {{Expected Response}}
 Assess the response considering accuracy, completeness, and adherence to the reference answer.
 ```
 
+##### Writing evaluation criteria {#writing-evaluation-criteria}
+
+The criteria field is the rubric the judge LLM applies. It becomes the user-facing portion of the judge prompt; the platform wraps it with a fixed system prompt that instructs the judge to score content, not engage with it, and to return a structured JSON response.
+
+Three variables are available to insert into the criteria:
+
+| Variable | What it resolves to |
+|---|---|
+| `{{Prompt}}` | The original input sent to the agent for this example. |
+| `{{Response}}` | The agent's response text. Required — saving without it produces a validation error. |
+| `{{Expected Response}}` | The reference answer from the dataset example, if one was provided. Resolves to `[None]` when the example has no expected response. |
+
+If the agent produced text artifacts during the run (Markdown, JSON, CSV, source code), they are automatically appended to the judge prompt after your criteria text. The judge evaluates their content directly. Binary artifacts (images, PDFs) appear as filename-only references that the judge cannot read.
+
+**Writing effective criteria:**
+
+- **Be specific about what correct looks like.** Vague instructions like "Is the response good?" produce inconsistent scores. Instead, describe the rubric: "Does the response include all required SQL clauses? Is the returned data accurate given the user's question?"
+- **Match the variables you use to what you have.** If your dataset examples do not have expected responses, do not reference `{{Expected Response}}` — it will always resolve to `[None]` and confuse the judge.
+- **Describe the full range of quality.** Your criteria text pairs with the choice score labels you define below. Writing criteria that naturally maps to those labels (for example, calling out "complete", "partial", and "missing") makes the judge's scoring more consistent.
+- **Keep it focused on one dimension per evaluator.** An evaluator that tries to assess accuracy, tone, and format simultaneously produces scores that are hard to act on. Create separate evaluators for separate concerns and attach all of them to the experiment.
+
+##### Choice scores {#choice-scores}
+
+Choice scores map natural-language outcome labels to numeric scores. The judge LLM picks one label per evaluation; its associated score becomes the numeric result for that example.
+
+**How it works:** The platform presents your labels to the judge as lettered options `(A)`, `(B)`, `(C)`… in the order they are defined. The judge returns a letter; the platform maps it back to the label and then to the score. The label (not the letter) is stored in the result for the audit trail.
+
+**Score values:** Scores are entered as percentages (0–100%) in the form and stored internally as 0.0–1.0. Scores at or above 50% are marked as **passed**; scores below 50% are marked as **failed**.
+
+The default set ships three choices as a starting point:
+
+| Label | Score |
+|---|---|
+| Fail | 0% |
+| Partial | 50% |
+| Pass | 100% |
+
+**Defining your own choices:**
+
+- **Keep labels short and distinct.** The judge reads your labels when it reasons about which to pick. Short, unambiguous labels like "Correct", "Partially correct", and "Incorrect" are easier for the judge to distinguish than long descriptions that overlap.
+- **Order choices from best to worst or worst to best** and keep the order consistent across evaluators. The judge sees them as `(A)`, `(B)`, `(C)`… and a consistent ordering reduces scoring variance.
+- **Use a spread of score values.** If all choices cluster near 0% or 100%, the average scores across a dataset will compress into a narrow band that makes it hard to see improvements over time. A spread like 0%, 50%, 100% or 0%, 33%, 67%, 100% gives the trend charts useful range.
+- **Minimum 2, maximum 26 choices.** You can reorder choices by dragging the grip handle on the left.
+
 ### Experiments
 
 An experiment combines a dataset, a target agent, one or more language model configurations, and one or more evaluators into a reusable configuration you can trigger repeatedly to produce comparable results.
