@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.24.0...1.24.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-132447:** - Enable Support to Skip TLS verification for MCP tools/connectors ([#1495](https://github.com/SolaceLabs/solace-agent-mesh/issues/1495)) ([e2adc1e](https://github.com/SolaceLabs/solace-agent-mesh/commit/e2adc1ea2cba0e5a9d90495868110819c72efb58))
+
 ## [1.24.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.3...1.24.0) (2026-05-05)
 
 
