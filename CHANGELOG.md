@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.1...1.23.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134667:** strip max_input_tokens from per-request override ([#1499](https://github.com/SolaceLabs/solace-agent-mesh/issues/1499)) ([3f62e97](https://github.com/SolaceLabs/solace-agent-mesh/commit/3f62e975a7f780ebfebca2252c61a2131d930ca3))
+
 ## [1.23.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.0...1.23.1) (2026-05-04)
 
 
