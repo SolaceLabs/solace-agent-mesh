@@ -41,9 +41,17 @@ SYNTHETIC_USER_EMAIL = "synthetic-monitor@synthetics.invalid"
 SYNTHETIC_USER_NAME = "Synthetic Monitor"
 SYNTHETIC_AUTH_METHOD = "synthetic"
 
-_USER_IDENTITY_CLAIMS = ("sub", "oid", "preferred_username", "upn", "unique_name")
+# `sub` and `oid` are intentionally NOT in this list. Entra issues both for every
+# app-only token (client_credentials) where they identify the service principal,
+# not a user. The user-distinguishing claims are the friendly identifiers below;
+# their absence is what tells us this isn't a user token.
+_USER_IDENTITY_CLAIMS = ("preferred_username", "upn", "unique_name")
 _ALLOWED_ALGORITHMS = ("RS256",)
 _LEEWAY_SECONDS = 60
+# `appidacr` (Application Authentication Context Reference): "0" = public client
+# (no auth), "1" = client secret, "2" = certificate. client_credentials must be
+# "1" or "2" — never "0", which would indicate a public client somehow holds the role.
+_ALLOWED_APP_AUTH_CONTEXT = frozenset({"1", "2"})
 
 
 class SyntheticTokenNotApplicable(Exception):
@@ -64,7 +72,10 @@ class SyntheticAuthConfig:
     role_name: str
     appid_allowlist: frozenset[str]
     endpoint_allowlist: tuple[tuple[str, re.Pattern[str]], ...]
-    issuer: str
+    # Entra issues v1 tokens (sts.windows.net) by default for client_credentials,
+    # and v2 tokens (login.microsoftonline.com/v2.0) when the resource opts in via
+    # accessTokenAcceptedVersion=2 in its manifest. We accept both.
+    issuers: tuple[str, ...]
     jwks_uri: str
 
     @staticmethod
@@ -116,7 +127,8 @@ class SyntheticAuthConfig:
             for entry in endpoint_list
         )
 
-        issuer = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+        issuer_v1 = f"https://sts.windows.net/{tenant_id}/"
+        issuer_v2 = f"https://login.microsoftonline.com/{tenant_id}/v2.0"
         jwks_uri = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
 
         return SyntheticAuthConfig(
@@ -126,7 +138,7 @@ class SyntheticAuthConfig:
             role_name=role_name,
             appid_allowlist=frozenset(appid_list),
             endpoint_allowlist=compiled_endpoints,
-            issuer=issuer,
+            issuers=(issuer_v1, issuer_v2),
             jwks_uri=jwks_uri,
         )
 
@@ -187,12 +199,17 @@ def validate_synthetic_token(token: str, config: SyntheticAuthConfig) -> dict[st
             key=signing_key.key,
             algorithms=list(_ALLOWED_ALGORITHMS),
             audience=config.audience,
-            issuer=config.issuer,
+            # Issuer is validated manually below to support both v1 (sts.windows.net)
+            # and v2 (login.microsoftonline.com/v2.0) Entra endpoints.
             leeway=_LEEWAY_SECONDS,
             options={"require": ["exp", "iat", "iss", "aud"]},
         )
     except jwt.PyJWTError as exc:
         raise SyntheticTokenInvalid(f"JWT validation failed: {exc}") from exc
+
+    # Issuer pinning — must be one of our tenant's v1/v2 endpoints.
+    if claims.get("iss") not in config.issuers:
+        raise SyntheticTokenInvalid(f"unexpected issuer: {claims.get('iss')!r}")
 
     # Tenant pinning — defense in depth on top of issuer.
     if claims.get("tid") != config.tenant_id:
@@ -205,6 +222,14 @@ def validate_synthetic_token(token: str, config: SyntheticAuthConfig) -> dict[st
     if appid not in config.appid_allowlist:
         raise SyntheticTokenInvalid(f"appid {appid!r} not in allowlist")
 
+    # Application authentication context — must be client secret or cert. Rejects
+    # public-client tokens (appidacr "0") and tokens missing the claim entirely.
+    appidacr = claims.get("appidacr")
+    if appidacr not in _ALLOWED_APP_AUTH_CONTEXT:
+        raise SyntheticTokenInvalid(
+            f"app authentication context too weak: appidacr={appidacr!r}"
+        )
+
     # Strict role match — exactly the synthetic role, nothing else.
     roles = claims.get("roles")
     if roles != [config.role_name]:
@@ -212,7 +237,9 @@ def validate_synthetic_token(token: str, config: SyntheticAuthConfig) -> dict[st
             f"roles must equal [{config.role_name!r}], got {roles!r}"
         )
 
-    # Reject any token that also carries user identity claims.
+    # Reject any token that carries user-distinguishing claims. `sub` and `oid`
+    # are intentionally absent from this list — Entra includes them in every
+    # app-only token to identify the service principal.
     user_claim_present = [c for c in _USER_IDENTITY_CLAIMS if c in claims]
     if user_claim_present:
         raise SyntheticTokenInvalid(

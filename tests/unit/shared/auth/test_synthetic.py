@@ -36,7 +36,8 @@ AUDIENCE = "api://solace-chat-test"
 ROLE = "Synthetics.Smoke"
 DATADOG_APPID = "22222222-2222-2222-2222-222222222222"
 OTHER_APPID = "99999999-9999-9999-9999-999999999999"
-ISSUER = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
+ISSUER_V1 = f"https://sts.windows.net/{TENANT_ID}/"
+ISSUER_V2 = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +58,7 @@ def config():
             ("GET", __import__("re").compile(r"^/api/v1/sessions$")),
             ("POST", __import__("re").compile(r"^/api/v1/messages$")),
         ),
-        issuer=ISSUER,
+        issuers=(ISSUER_V1, ISSUER_V2),
         jwks_uri=f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys",
     )
 
@@ -89,11 +90,13 @@ def _encode(claims: dict, private_key, algorithm: str = "RS256") -> str:
 def _valid_claims(**overrides) -> dict:
     now = int(time.time())
     base = {
-        "iss": ISSUER,
+        "iss": ISSUER_V2,
         "aud": AUDIENCE,
         "tid": TENANT_ID,
         "appid": DATADOG_APPID,
         "azp": DATADOG_APPID,
+        # appidacr "1" = client secret auth (the production case for Datadog).
+        "appidacr": "1",
         "roles": [ROLE],
         "iat": now,
         "nbf": now,
@@ -196,11 +199,53 @@ def test_missing_role_is_rejected(config, rsa_keypair):
         validate_synthetic_token(token, config)
 
 
-@pytest.mark.parametrize("user_claim", ["sub", "oid", "preferred_username", "upn", "unique_name"])
-def test_user_claim_present_is_rejected(config, rsa_keypair, user_claim):
-    """A synthetic token must never carry user identity. Defends against impersonation."""
+@pytest.mark.parametrize("user_claim", ["preferred_username", "upn", "unique_name"])
+def test_user_distinguishing_claim_present_is_rejected(config, rsa_keypair, user_claim):
+    """User-distinguishing claims must reject — they only appear in user-context tokens.
+
+    Note: `sub` and `oid` are NOT in this list. Entra includes them in every
+    app-only token to identify the service principal — see
+    test_sub_and_oid_are_accepted for the positive case.
+    """
     private_key, _ = rsa_keypair
     token = _encode(_valid_claims(**{user_claim: "real.user@example.com"}), private_key)
+    with pytest.raises(SyntheticTokenInvalid):
+        validate_synthetic_token(token, config)
+
+
+def test_sub_and_oid_are_accepted(config, rsa_keypair):
+    """`sub` and `oid` identify the service principal in app-only tokens; never reject."""
+    private_key, _ = rsa_keypair
+    sp_oid = "b6f8278f-0861-41c1-bc68-a933d5afdc00"
+    token = _encode(_valid_claims(sub=sp_oid, oid=sp_oid), private_key)
+    claims = validate_synthetic_token(token, config)
+    assert claims["sub"] == sp_oid
+    assert claims["oid"] == sp_oid
+
+
+def test_v1_issuer_is_accepted(config, rsa_keypair):
+    """Entra defaults to v1 (sts.windows.net) for client_credentials when the
+    resource hasn't opted into v2 via accessTokenAcceptedVersion. Must accept it."""
+    private_key, _ = rsa_keypair
+    token = _encode(_valid_claims(iss=ISSUER_V1), private_key)
+    claims = validate_synthetic_token(token, config)
+    assert claims["iss"] == ISSUER_V1
+
+
+def test_appidacr_zero_is_rejected(config, rsa_keypair):
+    """Public-client tokens (no client secret/cert) must be hard-rejected."""
+    private_key, _ = rsa_keypair
+    token = _encode(_valid_claims(appidacr="0"), private_key)
+    with pytest.raises(SyntheticTokenInvalid):
+        validate_synthetic_token(token, config)
+
+
+def test_appidacr_missing_is_rejected(config, rsa_keypair):
+    """Tokens without `appidacr` must reject — we cannot confirm the auth context."""
+    private_key, _ = rsa_keypair
+    claims = _valid_claims()
+    del claims["appidacr"]
+    token = _encode(claims, private_key)
     with pytest.raises(SyntheticTokenInvalid):
         validate_synthetic_token(token, config)
 
