@@ -1124,7 +1124,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             )}
 
             {/* Buttons */}
-            <div className="@container relative m-2 flex min-w-[420px] items-center gap-2">
+            <div className="@container relative m-2 flex min-w-0 items-center gap-2 sm:min-w-[420px]">
                 {artifactAttachmentEnabled ? (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1165,7 +1165,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     }}
                     disabled={isResponding || agents.length === 0}
                 >
-                    <SelectTrigger className="w-[250px]">
+                    <SelectTrigger className="w-full min-w-0 sm:w-[250px]">
                         <SelectValue placeholder="Select an agent..." />
                     </SelectTrigger>
                     <SelectContent>
