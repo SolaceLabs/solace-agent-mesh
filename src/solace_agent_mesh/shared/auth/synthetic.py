@@ -168,11 +168,16 @@ def validate_synthetic_token(token: str, config: SyntheticAuthConfig) -> dict[st
         SyntheticTokenInvalid: token looks like a synthetic token but fails
             validation. The caller should hard-reject with 401.
     """
-    # Quick unverified peek to decide if this is even a synthetic-shaped token.
-    # We only use the unverified payload to decide which auth branch to run;
-    # the actual auth decision uses the *verified* claims below.
+    # ROUTING-ONLY peek — NOT used for any auth decision.
+    # We need to decide whether this token is even claiming to be a synthetic
+    # token (route here) vs a real IdP/sam_access_token (route elsewhere) before
+    # we know if signature verification will succeed against Entra's JWKS.
+    # Verified claims are obtained below via jwt.decode(..., key=signing_key)
+    # and ALL auth decisions (appid allowlist, role match, claim absence) use
+    # those verified claims, not this unverified peek. A forged token that
+    # passes this peek will be hard-rejected at the signature step.
     try:
-        unverified = jwt.decode(token, options={"verify_signature": False})
+        unverified = jwt.decode(token, options={"verify_signature": False})  # NOSONAR(python:S5659)
     except jwt.DecodeError as exc:
         raise SyntheticTokenNotApplicable(f"not a JWT: {exc}") from exc
 
