@@ -10,7 +10,7 @@ import re
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 import uvicorn
 from fastapi import FastAPI, UploadFile
@@ -26,6 +26,7 @@ from ...gateway.base.component import BaseGatewayComponent
 from ...gateway.http_sse.session_manager import SessionManager
 from ...gateway.http_sse.sse_manager import SSEManager
 from . import dependencies
+from .visualization_mapper import infer_visualization_event_details
 from .components import VisualizationForwarderComponent
 from .components.task_logger_forwarder import TaskLoggerForwarderComponent
 from .components.scheduler_result_forwarder import SchedulerResultForwarderComponent
@@ -33,6 +34,36 @@ from .services.task_logger_service import TaskLoggerService
 from .sse_event_buffer import SSEEventBuffer
 
 log = logging.getLogger(__name__)
+
+
+class _CompactionFutureEntry(TypedDict):
+    """Pending session-compaction correlation entry."""
+
+    future: asyncio.Future
+    expected_agent_id: str | None
+
+
+def _should_include_for_visualization(payload: Any) -> bool:
+    """Inspect the raw payload dict before SSE serialization so excluded
+    messages can be short-circuited instead of building+dumping+parsing
+    them for every subscriber."""
+    if not isinstance(payload, dict):
+        return True
+    params = payload.get("params")
+    if not isinstance(params, dict):
+        return True
+    message = params.get("message")
+    if not isinstance(message, dict):
+        return True
+    metadata = message.get("metadata")
+    if not isinstance(metadata, dict):
+        return True
+    setting = metadata.get("visualization")
+    if isinstance(setting, bool):
+        return setting is not False
+    if isinstance(setting, str):
+        return setting.lower() != "false"
+    return True
 
 try:
     from google.adk.artifacts import BaseArtifactService
@@ -102,10 +133,13 @@ class WebUIBackendComponent(BaseGatewayComponent):
         # - supports_inline_artifact_resolution=True: Artifacts are converted to FileParts
         #   during embed resolution and rendered inline in the web UI
         # - filter_tool_data_parts=False: Web UI displays all parts including tool execution details
+        # - supports_interactive_plan_verification=True: Web UI renders deep_research_plan and
+        #   POSTs the plan response back via /api/v1/research/plan-response
         super().__init__(
             resolve_artifact_uris_in_gateway=resolve_uris,
             supports_inline_artifact_resolution=True,
             filter_tool_data_parts=False,
+            supports_interactive_plan_verification=True,
             **kwargs
         )
         log.info("%s Initializing Web UI Backend Component...", self.log_identifier)
@@ -145,7 +179,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.error("%s Failed to retrieve configuration: %s", self.log_identifier, e)
             raise ValueError(f"Configuration retrieval error: {e}") from e
 
-        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 200)
+        self.sse_max_queue_size = self.get_config("sse_max_queue_size", 1000)
         sse_buffer_max_age_seconds = self.get_config("sse_buffer_max_age_seconds", 600)
 
         self.sse_event_buffer = SSEEventBuffer(
@@ -275,6 +309,11 @@ class WebUIBackendComponent(BaseGatewayComponent):
         self._scheduler_result_broker_input: BrokerInput | None = None
         self._scheduler_result_queue: queue.Queue = queue.Queue(maxsize=100)
         self._scheduler_result_processor_task: asyncio.Task | None = None
+
+        # Compaction correlation map: correlation_id -> pending entry
+        # binding the awaitable Future to the agent we expect the response
+        # from (prevents attacker-controlled injection via guessed ids).
+        self._compaction_futures: dict[str, _CompactionFutureEntry] = {}
 
         # Initialize SAM Events service for system events
         from ...common.sam_events import SamEventService
@@ -598,6 +637,50 @@ class WebUIBackendComponent(BaseGatewayComponent):
             self._visualization_internal_app = None
             self._visualization_broker_input = None
             raise
+
+    def _subscribe_to_compact_response(self) -> None:
+        """Subscribe the visualization broker input to session/compact_response
+        so the gateway can receive compaction results from agents."""
+        log_id_prefix = f"{self.log_identifier}[CompactResponseSub]"
+        if not self._visualization_broker_input:
+            log.warning(
+                "%s Cannot subscribe to compact_response: visualization broker input not available.",
+                log_id_prefix,
+            )
+            return
+
+        from ...common.a2a.protocol import get_sam_events_topic
+
+        topic = get_sam_events_topic(self.namespace, "session", "compact_response")
+        try:
+            if hasattr(self._visualization_broker_input, "add_subscription") and callable(
+                self._visualization_broker_input.add_subscription
+            ):
+                result = self._visualization_broker_input.add_subscription(topic)
+                if result:
+                    log.info(
+                        "%s Subscribed to compact_response topic: %s",
+                        log_id_prefix,
+                        topic,
+                    )
+                else:
+                    log.error(
+                        "%s Failed to subscribe to compact_response topic: %s",
+                        log_id_prefix,
+                        topic,
+                    )
+            else:
+                log.warning(
+                    "%s Visualization broker input does not support add_subscription.",
+                    log_id_prefix,
+                )
+        except Exception as e:
+            log.error(
+                "%s Error subscribing to compact_response topic: %s",
+                log_id_prefix,
+                e,
+                exc_info=True,
+            )
 
     def _ensure_task_logger_flow_is_running(self) -> None:
         """
@@ -978,11 +1061,23 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     topic = msg_data.get("topic")
                     payload_dict = msg_data.get("payload")
 
+                    # Intercept session.compact_response events and resolve
+                    # the matching correlation future instead of forwarding
+                    # to visualization streams.
+                    if (
+                        isinstance(payload_dict, dict)
+                        and payload_dict.get("event_type") == "session.compact_response"
+                    ):
+                        event_data = payload_dict.get("data", {})
+                        source_component = payload_dict.get("source_component")
+                        self.resolve_compaction_future(event_data, source_component)
+                        continue
+
                     log.debug("%s [VIZ_DATA_RAW] Topic: %s", log_id_prefix, topic)
-                    event_details_for_owner = self._infer_visualization_event_details(
+                    event_details = self._infer_visualization_event_details(
                         topic, payload_dict
                     )
-                    task_id_for_context = event_details_for_owner.get("task_id")
+                    task_id_for_context = event_details.get("task_id")
                     message_owner_id = None
                     if task_id_for_context:
                         root_task_id = task_id_for_context.split(":", 1)[0]
@@ -1024,6 +1119,40 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         message_owner_id,
                                         task_id_for_context,
                                     )
+                    if not _should_include_for_visualization(payload_dict):
+                        continue
+
+                    # Build + serialize once per A2A message; the resulting bytes
+                    # are identical for every eligible stream. Doing this per-stream
+                    # under the viz lock made event-loop CPU scale as O(streams ×
+                    # payload_size) and was observed to overflow per-stream queues
+                    # under high-fan-out tasks (DATAGO incident, 2026-04-26).
+                    viz_event_payload = {
+                        "event_type": "a2a_message",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "solace_topic": topic,
+                        "direction": event_details["direction"],
+                        "source_entity": event_details["source_entity"],
+                        "target_entity": event_details["target_entity"],
+                        "message_id": event_details["message_id"],
+                        "task_id": event_details["task_id"],
+                        "payload_summary": event_details["payload_summary"],
+                        "full_payload": payload_dict,
+                        "debug_type": event_details["debug_type"],
+                    }
+                    try:
+                        viz_msg = {
+                            "event": "a2a_message",
+                            "data": json.dumps(viz_event_payload),
+                        }
+                    except (TypeError, ValueError):
+                        log.exception(
+                            "%s Failed to serialize viz message for topic %s",
+                            log_id_prefix,
+                            topic,
+                        )
+                        continue
+
                     async with self._get_visualization_lock():
                         for (
                             stream_id,
@@ -1066,54 +1195,9 @@ class WebUIBackendComponent(BaseGatewayComponent):
                                         break
 
                             if is_permitted:
-                                event_details = self._infer_visualization_event_details(
-                                    topic, payload_dict
+                                self._put_viz_msg_to_stream(
+                                    stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
                                 )
-
-                                sse_event_payload = {
-                                    "event_type": "a2a_message",
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    "solace_topic": topic,
-                                    "direction": event_details["direction"],
-                                    "source_entity": event_details["source_entity"],
-                                    "target_entity": event_details["target_entity"],
-                                    "message_id": event_details["message_id"],
-                                    "task_id": event_details["task_id"],
-                                    "payload_summary": event_details["payload_summary"],
-                                    "full_payload": payload_dict,
-                                    "debug_type": event_details["debug_type"],
-                                }
-
-                                try:
-                                    viz_msg = {
-                                        "event": "a2a_message",
-                                        "data": json.dumps(sse_event_payload),
-                                    }
-                                    log.debug(
-                                        "%s Attempting to put message on SSE queue for stream %s. Queue size: %d",
-                                        log_id_prefix,
-                                        stream_id,
-                                        sse_queue_for_stream.qsize(),
-                                    )
-                                    self._put_viz_msg_to_stream(
-                                        stream_id, sse_queue_for_stream, viz_msg, log_id_prefix
-                                    )
-                                    log.debug(
-                                        "%s [VIZ_DATA_SENT] Stream %s: Topic: %s, Direction: %s",
-                                        log_id_prefix,
-                                        stream_id,
-                                        topic,
-                                        event_details["direction"],
-                                    )
-                                except Exception as send_err:
-                                    log.error(
-                                        "%s Failed to serialize/send viz message for stream %s: %s",
-                                        log_id_prefix,
-                                        stream_id,
-                                        send_err,
-                                    )
-                            else:
-                                pass
                 finally:
                     self._visualization_message_queue.task_done()
 
@@ -1570,6 +1654,7 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     core_a2a_service=self.core_a2a_service,
                     config=scheduler_config,
                     sse_manager=self.sse_manager,
+                    gateway_id=self.gateway_id,
                 )
                 log.info(
                     "%s Scheduler service initialized (instance_id=%s).",
@@ -1665,6 +1750,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                             self.log_identifier,
                         )
                         self._ensure_visualization_flow_is_running()
+
+                        # Subscribe to session compact_response events so the
+                        # gateway can receive compaction results from agents.
+                        self._subscribe_to_compact_response()
 
                         if (
                             self._visualization_processor_task is None
@@ -2038,179 +2127,12 @@ class WebUIBackendComponent(BaseGatewayComponent):
     def _infer_visualization_event_details(
         self, topic: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
+        """Thin instance wrapper around `infer_visualization_event_details`.
+
+        The mapping logic lives in `visualization_mapper.py` so non-component
+        callers (eval pipeline) can reuse it without dragging in component state.
         """
-        Infers details for the visualization SSE payload from the Solace topic and A2A message.
-        This version is updated to parse the official A2A SDK message formats.
-        """
-        details = {
-            "direction": "unknown",
-            "source_entity": "unknown",
-            "target_entity": "unknown",
-            "debug_type": "unknown",
-            "message_id": payload.get("id"),
-            "task_id": None,
-            "payload_summary": {
-                "method": payload.get("method", "N/A"),
-                "params_preview": None,
-            },
-        }
-
-        # --- Phase 1: Parse the payload to extract core info ---
-        try:
-            # Handle SAM Events (system events)
-            event_type = payload.get("event_type")
-            if event_type:
-                details["direction"] = "system_event"
-                details["debug_type"] = "sam_event"
-                details["payload_summary"]["method"] = event_type
-                details["source_entity"] = payload.get("source_component", "unknown")
-                details["target_entity"] = "system"
-                return details
-
-            # Try to parse as a JSON-RPC response first
-            if "result" in payload or "error" in payload:
-                rpc_response = JSONRPCResponse.model_validate(payload)
-                result = a2a.get_response_result(rpc_response)
-                error = a2a.get_response_error(rpc_response)
-                details["message_id"] = a2a.get_response_id(rpc_response)
-
-                if result:
-                    kind = getattr(result, "kind", None)
-                    details["direction"] = kind or "response"
-                    details["task_id"] = getattr(result, "task_id", None) or getattr(
-                        result, "id", None
-                    )
-
-                    if isinstance(result, TaskStatusUpdateEvent):
-                        details["source_entity"] = (
-                            result.metadata.get("agent_name")
-                            if result.metadata
-                            else None
-                        )
-                        message = a2a.get_message_from_status_update(result)
-                        if message:
-                            if not details["source_entity"]:
-                                details["source_entity"] = (
-                                    message.metadata.get("agent_name")
-                                    if message.metadata
-                                    else None
-                                )
-                            data_parts = a2a.get_data_parts_from_message(message)
-                            if data_parts:
-                                details["debug_type"] = data_parts[0].data.get(
-                                    "type", "unknown"
-                                )
-                            elif a2a.get_text_from_message(message):
-                                details["debug_type"] = "streaming_text"
-                    elif isinstance(result, Task):
-                        details["source_entity"] = (
-                            result.metadata.get("agent_name")
-                            if result.metadata
-                            else None
-                        )
-                        task_status = a2a.get_task_status(result)
-                        # Guard against task_status being an Enum (TaskState) instead of TaskStatus object
-                        if (
-                            task_status
-                            and not isinstance(task_status, TaskState)
-                            and hasattr(task_status, "message")
-                        ):
-                            data_parts = a2a.get_data_parts_from_message(
-                                task_status.message
-                            )
-                            if data_parts:
-                                details["debug_type"] = data_parts[0].data.get(
-                                    "type", "task_result"
-                                )
-                    elif isinstance(result, TaskArtifactUpdateEvent):
-                        artifact = a2a.get_artifact_from_artifact_update(result)
-                        if artifact:
-                            details["source_entity"] = (
-                                artifact.metadata.get("agent_name")
-                                if artifact.metadata
-                                else None
-                            )
-                elif error:
-                    details["direction"] = "error_response"
-                    details["task_id"] = (
-                        error.data.get("taskId")
-                        if isinstance(error.data, dict)
-                        else None
-                    )
-                    details["debug_type"] = "error"
-
-            # Try to parse as a JSON-RPC request
-            elif "method" in payload:
-                rpc_request = A2ARequest.model_validate(payload)
-                method = a2a.get_request_method(rpc_request)
-                details["direction"] = "request"
-                details["payload_summary"]["method"] = method
-                details["message_id"] = a2a.get_request_id(rpc_request)
-
-                if method in ["message/send", "message/stream"]:
-                    details["debug_type"] = method
-                    message = a2a.get_message_from_send_request(rpc_request)
-                    details["task_id"] = a2a.get_request_id(rpc_request)
-                    if message:
-                        details["target_entity"] = (
-                            message.metadata.get("agent_name")
-                            if message.metadata
-                            else None
-                        )
-                        data_parts = a2a.get_data_parts_from_message(message)
-                        if data_parts:
-                            details["debug_type"] = data_parts[0].data.get(
-                                "type", method
-                            )
-                elif method == "tasks/cancel":
-                    details["task_id"] = a2a.get_task_id_from_cancel_request(
-                        rpc_request
-                    )
-
-            # Handle Discovery messages (which are not JSON-RPC)
-            elif "/a2a/v1/discovery/" in topic:
-                agent_card = AgentCard.model_validate(payload)
-                details["direction"] = "discovery"
-                details["source_entity"] = agent_card.name
-                details["target_entity"] = "broadcast"
-                details["message_id"] = None  # Discovery has no ID
-
-        except Exception as e:
-            log.warning(
-                "[%s] Failed to parse A2A payload for visualization details: %s",
-                self.log_identifier,
-                e,
-            )
-
-        # --- Phase 2: Refine details using topic information as a fallback ---
-        if details["direction"] == "unknown":
-            if "request" in topic:
-                details["direction"] = "request"
-            elif "response" in topic:
-                details["direction"] = "response"
-            elif "status" in topic:
-                details["direction"] = "status_update"
-                # TEMP - add debug_type based on the type in the data
-                details["debug_type"] = "unknown"
-
-        # --- Phase 3: Create a payload summary ---
-        try:
-            summary_source = (
-                payload.get("result")
-                or payload.get("params")
-                or payload.get("error")
-                or payload
-            )
-            summary_str = json.dumps(summary_source)
-            details["payload_summary"]["params_preview"] = (
-                (summary_str[:100] + "...") if len(summary_str) > 100 else summary_str
-            )
-        except Exception:
-            details["payload_summary"][
-                "params_preview"
-            ] = "[Could not serialize payload]"
-
-        return details
+        return infer_visualization_event_details(topic, payload, self.log_identifier)
 
     def _extract_involved_agents_for_viz(
         self, topic: str, payload_dict: dict[str, Any]
@@ -2424,6 +2346,104 @@ class WebUIBackendComponent(BaseGatewayComponent):
             "gateway_max_artifact_resolve_size_bytes": self.gateway_max_artifact_resolve_size_bytes,
             "gateway_recursive_embed_depth": self.gateway_recursive_embed_depth,
         }
+
+    def register_compaction_future(
+        self,
+        correlation_id: str,
+        expected_agent_id: str | None = None,
+    ) -> asyncio.Future:
+        """Register a correlation ID and return a Future that will be resolved
+        when the corresponding session.compact_response event arrives.
+
+        Args:
+            correlation_id: Unique ID to correlate request with response.
+            expected_agent_id: The agent the compaction request was sent to.
+                The Future will only be resolved by a response whose
+                ``source_component`` / ``agent_id`` matches this value, so a
+                rogue component cannot inject attacker-controlled data into
+                chat history by guessing the correlation id.
+
+        Returns:
+            asyncio.Future that will contain the response data dict.
+        """
+        loop = self.fastapi_event_loop or asyncio.get_event_loop()
+        future = loop.create_future()
+        self._compaction_futures[correlation_id] = {
+            "future": future,
+            "expected_agent_id": expected_agent_id,
+        }
+        log.debug(
+            "%s Registered compaction future for correlation_id=%s (agent=%s)",
+            self.log_identifier,
+            correlation_id,
+            expected_agent_id,
+        )
+        return future
+
+    def resolve_compaction_future(
+        self, event_data: dict, source_component: str | None = None
+    ) -> None:
+        """Resolve a pending compaction Future when a compact_response arrives.
+
+        The event is only accepted if its declared source matches the
+        ``expected_agent_id`` bound at registration. Mismatches are dropped.
+
+        Args:
+            event_data: The ``data`` dict from the session.compact_response event.
+            source_component: The ``source_component`` from the envelope of the
+                session.compact_response event (typically ``"<agent>_agent"``).
+        """
+        correlation_id = event_data.get("correlation_id")
+        if not correlation_id:
+            log.warning(
+                "%s Received compact_response without correlation_id", self.log_identifier
+            )
+            return
+
+        entry = self._compaction_futures.get(correlation_id)
+        if not entry:
+            log.debug(
+                "%s No pending future for correlation_id=%s (may have timed out)",
+                self.log_identifier,
+                correlation_id,
+            )
+            return
+
+        expected_agent_id = entry["expected_agent_id"]
+
+        if expected_agent_id is not None:
+            # Only trust the envelope's source_component — the payload's
+            # ``agent_id`` is attacker-controlled and would defeat the guard.
+            source_matches = (
+                source_component == expected_agent_id
+                or source_component == f"{expected_agent_id}_agent"
+            )
+            if not source_matches:
+                log.warning(
+                    "%s Rejecting compact_response for correlation_id=%s: "
+                    "source %r does not match expected %r",
+                    self.log_identifier,
+                    correlation_id,
+                    source_component,
+                    expected_agent_id,
+                )
+                # Leave the pending entry in place so the legitimate response
+                # can still resolve the future; the caller's 60s timeout
+                # handles the case where no legitimate response arrives.
+                return
+
+        # Source verified — now pop and resolve.
+        entry = self._compaction_futures.pop(correlation_id, None)
+        if not entry:
+            return
+        future = entry["future"]
+        if not future.done():
+            future.set_result(event_data)
+            log.info(
+                "%s Resolved compaction future for correlation_id=%s",
+                self.log_identifier,
+                correlation_id,
+            )
 
     def get_core_a2a_service(self) -> CoreA2AService:
         """Returns the CoreA2AService instance."""

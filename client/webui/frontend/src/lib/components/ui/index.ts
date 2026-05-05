@@ -12,6 +12,7 @@ export { ComboBox, type ComboBoxItem } from "./combobox";
 export { Form, FormControl, FormField, FormItem, FormLabel, FormInputLabel } from "./form";
 export { Spinner } from "./spinner";
 export * from "./dialog";
+export { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./sheet";
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "./resizable";
 export { Switch } from "./switch";
 export { Progress } from "./progress";
@@ -44,6 +45,8 @@ export { ChatMessageList } from "./chat/chat-message-list";
 export { CHAT_STYLES } from "./chat/chatStyles";
 export { default as MessageLoading } from "./chat/message-loading";
 export { Badge } from "./badge";
+export { DatePicker } from "./date-picker";
+export { TimePicker } from "./time-picker";
 export { LifecycleBadge } from "./lifecycleBadge";
 export { NavItem, type NavItemProps } from "./navItem";
 

@@ -53,6 +53,15 @@ class CreateScheduledTaskRequest(BaseModel):
     notification_config: Optional[NotificationConfig] = Field(None, description="Notification settings")
     user_level: bool = Field(default=True, description="True for user-specific, False for namespace-level")
 
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def strip_text_fields(cls, v):
+        """Strip leading/trailing whitespace so ``"Daily Report"`` and
+        ``"Daily Report "`` don't appear as two distinct tasks in the UI."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
     @field_validator("timezone")
     @classmethod
     def validate_timezone(cls, v: str) -> str:
@@ -117,6 +126,15 @@ class UpdateScheduledTaskRequest(BaseModel):
 
     notification_config: Optional[NotificationConfig] = None
 
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def strip_text_fields(cls, v):
+        """Strip leading/trailing whitespace so updates can't reintroduce
+        ``"Daily Report "`` as a visual duplicate of ``"Daily Report"``."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
     @field_validator("timezone")
     @classmethod
     def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
@@ -161,6 +179,20 @@ class UpdateScheduledTaskRequest(BaseModel):
         return self
 
 
+class LastExecutionSummary(BaseModel):
+    """Compact summary of the most-recent execution for discoverability on the
+    task card — lets the list view answer "did my task work?" at a glance
+    without navigating into history."""
+    id: str
+    status: str
+    scheduled_for: int
+    started_at: Optional[int] = None
+    completed_at: Optional[int] = None
+    duration_ms: Optional[int] = None
+    error_message: Optional[str] = None
+    trigger_type: Optional[str] = "scheduled"
+
+
 class ScheduledTaskResponse(BaseModel):
     """Response model for a scheduled task."""
     id: str
@@ -197,11 +229,13 @@ class ScheduledTaskResponse(BaseModel):
     next_run_at: Optional[int]
     last_run_at: Optional[int]
 
+    last_execution: Optional[LastExecutionSummary] = None
+
     class Config:
         from_attributes = True
 
     @classmethod
-    def from_orm(cls, obj):
+    def from_orm(cls, obj, last_execution: Optional["LastExecutionSummary"] = None):
         """Create ScheduledTaskResponse from ORM model, computing status."""
         data = {
             'id': obj.id,
@@ -230,6 +264,7 @@ class ScheduledTaskResponse(BaseModel):
             'updated_at': obj.updated_at,
             'next_run_at': obj.next_run_at,
             'last_run_at': obj.last_run_at,
+            'last_execution': last_execution,
         }
         return cls(**data)
 
@@ -280,6 +315,9 @@ class ExecutionResponse(BaseModel):
     error_message: Optional[str]
     retry_count: int
 
+    trigger_type: Optional[str] = "scheduled"
+    triggered_by: Optional[str] = None
+
     artifacts: Optional[List[Union[str, Dict[str, Any], ArtifactInfo]]]
     notifications_sent: Optional[List[Dict[str, Any]]]
 
@@ -300,6 +338,8 @@ class ExecutionResponse(BaseModel):
             'result_summary': obj.result_summary,
             'error_message': obj.error_message,
             'retry_count': obj.retry_count,
+            'trigger_type': getattr(obj, 'trigger_type', None) or "scheduled",
+            'triggered_by': getattr(obj, 'triggered_by', None),
             'artifacts': obj.artifacts,
             'notifications_sent': obj.notifications_sent,
         }

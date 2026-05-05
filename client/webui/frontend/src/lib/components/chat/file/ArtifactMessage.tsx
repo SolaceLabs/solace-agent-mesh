@@ -14,6 +14,7 @@ import { getFileContent, getRenderType } from "../preview/previewUtils";
 import { ArtifactBar } from "../artifact/ArtifactBar";
 import { ArtifactTransitionOverlay } from "../artifact/ArtifactTransitionOverlay";
 import { FileDetails } from "./FileDetails";
+import { isArtifactDeleted } from "./artifactMessageUtils";
 
 type ArtifactMessageProps = (
     | {
@@ -74,16 +75,7 @@ export const ArtifactMessage = (props: ArtifactMessageProps) => {
     // Fall back to artifacts array if allArtifacts is not available (e.g., in Storybook)
     const artifactInAll = useMemo(() => (allArtifacts ?? artifacts).find(art => art.filename === props.name), [allArtifacts, artifacts, props.name]);
 
-    // Detect if artifact has been deleted: completed but not in allArtifacts list
-    // However, don't mark as deleted if we have a valid fileAttachment with a URI -
-    // that means the artifact exists on the backend but just hasn't been fetched into the local list yet
-    const isDeleted = useMemo(() => {
-        if (props.status !== "completed") return false;
-        if (artifactInAll) return false; // Found in list (including hidden), not deleted
-        // If we have a fileAttachment with a URI, the artifact exists on backend (just not fetched yet)
-        if (fileAttachment?.uri) return false;
-        return true; // Completed, not in list, no URI = likely deleted
-    }, [props.status, artifactInAll, fileAttachment?.uri]);
+    const isDeleted = useMemo(() => isArtifactDeleted({ status: props.status, artifactInfo: artifactInAll, fileAttachment, message: props.message }), [props.status, artifactInAll, fileAttachment, props.message]);
 
     // Determine if this should auto-expand based on context
     const shouldAutoExpand = useMemo(() => {

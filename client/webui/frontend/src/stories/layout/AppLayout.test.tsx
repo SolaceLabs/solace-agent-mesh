@@ -10,6 +10,13 @@ import AppLayout from "@/AppLayout";
 
 expect.extend(matchers);
 
+// ---- Mocks must be declared before the dynamic import ----
+
+// Mock useNotificationSSE to avoid EventSource (not available in Node.js test env)
+vi.mock("@/lib/hooks/useNotificationSSE", () => ({
+    useNotificationSSE: () => {},
+}));
+
 // Mock ChatProvider to pass-through so StoryProvider's MockChatProvider values reach AppLayoutContent.
 vi.mock("@/lib/providers", () => ({
     ChatProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

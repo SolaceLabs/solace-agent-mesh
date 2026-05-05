@@ -1,9 +1,32 @@
 import { api, getErrorFromResponse } from "@/lib/api";
 import { getArtifactContent as getArtifactContentUtil, validIdOrUndefined } from "@/lib/utils/file";
-import type { BulkArtifactsResponse } from "./types";
+import type { ArtifactWithSession, BulkArtifactsResponse } from "./types";
 
 /**
- * Retrieves artifact content for preview.
+ * True when the artifact belongs to a project rather than a chat session.
+ * Backend uses "project-{id}" format; "project:{id}" is kept for backward compat.
+ */
+export function isProjectArtifact(artifact: ArtifactWithSession): boolean {
+    return artifact.sessionId.startsWith("project:") || artifact.sessionId.startsWith("project-") || artifact.source === "project";
+}
+
+/**
+ * Resolve the correct API path for an artifact.
+ *
+ * For project artifacts we pass "null" as the session placeholder in the path
+ * and the actual project via the project_id query param — the backend endpoint
+ * requires a session_id path segment.
+ */
+export function getArtifactApiUrl(artifact: ArtifactWithSession): string {
+    if (isProjectArtifact(artifact) && artifact.projectId) {
+        return `/api/v1/artifacts/null/${encodeURIComponent(artifact.filename)}?project_id=${encodeURIComponent(artifact.projectId)}`;
+    }
+    return `/api/v1/artifacts/${encodeURIComponent(artifact.sessionId)}/${encodeURIComponent(artifact.filename)}`;
+}
+
+/**
+ * Retrieves artifact content for preview, with ID validation and a "latest" version default.
+ * Thin wrapper around `getArtifactContent` from `@/lib/utils/file`.
  * Supports both session-scoped and project-scoped artifacts (sessionId takes priority).
  *
  * @param options.sessionId - Optional session ID for session-scoped artifacts
@@ -12,7 +35,7 @@ import type { BulkArtifactsResponse } from "./types";
  * @param options.version - Optional specific version number (defaults to "latest")
  * @returns Promise with content (base64) and mimeType
  */
-export async function getArtifactContent({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
+export async function getArtifactContentWithValidation({ sessionId, projectId, filename, version }: { sessionId?: string; projectId?: string; filename: string; version?: number }): Promise<{ content: string; mimeType: string }> {
     const validSession = validIdOrUndefined(sessionId);
     const validProject = validIdOrUndefined(projectId);
     return getArtifactContentUtil({

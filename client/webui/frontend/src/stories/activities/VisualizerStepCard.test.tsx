@@ -74,6 +74,107 @@ describe("LLMResponseToAgentDetails expand/collapse (component extracted to modu
     });
 });
 
+const artifactStep = {
+    id: "s-artifact",
+    type: "AGENT_ARTIFACT_NOTIFICATION" as const,
+    timestamp: ts,
+    title: "Created Artifact - report.md",
+    data: {
+        artifactNotification: {
+            artifactName: "report.md",
+            version: 2,
+            mimeType: "text/markdown",
+            description: "A generated report",
+        },
+    },
+    ...baseStep,
+};
+
+const mockArtifact = {
+    filename: "report.md",
+    mime_type: "text/markdown",
+    size: 1024,
+    last_modified: new Date().toISOString(),
+    version: 1,
+};
+
+describe("VisualizerStepCard View File with custom props", () => {
+    test("uses artifactLookup and onViewArtifact when both are provided", async () => {
+        const artifactLookup = vi.fn().mockReturnValue(mockArtifact);
+        const onViewArtifact = vi.fn();
+
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "test", artifacts: [] }}>
+                    <VisualizerStepCard step={artifactStep} artifactLookup={artifactLookup} onViewArtifact={onViewArtifact} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await userEvent.setup().click(screen.getByRole("button", { name: "View File" }));
+
+        expect(artifactLookup).toHaveBeenCalledWith("report.md");
+        expect(onViewArtifact).toHaveBeenCalledWith(mockArtifact, 2);
+    });
+
+    test("passes undefined version when step has no version", async () => {
+        const stepNoVersion = {
+            ...artifactStep,
+            data: {
+                artifactNotification: { artifactName: "report.md", mimeType: "text/markdown" },
+            },
+        };
+        const artifactLookup = vi.fn().mockReturnValue(mockArtifact);
+        const onViewArtifact = vi.fn();
+
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "test", artifacts: [] }}>
+                    <VisualizerStepCard step={stepNoVersion} artifactLookup={artifactLookup} onViewArtifact={onViewArtifact} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await userEvent.setup().click(screen.getByRole("button", { name: "View File" }));
+
+        expect(onViewArtifact).toHaveBeenCalledWith(mockArtifact, undefined);
+    });
+
+    test("does not call onViewArtifact when artifactLookup returns undefined", async () => {
+        const artifactLookup = vi.fn().mockReturnValue(undefined);
+        const onViewArtifact = vi.fn();
+
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "test", artifacts: [] }}>
+                    <VisualizerStepCard step={artifactStep} artifactLookup={artifactLookup} onViewArtifact={onViewArtifact} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await userEvent.setup().click(screen.getByRole("button", { name: "View File" }));
+
+        expect(artifactLookup).toHaveBeenCalledWith("report.md");
+        expect(onViewArtifact).not.toHaveBeenCalled();
+    });
+
+    test("falls back to ChatContext when props are not provided", async () => {
+        const setPreviewArtifact = vi.fn();
+
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ sessionId: "test", artifacts: [mockArtifact], setPreviewArtifact }}>
+                    <VisualizerStepCard step={artifactStep} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        await userEvent.setup().click(screen.getByRole("button", { name: "View File" }));
+
+        expect(setPreviewArtifact).toHaveBeenCalledWith(mockArtifact);
+    });
+});
+
 describe("VisualizerStepCard keyboard accessibility", () => {
     test("pressing Enter calls onClick when provided", () => {
         const onClick = vi.fn();

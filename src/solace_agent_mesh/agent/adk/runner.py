@@ -126,7 +126,7 @@ def _is_test_mode_trigger_enabled() -> bool:
     return _get_test_token_threshold() > 0
 
 
-def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
+def calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-4-vision") -> int:
     """
     Calculate total tokens the LLM will receive for this session.
 
@@ -179,6 +179,10 @@ def _calculate_session_context_tokens(events: list[ADKEvent], model: str = "gpt-
     return total_tokens
 
 
+# Backward-compatible alias for existing internal/test callers
+_calculate_session_context_tokens = calculate_session_context_tokens
+
+
 def _test_and_trigger_compaction(
     test_token_threshold: int,
     adk_session: ADKSession,
@@ -198,7 +202,7 @@ def _test_and_trigger_compaction(
     Raises:
         BadRequestError: If token count exceeds threshold (triggers compaction retry loop)
     """
-    total_tokens = _calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
+    total_tokens = calculate_session_context_tokens(adk_session.events, model=str(component.adk_agent.model))
     log.info(
         "%s Proactive compaction check: total_tokens=%d, threshold=%d, exceeds=%s",
         component.log_identifier,
@@ -327,12 +331,12 @@ def _find_compaction_cutoff(
 
     return best_cutoff_idx, best_token_count
 
-async def _create_compaction_event(
+async def create_compaction_event(
     component: "SamAgentComponent",
     session: ADKSession,
     compaction_threshold: float = 0.25,
     log_identifier: str = ""
-) -> tuple[int, str]:
+) -> tuple[int, str, int, int]:
     """
     Create a compaction event using percentage-based progressive summarization.
     Strategy:
@@ -378,7 +382,7 @@ async def _create_compaction_event(
     # 2. Calculate total token count and target compaction size
     # Use non_compaction_events (includes system + conversation) for consistency
     # with proactive trigger logic
-    total_tokens = _calculate_session_context_tokens(non_compaction_events, model=str(component.adk_agent.model))
+    total_tokens = calculate_session_context_tokens(non_compaction_events, model=str(component.adk_agent.model))
     target_tokens = int(total_tokens * compaction_threshold)
 
     log.info(
@@ -494,15 +498,35 @@ Conversation history:
 
 Create a progressive summary that emphasizes recent activity while compressing historical context:"""
 
+        # Pass the LiteLlm model object (not the agent) — LlmEventSummarizer
+        # accesses llm.model (expects a string) and llm.generate_content_async.
+        # component.adk_agent.model is the LiteLlm wrapper which satisfies both.
         summarizer = LlmEventSummarizer(
             llm=component.adk_agent.model,
             prompt_template=progressive_prompt_template
         )
+        # Clear any prior usage so we only read the summarization call's spend.
+        model = component.adk_agent.model
+        if hasattr(model, "pop_last_usage"):
+            model.pop_last_usage()
+
         compaction_event = await summarizer.maybe_summarize_events(events=events_to_compact)
 
         if not compaction_event:
             log.error("%s LlmEventSummarizer returned no compaction event", log_identifier)
-            return 0, ""
+            return 0, "", 0, 0
+
+        # Capture the summarizer's own LLM token usage so the gateway can roll
+        # it into the session's cumulative prompt/completion counters. ADK
+        # strips usage_metadata from the Event returned by LlmEventSummarizer,
+        # so we read it from the LiteLlm instance's last-call side channel.
+        compaction_prompt_tokens = 0
+        compaction_completion_tokens = 0
+        if hasattr(model, "pop_last_usage"):
+            last_usage = model.pop_last_usage()
+            if last_usage:
+                compaction_prompt_tokens = int(last_usage.get("prompt_tokens") or 0)
+                compaction_completion_tokens = int(last_usage.get("completion_tokens") or 0)
 
         # LlmEventSummarizer returns inverted timestamps (start > end)
         # services.py uses max() for defensive handling, so we must do the same here
@@ -541,7 +565,7 @@ Create a progressive summary that emphasizes recent activity while compressing h
 
     except Exception as e:
         log.error("%s Failed to create compaction event: %s", log_identifier, e, exc_info=True)
-        return 0, ""
+        return 0, "", 0, 0
 
     # 7. Persist compaction event to database
     try:
@@ -578,7 +602,7 @@ Create a progressive summary that emphasizes recent activity while compressing h
         )
         raise  # Fail retry if we can't persist
 
-    return len(events_to_compact), summary_text
+    return len(events_to_compact), summary_text, compaction_prompt_tokens, compaction_completion_tokens
 
 
 async def _send_status_notification(
@@ -940,7 +964,7 @@ async def _perform_session_compaction(
     original_event_count = len(session.events) if session.events else 0
 
     # Create compaction event
-    events_removed, summary = await _create_compaction_event(
+    events_removed, summary, _, _ = await create_compaction_event(
         component=component,
         session=session,
         compaction_threshold=compaction_threshold,

@@ -3,6 +3,7 @@ import React, { type ReactNode, useState, useRef, useEffect, useCallback } from 
 import { SSEContext, type SSEContextValue } from "@/lib/contexts/SSEContext";
 import { useSessionStorage } from "@/lib/hooks";
 import { getApiBearerToken } from "@/lib/utils/api";
+import { uuid } from "@/lib/utils/uuid";
 import { api } from "@/lib/api";
 import type { SSEConnectionState, SSESubscriptionOptions, SSESubscriptionReturn, SSETask } from "@/lib/types";
 
@@ -227,7 +228,7 @@ export const SSEProvider = ({ children }: SSEProviderProps) => {
 
     const subscribe = useCallback(
         (endpoint: string, handlers: { onMessage?: (e: MessageEvent) => void; onError?: (e: Event) => void }, onStateChange: (state: SSEConnectionState) => void, eventType: string = "message"): (() => void) => {
-            const subscriberId = crypto.randomUUID();
+            const subscriberId = uuid();
 
             let entry = connectionsRef.current.get(endpoint);
 

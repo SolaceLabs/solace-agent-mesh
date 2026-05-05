@@ -107,7 +107,7 @@ export const MentionsCommand: React.FC<MentionsCommandProps> = ({ isOpen, onClos
         const fetchPeople = async () => {
             setIsLoading(true);
             try {
-                const data: PeopleSearchResponse = await api.webui.get(`/api/v1/people/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
+                const data: PeopleSearchResponse = await api.webui.get(`/api/v1/people/search?q=${encodeURIComponent(searchQuery.trim())}&limit=10`);
                 setPeople(data.data || []);
             } catch (error) {
                 console.error("Failed to fetch people:", error);

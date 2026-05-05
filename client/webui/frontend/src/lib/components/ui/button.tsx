@@ -14,7 +14,6 @@ const buttonVariants = cva(
         variants: {
             variant: {
                 default: "text-(--primary-text-w10) bg-(--primary-wMain) enabled:hover:bg-(--primary-w90) enabled:active:bg-(--primary-w100)",
-                destructive: "text-(--error-wMain) bg-(--error-w10) enabled:hover:bg-(--error-w20)", //deprecated
                 outline: commonTextStyles + " border border-(--primary-wMain)",
                 secondary: commonTextStyles,
                 ghost: commonTextStyles,

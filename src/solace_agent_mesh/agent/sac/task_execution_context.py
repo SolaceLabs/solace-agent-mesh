@@ -42,6 +42,10 @@ class TaskExecutionContext:
         self.total_input_tokens: int = 0
         self.total_output_tokens: int = 0
         self.total_cached_input_tokens: int = 0
+        # Prompt tokens from the most recent agent LLM call — represents the
+        # peak context window occupancy for this task, unlike total_input_tokens
+        # which sums across every turn and inflates with each peer delegation.
+        self.last_input_tokens: int = 0
         self.token_usage_by_model: Dict[str, Dict[str, int]] = {}
         self.token_usage_by_source: Dict[str, Dict[str, int]] = {}
 
@@ -238,10 +242,11 @@ class TaskExecutionContext:
         source: str = "agent",
         tool_name: Optional[str] = None,
         cached_input_tokens: int = 0,
+        max_input_tokens: Optional[int] = None,
     ) -> None:
         """
         Records token usage for an LLM call.
-        
+
         Args:
             input_tokens: Number of input/prompt tokens.
             output_tokens: Number of output/completion tokens.
@@ -249,13 +254,19 @@ class TaskExecutionContext:
             source: Source of the LLM call ("agent" or "tool").
             tool_name: Tool name if source is "tool".
             cached_input_tokens: Number of cached input tokens (optional).
+            max_input_tokens: Context window size for this model (optional).
+                Stamped once per model so downstream consumers (e.g. the chat
+                context-usage indicator) can render a usage-vs-limit ratio
+                without cross-service lookups.
         """
         with self.lock:
             # Update totals
             self.total_input_tokens += input_tokens
             self.total_output_tokens += output_tokens
             self.total_cached_input_tokens += cached_input_tokens
-            
+            if source == "agent":
+                self.last_input_tokens = input_tokens
+
             # Track by model
             if model not in self.token_usage_by_model:
                 self.token_usage_by_model[model] = {
@@ -266,6 +277,10 @@ class TaskExecutionContext:
             self.token_usage_by_model[model]["input_tokens"] += input_tokens
             self.token_usage_by_model[model]["output_tokens"] += output_tokens
             self.token_usage_by_model[model]["cached_input_tokens"] += cached_input_tokens
+            # Stamp max_input_tokens once; prefer the first non-null value we see
+            # so a later sub-call without the limit doesn't clear it.
+            if max_input_tokens and not self.token_usage_by_model[model].get("max_input_tokens"):
+                self.token_usage_by_model[model]["max_input_tokens"] = int(max_input_tokens)
             
             # Track by source
             source_key = f"{source}:{tool_name}" if tool_name else source
@@ -292,6 +307,7 @@ class TaskExecutionContext:
                 "total_output_tokens": self.total_output_tokens,
                 "total_cached_input_tokens": self.total_cached_input_tokens,
                 "total_tokens": self.total_input_tokens + self.total_output_tokens,
+                "last_input_tokens": self.last_input_tokens,
                 "by_model": dict(self.token_usage_by_model),
                 "by_source": dict(self.token_usage_by_source),
             }

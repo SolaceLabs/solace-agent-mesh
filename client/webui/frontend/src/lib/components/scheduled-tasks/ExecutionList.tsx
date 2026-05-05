@@ -1,4 +1,5 @@
 import React from "react";
+import { Loader2 } from "lucide-react";
 import type { TaskExecution } from "@/lib/types/scheduled-tasks";
 import { formatEpochTimestamp, formatDuration } from "@/lib/utils/format";
 
@@ -9,15 +10,26 @@ interface ExecutionListProps {
     isLoading: boolean;
 }
 
+const IN_PROGRESS_STATUSES = new Set(["pending", "running"]);
+
+const STATUS_LABELS: Record<string, string> = {
+    completed: "Completed",
+    failed: "Failed",
+    pending: "Pending",
+    running: "Running",
+    timeout: "Timeout",
+};
+
 const getStatusBadge = (status: string) => {
     const statusConfig = {
         completed: { bg: "bg-(--color-success-w20)", text: "text-(--color-success-wMain)", label: "Completed" },
         failed: { bg: "bg-(--color-error-w20)", text: "text-(--color-error-wMain)", label: "Failed" },
+        pending: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Pending" },
         running: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Running" },
         timeout: { bg: "bg-(--color-warning-w20)", text: "text-(--color-warning-wMain)", label: "Timeout" },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-    return <span className={`rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
+    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
 };
 
 export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, selectedExecution, onSelect, isLoading }) => {
@@ -42,9 +54,21 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
                                     onClick={() => onSelect(execution)}
                                     className={`w-full rounded p-3 text-left transition-colors ${isSelected ? "border border-(--primary-w20) bg-(--primary-w10)" : "hover:bg-(--secondary-w20)"}`}
                                 >
-                                    <div className="mb-2 flex items-center justify-between">
-                                        {getStatusBadge(execution.status)}
-                                        <span className="text-xs text-(--secondary-text-wMain)">{execution.durationMs ? formatDuration(execution.durationMs) : "-"}</span>
+                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">{STATUS_LABELS[execution.status] ?? execution.status}</span>
+                                            {execution.triggerType === "manual" && (
+                                                <span
+                                                    className="rounded-full bg-(--color-info-w20) px-2 py-0.5 text-xs text-(--color-info-wMain)"
+                                                    title={execution.triggeredBy ? `Triggered manually by ${execution.triggeredBy}` : "Triggered manually"}
+                                                >
+                                                    Manual
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="flex items-center text-xs text-(--secondary-text-wMain)">
+                                            {IN_PROGRESS_STATUSES.has(execution.status) ? <Loader2 className="size-3 animate-spin text-(--brand-wMain)" aria-label="in progress" /> : execution.durationMs ? formatDuration(execution.durationMs) : "-"}
+                                        </span>
                                     </div>
                                     <span className="block text-xs text-(--secondary-text-wMain)">{execution.startedAt ? formatEpochTimestamp(execution.startedAt) : "Pending"}</span>
                                 </button>

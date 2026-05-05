@@ -13,6 +13,9 @@
       "project_id": "SolaceLabs_solace-agent-mesh",
       "team": null,
       "labels": []
+    },
+    "guardian": {
+      "pr_scan_upload": true
     }
   }
 }

@@ -178,7 +178,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                     <div className="flex h-full flex-col pt-6 pb-6 pl-6">
                         {!isLibraryEmpty && (
                             <div className="mb-4 flex items-center gap-2">
-                                <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name..." testid="promptSearchInput" />
+                                <SearchInput value={searchQuery} onChange={setSearchQuery} testid="promptSearchInput" />
 
                                 {/* Category Filter Dropdown */}
                                 {categories.length > 0 && (

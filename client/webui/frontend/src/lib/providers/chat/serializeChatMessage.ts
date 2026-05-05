@@ -1,8 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
+import { uuid } from "@/lib/utils/uuid";
 
 import type { MessageFE, ArtifactPart, TextPart } from "@/lib/types";
-
-const v4 = () => uuidv4({});
 
 /**
  * Serializes a MessageFE into the format expected by the backend chat-tasks API.
@@ -22,7 +20,7 @@ export function serializeChatMessage(message: MessageFE) {
     }
 
     return {
-        id: message.metadata?.messageId || `msg-${v4()}`,
+        id: message.metadata?.messageId || `msg-${uuid()}`,
         type: message.isUser ? "user" : "agent",
         text: combinedText,
         parts: message.parts,
@@ -30,6 +28,7 @@ export function serializeChatMessage(message: MessageFE) {
             name: f.name,
             type: f.type,
         })),
+        attachedArtifacts: message.attachedArtifacts,
         isError: message.isError,
         displayHtml: message.displayHtml,
         contextQuote: message.contextQuote,

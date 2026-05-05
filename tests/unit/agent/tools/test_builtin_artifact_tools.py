@@ -409,6 +409,98 @@ class TestExtractContentUsesHostComponentLlm:
             mock_tool_context_with_host._invocation_context.agent.host_component.get_lite_llm_model.assert_called_once()
 
 
+class TestExtractContentProgressStatus:
+    """Tests for the agent_progress_update emitted before the internal LLM call."""
+
+    def _make_tool_context(self, with_a2a_context: bool):
+        mock_context = Mock()
+        mock_inv = Mock()
+        mock_inv.artifact_service = AsyncMock()
+        mock_inv.app_name = "test_app"
+        mock_inv.user_id = "test_user"
+
+        mock_llm = Mock()
+        mock_llm.model = "gpt-4"
+        mock_host = Mock()
+        mock_host.get_lite_llm_model = Mock(return_value=mock_llm)
+        mock_host._publish_agent_status_signal_update = AsyncMock()
+
+        mock_agent = Mock()
+        mock_agent.host_component = mock_host
+        mock_inv.agent = mock_agent
+        mock_context._invocation_context = mock_inv
+
+        # tool_context.state is the ADK state proxy; we use a plain dict.
+        mock_context.state = (
+            {"a2a_context": {"logical_task_id": "task-123", "contextId": "ctx-1"}}
+            if with_a2a_context else {}
+        )
+        return mock_context
+
+    @pytest.mark.asyncio
+    async def test_publishes_status_when_a2a_context_present(self):
+        """A status update fires before the LLM call when an a2a_context is on tool_context.state."""
+        ctx = self._make_tool_context(with_a2a_context=True)
+        with patch(
+            "solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata"
+        ) as mock_load, patch(
+            "solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id"
+        ) as mock_session:
+            # 50KB artifact so the status text reports a non-zero size hint
+            mock_load.return_value = {
+                "status": "success",
+                "content": "X",
+                "mime_type": "text/plain",
+                "raw_bytes": b"X" * (50 * 1024),
+                "version": 0,
+            }
+            mock_session.return_value = "session123"
+            try:
+                await extract_content_from_artifact(
+                    filename="chatter_feed.json",
+                    extraction_goal="summarise",
+                    tool_context=ctx,
+                )
+            except Exception:
+                pass
+
+        publish = ctx._invocation_context.agent.host_component._publish_agent_status_signal_update
+        publish.assert_called_once()
+        status_text, a2a_context = publish.call_args.args
+        assert "chatter_feed.json" in status_text
+        assert "50KB" in status_text  # 50 * 1024 bytes // 1024
+        assert a2a_context["logical_task_id"] == "task-123"
+
+    @pytest.mark.asyncio
+    async def test_skipped_when_no_a2a_context(self):
+        """No status update fires when tool_context.state has no a2a_context."""
+        ctx = self._make_tool_context(with_a2a_context=False)
+        with patch(
+            "solace_agent_mesh.agent.tools.builtin_artifact_tools.load_artifact_content_or_metadata"
+        ) as mock_load, patch(
+            "solace_agent_mesh.agent.tools.builtin_artifact_tools.get_original_session_id"
+        ) as mock_session:
+            mock_load.return_value = {
+                "status": "success",
+                "content": "X",
+                "mime_type": "text/plain",
+                "raw_bytes": b"X",
+                "version": 0,
+            }
+            mock_session.return_value = "session123"
+            try:
+                await extract_content_from_artifact(
+                    filename="x.txt",
+                    extraction_goal="summarise",
+                    tool_context=ctx,
+                )
+            except Exception:
+                pass
+
+        publish = ctx._invocation_context.agent.host_component._publish_agent_status_signal_update
+        publish.assert_not_called()
+
+
 class TestDeleteArtifact:
     """Test cases for delete_artifact function."""
 

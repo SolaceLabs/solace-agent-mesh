@@ -337,10 +337,33 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
         return data
 
 
+    # Substring matching is only trusted for response payloads that are this
+    # small. Free-form tool output (Jira issues, Confluence pages, search
+    # results) routinely embeds substrings like "401 Unauthorized" or
+    # "403 Forbidden" in legitimate content (logs, error reports, status URLs
+    # like .../rest/api/3/status/10401, gravatar hashes that contain "403").
+    # Triggering re-auth on those was the cause of cascading "Pending user
+    # authorization" prompts mid-conversation.
+    _SUBSTRING_AUTH_CHECK_MAX_TEXT_LEN = 2000
+
     def _is_auth_error(self, result: dict) -> bool:
-        """Check if an MCP tool result indicates an authentication/authorization error."""
+        """Check if an MCP tool result indicates an authentication/authorization error.
+
+        Authoritative signals (always trusted):
+        - The MCP CallToolResult-level ``isError`` flag.
+        - A text item that parses as a JSON object with top-level
+          ``code`` or ``status`` equal to 401 / 403.
+
+        Heuristic signal (only when the result is already flagged as an
+        error AND the text item is small): substring match on
+        "401 unauthorized" / "403 forbidden". This is gated to avoid
+        false positives on large free-form tool output where legitimate
+        content can contain the substrings.
+        """
         if not isinstance(result, dict):
             return False
+
+        is_error_result = bool(result.get("isError"))
 
         content = result.get("content", [])
         if not isinstance(content, list):
@@ -352,7 +375,7 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
 
             text = item.get("text", "")
 
-            # Try parsing as JSON (e.g. {"code":401,"message":"Unauthorized"})
+            # Structured signal: JSON object with top-level code/status.
             try:
                 parsed = json.loads(text)
                 if isinstance(parsed, dict):
@@ -364,12 +387,16 @@ class EmbedResolvingMCPTool(_BaseMcpToolClass):
             except (json.JSONDecodeError, TypeError):
                 pass
 
-            # Fall back to string matching
-            text_lower = text.lower()
-            if "401" in text_lower and "unauthorized" in text_lower:
-                return True
-            if "403" in text_lower and "forbidden" in text_lower:
-                return True
+            # Heuristic substring fallback — only when the result is
+            # explicitly an error AND the payload is small enough that the
+            # substring is plausibly the whole error message rather than
+            # incidental content.
+            if is_error_result and len(text) <= self._SUBSTRING_AUTH_CHECK_MAX_TEXT_LEN:
+                text_lower = text.lower()
+                if "401" in text_lower and "unauthorized" in text_lower:
+                    return True
+                if "403" in text_lower and "forbidden" in text_lower:
+                    return True
 
         return False
 

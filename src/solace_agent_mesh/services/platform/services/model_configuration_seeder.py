@@ -81,6 +81,24 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
     return "custom"
 
 
+def _get_default_auth_type(provider: str) -> str:
+    """
+    Get the default authentication type for a provider.
+
+    Returns:
+        Default auth type string for the provider
+    """
+    provider_lower = provider.lower()
+
+    if provider_lower in ("openai", "anthropic", "google_ai_studio", "azure_openai"):
+        return "apikey"
+    elif provider_lower == "vertex_ai":
+        return "gcp_service_account"
+    elif provider_lower == "bedrock":
+        return "aws_iam"
+    return "none"
+
+
 def _get_default_api_base(provider: str) -> Optional[str]:
     """
     Get the default API base URL for a known provider.
@@ -320,8 +338,8 @@ def _seed_from_models_config(db: Session, models_config: dict) -> set:
                 model_name = config_data
                 provider = _infer_provider(None, model_name)
                 api_base = _get_default_api_base(provider)
-                auth_type = "none"
-                model_auth_config = {"type": "none"}
+                auth_type = _get_default_auth_type(provider)
+                model_auth_config = {"type": auth_type}
                 model_params = {}
 
             else:

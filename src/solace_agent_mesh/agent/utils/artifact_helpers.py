@@ -14,7 +14,7 @@ import yaml
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List, TYPE_CHECKING
-from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
+from urllib.parse import urlparse, parse_qs, unquote, urlunparse, urlencode
 from google.adk.artifacts import BaseArtifactService
 from google.genai import types as adk_types
 from ...common.a2a.types import ArtifactInfo
@@ -193,8 +193,29 @@ def format_artifact_uri(
     return urlunparse(("artifact", app_name, path, "", query, ""))
 
 
+def _format_artifact_path_uri(
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    filename: str,
+) -> str:
+    """Formats the canonical artifact:// path *without* a `?version=` query.
+
+    Use when the version isn't known at format time and the consumer should
+    resolve "latest" at fetch — e.g., the WebUI bulk-list endpoint, where
+    metadata-version drift would otherwise produce stale URIs.
+    """
+    path = f"/{user_id}/{session_id}/{filename}"
+    return urlunparse(("artifact", app_name, path, "", "", ""))
+
+
 def parse_artifact_uri(uri: str) -> Dict[str, Any]:
-    """Parses an artifact:// URI into its constituent parts."""
+    """Parses an artifact:// URI into its constituent parts.
+
+    Path segments are percent-decoded — clients (notably WHATWG URL
+    re-serialization in the WebUI) encode spaces and reserved chars,
+    but the artifact-store keys are the raw values.
+    """
     parsed = urlparse(uri)
     if parsed.scheme != "artifact":
         raise ValueError("Invalid URI scheme, must be 'artifact'.")
@@ -209,10 +230,10 @@ def parse_artifact_uri(uri: str) -> Dict[str, Any]:
         raise ValueError("Version is missing from URI query parameters.")
 
     return {
-        "app_name": parsed.netloc,
-        "user_id": path_parts[0],
-        "session_id": path_parts[1],
-        "filename": path_parts[2],
+        "app_name": unquote(parsed.netloc),
+        "user_id": unquote(path_parts[0]),
+        "session_id": unquote(path_parts[1]),
+        "filename": unquote(path_parts[2]),
         "version": int(version) if version.isdigit() else version,
     }
 
@@ -1158,6 +1179,14 @@ async def get_artifact_info_list(
                         source=source,
                         tags=tags,
                         source_project_id=source_project_id,
+                        # Same rationale as the fast path: omit `?version=N`
+                        # so the translator resolves "latest" at fetch time.
+                        uri=_format_artifact_path_uri(
+                            app_name=app_name,
+                            user_id=user_id,
+                            session_id=session_id,
+                            filename=filename,
+                        ),
                     )
                 )
                 log.debug(
@@ -1287,7 +1316,31 @@ async def get_artifact_info_list_fast(
                     log_identifier_prefix=f"{log_prefix} [{filename}]",
                 )
 
-                return _metadata_to_artifact_info(filename, data.get("metadata", {}))
+                # `version` is the metadata file's resolved-latest version,
+                # captured for free here (load_artifact_content_or_metadata
+                # already had to call list_versions to resolve "latest"). The
+                # WebUI's attach-artifact dialog uses this to pre-fill its
+                # version picker default with a concrete number rather than a
+                # "Latest" sentinel.
+                info = _metadata_to_artifact_info(
+                    filename,
+                    data.get("metadata", {}),
+                    version=data.get("version"),
+                )
+                # Populate the canonical 4-segment artifact:// URI so consumers
+                # (the chat-input attach dialog) can pass it to handleSubmit
+                # without falling back to a synthesized form the agent-side
+                # parser rejects. We deliberately omit `?version=N` — the
+                # translator resolves "latest" against the live version list
+                # at fetch time, which avoids drift between metadata and
+                # content versions.
+                info.uri = _format_artifact_path_uri(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    filename=filename,
+                )
+                return info
             except FileNotFoundError:
                 log.warning("%s Artifact '%s' not found. Skipping.", log_prefix, filename)
                 return None

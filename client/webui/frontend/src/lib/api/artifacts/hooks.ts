@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { skipToken, useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
-import { validIdOrUndefined } from "@/lib/utils/file";
+import { api } from "@/lib/api";
+import { getArtifactUrl, validIdOrUndefined } from "@/lib/utils/file";
 import { artifactKeys } from "./keys";
 import * as artifactService from "./service";
 import type { ArtifactWithSession, BulkArtifactsResponse } from "./types";
@@ -19,6 +20,7 @@ function transformArtifacts(artifacts: BulkArtifactsResponse["artifacts"]): Arti
         mime_type: artifact.mimeType ?? "application/octet-stream",
         last_modified: artifact.lastModified ?? new Date().toISOString(),
         uri: artifact.uri ?? "",
+        version: artifact.version ?? undefined,
         sessionId: artifact.sessionId,
         sessionName: artifact.sessionName,
         projectId: artifact.projectId ?? undefined,
@@ -77,6 +79,36 @@ export function useAllArtifacts(search?: string) {
 }
 
 /**
+ * Hook to lazily fetch the version list for a single artifact. Used by the
+ * AttachArtifactDialog so each row can show a per-artifact version picker
+ * without paying the cost of preloading versions across the whole list.
+ *
+ * Pass `enabled: false` to skip the fetch — typical pattern is to flip it
+ * on the first time the user opens the row's Select (Radix `onOpenChange`).
+ */
+export function useArtifactVersions(args: { sessionId?: string; projectId?: string; filename: string; enabled: boolean }) {
+    const { sessionId, projectId, filename, enabled } = args;
+    const validSessionId = validIdOrUndefined(sessionId);
+    const validProjectId = validIdOrUndefined(projectId);
+    const ready = !!filename && (!!validSessionId || !!validProjectId);
+
+    return useQuery({
+        queryKey: ready ? artifactKeys.versions(validSessionId ?? null, validProjectId ?? null, filename) : ["artifacts", "versions", "empty"],
+        queryFn: ready
+            ? async (): Promise<number[]> => {
+                  const url = getArtifactUrl({ filename, sessionId: validSessionId, projectId: validProjectId });
+                  const versions: number[] = await api.webui.get(url);
+                  // Newest first — matches user expectation when scanning a
+                  // version list ("the latest one's at the top").
+                  return [...(versions ?? [])].sort((a, b) => b - a);
+              }
+            : skipToken,
+        enabled: enabled && ready,
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
+/**
  * Hook to fetch artifact content for preview.
  * Returns base64 content and mimeType for the specified project artifact.
  *
@@ -89,7 +121,7 @@ export function useProjectArtifactContent(projectId: string | null, filename: st
     const validProjectId = validIdOrUndefined(projectId);
     return useQuery({
         queryKey: validProjectId && filename ? artifactKeys.content(null, validProjectId, filename, version) : ["artifacts", "content", "empty"],
-        queryFn: validProjectId && filename ? () => artifactService.getArtifactContent({ projectId: validProjectId, filename, version }) : skipToken,
+        queryFn: validProjectId && filename ? () => artifactService.getArtifactContentWithValidation({ projectId: validProjectId, filename, version }) : skipToken,
         enabled: !!validProjectId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,
@@ -109,7 +141,7 @@ export function useSessionArtifactContent(sessionId: string | null, filename: st
     const validSessionId = validIdOrUndefined(sessionId);
     return useQuery({
         queryKey: validSessionId && filename ? artifactKeys.content(validSessionId, null, filename, version) : ["artifacts", "session", "empty"],
-        queryFn: validSessionId && filename ? () => artifactService.getArtifactContent({ sessionId: validSessionId, filename, version }) : skipToken,
+        queryFn: validSessionId && filename ? () => artifactService.getArtifactContentWithValidation({ sessionId: validSessionId, filename, version }) : skipToken,
         enabled: !!validSessionId && !!filename,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes
         retry: 1,

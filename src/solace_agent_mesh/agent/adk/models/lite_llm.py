@@ -431,7 +431,7 @@ def _get_content(
     return content_objects
 
 
-def _calculate_content_tokens(
+def calculate_content_tokens(
     content: types.Content,
     model: str = "gpt-4o"
 ) -> int:
@@ -516,6 +516,10 @@ def _calculate_content_tokens(
         video_tokens
     )
     return total
+
+
+# Backward-compatible alias for existing internal callers
+_calculate_content_tokens = calculate_content_tokens
 
 
 def _to_litellm_role(role: Optional[str]) -> Literal["user", "assistant"]:
@@ -975,6 +979,9 @@ Functions:
 -----------------------------------------------------------
 """
 
+_NON_COMPLETION_KEYS = frozenset({"cache_strategy", "thinking", "type", "max_input_tokens"})
+"""Config keys used during initialization but not valid as litellm.completion() kwargs."""
+
 VALID_CACHE_STRATEGIES = ["none", "5m", "1h"]
 """
 Cache strategy to use. Options: "none", "5m" (ephemeral), "1h" (extended).
@@ -1013,6 +1020,16 @@ class LiteLlm(BaseLlm):
     _thinking_config: Optional[Dict[str, Any]] = PrivateAttr(default=None) # Thinking/reasoning token config
     _status: str = PrivateAttr(default="ready") # "none" | "initializing" | "ready"
     _on_status_change: Optional[Callable] = PrivateAttr(default=None) # Callback: (old_status, new_status) -> None
+    # Explicit context-window size, typically sourced from the admin model-config
+    # UI via the bootstrap payload. Agents stamp this on every task record so the
+    # gateway's context-usage indicator can honour admin settings without reading
+    # the platform DB directly.
+    _max_input_tokens: Optional[int] = PrivateAttr(default=None)
+    # Tokens from the most recent completion. Lets callers that sit outside ADK's
+    # usage_metadata propagation (e.g. the session compactor, which loses usage
+    # on the returned Event) read the last call's spend. Written on every
+    # completion; callers read and clear via `pop_last_usage()`.
+    _last_usage: Optional[Dict[str, int]] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -1032,7 +1049,7 @@ class LiteLlm(BaseLlm):
         # BaseLlm does not set extra="allow", so unknown fields cause validation errors.
         # These keys are handled by configure_model() instead.
         _non_pydantic_keys = [
-            "thinking", "cache_strategy",
+            "thinking", "cache_strategy", "max_input_tokens",
             "oauth_client_id", "oauth_client_secret", "oauth_token_url",
             "oauth_scope", "oauth_audience",
         ]
@@ -1100,6 +1117,22 @@ class LiteLlm(BaseLlm):
 
         return None
 
+    @staticmethod
+    def _sanitize_for_completion(config: dict) -> dict:
+        """Remove keys from a model config dict that are not valid litellm completion kwargs.
+
+        These keys are used during model initialization (cache strategy, thinking
+        tokens, OAuth) but must not be forwarded to litellm.completion().
+
+        Mutates and returns the dict.
+        """
+        for key in _NON_COMPLETION_KEYS:
+            config.pop(key, None)
+        for key in list(config):
+            if key.startswith("oauth_"):
+                config.pop(key)
+        return config
+
     @property
     def status(self) -> str:
         """Current model status: 'none', 'initializing', or 'ready'."""
@@ -1146,9 +1179,18 @@ class LiteLlm(BaseLlm):
         if copied_model_config.get("type") is None:
             copied_model_config.setdefault("num_retries", 3)
             copied_model_config.setdefault("timeout", 120)
-        
+
+        # Extract admin-configured context window (optional). Store separately
+        # so it survives across reconfigures; not forwarded to LiteLLM as a
+        # completion kwarg.
+        configured_max_input = copied_model_config.pop("max_input_tokens", None)
+        try:
+            self._max_input_tokens = int(configured_max_input) if configured_max_input else None
+        except (TypeError, ValueError):
+            self._max_input_tokens = None
+
+        # Extracted via get(); removed later by _sanitize_for_completion()
         cache_strategy = copied_model_config.get("cache_strategy", "5m").lower()
-        copied_model_config.pop("cache_strategy", None)
         if cache_strategy not in VALID_CACHE_STRATEGIES:
             logger.warning(
                 "Invalid cache_strategy '%s'. Valid options are: %s. Defaulting to '5m'.",
@@ -1159,24 +1201,82 @@ class LiteLlm(BaseLlm):
         self._cache_strategy = cache_strategy
         logger.info("LiteLlm initialized with cache strategy: %s", self._cache_strategy)
 
-        # Extract thinking/reasoning token configuration if present
-        thinking_config = copied_model_config.pop("thinking", None)
+        # Extracted via get(); removed later by _sanitize_for_completion()
+        thinking_config = copied_model_config.get("thinking")
         if thinking_config and isinstance(thinking_config, dict):
             self._thinking_config = thinking_config
             logger.info("LiteLlm initialized with thinking config: %s", thinking_config)
         else:
             self._thinking_config = None
 
-        # Extract OAuth configuration if present
+        # OAuth keys extracted here; remaining oauth_* removed by _sanitize_for_completion()
         oauth_config = self._extract_oauth_config(copied_model_config)
         if oauth_config:
             self._oauth_token_manager = OAuth2ClientCredentialsTokenManager(**oauth_config)
             logger.info("OAuth2 token manager initialized for model: %s", model_name)
         else:
             self._oauth_token_manager = None
-    
+
+        # Remove keys that aren't valid litellm completion kwargs
+        self._sanitize_for_completion(copied_model_config)
         self._model_config = copied_model_config
         self._set_status("ready")
+
+    def pop_last_usage(self) -> Optional[Dict[str, int]]:
+        """Return and clear the most recent completion's token usage.
+
+        Intended for out-of-band callers (e.g. session compaction) that cannot
+        read usage_metadata from ADK's returned Event. Returns a dict with
+        `prompt_tokens` and `completion_tokens`, or None if no call has run
+        since the last pop.
+        """
+        usage = self._last_usage
+        self._last_usage = None
+        return usage
+
+    @staticmethod
+    def _lookup_litellm_max_input(name: str) -> Optional[int]:
+        """Return ``max_input_tokens`` from LiteLLM's registry for ``name``.
+
+        Any lookup failure is logged at debug — LiteLLM raises for unknown
+        models, which is an expected fallthrough in the registry-based
+        resolution chain and not noteworthy at info/warning.
+        """
+        try:
+            import litellm
+            info = litellm.get_model_info(name)
+            value = info.get("max_input_tokens") if isinstance(info, dict) else None
+            if value:
+                return int(value)
+        except Exception as e:
+            logger.debug("litellm.get_model_info(%s) failed: %s", name, e)
+        return None
+
+    def get_max_input_tokens(self) -> Optional[int]:
+        """Resolve this model's context window (max input tokens).
+
+        Order:
+          1. Admin-configured value from the model-config UI (bootstrap payload).
+          2. LiteLLM's built-in registry for well-known models.
+          3. Same registry lookup with the provider prefix stripped
+             (e.g. ``openai/gpt-4o`` → ``gpt-4o``).
+          4. None — caller should treat as unknown.
+
+        The result is typically stamped on per-task token records so the
+        gateway can render the context-usage indicator without cross-service DB
+        access.
+        """
+        if self._max_input_tokens:
+            return self._max_input_tokens
+        value = self._lookup_litellm_max_input(self.model)
+        if value is not None:
+            return value
+        if self.model and "/" in self.model:
+            bare = self.model.rsplit("/", 1)[-1]
+            value = self._lookup_litellm_max_input(bare)
+            if value is not None:
+                return value
+        return None
 
     def unconfigure_model(self):
         """Reset status to 'none' for hot-reload teardown.
@@ -1253,6 +1353,7 @@ class LiteLlm(BaseLlm):
             override_copy = copy.deepcopy(override_config)
             override_copy.setdefault("num_retries", self._model_config.get("num_retries", 3))
             override_copy.setdefault("timeout", self._model_config.get("timeout", 120))
+            self._sanitize_for_completion(override_copy)
             logger.info(
                 "Applying per-request model override: model=%s (default was %s)",
                 override_copy.get("model", "unspecified"),
@@ -1406,6 +1507,10 @@ class LiteLlm(BaseLlm):
                                 chunk.prompt_tokens,
                                 chunk.completion_tokens
                             )
+                            self._last_usage = {
+                                "prompt_tokens": int(chunk.prompt_tokens or 0),
+                                "completion_tokens": int(chunk.completion_tokens or 0),
+                            }
 
                     if (
                         finish_reason == "tool_calls" or finish_reason == "stop"
@@ -1520,6 +1625,10 @@ class LiteLlm(BaseLlm):
                         prompt_tokens,
                         completion_tokens
                     )
+                    self._last_usage = {
+                        "prompt_tokens": int(prompt_tokens or 0),
+                        "completion_tokens": int(completion_tokens or 0),
+                    }
 
             yield _model_response_to_generate_content_response(response)
 
@@ -1534,6 +1643,13 @@ class LiteLlm(BaseLlm):
             prompt_tokens: Number of input tokens
             completion_tokens: Number of output tokens
         """
+        # Stamp the last-call usage side channel here (in addition to the
+        # streaming/non-streaming sites) so any call path that ends up here
+        # exposes its tokens via pop_last_usage().
+        self._last_usage = {
+            "prompt_tokens": int(prompt_tokens or 0),
+            "completion_tokens": int(completion_tokens or 0),
+        }
         try:
             # Read observability context (set by ObservabilityContext at entry points)
             component_name = ObservabilityContext._component_name_var.get() or "none"

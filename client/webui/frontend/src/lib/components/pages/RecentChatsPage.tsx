@@ -4,11 +4,11 @@ import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
 import { Loader2, Check, X, Plus, MessageCircle, CalendarClock, Share2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useInfiniteSessions, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
+import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useSharedWithMe } from "@/lib/api/share";
 import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
-import { formatRelativeTime, formatTimestamp } from "@/lib/utils";
+import { formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
@@ -58,11 +58,33 @@ const SessionName: React.FC<SessionNameProps> = ({ session, respondingSessionId,
         return "none";
     }, [isWaitingForTitle, isAnimating, isGenerating]);
 
+    // Only show the hover tooltip when the rendered title is actually truncated
+    // — otherwise it just covers text the user can already read.
+    const titleRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+    useEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const observer = new ResizeObserver(check);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [animatedName]);
+
+    const titleNode = (
+        <span ref={titleRef} className={sessionTitleStyles({ active: isSelected, animation: animationVariant })}>
+            {animatedName}
+        </span>
+    );
+
+    if (!isTruncated) {
+        return titleNode;
+    }
+
     return (
         <Tooltip>
-            <TooltipTrigger asChild>
-                <span className={sessionTitleStyles({ active: isSelected, animation: animationVariant })}>{animatedName}</span>
-            </TooltipTrigger>
+            <TooltipTrigger asChild>{titleNode}</TooltipTrigger>
             <TooltipContent className="max-w-[480px]">{animatedName}</TooltipContent>
         </Tooltip>
     );
@@ -118,8 +140,8 @@ export const RecentChatsPage: React.FC = () => {
 
     // Sessions fetched only for chat/scheduler tabs; shared tab uses its own query.
     const sessionSource = activeTab === "shared" ? "chat" : activeTab;
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource);
-    const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe();
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource, { enabled: activeTab !== "shared" });
+    const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe({ enabled: activeTab === "shared" });
     const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
 
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -155,10 +177,15 @@ export const RecentChatsPage: React.FC = () => {
         }
     }, [editingSessionId]);
 
+    const markViewedMutation = useMarkSessionViewed();
+
     const handleSessionClick = async (session: Session) => {
         if (editingSessionId !== session.id) {
             await handleSwitchSession(session.id);
             navigate("/chat");
+            // Mark after switch so SSE replay / save_task bumps to updated_time
+            // settle first — otherwise last_viewed_at races behind updated_time.
+            markViewedMutation.mutate(session.id);
         }
     };
 
@@ -454,6 +481,7 @@ export const RecentChatsPage: React.FC = () => {
                                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 <SessionName session={session} respondingSessionId={respondingSessionId} isSelected={session.id === sessionId} />
+                                                {hasUnseenUpdates(session) && <span aria-label="Unseen updates" className="h-2 w-2 flex-shrink-0 rounded-full bg-(--info-wMain)" />}
                                                 {session.hasRunningBackgroundTask && (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
@@ -471,6 +499,26 @@ export const RecentChatsPage: React.FC = () => {
                                             </Tooltip>
                                         </div>
                                         <div className="flex flex-shrink-0 items-center gap-2">
+                                            {session.scheduledTaskId && (
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            type="button"
+                                                            onPointerDown={e => e.stopPropagation()}
+                                                            onClick={e => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                navigate(`/scheduled-tasks?taskId=${session.scheduledTaskId}`);
+                                                            }}
+                                                            className="flex cursor-pointer items-center gap-1 rounded-full bg-(--info-w10) px-2 py-0.5 text-xs text-(--info-wMain) hover:bg-(--info-w20)"
+                                                        >
+                                                            <CalendarClock size={12} />
+                                                            <span className="max-w-[160px] truncate">{session.scheduledTaskName ?? "Schedule"}</span>
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>View originating schedule</TooltipContent>
+                                                </Tooltip>
+                                            )}
                                             {session.projectName && <ProjectBadge text={session.projectName} />}
                                             <SessionActionMenu
                                                 session={session}

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request as FastAPIRequest, HTTPException
 from sse_starlette.sse import EventSourceResponse
 
 from ....gateway.http_sse.sse_manager import SSEManager
-from ....gateway.http_sse.dependencies import get_sse_manager, SessionLocal, short_lived_session, _is_connection_error
+from ....gateway.http_sse.dependencies import get_sse_manager, get_user_id, short_lived_session, _is_connection_error
 from ....gateway.http_sse.repository.task_repository import TaskRepository
 
 log = logging.getLogger(__name__)
@@ -36,8 +36,10 @@ def _prepare_replay_events(
     Returns:
         List of event dictionaries with 'event' type and 'data' payload ready for SSE.
     """
+    from ....gateway.http_sse.dependencies import SessionLocal
+
     replay_events = []
-    
+
     if SessionLocal is None:
         log.warning("%sDatabase not configured, cannot replay events", log_prefix)
         return replay_events
@@ -124,6 +126,8 @@ def _get_task_info(task_id: str, log_prefix: str) -> Optional[bool]:
     Raises:
         HTTPException: 503 if database connection is unavailable during the query.
     """
+    from ....gateway.http_sse.dependencies import SessionLocal
+
     if SessionLocal is None:
         log.debug("%sDatabase not configured", log_prefix)
         return None
@@ -326,3 +330,51 @@ async def subscribe_to_task_events(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to establish SSE connection: %s" % e,
         )
+
+
+@router.get("/notifications")
+async def subscribe_to_user_notifications(
+    request: FastAPIRequest,
+    user_id: str = Depends(get_user_id),
+    sse_manager: SSEManager = Depends(get_sse_manager),
+):
+    """User-level SSE stream for push notifications.
+
+    Currently delivers ``session_created`` events when a scheduled task
+    execution creates a new chat session.  The frontend listens for these
+    events and refreshes the "Recent Chats" sidebar without polling.
+    """
+    log_prefix = f"[GET /api/v1/sse/notifications user={user_id}] "
+    log.info("%sClient requesting notification stream", log_prefix)
+
+    notification_queue: asyncio.Queue = asyncio.Queue(maxsize=64)
+    sse_manager.add_user_notification_queue(user_id, notification_queue)
+
+    async def event_generator():
+        try:
+            yield {"comment": "notification stream established"}
+            while True:
+                if await request.is_disconnected():
+                    log.info("%sClient disconnected", log_prefix)
+                    break
+                try:
+                    payload = await asyncio.wait_for(notification_queue.get(), timeout=30)
+                    if payload is None:
+                        notification_queue.task_done()
+                        break
+                    yield payload
+                    notification_queue.task_done()
+                except asyncio.TimeoutError:
+                    # Send keepalive comment to prevent proxy/browser timeouts
+                    yield {"comment": "keepalive"}
+                except asyncio.CancelledError:
+                    break
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            log.error("%sError in notification stream: %s", log_prefix, e, exc_info=True)
+        finally:
+            sse_manager.remove_user_notification_queue(user_id, notification_queue)
+            log.info("%sNotification stream closed", log_prefix)
+
+    return EventSourceResponse(event_generator())

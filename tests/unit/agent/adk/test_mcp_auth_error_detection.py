@@ -47,23 +47,110 @@ class TestIsAuthError:
         }
         assert tool._is_auth_error(result) is True
 
-    def test_401_string_fallback(self, tool):
-        """Detect 401 from plain text containing '401' and 'unauthorized'."""
+    def test_401_string_fallback_with_is_error(self, tool):
+        """Detect 401 from plain text when the result is flagged isError=True."""
         result = {
+            "isError": True,
+            "content": [
+                {"type": "text", "text": "Error 401 Unauthorized"}
+            ],
+        }
+        assert tool._is_auth_error(result) is True
+
+    def test_403_string_fallback_with_is_error(self, tool):
+        """Detect 403 from plain text when the result is flagged isError=True."""
+        result = {
+            "isError": True,
+            "content": [
+                {"type": "text", "text": "Error 403 Forbidden"}
+            ],
+        }
+        assert tool._is_auth_error(result) is True
+
+    def test_string_fallback_ignored_without_is_error(self, tool):
+        """Substring matches in non-error results must not trigger re-auth.
+
+        This is the false-positive case: a successful tool result whose text
+        happens to contain '401 Unauthorized' or '403 Forbidden' (e.g., a Jira
+        issue's description quoting an unrelated error log) was previously
+        causing cascading auth prompts mid-conversation.
+        """
+        result_a = {
             "content": [
                 {"type": "text", "text": "Error 401 Unauthorized"}
             ]
         }
-        assert tool._is_auth_error(result) is True
-
-    def test_403_string_fallback(self, tool):
-        """Detect 403 from plain text containing '403' and 'forbidden'."""
-        result = {
+        result_b = {
             "content": [
                 {"type": "text", "text": "Error 403 Forbidden"}
             ]
         }
+        assert tool._is_auth_error(result_a) is False
+        assert tool._is_auth_error(result_b) is False
+
+    def test_string_fallback_ignored_for_large_payloads(self, tool):
+        """Substring matches in large payloads do not trigger re-auth even if
+        isError is set, because they're more likely incidental content than
+        a real error message."""
+        large_text = (
+            "x" * 5000 + " 401 Unauthorized in some embedded log " + "y" * 5000
+        )
+        result = {
+            "isError": True,
+            "content": [{"type": "text", "text": large_text}],
+        }
+        assert tool._is_auth_error(result) is False
+
+    def test_jira_issue_text_does_not_false_positive(self, tool):
+        """Real-world false-positive case from staging: a successful Jira
+        search result whose issue descriptions contain '401 Unauthorized' /
+        '403 Forbidden' substrings inside legitimate content (logs, status
+        URLs like .../rest/api/3/status/10401, gravatar hashes containing
+        '403'). The result is large free-form data, not an error response.
+        """
+        # Simulate a >2KB Jira issues response with the offending substrings.
+        issues_payload = (
+            '{"issues":['
+            '{"key":"DATAGO-130600","fields":{'
+            '"summary":"Datadog alert: SEMP call failed",'
+            '"description":"Got 401 Unauthorized from upstream SEMP API",'
+            '"status":{"self":"https://api.atlassian.com/.../status/10401",'
+            '"name":"Open"}'
+            '}}'
+            '],"nextPageToken":null,"isLast":true}'
+        )
+        # Pad the description to push the text over the substring-match
+        # threshold so we exercise the size gate too.
+        padded = issues_payload.replace(
+            "Got 401 Unauthorized from upstream SEMP API",
+            "Got 401 Unauthorized from upstream SEMP API. " + ("padding " * 400),
+        )
+        result = {"content": [{"type": "text", "text": padded}]}
+        assert tool._is_auth_error(result) is False
+
+    def test_json_code_still_matched_in_large_payloads(self, tool):
+        """A real top-level {"code": 401} stays detected regardless of size.
+
+        We only gate the substring fallback; the structured signal is
+        always trusted because it cannot be confused with incidental text.
+        """
+        big_padding = " padding" * 500
+        result = {
+            "content": [
+                {"type": "text", "text": '{"code":401,"message":"Unauthorized","extra":"' + big_padding + '"}'}
+            ]
+        }
         assert tool._is_auth_error(result) is True
+
+    def test_is_error_alone_is_not_an_auth_error(self, tool):
+        """An MCP error result that isn't auth-related should not trigger re-auth."""
+        result = {
+            "isError": True,
+            "content": [
+                {"type": "text", "text": "Internal server error: database unreachable"}
+            ],
+        }
+        assert tool._is_auth_error(result) is False
 
     def test_200_not_auth_error(self, tool):
         """A 200 response is not an auth error."""
