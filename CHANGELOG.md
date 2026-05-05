@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.3...1.24.0) (2026-05-05)
+
+
+### Features
+
+* **DATAGO-134667:** promote offline_evals to beta and default true ([#1504](https://github.com/SolaceLabs/solace-agent-mesh/issues/1504)) ([d7050b0](https://github.com/SolaceLabs/solace-agent-mesh/commit/d7050b0cce143d80ac12e6b2b04cf1826a3e32f6))
+
 ## [1.23.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.2...1.23.3) (2026-05-05)
 
 
