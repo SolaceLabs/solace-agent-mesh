@@ -43,6 +43,17 @@ Gateway adapters work alongside a generic gateway component to connect platforms
 The following diagram illustrates the complete flow from external platform to agent mesh and back:
 
 ```mermaid
+ %%{init: {
+        'theme': 'base',
+        'themeVariables': {
+            'actorBkg': '#00C895',
+            'actorBorder': '#00C895',
+            'actorTextColor': '#000000',
+            'noteBkgColor': '#FFF7C2',
+            'noteTextColor': '#000000',
+            'noteBorderColor': '#FFF7C2'
+        }
+}}%%
 sequenceDiagram
     participant Platform as External Platform
     participant Adapter as Gateway Adapter
@@ -76,17 +87,6 @@ sequenceDiagram
         Adapter->>Platform: Platform Response
     end
 
-    %%{init: {
-        'theme': 'base',
-        'themeVariables': {
-            'actorBkg': '#00C895',
-            'actorBorder': '#00C895',
-            'actorTextColor': '#000000',
-            'noteBkgColor': '#FFF7C2',
-            'noteTextColor': '#000000',
-            'noteBorderColor': '#FFF7C2'
-        }
-    }}%%
 ```
 
 ## Core Concepts
