@@ -334,7 +334,7 @@ async def handle_task_complete(self, context: ResponseContext) -> None:
     conversation_id = context.platform_context["conversation_id"]
     await self.platform_api.send_message(
         conversation_id,
-        "✅ Task complete."
+        "Task complete."
     )
 ```
 
@@ -348,9 +348,9 @@ async def handle_error(self, error: SamError, context: ResponseContext) -> None:
     conversation_id = context.platform_context.get("conversation_id")
 
     if error.category == "CANCELED":
-        error_message = "🛑 Task canceled."
+        error_message = "Task canceled."
     else:
-        error_message = f"❌ Error: {error.message}"
+        error_message = f"Error: {error.message}"
 
     if conversation_id:
         await self.platform_api.send_message(conversation_id, error_message)

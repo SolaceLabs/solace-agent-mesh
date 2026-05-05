@@ -93,11 +93,11 @@ Agent Mesh supports multiple storage backends for artifacts. Choose based on you
 
 | Backend | Best For | Production Ready | Setup Complexity |
 |---------|----------|------------------|------------------|
-| Filesystem | Local development | ❌ | Simple |
-| S3 (AWS) | AWS deployments | ✅ | Medium |
-| S3-Compatible API | On-premises, private cloud | ✅ | Medium |
-| GCS | Google Cloud deployments | ✅ | Medium |
-| Azure Blob | Azure deployments | ✅ | Medium |
+| Filesystem | Local development | No | Simple |
+| S3 (AWS) | AWS deployments | Yes | Medium |
+| S3-Compatible API | On-premises, private cloud | Yes | Medium |
+| GCS | Google Cloud deployments | Yes | Medium |
+| Azure Blob | Azure deployments | Yes | Medium |
 
 ### Filesystem Storage (Default)
 
