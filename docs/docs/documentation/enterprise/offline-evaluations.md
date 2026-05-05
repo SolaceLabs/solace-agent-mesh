@@ -53,7 +53,7 @@ The evaluation execution service assumes a single active instance at a time. Run
 | Environment Variable | Required | Default | Description |
 |---|---|---|---|
 | `EVAL_DATA_BUCKET_NAME` | No | — | S3, GCS, or Azure Blob container name. When set, the service uses cloud object storage. |
-| `OBJECT_STORAGE_FS_ROOT` | No | `<cwd>/tmp/eval-storage` | Filesystem root when no bucket is configured. Defaults to a `tmp/eval-storage` directory relative to the process working directory. |
+| `OBJECT_STORAGE_FS_ROOT` | No | `<cwd>/tmp/eval-storage` | Filesystem root used when `EVAL_DATA_BUCKET_NAME` is not set. Ignored when a bucket is configured. Defaults to a `tmp/eval-storage` directory relative to the process working directory. |
 
 :::warning
 The local filesystem backend is suitable for development only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. Set `EVAL_DATA_BUCKET_NAME` for any deployment where you want to retain execution traces and artifact snapshots.
@@ -88,6 +88,8 @@ The Reports page is the entry point for the Evaluations section. It shows a pagi
 - Filter the run group list by experiment name or target agent.
 
 A run group corresponds to one trigger of a specific experiment. If the experiment targets multiple language model configurations, each configuration produces one run within the group.
+
+Each run group preserves a snapshot of the experiment and evaluator definitions taken when you triggered the run, so editing the experiment afterward does not change historical scores. If you edit the experiment after a run is triggered, the run group is marked with an "outdated configuration" indicator on the Reports page — a signal that the live experiment no longer matches the configuration used to produce these results. Trigger a fresh run to compare against the current configuration.
 
 The watchlist section at the top of the Reports page shows score trend charts for up to five agents you pin. Select agents to watch from the Edit Watchlist dialog, which appears when you click the edit control. Each agent's chart shows one series per experiment that targets it, plotting the primary evaluator score over time. Use the watchlist to spot regressions across deploys or model changes.
 
@@ -250,6 +252,8 @@ An experiment combines a dataset, a target agent, one or more language model con
 #### Triggering a run
 
 Open an experiment and click Run. You can optionally enter a run name to identify the trigger (for example, a version tag or deployment date). The platform creates one pending run per model configuration. The execution service picks up pending runs in order and begins executing them.
+
+When you trigger a run, the platform snapshots the experiment configuration and the full definitions of every attached evaluator onto the run. Subsequent edits to the experiment — including changes to the dataset, evaluators, model configurations, or runs per example — apply only to future runs; previously triggered runs continue to score against their snapshot, so historical results stay reproducible.
 
 You can cancel a run while it is pending or in progress. Cancellation is not immediate — the execution service marks the run as cancelled after the current example finishes.
 
