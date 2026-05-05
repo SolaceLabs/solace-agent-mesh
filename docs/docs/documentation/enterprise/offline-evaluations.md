@@ -113,9 +113,12 @@ Each prompt is called an example. You can optionally include an expected respons
 
 #### Importing examples
 
-The import endpoint accepts two formats.
+The import endpoint accepts CSV and JSON. Both formats follow the same import rules:
 
-For CSV, the file must have a `prompt` column. The `expected_response` column is optional. Rows with an empty `prompt` are skipped. A dataset holds a maximum of 100 examples; rows beyond this limit are dropped, and the import result reports the `dropped` count.
+- A dataset holds a maximum of 100 examples in total (existing rows count toward the cap). If the file would push the dataset over the limit, the rows beyond the cap are **dropped** and counted in the response.
+- Rows with an empty or missing `prompt` are **skipped** and counted in the response — the rest of the file still imports.
+
+For CSV, the file must have a `prompt` column. The `expected_response` column is optional.
 
 ```csv
 prompt,expected_response
@@ -123,7 +126,7 @@ prompt,expected_response
 "Summarize this quarter's sales trends.",
 ```
 
-For JSON, the body must be an array of objects. Each object must have a `prompt` field. The `expected_response` field is optional.
+For JSON, the body must be an array of objects. Each object must have a `prompt` field; the `expected_response` field is optional. Array entries that are not objects are also skipped.
 
 ```json
 [
