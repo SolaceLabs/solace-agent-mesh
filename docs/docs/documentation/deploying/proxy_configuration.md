@@ -84,6 +84,8 @@ services:
 
 :::info Enterprise Feature
 For Kubernetes proxy configuration with Agent Mesh Enterprise, configure proxy environment variables in your Helm values. See [Production Kubernetes Installation](../enterprise/production-kubernetes.md) for deployment guidance.
+
+When `HTTP_PROXY`/`HTTPS_PROXY` is set, the chart automatically routes the `sam-agent-deployer`'s in-cluster Kubernetes API calls around the proxy (via the [`samDeployment.agentDeployer.kubeApiHost`](../enterprise/production-kubernetes.md#values-reference) value), so agent deployments work out of the box without special `NO_PROXY` overrides.
 :::
 
 ## Certificate Bundle Merging
