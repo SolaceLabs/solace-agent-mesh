@@ -27,7 +27,7 @@ Run `sam plugin --help` to see the list of available commands for plugins.
 
 ### Official Core Plugins
 
-Agent Mesh comes with a set of official core plugins that can be used to extend the functionality of the system. You can find the repository of the official core plugins [here 🔗](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins).
+Agent Mesh comes with a set of official core plugins that can be used to extend the functionality of the system. You can find the repository of the official core plugins [here](https://github.com/SolaceLabs/solace-agent-mesh-core-plugins).
 
 For more information about how to use the official core plugins, see [Use Plugins](#use-a-plugin).
 
