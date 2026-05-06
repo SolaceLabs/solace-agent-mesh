@@ -670,18 +670,13 @@ def test_a2a_agent_server_harness(
 @pytest.fixture(autouse=True)
 def clear_llm_server_configs(test_llm_server: TestLLMServer):
     """
-    Automatically clears primed responses and captured requests from the
-    TestLLMServer around each test.
-
-    Captured requests are cleared BEFORE the test body so any late-arriving
-    requests from a prior test's still-draining async work don't get counted
-    against this test's assertions. Full configuration (primed + captured) is
-    cleared AFTER to avoid clobbering primed responses that an in-flight prior
-    test may still be relying on.
+    Automatically clears any primed responses and captured requests from the
+    TestLLMServer AFTER each test completes (not before).
+    This prevents race conditions where async operations from test N are still
+    running when test N+1 starts.
     """
-    test_llm_server.clear_captured_requests()
-    yield
-    test_llm_server.clear_all_configurations()
+    yield  # Test runs here
+    test_llm_server.clear_all_configurations()  # Cleanup AFTER test
 
 
 @pytest.fixture(autouse=True)
@@ -1000,6 +995,7 @@ def shared_solace_connector(
         ],
         model_suffix="dynamic-combined",
     )
+    combined_dynamic_agent_config["auto_inject_artifact_tools"] = False
 
     empty_provider_agent_config = create_agent_config(
         agent_name="EmptyProviderAgent",
@@ -1014,6 +1010,7 @@ def shared_solace_connector(
         ],
         model_suffix="empty-provider",
     )
+    empty_provider_agent_config["auto_inject_artifact_tools"] = False
 
     docstringless_agent_config = create_agent_config(
         agent_name="DocstringlessAgent",
@@ -1028,6 +1025,7 @@ def shared_solace_connector(
         ],
         model_suffix="docstringless",
     )
+    docstringless_agent_config["auto_inject_artifact_tools"] = False
 
     mixed_discovery_agent_config = create_agent_config(
         agent_name="MixedDiscoveryAgent",
@@ -1041,6 +1039,7 @@ def shared_solace_connector(
         ],
         model_suffix="mixed-discovery",
     )
+    mixed_discovery_agent_config["auto_inject_artifact_tools"] = False
 
     complex_signatures_agent_config = create_agent_config(
         agent_name="ComplexSignaturesAgent",
@@ -1054,6 +1053,7 @@ def shared_solace_connector(
         ],
         model_suffix="complex-signatures",
     )
+    complex_signatures_agent_config["auto_inject_artifact_tools"] = False
 
     config_context_agent_config = create_agent_config(
         agent_name="ConfigContextAgent",
@@ -1068,6 +1068,7 @@ def shared_solace_connector(
         ],
         model_suffix="config-context",
     )
+    config_context_agent_config["auto_inject_artifact_tools"] = False
 
     artifact_content_agent_config = create_agent_config(
         agent_name="ArtifactContentAgent",
