@@ -995,7 +995,6 @@ def shared_solace_connector(
         ],
         model_suffix="dynamic-combined",
     )
-    combined_dynamic_agent_config["auto_inject_artifact_tools"] = False
 
     empty_provider_agent_config = create_agent_config(
         agent_name="EmptyProviderAgent",
@@ -1010,7 +1009,6 @@ def shared_solace_connector(
         ],
         model_suffix="empty-provider",
     )
-    empty_provider_agent_config["auto_inject_artifact_tools"] = False
 
     docstringless_agent_config = create_agent_config(
         agent_name="DocstringlessAgent",
@@ -1025,7 +1023,6 @@ def shared_solace_connector(
         ],
         model_suffix="docstringless",
     )
-    docstringless_agent_config["auto_inject_artifact_tools"] = False
 
     mixed_discovery_agent_config = create_agent_config(
         agent_name="MixedDiscoveryAgent",
@@ -1039,7 +1036,6 @@ def shared_solace_connector(
         ],
         model_suffix="mixed-discovery",
     )
-    mixed_discovery_agent_config["auto_inject_artifact_tools"] = False
 
     complex_signatures_agent_config = create_agent_config(
         agent_name="ComplexSignaturesAgent",
@@ -1053,7 +1049,6 @@ def shared_solace_connector(
         ],
         model_suffix="complex-signatures",
     )
-    complex_signatures_agent_config["auto_inject_artifact_tools"] = False
 
     config_context_agent_config = create_agent_config(
         agent_name="ConfigContextAgent",
@@ -1068,7 +1063,6 @@ def shared_solace_connector(
         ],
         model_suffix="config-context",
     )
-    config_context_agent_config["auto_inject_artifact_tools"] = False
 
     artifact_content_agent_config = create_agent_config(
         agent_name="ArtifactContentAgent",
