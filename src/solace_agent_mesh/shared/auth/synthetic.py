@@ -102,6 +102,12 @@ class SyntheticAuthConfig:
     role_name: str
     appid_allowlist: frozenset[str]
     endpoint_allowlist: tuple[tuple[str, re.Pattern[str]], ...]
+    # Roles assigned to the synthetic principal. Pre-populated on
+    # request.state.user["roles"] so AuthorizationService.get_scopes_for_user
+    # uses them directly and skips role-provider lookup (which would 404 in
+    # MS Graph since synthetic-monitor isn't a real Entra user). Each role
+    # name must be defined in role-to-scope-definitions.yaml.
+    roles: tuple[str, ...]
     # Entra issues v1 tokens (sts.windows.net) by default for client_credentials,
     # and v2 tokens (login.microsoftonline.com/v2.0) when the resource opts in via
     # accessTokenAcceptedVersion=2 in its manifest. We accept both.
@@ -135,6 +141,10 @@ class SyntheticAuthConfig:
         appid_list = _coerce_to_list(
             component.get_config("synthetic_auth_appid_allowlist", []),
             "synthetic_auth_appid_allowlist",
+        )
+        roles_list = _coerce_to_list(
+            component.get_config("synthetic_auth_roles", []),
+            "synthetic_auth_roles",
         )
         endpoint_list = component.get_config("synthetic_auth_endpoint_allowlist", []) or []
         if isinstance(endpoint_list, str):
@@ -176,6 +186,14 @@ class SyntheticAuthConfig:
             )
             return None
 
+        if not roles_list:
+            log.error(
+                "Synthetic auth enabled but synthetic_auth_roles is empty. "
+                "Refusing to enable — without roles the principal would fall back "
+                "to MS Graph lookup which 404s on the synthetic identity. Disabling."
+            )
+            return None
+
         compiled_endpoints = tuple(
             (entry["method"].upper(), re.compile(entry["path"]))
             for entry in endpoint_list
@@ -207,6 +225,7 @@ class SyntheticAuthConfig:
             role_name=role_name,
             appid_allowlist=frozenset(appid_list),
             endpoint_allowlist=compiled_endpoints,
+            roles=tuple(roles_list),
             issuers=issuers,
             jwks_uri=jwks_uri,
         )
@@ -323,8 +342,15 @@ def validate_synthetic_token(token: str, config: SyntheticAuthConfig) -> dict[st
     return claims
 
 
-def build_synthetic_user_state(claims: dict[str, Any]) -> dict[str, Any]:
-    """Construct the fixed synthetic principal that the rest of the app sees."""
+def build_synthetic_user_state(
+    claims: dict[str, Any], roles: list[str] | tuple[str, ...]
+) -> dict[str, Any]:
+    """Construct the fixed synthetic principal that the rest of the app sees.
+
+    `roles` is set on the user state so AuthorizationService.get_scopes_for_user
+    consumes them directly and skips role-provider lookup (e.g. MS Graph),
+    which would 404 on the synthetic identity.
+    """
     return {
         "id": SYNTHETIC_USER_ID,
         "user_id": SYNTHETIC_USER_ID,
@@ -334,6 +360,7 @@ def build_synthetic_user_state(claims: dict[str, Any]) -> dict[str, Any]:
         "auth_method": SYNTHETIC_AUTH_METHOD,
         "is_synthetic": True,
         "appid": claims.get("appid") or claims.get("azp"),
+        "roles": list(roles),
     }
 
 

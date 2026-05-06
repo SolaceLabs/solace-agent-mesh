@@ -58,6 +58,7 @@ def config():
             ("GET", __import__("re").compile(r"^/api/v1/sessions$")),
             ("POST", __import__("re").compile(r"^/api/v1/messages$")),
         ),
+        roles=("SyntheticMonitor",),
         issuers=(ISSUER_V1, ISSUER_V2),
         jwks_uri=f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys",
     )
@@ -296,6 +297,7 @@ _FULL_CONFIG = {
         {"method": "GET", "path": r"^/api/v1/sessions$"},
         {"method": "POST", "path": r"^/api/v1/messages$"},
     ],
+    "synthetic_auth_roles": ["SyntheticMonitor"],
 }
 
 
@@ -334,6 +336,24 @@ def test_config_empty_endpoint_allowlist_disables():
     """An empty endpoint allowlist would deny everything — pointless to enable."""
     cfg = {**_FULL_CONFIG, "synthetic_auth_endpoint_allowlist": []}
     assert SyntheticAuthConfig.from_component(_StubComponent(**cfg)) is None
+
+
+def test_config_empty_roles_disables():
+    """No roles means MS Graph fallback (which 404s on synthetic identity) — fail closed."""
+    cfg = {**_FULL_CONFIG, "synthetic_auth_roles": []}
+    assert SyntheticAuthConfig.from_component(_StubComponent(**cfg)) is None
+
+
+def test_user_state_carries_configured_roles(config, rsa_keypair):
+    """The synthetic principal must expose roles so AuthorizationService skips MS Graph."""
+    from solace_agent_mesh.shared.auth.synthetic import build_synthetic_user_state
+    private_key, _ = rsa_keypair
+    token = _encode(_valid_claims(), private_key)
+    claims = validate_synthetic_token(token, config)
+    state = build_synthetic_user_state(claims, config.roles)
+    assert state["roles"] == ["SyntheticMonitor"]
+    assert state["is_synthetic"] is True
+    assert state["id"] == "synthetic-monitor"
 
 
 def test_config_default_issuers_target_entra_public_cloud():

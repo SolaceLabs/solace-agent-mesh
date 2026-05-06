@@ -217,11 +217,12 @@ def create_oauth_middleware(component):
             if self._synthetic_config is not None:
                 log.info(
                     "AuthMiddleware: synthetic auth path ENABLED "
-                    "(role=%s, appids=%d, endpoints=%d, issuers=%d)",
+                    "(role=%s, appids=%d, endpoints=%d, issuers=%d, principal_roles=%s)",
                     self._synthetic_config.role_name,
                     len(self._synthetic_config.appid_allowlist),
                     len(self._synthetic_config.endpoint_allowlist),
                     len(self._synthetic_config.issuers),
+                    list(self._synthetic_config.roles),
                 )
             else:
                 log.warning(
@@ -352,10 +353,11 @@ def create_oauth_middleware(component):
                 await response(scope, receive, send)
                 return True
 
-            request.state.user = build_synthetic_user_state(claims)
+            request.state.user = build_synthetic_user_state(claims, config.roles)
             log.info(
-                "AuthMiddleware: synthetic authenticated appid=%s method=%s path=%s",
+                "AuthMiddleware: synthetic authenticated appid=%s method=%s path=%s roles=%s",
                 request.state.user["appid"], request.method, request.url.path,
+                request.state.user["roles"],
             )
             return False
 
