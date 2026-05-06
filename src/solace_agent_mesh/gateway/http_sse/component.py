@@ -1557,12 +1557,20 @@ class WebUIBackendComponent(BaseGatewayComponent):
                         log_id_prefix,
                         username,
                     )
-                    return {
+                    claims = {
                         "id": username,
                         "name": username,
                         "email": username,
                         "user_info": user_info,
                     }
+                    # Forward pre-resolved roles to top level so
+                    # AuthorizationService.get_scopes_for_user uses them
+                    # directly via _get_user_state_roles, skipping the
+                    # role-provider lookup (e.g. MS Graph) that 404s on
+                    # synthetic / system identities.
+                    if "roles" in user_info:
+                        claims["roles"] = user_info["roles"]
+                    return claims
 
             log.debug(
                 "%s No authenticated user in request.state, falling back to SessionManager.",
@@ -1572,7 +1580,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
             log.debug(
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
-            return {"id": user_id, "name": user_id, "user_info": user_info}
+            claims = {"id": user_id, "name": user_id, "user_info": user_info}
+            if "roles" in user_info:
+                claims["roles"] = user_info["roles"]
+            return claims
 
         except Exception as e:
             log.error("%s Failed to extract user_id from request: %s", log_id_prefix, e)
