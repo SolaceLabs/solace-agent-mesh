@@ -34,7 +34,10 @@ from a2a.types import (
 )
 
 from ....common import a2a
-from ....common.constants import ARTIFACT_TAG_WORKING
+from ....common.constants import (
+    ARTIFACT_TAG_WORKING,
+    DEFAULT_MAX_LLM_CALLS_PER_TASK,
+)
 from ....common.data_parts import (
     ArtifactRef,
     StructuredInvocationRequest,
@@ -536,7 +539,9 @@ class StructuredInvocationHandler:
 
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
-                max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
+                max_llm_calls=self.host.get_config(
+                    "max_llm_calls_per_task", DEFAULT_MAX_LLM_CALLS_PER_TASK
+                ),
             )
 
             # Mark this task as a structured invocation so the runner knows
@@ -1137,7 +1142,9 @@ Remember to end your response with the result embed:
             # Prepare run config
             run_config = RunConfig(
                 streaming_mode=StreamingMode.SSE,
-                max_llm_calls=self.host.get_config("max_llm_calls_per_task", 20),
+                max_llm_calls=self.host.get_config(
+                    "max_llm_calls_per_task", DEFAULT_MAX_LLM_CALLS_PER_TASK
+                ),
             )
 
             # Run the agent again with the feedback content
