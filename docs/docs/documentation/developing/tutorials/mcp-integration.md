@@ -247,7 +247,7 @@ For remote MCP connections (SSE and Streamable HTTP), you can configure SSL/TLS 
 #### Disable SSL Verification (Development Only)
 
 :::warning[Security Risk]
-Disabling SSL verification should only be used in development environments. Never disable SSL verification in production.
+Disabling TLS verification should only be used in development environments. Never disable TLS verification in production.
 :::
 
 ```yaml
