@@ -36,6 +36,14 @@ from .sse_event_buffer import SSEEventBuffer
 log = logging.getLogger(__name__)
 
 
+# Auth methods whose user_state["roles"] is populated from server-controlled
+# sources (synthetic auth: server YAML config; sam_access_token: signed
+# internal token verified by trust_manager). Only these are forwarded to
+# top-level auth_claims, so a future auth path that propagated
+# user-controlled JWT roles would NOT auto-bypass the MS Graph role lookup.
+_ROLE_FORWARD_ALLOWED_AUTH_METHODS = frozenset({"synthetic", "sam_access_token"})
+
+
 class _CompactionFutureEntry(TypedDict):
     """Pending session-compaction correlation entry."""
 
@@ -1568,7 +1576,17 @@ class WebUIBackendComponent(BaseGatewayComponent):
                     # directly via _get_user_state_roles, skipping the
                     # role-provider lookup (e.g. MS Graph) that 404s on
                     # synthetic / system identities.
-                    if "roles" in user_info:
+                    #
+                    # Gated on auth_method to make the trust boundary
+                    # explicit: only paths that populate roles from
+                    # server-controlled sources (synthetic config; signed
+                    # internal sam_access_token) are forwarded. A future
+                    # auth path that put user-controlled JWT roles into
+                    # user_state would NOT auto-bypass MS Graph.
+                    if (
+                        user_info.get("auth_method") in _ROLE_FORWARD_ALLOWED_AUTH_METHODS
+                        and "roles" in user_info
+                    ):
                         claims["roles"] = user_info["roles"]
                     return claims
 
@@ -1581,7 +1599,10 @@ class WebUIBackendComponent(BaseGatewayComponent):
                 "%s Extracted user_id '%s' via SessionManager.", log_id_prefix, user_id
             )
             claims = {"id": user_id, "name": user_id, "user_info": user_info}
-            if "roles" in user_info:
+            if (
+                user_info.get("auth_method") in _ROLE_FORWARD_ALLOWED_AUTH_METHODS
+                and "roles" in user_info
+            ):
                 claims["roles"] = user_info["roles"]
             return claims
 
