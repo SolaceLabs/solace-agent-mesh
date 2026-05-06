@@ -12,17 +12,20 @@ from unittest.mock import Mock, MagicMock
 from solace_agent_mesh.workflow.agent_caller import AgentCaller
 from solace_agent_mesh.workflow.app import AgentNode, SwitchNode, SwitchCase
 from solace_agent_mesh.workflow.workflow_execution_context import (
+    WorkflowExecutionContext,
     WorkflowExecutionState,
 )
 
 
-def create_mock_host():
+def create_mock_host(default_node_timeout_seconds: int = 60):
     """Create a mock host component with required attributes."""
     host = Mock()
     host.log_identifier = "[Test]"
     host.dag_executor = Mock()
     host.dag_executor.nodes = {}
     host.dag_executor.resolve_value = Mock(side_effect=lambda v, s: v)
+    config = {"default_node_timeout_seconds": default_node_timeout_seconds}
+    host.get_config = Mock(side_effect=lambda key, default=None: config.get(key, default))
     return host
 
 
@@ -309,3 +312,75 @@ class TestResolveNodeInputImplicitMultipleDependencies:
         assert "step_1" in error_msg
         assert "step_2" in error_msg
         assert "explicit 'input' mapping" in error_msg
+
+
+class TestResolveNodeTimeout:
+    """Tests for per-node timeout resolution.
+
+    Regression coverage for DATAGO-134263 — the per-node ``timeout`` field
+    was previously declared on AgentNode/WorkflowInvokeNode but ignored at
+    runtime; the workflow-level ``default_node_timeout_seconds`` was always
+    used. These tests pin the new behaviour: per-node timeout wins, with
+    fallback to the workflow default.
+    """
+
+    def test_node_timeout_overrides_default(self):
+        host = create_mock_host(default_node_timeout_seconds=60)
+        caller = AgentCaller(host)
+        assert caller._resolve_node_timeout("5m") == 300.0
+        assert caller._resolve_node_timeout("30s") == 30.0
+        assert caller._resolve_node_timeout("1h") == 3600.0
+
+    def test_missing_node_timeout_uses_default(self):
+        host = create_mock_host(default_node_timeout_seconds=60)
+        caller = AgentCaller(host)
+        assert caller._resolve_node_timeout(None) == 60.0
+        assert caller._resolve_node_timeout("") == 60.0
+
+    def test_invalid_node_timeout_falls_back_to_default(self):
+        """Invalid duration strings should not crash the call — fall back."""
+        host = create_mock_host(default_node_timeout_seconds=60)
+        caller = AgentCaller(host)
+        assert caller._resolve_node_timeout("not-a-duration") == 60.0
+
+
+class TestPublishAgentRequestTimeout:
+    """Tests that the resolved timeout is propagated to cache + context."""
+
+    @pytest.mark.asyncio
+    async def test_publish_uses_passed_timeout_for_cache_expiry(self):
+        from a2a.types import Message, Role, TextPart, Part
+
+        host = create_mock_host(default_node_timeout_seconds=60)
+        host.namespace = "test"
+        host.workflow_name = "TestWorkflow"
+        host.cache_service = Mock()
+        host.publish_a2a_message = Mock()
+        caller = AgentCaller(host)
+
+        ctx = WorkflowExecutionContext(
+            workflow_task_id="wf-task-1",
+            a2a_context={"user_id": "u1", "session_id": "s1"},
+        )
+
+        message = Message(
+            messageId="m1",
+            role=Role.user,
+            parts=[Part(root=TextPart(text="hi"))],
+        )
+
+        await caller._publish_agent_request(
+            agent_name="TargetAgent",
+            message=message,
+            sub_task_id="sub-1",
+            workflow_context=ctx,
+            timeout_seconds=300.0,
+        )
+
+        # Cache expiry must use the passed timeout, not the default.
+        _, kwargs = host.cache_service.add_data.call_args
+        assert kwargs["expiry"] == 300.0
+        assert kwargs["key"] == "sub-1"
+
+        # Context must remember the resolved timeout for later error reporting.
+        assert ctx.get_sub_task_timeout("sub-1") == 300.0

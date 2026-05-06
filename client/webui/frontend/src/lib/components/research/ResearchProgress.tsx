@@ -5,7 +5,6 @@
  * Shows current iteration, phase, sources found, and progress percentage.
  */
 
-import React from "react";
 import { Progress } from "../ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -51,7 +50,7 @@ const phaseColors = {
     writing: "bg-(--primary-wMain)",
 };
 
-export const ResearchProgress: React.FC<ResearchProgressProps> = ({ progress, isComplete = false }) => {
+export const ResearchProgress = ({ progress, isComplete = false }: ResearchProgressProps) => {
     const PhaseIcon = phaseIcons[progress.phase];
     const phaseLabel = phaseLabels[progress.phase];
     const phaseColor = phaseColors[progress.phase];

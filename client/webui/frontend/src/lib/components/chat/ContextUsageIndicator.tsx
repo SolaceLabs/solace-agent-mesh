@@ -306,10 +306,11 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                     <TooltipTrigger asChild>
                         <div className="cursor-pointer p-2" onClick={() => setIsExpanded(prev => !prev)}>
                             <div className="flex items-center gap-2">
-                                <div className="w-36 space-y-1">
+                                <div className="hidden w-36 space-y-1 @[480px]:block">
                                     <Progress value={pct} className="h-1.5" indicatorClassName={getUsageBarColor(pct)} />
                                     <div className={`text-center font-mono text-[10px] ${colorClass}`}>Context Usage: {pct}%</div>
                                 </div>
+                                <div className={`font-mono text-xs font-semibold @[480px]:hidden ${colorClass}`}>{pct}%</div>
                                 {(shouldShowToolbarIcon || isCompacting) && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>

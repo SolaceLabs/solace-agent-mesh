@@ -10,6 +10,8 @@ export interface BulkArtifactsResponse {
         mimeType: string | null;
         lastModified: string | null;
         uri: string | null;
+        /** Resolved-latest version reported by the backend at list time. */
+        version: number | null;
         sessionId: string;
         sessionName: string | null;
         projectId: string | null;

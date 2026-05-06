@@ -10,6 +10,7 @@ from google.genai import types as adk_types
 from solace_agent_mesh.agent.adk.services import (
     _filter_session_by_latest_compaction,
     FilteringSessionService,
+    RetryingSessionService,
 )
 
 
@@ -411,3 +412,67 @@ class TestFilteringSessionService:
 
         wrapped.append_event.assert_called_once_with(session, event)
         assert result == event
+
+
+class TestSessionServiceWrapperPassthrough:
+    """Regression tests: wrappers must expose backend-specific attributes.
+
+    Two known consumers reach past BaseSessionService into DatabaseSessionService
+    instance attrs:
+
+    * ``database_session_factory`` - read by enterprise's SecretSessionManager;
+      missing it crashes the agent at startup with AttributeError.
+    * ``db_engine`` - probed via hasattr() by app_base._get_db_engines_from_components
+      to register the agent DB in the broker-level health check. Missing it
+      silently disables the health check rather than raising.
+
+    Both must reach through the wrappers.
+    """
+
+    def test_filtering_service_forwards_database_session_factory(self):
+        wrapped = Mock()
+        wrapped.database_session_factory = "sentinel-factory"
+
+        service = FilteringSessionService(wrapped)
+
+        assert service.database_session_factory == "sentinel-factory"
+
+    def test_retrying_service_forwards_database_session_factory(self):
+        wrapped = Mock()
+        wrapped.database_session_factory = "sentinel-factory"
+
+        service = RetryingSessionService(wrapped)
+
+        assert service.database_session_factory == "sentinel-factory"
+
+    def test_stacked_wrappers_forward_database_session_factory(self):
+        """Filtering(Retrying(SQL)) - the actual production composition."""
+        wrapped = Mock()
+        wrapped.database_session_factory = "sentinel-factory"
+
+        service = FilteringSessionService(RetryingSessionService(wrapped))
+
+        assert service.database_session_factory == "sentinel-factory"
+
+    def test_wrappers_forward_db_engine_for_health_check_probe(self):
+        """app_base uses hasattr(svc, 'db_engine') - must return True through wrappers."""
+        wrapped = Mock(spec=["db_engine"])
+        wrapped.db_engine = "sentinel-engine"
+
+        retrying = RetryingSessionService(wrapped)
+        filtering = FilteringSessionService(wrapped)
+        stacked = FilteringSessionService(RetryingSessionService(wrapped))
+
+        for service in (retrying, filtering, stacked):
+            assert hasattr(service, "db_engine")
+            assert service.db_engine == "sentinel-engine"
+
+    def test_passthrough_raises_when_underlying_service_lacks_attribute(self):
+        """A truly missing attribute must still raise AttributeError, not None."""
+        # InMemorySessionService has no database_session_factory; the wrappers
+        # must surface the AttributeError rather than swallow it.
+        wrapped = Mock(spec=[])  # empty spec -> no attributes at all
+        service = RetryingSessionService(wrapped)
+
+        with pytest.raises(AttributeError):
+            _ = service.database_session_factory

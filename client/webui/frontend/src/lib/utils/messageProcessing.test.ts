@@ -34,6 +34,11 @@ describe("filterRenderableDataParts", () => {
         expect(filterRenderableDataParts(parts, false)).toEqual(parts);
     });
 
+    it("keeps deep_research_plan data parts", () => {
+        const parts: Part[] = [dataPart("deep_research_plan")];
+        expect(filterRenderableDataParts(parts, false)).toEqual(parts);
+    });
+
     it("filters out generic data parts", () => {
         const parts: Part[] = [dataPart("agent_progress")];
         expect(filterRenderableDataParts(parts, false)).toEqual([]);
@@ -79,6 +84,10 @@ describe("checkHasVisibleContent", () => {
 
     it("returns true for deep_research_progress", () => {
         expect(checkHasVisibleContent([dataPart("deep_research_progress")])).toBe(true);
+    });
+
+    it("returns true for deep_research_plan", () => {
+        expect(checkHasVisibleContent([dataPart("deep_research_plan")])).toBe(true);
     });
 
     it("returns true for non-empty text", () => {

@@ -13,6 +13,23 @@ import httpx
 
 log = logging.getLogger(__name__)
 
+# Environment variable that globally controls TLS verification for outbound
+# MCP HTTPS connections (SSE, Streamable HTTP). Default is verify=True; set
+# to "false" (case insensitive) to skip TLS verification. Intended for
+# development environments with self-signed certificates.
+ENV_MCP_TLS_VERIFY = "SAM_MCP_CONNECTOR_TLS_VERIFY"
+
+
+def is_tls_verify() -> bool:
+    """Resolve TLS verification setting from the environment.
+
+    Returns True (verify) by default and when SAM_MCP_CONNECTOR_TLS_VERIFY is
+    unset, empty, or any value other than "false". Returns False only when
+    the variable is explicitly set to "false" (case insensitive).
+    """
+    raw = os.getenv(ENV_MCP_TLS_VERIFY, "").strip().lower()
+    return raw != "false"
+
 
 @dataclass
 class SslConfig:

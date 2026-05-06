@@ -123,10 +123,22 @@ features:
       inline activity timeline. When disabled, thinking entries are filtered
       out and thinking content is not accumulated on messages.
 
+  - key: artifact_attachment
+    name: Artifact Attachment
+    release_phase: early_access
+    default: false
+    jira: DATAGO-133319
+    description: >
+      New chat input attachment UX: dropdown for uploading new files or
+      attaching existing artifacts, card-style file/artifact previews with
+      thumbnails, and standalone preview dialogs. When disabled, the chat
+      input shows the legacy paperclip upload button and simple filename
+      badges.
+
   - key: offline_evals
     name: Offline Enterprise Evaluations
-    release_phase: experimental
-    default: false
+    release_phase: beta
+    default: true
     jira: DATAGO-104642
     description: >
       Enable the offline enterprise evaluation framework. Allows running

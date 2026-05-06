@@ -140,8 +140,8 @@ export const RecentChatsPage: React.FC = () => {
 
     // Sessions fetched only for chat/scheduler tabs; shared tab uses its own query.
     const sessionSource = activeTab === "shared" ? "chat" : activeTab;
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource);
-    const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe();
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource, { enabled: activeTab !== "shared" });
+    const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe({ enabled: activeTab === "shared" });
     const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
 
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null);

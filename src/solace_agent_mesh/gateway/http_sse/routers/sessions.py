@@ -1383,12 +1383,19 @@ async def get_session_context_usage(
         total_tasks = chat_task_count
         total_messages = chat_task_count * 2
 
+        # Peer subtasks (a2a_subtask_*) share this gateway session_id for
+        # observability but represent a different agent's internal work. Their
+        # token counts must not feed the current-agent context indicator, and
+        # their later start_time would otherwise trick the agent-switch filter
+        # below into treating the peer as the "current agent" whenever a peer
+        # completion is the most-recent row in the session.
         completed_tasks = (
             db.query(TaskModel)
             .filter(
                 TaskModel.session_id == session_id,
                 TaskModel.user_id == user_id,
                 TaskModel.total_input_tokens.isnot(None),
+                ~TaskModel.id.like("a2a_subtask_%"),
             )
             .order_by(desc(TaskModel.start_time))
             .all()
@@ -1467,8 +1474,16 @@ async def get_session_context_usage(
                 details = latest.token_usage_details or {}
                 current_tokens = int(details.get("post_compaction_remaining_tokens") or 0)
             else:
-                # currentContextTokens = latest task's input
-                current_tokens = latest.total_input_tokens or 0
+                # Context window occupancy = the last agent LLM call's prompt
+                # tokens, not the cumulative sum across turns. total_input_tokens
+                # inflates with every peer delegation (each follow-up turn adds
+                # the full growing context to the sum) and doesn't reflect what
+                # actually fills the window. Fall back to total_input_tokens
+                # only for historical rows written before last_input_tokens was
+                # tracked.
+                details = latest.token_usage_details or {}
+                last_input = details.get("last_input_tokens")
+                current_tokens = int(last_input) if last_input else (latest.total_input_tokens or 0)
 
             cached_tokens = real_latest.total_cached_input_tokens or 0
 

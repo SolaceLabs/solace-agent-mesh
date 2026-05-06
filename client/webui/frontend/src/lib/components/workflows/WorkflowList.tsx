@@ -179,7 +179,7 @@ export const WorkflowList = ({ workflows, className }: WorkflowListProps) => {
             {/* Main content container */}
             <div className="flex flex-1 flex-col py-6 pl-6">
                 <OnboardingBanner storageKey={WORKFLOW_STORAGE_KEY} header={WORKFLOW_HEADER} description={WORKFLOW_DESCRIPTION} learnMoreText={WORKFLOW_LEARN_MORE_TEXT} learnMoreUrl={WORKFLOW_URL} className="mr-6 mb-6" />
-                <SearchInput value={searchTerm} onChange={value => setSearchTerm(value)} />
+                <SearchInput value={searchTerm} onChange={value => setSearchTerm(value)} testid="workflowSearchInput" className="mb-4 w-xs" />
 
                 <div className="min-h-0 flex-1 overflow-y-auto pt-6 pr-6">
                     <div className="h-full">

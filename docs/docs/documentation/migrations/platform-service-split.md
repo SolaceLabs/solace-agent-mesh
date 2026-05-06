@@ -3,12 +3,12 @@ title: "Migration to Platform Service (Enterprise v1.27.0+)"
 sidebar_position: 20
 ---
 
-### ✅ This Guide Applies To:
+### This Guide Applies To:
 
 - **Users running SAM manually with YAML files** - Typically after generating your SAM application with `sam init`, you run SAM directly using configuration files (e.g., `sam run configs/gateways/webui.yaml`)
 - **Users using Enterprise features and have an existing `platform.db`** - You are using features like Agent Builder, Connectors, or other enterprise capabilities that have created a `platform.db` file
 
-### ❌ This Guide Does NOT Apply To:
+### This Guide Does NOT Apply To:
 
 - **Users using Docker images** - If you're using Solace's pre-packaged Docker images via the Docker quickstart or Kubernetes deployments with Helm charts, this migration is handled automatically
 - **Users with no existing `platform.db`** - If you don't have an existing `platform.db` file or have not been using enterprise features

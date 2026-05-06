@@ -1,9 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useContext, useMemo } from "react";
 
 import { Download, Info, Trash } from "lucide-react";
 
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
-import { useChatContext } from "@/lib/hooks";
+import { ChatContext } from "@/lib/contexts/ChatContext";
 import { formatRelativeTime } from "@/lib/utils/format";
 import type { ArtifactInfo } from "@/lib/types";
 
@@ -23,8 +23,13 @@ interface ArtifactDetailsProps {
 }
 
 export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, isPreview = false, isExpanded = false, onDelete, onDownload, setIsExpanded, badge }) => {
-    const { previewedArtifactAvailableVersions, currentPreviewedVersionNumber, navigateArtifactVersion } = useChatContext();
-    const versions = useMemo(() => previewedArtifactAvailableVersions ?? [], [previewedArtifactAvailableVersions]);
+    // Use the chat context optionally — when ArtifactDetails is rendered outside a
+    // ChatProvider (e.g. eval experiment results) the version-selector simply
+    // hides itself instead of throwing.
+    const ctx = useContext(ChatContext);
+    const versions = useMemo(() => ctx?.previewedArtifactAvailableVersions ?? [], [ctx?.previewedArtifactAvailableVersions]);
+    const currentPreviewedVersionNumber = ctx?.currentPreviewedVersionNumber;
+    const navigateArtifactVersion = ctx?.navigateArtifactVersion;
 
     return (
         <div className="flex flex-row justify-between gap-1">
@@ -41,7 +46,7 @@ export const ArtifactDetails: React.FC<ArtifactDetailsProps> = ({ artifactInfo, 
                     </div>
                 </div>
 
-                {isPreview && versions.length > 1 && (
+                {isPreview && versions.length > 1 && navigateArtifactVersion && (
                     <div className="align-right">
                         <Select
                             value={currentPreviewedVersionNumber?.toString()}

@@ -7,17 +7,6 @@ import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-acce
 
 This guide walks you through configuring OpenAPI-based tools for Agent Mesh Enterprise. You will learn how to integrate REST APIs into your agents using OpenAPI specifications, enabling them to interact with any OpenAPI-compliant service.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Understanding OpenAPI Tools](#understanding-openapi-tools)
-- [Prerequisites](#prerequisites)
-- [Configuration Steps](#configuration-steps)
-- [Tool Filtering](#tool-filtering)
-- [Authentication](#authentication)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-
 ## Overview
 
 OpenAPI Tools allow agents to interact with REST APIs by automatically generating tool definitions from OpenAPI (Swagger) specifications. This enables agents to call API endpoints as if they were native tools, with proper parameter validation, type checking, and documentation.

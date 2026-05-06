@@ -36,9 +36,10 @@ except ImportError:
 import io
 import json
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from ....common.a2a.types import ArtifactInfo
+from ....common.constants import ARTIFACT_TAG_WORKING
 from ....common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
@@ -109,69 +110,11 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _is_execution_session(session_id: str | None) -> bool:
-    """Return True if session_id is a per-execution scheduled session (not task-level)."""
-    return bool(
-        session_id
-        and session_id.startswith("scheduled_")
-        and not session_id.startswith("scheduled_task_")
-    )
-
-
-def _get_execution_from_db(session_id: str, caller: str):
-    """Look up the scheduled execution record for an execution session.
-
-    Returns the execution ORM object, or ``None`` if the session is not an
-    execution session or the lookup fails.
-    """
-    if not _is_execution_session(session_id):
-        return None
-
-    try:
-        from ..repository.scheduled_task_repository import ScheduledTaskRepository
-        from ..dependencies import SessionLocal
-
-        if SessionLocal is None:
-            return None
-
-        repo = ScheduledTaskRepository()
-        with SessionLocal() as db:
-            return repo.find_execution_by_session_id(db, session_id)
-    except Exception as e:
-        log.warning("[%s] Failed to look up execution for %s: %s", caller, session_id, e)
-        return None
-
-
-def _resolve_execution_context(session_id: str) -> tuple[str | None, dict[str, int | None] | None]:
-    """Resolve both the stable storage session and artifact version info in a single DB lookup.
-
-    For per-execution scheduled sessions (``scheduled_{execution_id}``), this
-    fetches the execution record once and derives:
-    1. The stable storage session (``scheduled_task_{task_id}``) where artifacts live.
-    2. The artifact name → pinned version mapping from the execution's manifest.
-
-    Returns:
-        (stable_session_id, artifact_info) — either or both may be ``None``
-        if the session is not an execution session or the lookup fails.
-    """
-    execution = _get_execution_from_db(session_id, "_resolve_execution_context")
-    if not execution:
-        return None, None
-
-    stable_id = f"scheduled_task_{execution.scheduled_task_id}"
-    log.debug("[_resolve_execution_context] Mapped %s -> %s", session_id, stable_id)
-
-    artifact_info: dict[str, int | None] | None = None
-    if execution.artifacts:
-        info: dict[str, int | None] = {}
-        for art in execution.artifacts:
-            if isinstance(art, dict):
-                name = art.get("name") or art.get("filename")
-                if name:
-                    info[name] = art.get("version")
-        artifact_info = info if info else None
-
-    return stable_id, artifact_info
+from ..services.scheduler.session_resolver import (
+    get_execution_from_db as _get_execution_from_db,
+    is_execution_session as _is_execution_session,
+    resolve_execution_context as _resolve_execution_context,
+)
 
 
 def _user_owns_execution_session(session_id: str, user_id: str) -> bool:
@@ -606,26 +549,31 @@ async def upload_artifact_with_session(
 
 class ArtifactWithContext(BaseModel):
     """Artifact info with session/project context for bulk listing."""
-    
+
     # Core artifact fields from ArtifactInfo
     filename: str
     size: int
     mime_type: Optional[str] = Field(None, alias="mimeType")
     last_modified: Optional[str] = Field(None, alias="lastModified")  # ISO date string
     uri: Optional[str] = None
-    
+    # Resolved-latest version captured during the metadata load (free —
+    # load_artifact_content_or_metadata had to call list_versions anyway).
+    # The WebUI uses this so the attach-artifact dialog can default its
+    # version picker to a concrete number instead of a "Latest" sentinel.
+    version: Optional[int] = None
+
     # Context fields
     session_id: str = Field(..., alias="sessionId")
     session_name: Optional[str] = Field(None, alias="sessionName")
     project_id: Optional[str] = Field(None, alias="projectId")
     project_name: Optional[str] = Field(None, alias="projectName")
-    
+
     # Source field for origin badges (upload, generated, project)
     source: Optional[str] = None
-    
+
     # Tags for categorization (e.g., ["__working"] to mark as internal)
     tags: Optional[list[str]] = None
-    
+
     model_config = {"populate_by_name": True}
 
 
@@ -886,13 +834,19 @@ async def list_all_artifacts(
                 for artifact in artifacts:
                     if artifact.filename.endswith('.converted.txt') or artifact.filename == 'project_bm25_index.zip':
                         continue
-                    
+                    # Internal artifacts produced by tools (RAG intermediates,
+                    # workflow scratch files, etc.) are tagged __working and
+                    # are not meant for direct user consumption.
+                    if artifact.tags and ARTIFACT_TAG_WORKING in artifact.tags:
+                        continue
+
                     result.append(ArtifactWithContext(
                         filename=artifact.filename,
                         size=artifact.size,
                         mime_type=artifact.mime_type,
                         last_modified=artifact.last_modified,
                         uri=artifact.uri,
+                        version=artifact.version,
                         session_id=session_id,
                         session_name=session_name,
                         project_id=project_id,
@@ -1876,14 +1830,16 @@ async def get_artifact_by_uri(
         if parsed_uri.scheme != "artifact":
             raise ValueError("Invalid URI scheme, must be 'artifact'.")
 
-        app_name = parsed_uri.netloc
+        app_name = unquote(parsed_uri.netloc)
         path_parts = parsed_uri.path.strip("/").split("/")
         if not app_name or len(path_parts) != 3:
             raise ValueError(
                 "Invalid URI path structure. Expected artifact://app_name/user_id/session_id/filename"
             )
 
-        owner_user_id, session_id, filename = path_parts
+        # Path segments need percent-decoding — WHATWG URL re-serialization
+        # encodes spaces and reserved chars in the path.
+        owner_user_id, session_id, filename = (unquote(p) for p in path_parts)
 
         query_params = parse_qs(parsed_uri.query)
         version_list = query_params.get("version")

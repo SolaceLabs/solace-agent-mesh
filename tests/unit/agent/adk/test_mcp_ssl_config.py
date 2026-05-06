@@ -7,8 +7,10 @@ import httpx
 import pytest
 
 from solace_agent_mesh.agent.adk.mcp_ssl_config import (
+    ENV_MCP_TLS_VERIFY,
     SslConfig,
     create_ssl_httpx_client_factory,
+    is_tls_verify,
 )
 
 
@@ -152,3 +154,49 @@ class TestCreateSslHttpxClientFactory:
 
         assert client._auth is not None
         assert isinstance(client._auth, httpx.BasicAuth)
+
+
+class TestGetEnvTlsVerify:
+    """Tests for the SAM_MCP_CONNECTOR_TLS_VERIFY env var resolver."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_env(self, monkeypatch):
+        monkeypatch.delenv(ENV_MCP_TLS_VERIFY, raising=False)
+
+    def test_default_is_true_when_unset(self):
+        assert is_tls_verify() is True
+
+    def test_empty_value_is_true(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "")
+        assert is_tls_verify() is True
+
+    def test_whitespace_value_is_true(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "   ")
+        assert is_tls_verify() is True
+
+    def test_true_value(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "true")
+        assert is_tls_verify() is True
+
+    def test_false_value(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "false")
+        assert is_tls_verify() is False
+
+    def test_false_is_case_insensitive(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "FALSE")
+        assert is_tls_verify() is False
+
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "False")
+        assert is_tls_verify() is False
+
+    def test_false_with_surrounding_whitespace(self, monkeypatch):
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "  false  ")
+        assert is_tls_verify() is False
+
+    def test_unrecognized_value_defaults_to_true(self, monkeypatch):
+        # Anything other than "false" is treated as verify=True (safe default).
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "0")
+        assert is_tls_verify() is True
+
+        monkeypatch.setenv(ENV_MCP_TLS_VERIFY, "no")
+        assert is_tls_verify() is True

@@ -265,7 +265,7 @@ This command is useful for:
 - `--json` – Output in JSON format instead of pretty table.
 - `-h, --help` – Displays the help message.
 
-For more information about built-in tools, see [Built-in Tools](builtin-tools/)
+For more information about built-in tools, see [Built-in Tools](builtin-tools/builtin-tools.md)
 
 ### `plugin` - Manage Plugins
 

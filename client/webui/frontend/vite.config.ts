@@ -71,6 +71,9 @@ export default defineConfig(({ mode }) => {
                 },
             },
         },
+        optimizeDeps: {
+            include: ["mermaid"],
+        },
         server: {
             proxy: {
                 // IMPORTANT: Platform Service endpoints must come first for specificity

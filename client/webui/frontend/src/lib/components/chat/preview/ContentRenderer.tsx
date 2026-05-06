@@ -37,6 +37,8 @@ export function ContentRenderer({ content, rendererType, mime_type, url, filenam
             return <OfficeDocumentRenderer content={content} filename={filename || "document.docx"} documentType="docx" setRenderError={setRenderError} />;
         case "pptx":
             return <OfficeDocumentRenderer content={content} filename={filename || "presentation.pptx"} documentType="pptx" setRenderError={setRenderError} />;
+        case "xlsx":
+            return <OfficeDocumentRenderer content={content} filename={filename || "spreadsheet.xlsx"} documentType="xlsx" setRenderError={setRenderError} />;
         case "pdf":
         case "application/pdf":
             if (url && filename) {

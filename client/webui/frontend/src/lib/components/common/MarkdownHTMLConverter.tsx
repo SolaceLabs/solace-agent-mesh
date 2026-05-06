@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import parse, { type HTMLReactParserOptions, Element } from "html-react-parser";
+import parse, { type HTMLReactParserOptions, Element, domToReact } from "html-react-parser";
 import { Copy, Check } from "lucide-react";
 
 import { getThemeHtmlStyles } from "@/lib/utils/themeHtmlStyles";
@@ -55,9 +55,34 @@ export function MarkdownHTMLConverter({ children, className }: Readonly<Markdown
         return null;
     }
 
+    const liStartsWithCheckbox = (li: Element): boolean => {
+        const first = li.children.find(c => (c as { type: string }).type !== "text" || ((c as unknown as { data: string }).data ?? "").trim() !== "");
+        return first instanceof Element && first.name === "input" && first.attribs?.type === "checkbox";
+    };
+
     const parserOptions: HTMLReactParserOptions = {
         replace: domNode => {
             if (domNode instanceof Element && domNode.attribs) {
+                // GFM task-list checkbox — style the native input so it themes consistently.
+                // Drop `disabled` (browsers gray it out and ignore accent-color); keep it
+                // non-interactive via pointer-events / tabindex / aria-disabled instead.
+                if (domNode.name === "input" && domNode.attribs.type === "checkbox") {
+                    delete domNode.attribs.disabled;
+                    domNode.attribs.tabindex = "-1";
+                    domNode.attribs["aria-disabled"] = "true";
+                    domNode.attribs.class = `${domNode.attribs.class ?? ""} size-3.5 shrink-0 accent-(--primary-wMain) align-middle pointer-events-none`.trim();
+                    return undefined;
+                }
+
+                // Drop the disc bullet on lists that contain task-list items.
+                if (domNode.name === "ul" && domNode.children.some(c => c instanceof Element && c.name === "li" && liStartsWithCheckbox(c))) {
+                    return <ul style={{ listStyle: "none", paddingLeft: "0.25rem", marginBottom: "1rem" }}>{domToReact(domNode.children as Parameters<typeof domToReact>[0], parserOptions)}</ul>;
+                }
+
+                if (domNode.name === "li" && liStartsWithCheckbox(domNode)) {
+                    return <li style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>{domToReact(domNode.children as Parameters<typeof domToReact>[0], parserOptions)}</li>;
+                }
+
                 // Handle links
                 if (domNode.name === "a") {
                     domNode.attribs.target = "_blank";

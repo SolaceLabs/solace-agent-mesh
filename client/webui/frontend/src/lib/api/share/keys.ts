@@ -9,6 +9,6 @@ export const shareKeys = {
     lists: () => [...shareKeys.all, "list"] as const,
     list: (filters?: { page?: number; pageSize?: number; search?: string }) => [...shareKeys.lists(), { filters }] as const,
     users: (shareId: string) => [...shareKeys.all, "users", shareId] as const,
-    sharedWithMe: () => [...shareKeys.all, "shared-with-me"] as const,
+    sharedWithMe: (userId: string) => [...shareKeys.all, "shared-with-me", userId] as const,
     view: (shareId: string) => [...shareKeys.all, "view", shareId] as const,
 };

@@ -298,6 +298,13 @@ class SamAgentComponent(SamComponentBase):
         self.agent_specific_state: Dict[str, Any] = {}
         self.active_tasks: Dict[str, "TaskExecutionContext"] = {}
         self.active_tasks_lock = threading.Lock()
+        # Registry of deep-research plan waiters, keyed by plan_id. Each entry
+        # stores the asyncio.Future the tool is awaiting, the user_id that
+        # owns the plan (for cross-user injection defence), and the loop the
+        # future was created on (needed because resolution runs on the SAC
+        # event-handler thread). See deep_research_tools._wait_for_plan_response.
+        self._deep_research_plan_waiters: Dict[str, Dict[str, Any]] = {}
+        self._deep_research_plan_waiters_lock = threading.Lock()
         self._tool_cleanup_hooks: List[Callable] = []
         self._agent_system_instruction_string: Optional[str] = None
         self._agent_system_instruction_callback: Optional[
@@ -3417,6 +3424,14 @@ class SamAgentComponent(SamComponentBase):
                 # Get current call depth from parent context
                 current_depth = parent_task_context.a2a_context.get("call_depth", 0)
 
+                # Forward the originating gateway's capability flags so peers
+                # can gate interactive flows (e.g. deep_research plan
+                # verification) on what the *user-facing* gateway can render,
+                # not on the peer's own client_id.
+                parent_capabilities = parent_task_context.a2a_context.get("gateway_capabilities")
+                if isinstance(parent_capabilities, dict) and parent_capabilities:
+                    user_properties["gatewayCapabilities"] = parent_capabilities
+
                 auth_token = parent_task_context.get_security_data("auth_token")
                 if auth_token:
                     user_properties["authToken"] = auth_token
@@ -3823,6 +3838,68 @@ class SamAgentComponent(SamComponentBase):
             log.error(
                 "%s Async loop not available or not running. Cannot publish data signal.",
                 log_id,
+            )
+            return False
+
+    def register_deep_research_plan_waiter(
+        self, plan_id: str, user_id: str, future: asyncio.Future, loop: asyncio.AbstractEventLoop
+    ) -> None:
+        """Record a plan-verification waiter so an inbound control signal can resolve it.
+
+        plan_id is uuid4 (collision-resistant). user_id is captured at send
+        time; resolve_deep_research_plan_response rejects mismatches so a
+        client that guesses another user's plan_id cannot inject a response.
+        The loop is stored because resolution happens on the SAC message
+        thread, which cannot call Future.set_result directly.
+        """
+        with self._deep_research_plan_waiters_lock:
+            self._deep_research_plan_waiters[plan_id] = {
+                "user_id": user_id,
+                "future": future,
+                "loop": loop,
+            }
+
+    def drop_deep_research_plan_waiter(self, plan_id: str) -> None:
+        """Remove a waiter entry. Safe to call even if the entry is gone."""
+        with self._deep_research_plan_waiters_lock:
+            self._deep_research_plan_waiters.pop(plan_id, None)
+
+    def resolve_deep_research_plan_response(
+        self, plan_id: str, user_id: str, response: Dict[str, Any]
+    ) -> bool:
+        """Resolve the waiter's future with the response.
+
+        Returns True if a matching waiter was resolved. Returns False when the
+        plan is unknown (timeout already fired, never registered) or when
+        user_id does not match the recorded owner - in both cases the caller
+        should publish a DeepResearchPlanStaleData signal so the frontend
+        stops showing an actionable card.
+        """
+        with self._deep_research_plan_waiters_lock:
+            entry = self._deep_research_plan_waiters.pop(plan_id, None)
+
+        if entry is None:
+            return False
+        if entry["user_id"] != user_id:
+            log.warning(
+                "%s Plan response user_id mismatch for plan_id=%s (expected owner differs from caller); dropping.",
+                self.log_identifier,
+                plan_id,
+            )
+            return False
+
+        future: asyncio.Future = entry["future"]
+        loop: asyncio.AbstractEventLoop = entry["loop"]
+        if future.done():
+            return True
+        try:
+            loop.call_soon_threadsafe(future.set_result, response)
+            return True
+        except RuntimeError:
+            log.warning(
+                "%s Could not resolve plan waiter for plan_id=%s - event loop closed.",
+                self.log_identifier,
+                plan_id,
             )
             return False
 

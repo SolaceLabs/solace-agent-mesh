@@ -24,6 +24,13 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Breathing indicator used while waiting for AI response */
+@keyframes brand-breathe {
+    0%, 100% { transform: scale(0.85); opacity: 0.75; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+.brand-breathe { animation: brand-breathe 2.2s ease-in-out infinite; }
+
 @theme inline {
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -33,8 +40,6 @@
 
 :root {
     --radius: 0.5rem;
-    /* Semantic theme variables are set by ThemeProvider via inline styles */
-    --tw-shadow-colored: 0 4px 6px -1px var(--primary-w90), 0 2px 4px -2px var(--primary-w90);
 }
 
 
@@ -217,6 +222,38 @@
     background-color: color-mix(in srgb, var(--accent-n6-wMain), transparent 80%);
     padding: 0.125rem 0;
     border-radius: 0.125rem;
+}
+
+/* DocumentThumbnail (react-pdf) sizing.
+   Base rules intentionally crop to the top of the page via object-fit: cover —
+   right fit for the larger Artifacts-page grid tiles. Small attachment cards
+   opt into `.thumbnail-fit-contain` to show the whole page letterboxed. */
+.thumbnail-document {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.thumbnail-page {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.thumbnail-page canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: top center !important;
+}
+
+.thumbnail-fit-contain .thumbnail-page canvas {
+    object-fit: contain !important;
+    object-position: center !important;
 }
 
 /* Citation highlight for text-based content (markdown, HTML, etc.) - needs different dark mode styling */

@@ -1,11 +1,8 @@
-import { v4 as uuidv4 } from "uuid";
-
 import { filterRenderableDataParts, checkHasVisibleContent, isCompactionNotificationBubble } from "@/lib/utils/messageProcessing";
+import { uuid } from "@/lib/utils/uuid";
+import { markPlanResponded } from "@/lib/components/research/respondedPlansStore";
 
 import type { DataPart, FileAttachment, SendStreamingMessageSuccessResponse, JSONRPCErrorResponse, TaskStatusUpdateEvent, ArtifactPart, PartFE, MessageFE, RAGSearchResult, ProgressUpdate, ArtifactInfo, Part } from "@/lib/types";
-
-// Force uuid to use crypto.getRandomValues() fallback for non-secure (HTTP) contexts
-const v4 = () => uuidv4({});
 
 // ============ Data Part Payloads ============
 
@@ -88,6 +85,12 @@ interface ToolInvocationStartPayload {
     type: "tool_invocation_start";
 }
 
+interface DeepResearchPlanStalePayload {
+    type: "deep_research_plan_stale";
+    plan_id: string;
+    reason: "timed_out";
+}
+
 type ChatDataPartPayload =
     | ThinkingContentPayload
     | AgentProgressUpdatePayload
@@ -97,7 +100,8 @@ type ChatDataPartPayload =
     | DeepResearchProgressPayload
     | CompactionNotificationPayload
     | ToolResultPayload
-    | ToolInvocationStartPayload;
+    | ToolInvocationStartPayload
+    | DeepResearchPlanStalePayload;
 
 function asTypedPayload(data: unknown): ChatDataPartPayload | null {
     if (typeof data !== "object" || data === null || !("type" in data)) return null;
@@ -228,7 +232,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
             isError: true,
             isComplete: true,
             metadata: {
-                messageId: `msg-${v4()}`,
+                messageId: `msg-${uuid()}`,
                 lastProcessedEventSequence: eventSequence,
             },
         });
@@ -409,7 +413,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                                     },
                                     isUser: false,
                                     isComplete: true,
-                                    metadata: { messageId: `auth-${v4()}` },
+                                    metadata: { messageId: `auth-${uuid()}` },
                                 };
                                 messages = [...messages, authMessage];
                             }
@@ -435,6 +439,33 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                         }
                         case "compaction_notification": {
                             latestStatusText = null;
+                            break;
+                        }
+                        case "deep_research_plan_stale": {
+                            // A plan card is no longer actionable (tool timed
+                            // out or the response arrived too late). Record it
+                            // in the session-local responded store so the
+                            // interactive card stays hidden even if the plan
+                            // event replays, then also patch the message
+                            // history so persisted serialisations reflect it.
+                            const stalePlanId = data.plan_id;
+                            markPlanResponded(stalePlanId, "stale");
+                            for (let i = messages.length - 1; i >= 0; i--) {
+                                const msg = messages[i];
+                                if (!msg.parts) continue;
+                                let touched = false;
+                                const nextParts = msg.parts.map(p => {
+                                    if (p.kind !== "data") return p;
+                                    const d = (p as DataPart).data as { type?: string; plan_id?: string; responded?: string } | undefined;
+                                    if (d?.type !== "deep_research_plan" || d.plan_id !== stalePlanId) return p;
+                                    touched = true;
+                                    return { ...(p as DataPart), data: { ...d, responded: "stale" } } as DataPart;
+                                });
+                                if (touched) {
+                                    messages[i] = { ...msg, parts: nextParts };
+                                    break;
+                                }
+                            }
                             break;
                         }
                         case "tool_result": {
@@ -465,7 +496,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
     const isTaskFailed = result.kind === "task" && result.status?.state === "failed";
 
     // --- Update messages with content ---
-    const responseMessageId = rpcResponse.id?.toString() ?? `msg-${v4()}`;
+    const responseMessageId = rpcResponse.id?.toString() ?? `msg-${uuid()}`;
     const responseContextId = "result" in rpcResponse && rpcResponse.result && "contextId" in rpcResponse.result ? (rpcResponse.result as unknown as { contextId?: string }).contextId : undefined;
 
     messages = applyContentToMessages(messages, newContentParts, {
@@ -516,7 +547,7 @@ export function processChatEvent(input: ChatEventInput): ChatEventOutput {
                     isUser: false,
                     isComplete: true,
                     metadata: {
-                        messageId: rpcResponse.id?.toString() || `msg-${v4()}`,
+                        messageId: rpcResponse.id?.toString() || `msg-${uuid()}`,
                         sessionId: (result as unknown as { contextId?: string }).contextId || sessionId,
                         lastProcessedEventSequence: eventSequence,
                     },
@@ -621,7 +652,7 @@ function appendProgressUpdate(
             isComplete: false,
             progressUpdates: [update],
             metadata: {
-                messageId: `msg-${v4()}`,
+                messageId: `msg-${uuid()}`,
                 lastProcessedEventSequence: eventSequence,
             },
             ...extraFields,

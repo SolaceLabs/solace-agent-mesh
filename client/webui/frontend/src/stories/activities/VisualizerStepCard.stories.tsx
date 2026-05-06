@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { VisualizerStepCard } from "@/lib/components/activities/VisualizerStepCard";
 
@@ -270,6 +270,50 @@ export const ArtifactNotification: Story = {
         const canvas = within(canvasElement);
         expect(canvas.getAllByText(/quarterly_report.pdf/)).toHaveLength(2);
         expect(canvas.getByText("View File")).toBeInTheDocument();
+    },
+};
+
+export const ArtifactNotificationWithCustomHandler: Story = {
+    args: {
+        step: {
+            id: "s-10b",
+            type: "AGENT_ARTIFACT_NOTIFICATION",
+            timestamp: ts,
+            title: "Artifact: quarterly_report.pdf",
+            data: {
+                artifactNotification: {
+                    artifactName: "quarterly_report.pdf",
+                    version: 3,
+                    mimeType: "application/pdf",
+                    description: "Q4 Sales Report — opened via custom handler",
+                },
+            },
+            ...baseStep,
+        },
+        artifactLookup: fn(() => ({
+            filename: "quarterly_report.pdf",
+            mime_type: "application/pdf",
+            size: 2048,
+            last_modified: new Date().toISOString(),
+            version: 1,
+        })),
+        onViewArtifact: fn(),
+    },
+    play: async ({ canvasElement, args }) => {
+        const canvas = within(canvasElement);
+
+        // "View File" button is rendered
+        const viewFileButton = canvas.getByText("View File");
+        expect(viewFileButton).toBeInTheDocument();
+
+        // Click "View File" — should use the custom props instead of ChatContext
+        await userEvent.click(viewFileButton);
+
+        expect(args.artifactLookup).toHaveBeenCalledWith("quarterly_report.pdf");
+        expect(args.onViewArtifact).toHaveBeenCalledWith(
+            expect.objectContaining({ filename: "quarterly_report.pdf" }),
+            3,
+        );
     },
 };
 
