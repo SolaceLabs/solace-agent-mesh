@@ -78,6 +78,7 @@ from ...common.a2a.types import ArtifactInfo
 from ...common.agent_registry import AgentRegistry
 from ...common.constants import (
     DEFAULT_COMMUNICATION_TIMEOUT,
+    DEFAULT_MAX_LLM_CALLS_PER_TASK,
     HEALTH_CHECK_INTERVAL_SECONDS,
     HEALTH_CHECK_TTL_SECONDS,
     EXTENSION_URI_AGENT_TYPE,
@@ -844,7 +845,9 @@ class SamAgentComponent(SamComponentBase):
             # This ensures that real-time callbacks for status updates and artifact
             # creation can function correctly for all turns of a task.
             streaming_mode = StreamingMode.SSE
-            max_llm_calls = self.get_config("max_llm_calls_per_task", 20)
+            max_llm_calls = self.get_config(
+                "max_llm_calls_per_task", DEFAULT_MAX_LLM_CALLS_PER_TASK
+            )
             run_config = RunConfig(
                 streaming_mode=streaming_mode, max_llm_calls=max_llm_calls
             )
