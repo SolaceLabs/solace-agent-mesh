@@ -23,9 +23,9 @@ classifiers = [
 dependencies = [
     "google-adk==1.18.0",
     "a2a-sdk[http-server]==0.3.7",
-    "pydantic==2.11.9",
+    "pydantic==2.12.5",  # bumped from 2.11.9 — required by litellm==1.83.14
     "click==8.1.8",
-    "python-dotenv==1.1.1",
+    "python-dotenv==1.2.2",  # [CVE-2026-28684] Security fix: bumped from 1.1.1; also required by litellm==1.83.14
     "google-genai==1.49.0",
     "httpx==0.28.1",
     "jwcrypto==1.5.6",
@@ -48,7 +48,7 @@ dependencies = [
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.58.0",
-    "litellm==1.83.0",
+    "litellm==1.83.14",  # [GHSA-r75f-5x8p-qvmc, GHSA-xqmj-j6mv-4862, GHSA-v4p8-mg3p-g94g] Security fix: SQL injection, SSTI, and command execution vulnerabilities
     "markdownify==1.2.0",
     "beautifulsoup4==4.13.5",
     "jsonpath-ng==1.7.0",
@@ -68,7 +68,7 @@ dependencies = [
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
-    "openai==2.8.0",  # bumped from 1.99.9 — required by litellm==1.83.0 
+    "openai==2.24.0",  # bumped from 2.8.0 — required by litellm==1.83.14
     "rich==13.9.4",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
