@@ -62,6 +62,36 @@ class SyntheticTokenInvalid(Exception):
     """Token claims to be synthetic but fails validation. Caller should reject."""
 
 
+def _coerce_to_list(value: Any, field_name: str) -> list:
+    """Accept a list or a JSON-encoded string list — common shape from env-substituted YAML."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            import json
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            log.error(
+                "%s is a string but not valid JSON: %s. Treating as empty.",
+                field_name, exc,
+            )
+            return []
+        if not isinstance(parsed, list):
+            log.error(
+                "%s parsed from string but is %s, expected list. Treating as empty.",
+                field_name, type(parsed).__name__,
+            )
+            return []
+        return parsed
+    log.error(
+        "%s is type %s, expected list or JSON-string. Treating as empty.",
+        field_name, type(value).__name__,
+    )
+    return []
+
+
 @dataclass(frozen=True)
 class SyntheticAuthConfig:
     """Configuration for the synthetic auth path. All fields required when enabled."""
@@ -84,15 +114,39 @@ class SyntheticAuthConfig:
         Read synthetic config from a component. Returns None when disabled or
         the required fields are missing — fail closed.
         """
-        enabled = bool(component.get_config("synthetic_auth_enabled", False))
+        # Accept bool or string — env-substituted YAML often delivers strings
+        # like "true"/"false" rather than parsed booleans.
+        raw = component.get_config("synthetic_auth_enabled", False)
+        if isinstance(raw, str):
+            enabled = raw.strip().lower() in ("true", "1", "yes", "on")
+        else:
+            enabled = bool(raw)
         if not enabled:
+            log.info(
+                "Synthetic auth path is DISABLED (synthetic_auth_enabled=%r). "
+                "All bearer tokens will fall through to sam_access_token / IdP paths.",
+                raw,
+            )
             return None
 
         tenant_id = component.get_config("synthetic_auth_tenant_id")
         audience = component.get_config("synthetic_auth_audience")
         role_name = component.get_config("synthetic_auth_role_name")
-        appid_list = component.get_config("synthetic_auth_appid_allowlist", []) or []
+        appid_list = _coerce_to_list(
+            component.get_config("synthetic_auth_appid_allowlist", []),
+            "synthetic_auth_appid_allowlist",
+        )
         endpoint_list = component.get_config("synthetic_auth_endpoint_allowlist", []) or []
+        if isinstance(endpoint_list, str):
+            try:
+                import json
+                endpoint_list = json.loads(endpoint_list)
+            except json.JSONDecodeError as exc:
+                log.error(
+                    "synthetic_auth_endpoint_allowlist is a string but not valid JSON: %s. Disabling.",
+                    exc,
+                )
+                return None
 
         missing = [
             name for name, value in (

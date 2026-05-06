@@ -216,11 +216,19 @@ def create_oauth_middleware(component):
             self._synthetic_config = SyntheticAuthConfig.from_component(component)
             if self._synthetic_config is not None:
                 log.info(
-                    "AuthMiddleware: synthetic auth path enabled "
-                    "(role=%s, appids=%d, endpoints=%d)",
+                    "AuthMiddleware: synthetic auth path ENABLED "
+                    "(role=%s, appids=%d, endpoints=%d, issuers=%d)",
                     self._synthetic_config.role_name,
                     len(self._synthetic_config.appid_allowlist),
                     len(self._synthetic_config.endpoint_allowlist),
+                    len(self._synthetic_config.issuers),
+                )
+            else:
+                log.warning(
+                    "AuthMiddleware: synthetic auth path is NOT enabled. "
+                    "Bearer tokens will be tried against sam_access_token and IdP paths only. "
+                    "If you expected synthetic auth, check synthetic_auth_enabled and other "
+                    "synthetic_auth_* config values."
                 )
 
         async def __call__(self, scope, receive, send):
