@@ -22,26 +22,12 @@ This Quick Start uses **embedded Solace broker, PostgreSQL, and SeaweedFS** with
 
 ### Kubernetes Cluster Requirements
 
-#### Minimum Node Requirements
+#### Node Requirements
 
-The following table shows resource requirements for embedded broker mode (quickstart). These values account for all Agent Mesh components plus embedded PostgreSQL, SeaweedFS, and Solace broker.
-
-| Scenario | CPU Requests | Memory Requests | Recommended Node Size |
-|----------|--------------|-----------------|----------------------|
-| **Install only** (no upgrade support) | 3500m | 4164Mi | 4 vCPU / 5 GiB allocatable |
-| **Install + upgrade safety** | 4600m | 5424Mi | 6 vCPU / 7 GiB allocatable |
-| **Recommended with headroom** (kube-system, bursts, limits) | ~5200m | ~6500Mi | **6 vCPU / 8 GiB allocatable** |
+Use a node with **6 vCPU / 8 GiB allocatable RAM**. This accommodates Kubernetes system components, CPU/memory bursts during agent operations, Helm upgrade headroom, and resource limits.
 
 :::info Below-Minimum Behavior
 If your cluster does not meet the CPU or memory requests, the scheduler reports which pod could not be placed and why. The error identifies the specific unmet resource (for example, `0/1 nodes are available: Insufficient cpu`), not a generic installation failure.
-:::
-
-:::tip Recommended Node Specification
-Use **6 vCPU / 8 GiB RAM** nodes to accommodate:
-- Kubernetes system components (kube-system)
-- CPU/memory bursts during agent operations
-- Safe headroom for Helm upgrades
-- Resource limits (not just requests)
 :::
 
 **Node Instance Examples:**
@@ -50,6 +36,7 @@ Use **6 vCPU / 8 GiB RAM** nodes to accommodate:
 
 **Cluster Requirements:**
 - Kubernetes version 1.20 or later
+- Host `nofile` limit ≥ 1,048,576 — required for Solace broker startup. Cloud Kubernetes nodes meet this by default; local Kubernetes clusters may not. See [Solace broker open-file requirements](https://docs.solace.com/Software-Broker/System-Resource-Requirements.htm#concurrent-open-files-considerations) for details, or [how to fix this for local clusters](#nofile-limit-too-low-rootless-podman).
 
 ### Image Registry Configuration
 
@@ -79,6 +66,10 @@ Solace provides a JSON credentials file for authenticating with the GCR registry
 
 - `kubectl` configured to access your cluster
 - Helm 3.0 or later
+
+:::note Running a local Kubernetes cluster?
+If you're evaluating SAM on a local cluster rather than a cloud-managed Kubernetes service, review the [Local Kubernetes troubleshooting](#local-kubernetes-apple-silicon--podman) section before proceeding — there are known issues that can cause silent failures.
+:::
 
 ## Step 1: Install with Zero Configuration
 
@@ -228,3 +219,41 @@ persistence-layer:
     persistence:
       storageClassName: "gp3"
 ```
+
+### Local Kubernetes (Apple Silicon / Podman)
+
+These issues affect local Kubernetes environments running on Apple Silicon with rootless Podman. Cloud Kubernetes deployments are not affected.
+
+#### `nofile` limit too low (rootless Podman)
+
+Rootless Podman caps `nofile` at 524,288, which is below the 1,048,576 minimum required for broker startup. The broker pod may start but fail silently. Fix this by raising the limit in both `containers.conf` and a systemd override inside the Podman VM:
+
+1. Edit `~/.config/containers/containers.conf`:
+
+   ```ini
+   [containers]
+   default_ulimits = ["nofile=1048576:1048576"]
+   ```
+
+2. Inside the Podman machine (`podman machine ssh`), create a systemd drop-in:
+
+   ```bash
+   sudo mkdir -p /etc/systemd/system/user@.service.d
+   sudo tee /etc/systemd/system/user@.service.d/nofile.conf <<EOF
+   [Service]
+   LimitNOFILE=1048576
+   EOF
+   sudo systemctl daemon-reload
+   ```
+
+3. Restart the Podman machine: `podman machine stop && podman machine start`
+
+#### Pod-to-pod DNS broken (minikube default CNI)
+
+Minikube's default CNI breaks pod-to-pod DNS on this stack. Start minikube with `--cni=calico`:
+
+```bash
+minikube start --cni=calico <other-flags>
+```
+
+See [minikube issue #18978](https://github.com/kubernetes/minikube/issues/18978) for details.
