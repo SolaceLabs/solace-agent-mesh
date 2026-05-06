@@ -15,7 +15,7 @@ Offline evaluations provide a browser-based interface for managing the building 
 
 ## What Offline Evaluations Do
 
-Offline evaluations let you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-a-judge evaluator, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
+Offline evaluations let you continuously measure the quality of your deployed agents without modifying their configuration or writing test suite files. You define a dataset of prompts, select or create an LLM-as-a-judge evaluator or choose from pre-set LLM and heuristic evaluators, combine them into an experiment that targets a specific agent, and trigger runs on demand. The platform sends each prompt to the agent through the event broker, captures the response, scores it using the evaluator, and stores the results for inspection and comparison.
 
 The key differences from the CLI evaluation workflow are:
 
@@ -92,13 +92,13 @@ These variables control how long the service waits for and manages individual ev
 
 ## Reports
 
-The Reports page is the entry point for the Evaluations section. It shows a paginated table of all run groups — one row per time you clicked "Run" on an experiment. From this page you can:
+The Reports page is the entry point for the Evaluations section. It shows a paginated table of all reports — one row per time you clicked "Run" on an experiment. From this page you can:
 
-- See the status, start time, duration, and result count for each run group.
-- Select a run group row to open the experiment report for that run.
-- Filter the run group list by experiment name or target agent.
+- See the status, start time, duration, and result count for each report.
+- Select a report row to open the experiment report for that run.
+- Filter the report list by experiment name or target agent.
 
-A run group corresponds to one trigger of a specific experiment. If the experiment targets multiple language model configurations, each configuration produces one run within the group.
+A report corresponds to one trigger of a specific experiment. If the experiment targets multiple language model configurations, each configuration produces one run within the report.
 
 Each run group preserves a snapshot of the experiment and evaluator definitions taken when you triggered the run, so editing the experiment afterward does not change historical scores. If you edit the experiment after a run is triggered, the run group is marked with an "outdated configuration" indicator on the Reports page — a signal that the live experiment no longer matches the configuration used to produce these results. Trigger a fresh run to compare against the current configuration.
 
@@ -110,7 +110,7 @@ The Experiment Lab contains three tabs — Datasets, Evaluators, and Experiments
 
 ### Datasets {#datasets}
 
-A dataset gives your agents a benchmark for experiments. It contains a set of prompts — optionally paired with expected responses — that are sent to the agent during a run. Add examples manually or upload a file to get started, then use the dataset across as many experiments as you need.
+A dataset gives your agents a benchmark for experiments. It contains a set of prompts — optionally paired with expected responses — that are sent to the agent during a run. Add examples manually, import a file, or generate them with AI assistance to get started, then use the dataset across as many experiments as you need.
 
 Each prompt is called an example. You can optionally include an expected response with each example; evaluators that use the `{{Expected Response}}` placeholder will compare the agent's output against it.
 
@@ -148,7 +148,7 @@ For JSON, the body must be an array of objects. Each object must have a `prompt`
 
 #### AI-assisted dataset generation
 
-The "Generate" option creates a dataset populated by the orchestrator agent based on the target agent's metadata. Select a target agent, specify the number of examples (1–100), and optionally provide a focus hint that the orchestrator treats as a hard requirement for every generated example.
+The "Generate" option creates a dataset populated by the orchestrator agent based on the target agent's metadata. Select a target agent, specify the number of examples (1–100), and optionally provide additional instructions (for example, edge cases on refusals, multi-step reasoning, or ambiguous inputs) that the orchestrator applies as requirements for every generated example.
 
 :::warning
 The orchestrator generates examples without calling the target agent. It uses the target agent's description, system prompt, and skill metadata. If the agent's metadata is sparse, the generated examples may not reflect the agent's actual capabilities. Review all generated examples before running an experiment.
@@ -160,13 +160,13 @@ You can export all examples in a dataset as CSV or JSON. Use the export button o
 
 ### Evaluators {#evaluators}
 
-An evaluator defines how the agent's response is scored. Define your criteria, and an LLM automatically scores every agent response in your experiments against the provided dataset — giving you clear, actionable insight into how well your agents are performing.
+An evaluator defines how the agent's response is scored. Define your criteria, and the platform automatically scores every agent response in your experiments against the provided dataset — giving you clear, actionable insight into how well your agents are performing.
 
 Two types are available.
 
 #### Heuristic evaluators
 
-Heuristic evaluators are built-in and cannot be created or deleted through the UI. They are seeded by the platform at startup. Available heuristic types are:
+Heuristic evaluators are built-in and cannot be created or deleted through the UI. They are created by the platform at startup. Available heuristic types are:
 
 - `rouge`: Weighted ROUGE F1 score (20% R1, 30% R2, 50% RL) measuring text overlap with the expected response.
 - `levenshtein`: Normalized edit-distance similarity (0.0–1.0) comparing the response to the expected response.
@@ -175,7 +175,7 @@ Heuristic evaluators are built-in and cannot be created or deleted through the U
 
 Heuristic evaluators that use an expected response produce a score of 0.0 when the example has no expected response.
 
-System-seeded evaluators cannot be modified or deleted. The name column shows which evaluators are system-seeded.
+System-created evaluators cannot be modified or deleted. The name column shows which evaluators are system-created.
 
 #### LLM-as-a-judge evaluators
 
@@ -269,7 +269,7 @@ An experiment combines a dataset, a target agent, one or more language model con
 3. Select the target agent from the dropdown.
 4. Select the dataset to use.
 5. Select one or more evaluators (up to three). Designate one as the primary evaluator; its score is used for the watchlist trend chart and for the "outdated configuration" indicator on the Reports page.
-6. Select one or more model configurations (up to three). Each configuration produces a separate run within the same run group when you trigger the experiment.
+6. Select one or more model configurations (up to three). Each configuration produces a separate run within the same report when you trigger the experiment.
 7. Optionally expand **Advanced Options** to set runs per example (1–5, default 2). Higher values reduce variance by running each example multiple times and averaging the scores.
 8. Save the experiment.
 
@@ -294,7 +294,7 @@ You can cancel a run while it is pending or in progress. Cancellation is not imm
 
 ## Viewing Results
 
-Select a run group from the Reports table to open the experiment report. The report shows a grid of examples as rows and model configurations as columns. Each cell displays the evaluator score for that example–model pair.
+Select a report from the Reports table to open the experiment report. The report shows a grid of examples as rows and model configurations as columns. Each cell displays the evaluator score for that example–model pair.
 
 Click an example row to open the example inspector side panel. The panel shows:
 

@@ -89,6 +89,8 @@ When you deploy an agent, the system records its configuration. If you later edi
 
 Downloading agents as YAML files provides portability and version control. These files support backing up agent configurations, sharing configurations between deployments, tracking configuration changes in version control systems, and deploying agents using infrastructure-as-code tools.
 
+## Offline Evaluations
+
 Once an agent is deployed and available in Chat, you can set up offline evaluations to measure and track its quality over time. Evaluations let you run a curated set of prompts against the live agent, score the responses, and compare results across model updates or configuration changes — without modifying the running system. See [Offline Evaluations](offline-evaluations.md).
 
 ## Downloading Agent Configurations

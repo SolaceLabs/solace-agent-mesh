@@ -5,27 +5,19 @@ sidebar_position: 700
 
 # Agent Mesh Enterprise
 
-Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. This version provides:
-
-- Security through single sign-on integration
-- Access control through role-based permissions
-- Data management for cost optimization
-- Observability tools for monitoring agent workflows and system performance
-- Offline evaluations for measuring and tracking agent quality over time
-
-Enterprise is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
+Agent Mesh Enterprise extends the open-source framework with features that enterprise environments require. It is available as a self-managed container image that you can deploy in your own infrastructure. You can obtain access by joining the pilot program at [solace.com/solace-agent-mesh-pilot-registration](https://solace.com/solace-agent-mesh-pilot-registration/).
 
 ## Enterprise Features
 
-The Enterprise version includes several capabilities beyond the Community edition.
+Agent Mesh Enterprise provides the following capabilities beyond the Community edition:
 
-Authentication and authorization integrate with your existing identity systems through SSO, eliminating the need for separate credentials and maintaining security standards. You can configure role-based access control to implement authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways. The Platform Service shares this same authentication and authorization stack with the WebUI Gateway, so a single configuration secures both services. For details, see [Authentication and Authorization](platform-service-auth.md).
+- **Authentication and authorization** — Integrates with your existing identity systems through SSO, eliminating the need for separate credentials and maintaining security standards. You can configure role-based access control to implement authorization policies that determine which agents and resources each user can access through the Agent Mesh Gateways. The Platform Service shares this same authentication and authorization stack with the WebUI Gateway, so a single configuration secures both services. For details, see [Authentication and Authorization](platform-service-auth.md).
 
-Data management features help you optimize costs and improve accuracy. Filtering capabilities reduce unnecessary compute expenses, and data governance helps prevent hallucinations by controlling what information reaches your language models.
+- **Data management** — Helps you optimize costs and improve accuracy. Filtering capabilities reduce unnecessary compute expenses, and data governance helps prevent hallucinations by controlling what information reaches your language models.
 
-Observability tools provide visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, allowing you to monitor performance, diagnose issues, and understand system behavior.
+- **Observability** — Provides visibility into your agent ecosystem. The built-in workflow viewer tracks LLM interactions and agent communications in real time, allowing you to monitor performance, diagnose issues, and understand system behavior.
 
-Offline evaluations let you measure and track agent quality against a prepared set of prompts without touching the running system. You define datasets of example prompts, create reusable evaluators that score responses, combine them into experiments that target specific agents, and trigger runs on demand. Results are stored in the database and can be compared across model updates, prompt changes, or configuration adjustments over time.
+- **Offline evaluations** — Lets you measure and track agent quality against a prepared set of prompts without touching the running system. You define datasets of example prompts, create reusable evaluators that score responses, combine them into experiments that target specific agents, and trigger runs on demand. Results are stored in the database and can be compared across model updates, prompt changes, or configuration adjustments over time.
 
 ## Getting Started with Enterprise
 
