@@ -1,22 +1,11 @@
 ---
 title: OpenAPI Tools
-sidebar_position: 16
+sidebar_position: 20
 ---
 
 import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
 
 This guide walks you through configuring OpenAPI-based tools for Agent Mesh Enterprise. You will learn how to integrate REST APIs into your agents using OpenAPI specifications, enabling them to interact with any OpenAPI-compliant service.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Understanding OpenAPI Tools](#understanding-openapi-tools)
-- [Prerequisites](#prerequisites)
-- [Configuration Steps](#configuration-steps)
-- [Tool Filtering](#tool-filtering)
-- [Authentication](#authentication)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
 
 ## Overview
 

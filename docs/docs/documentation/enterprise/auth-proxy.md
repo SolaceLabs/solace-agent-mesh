@@ -1,6 +1,6 @@
 ---
 title: Authentication Proxy
-sidebar_position: 12
+sidebar_position: 17
 ---
 
 # Authentication Proxy
