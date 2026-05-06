@@ -9,7 +9,7 @@ Moving your Agent Mesh from development to production requires careful considera
 
 ## Selecting Your Deployment Strategy
 
-Production deployments require different considerations than development environments, particularly around scalability, reliability, and security. You can choose containerized deployments using Docker for single-node setups, Kubernetes orchestration for scalable architectures, or hybrid approaches that separate components for independent scaling. Each strategy offers distinct advantages depending on your operational requirements. For comprehensive guidance on evaluating and implementing these approaches, see [Choosing Deployment Options](deployment-options.md).
+Production deployments require different considerations than development environments, particularly around scalability, reliability, and security. You can choose containerized deployments using Docker for single-node setups or hybrid approaches that separate components for independent scaling. For enterprise deployments requiring orchestration and scalability, see [Enterprise Features](../enterprise/enterprise.md). For comprehensive guidance on evaluating and implementing deployment approaches, see [Choosing Deployment Options](deployment-options.md).
 
 ## Observing Your Agent Mesh
 

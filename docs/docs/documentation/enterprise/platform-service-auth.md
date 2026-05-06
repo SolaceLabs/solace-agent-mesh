@@ -1,6 +1,6 @@
 ---
 title: Authentication and Authorization
-sidebar_position: 11
+sidebar_position: 16
 ---
 
 ## Overview

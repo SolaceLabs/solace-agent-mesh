@@ -82,58 +82,11 @@ services:
 
 ### Kubernetes
 
-For Kubernetes deployments:
+:::info Enterprise Feature
+For Kubernetes proxy configuration with Agent Mesh Enterprise, configure proxy environment variables in your Helm values. See [Production Kubernetes Installation](../enterprise/production-kubernetes.md) for deployment guidance.
 
-Ensure configmap:
-```shell
-kubectl create configmap mitm-ca \
-  --from-file=mitmproxy-ca.pem=./certs/mitmproxy-ca.pem \
-  -n my-namespace
-
-```
-
-reference in deployment manifest:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: agent-mesh
-  namespace: my-namespace
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: agent-mesh
-  template:
-    metadata:
-      labels:
-        app: agent-mesh
-    spec:
-      containers:
-        - name: agent-mesh
-          image: solace/agent-mesh:latest
-          env:
-            - name: HTTPS_PROXY
-              value: "http://my-proxy.example.com:8080"
-            - name: REQUESTS_CA_BUNDLE
-              value: "/etc/ssl/certs/mitmproxy-ca.pem"
-            - name: SSL_CERT_FILE
-              value: "/etc/ssl/certs/mitmproxy-ca.pem"
-          volumeMounts:
-            - name: mitm-ca
-              mountPath: /etc/ssl/certs/mitmproxy-ca.pem
-              subPath: mitmproxy-ca.pem
-              readOnly: true
-      volumes:
-        - name: mitm-ca
-          configMap:
-            name: mitm-ca
-            items:
-              - key: mitmproxy-ca.pem
-                path: mitmproxy-ca.pem
-
-```
+When `HTTP_PROXY`/`HTTPS_PROXY` is set, the chart automatically routes the `sam-agent-deployer`'s in-cluster Kubernetes API calls around the proxy (via the [`samDeployment.agentDeployer.kubeApiHost`](../enterprise/production-kubernetes.md#values-reference) value), so agent deployments work out of the box without special `NO_PROXY` overrides.
+:::
 
 ## Certificate Bundle Merging
 

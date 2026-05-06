@@ -1,6 +1,6 @@
 ---
 title: Connectors
-sidebar_position: 10
+sidebar_position: 13
 ---
 
 import NetworkAccessRequiredSomeFeatures from '@site/docs/partials/network-access-required-some-features.mdx';
