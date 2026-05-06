@@ -35,9 +35,9 @@ Use offline evaluations when you want to measure and track agent quality over ti
 
 Before using this feature, verify that you have:
 
-- Agent Mesh Enterprise installed and running. For installation instructions, see [Installing Agent Mesh Enterprise](installation.md).
+- Agent Mesh Enterprise installed and running. For installation instructions, see [Installing Agent Mesh Enterprise](quickstart-kubernetes.md).
 - At least one agent deployed and reachable through the event broker.
-- The Platform Service running with a database configured. SQLite works for development; use PostgreSQL for production. For database configuration guidance, see [Installing Agent Mesh Enterprise](installation.md).
+- The Platform Service running with a database configured. SQLite works for development; use PostgreSQL for production. For database configuration guidance, see [Installing Agent Mesh Enterprise](quickstart-kubernetes.md).
 - Object storage configured if you want to persist execution data and artifact snapshots beyond the local filesystem. See [Storage Configuration](#storage-configuration) below.
 
 ## Storage Configuration
@@ -346,6 +346,6 @@ An active (`pending` or `running`) run is blocking deletion. Cancel all active r
 ## Related Topics
 
 - [Evaluating Agents](../developing/evaluations.md) — CLI-based evaluation workflow for Community and Enterprise deployments.
-- [Installing Agent Mesh Enterprise](installation.md) — Installation and database configuration.
+- [Installing Agent Mesh Enterprise](quickstart-kubernetes.md) — Installation and database configuration.
 - [Setting Up RBAC](rbac-setup-guide.md) — Configure the `sam:evaluations:read`, `sam:evaluations:write`, and `sam:evaluations:execute` permission scopes to control who can access the Evaluations UI.
 - [Model Configurations](../installing-and-configuring/model_configurations.md) — Create and manage the model configurations you assign to experiments and LLM-as-a-judge evaluators.
