@@ -3,6 +3,8 @@ title: Kubernetes Quick Start
 sidebar_position: 4
 ---
 
+import HelmPreInstallCheck from '@site/docs/partials/helm-pre-install-check.mdx';
+
 # Kubernetes Quick Start
 
 Deploy Solace Agent Mesh Enterprise on Kubernetes in ~10 minutes using Helm with **zero required configuration**.
@@ -84,6 +86,8 @@ helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
 
 The chart defaults are optimized for quickstart evaluation. No values file is needed beyond the credentials. After installation completes, the terminal displays post-install instructions including the port-forward command and the URL to access the Console UI.
 
+Note: By default, Helm pre-install checks are run. If they fail, you will see an `INSTALLATION FAILED` error. See [Helm pre-install check failed](#helm-pre-install-check-failed) for how to view the logs.
+
 **What gets deployed** (chart defaults):
 
 - **Embedded Solace broker** - Pre-configured message broker for evaluation (`global.broker.embedded: true`)
@@ -155,6 +159,12 @@ The embedded PostgreSQL, SeaweedFS, and Solace broker are designed for evaluatio
 :::
 
 ## Troubleshooting
+
+### Helm pre-install check failed
+
+<HelmPreInstallCheck />
+
+### Post-install health checks
 
 If something looks wrong after accessing the Console, verify Agent Mesh is healthy:
 

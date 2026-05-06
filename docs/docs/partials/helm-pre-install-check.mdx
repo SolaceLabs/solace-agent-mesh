@@ -1,0 +1,27 @@
+When `samDoctor.enabled=true` (the default), Agent Mesh runs a pre-install hook Job before any workload pods are created. By default, a failing check blocks `helm install` and `helm upgrade`. To see the diagnostic report:
+
+```bash
+# Find the hook job (name includes your Helm release name):
+kubectl get jobs -n <namespace> | grep sam-doctor
+
+# View the diagnostic report using the actual job name:
+kubectl logs job/<job-name> -n <namespace>
+```
+
+The report lists each check with a `PASS`, `WARN`, `FAIL`, or `SKIP` status and a reason for any failure.
+
+**Bypassing the check**
+
+To demote failures to warnings and always proceed, set the following in your Helm values:
+
+```yaml
+samDoctor:
+  failOnError: false
+```
+
+To skip the hook entirely, set the following in your Helm values:
+
+```yaml
+samDoctor:
+  enabled: false
+```
