@@ -1305,6 +1305,7 @@ def _get_model_context_limit(
             info = get_model_info(name)
             return info.get("max_input_tokens")
         except Exception:
+            log.warning("Failed to lookup model info for '%s'", name, exc_info=True)
             return None
 
     result = _try_lookup(model_name)
