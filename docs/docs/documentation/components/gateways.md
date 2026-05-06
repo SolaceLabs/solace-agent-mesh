@@ -37,6 +37,17 @@ Gateways are the external interfaces that connect various systems to the A2A age
 The following diagram illustrates the complete flow of information through a gateway in Agent Mesh:
 
 ```mermaid
+%%{init: {
+        'theme': 'base',
+        'themeVariables': {
+            'actorBkg': '#00C895',
+            'actorBorder': '#00C895',
+            'actorTextColor': '#000000',
+            'noteBkgColor': '#FFF7C2',
+            'noteTextColor': '#000000',
+            'noteBorderColor': '#FFF7C2'
+        }
+}}%%
 sequenceDiagram
     participant External as External System/User
     participant Gateway
@@ -68,19 +79,6 @@ sequenceDiagram
             Gateway-->>External: Send Formatted Response
         end
     end
-
-    %%{init: {
-        'theme': 'base',
-        'themeVariables': {
-            'actorBkg': '#00C895',
-            'actorBorder': '#00C895',
-            'actorTextColor': '#000000',
-            'noteBkgColor': '#FFF7C2',
-            'noteTextColor': '#000000',
-            'noteBorderColor': '#FFF7C2'
-        }
-    }}%%
-
 ```
 
 ## Available Gateways
