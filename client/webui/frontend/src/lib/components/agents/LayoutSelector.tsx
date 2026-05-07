@@ -16,7 +16,7 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, o
     // Don't render if there are no layouts or only one layout
     return layouts && layouts.length > 1 ? (
         <div className={`flex items-center space-x-1 ${className}`}>
-            <span className={`text-sm font-semibold`}>Layout:</span>
+            <span className="hidden text-sm font-semibold sm:inline">Layout:</span>
             <div className="flex gap-1 rounded-sm p-1">
                 {layouts.map(layout => {
                     const Icon = layout.icon;
@@ -25,7 +25,7 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, o
                     return (
                         <Button variant="ghost" size="sm" key={layout.id} onClick={() => onLayoutChange(layout.id)} title={layout.label} className={isActive ? "bg-(--secondary-w20)" : ""}>
                             {Icon && <Icon size={14} />}
-                            <span>{layout.label}</span>
+                            <span className="hidden sm:inline">{layout.label}</span>
                         </Button>
                     );
                 })}

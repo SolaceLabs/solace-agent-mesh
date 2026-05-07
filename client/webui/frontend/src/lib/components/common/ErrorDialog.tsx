@@ -17,17 +17,17 @@ interface ErrorDialogProps {
 export const ErrorDialog: React.FC<ErrorDialogProps> = ({ title, subtitle, error, errorDetails, open, onOpenChange }) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-xl max-w-xl sm:max-w-xl">
+            <DialogContent className="w-[95vw] max-w-xl sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
+                    <DialogTitle className="flex min-w-0 flex-row gap-1 break-words">{title}</DialogTitle>
                     <DialogDescription>{subtitle}</DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-4">
                     <div className="flex flex-row items-center gap-2">
                         <CircleX className="h-6 w-6 shrink-0 self-start text-(--error-wMain)" />
-                        <div>{error}</div>
+                        <div className="min-w-0 break-words">{error}</div>
                     </div>
-                    {errorDetails && <div>{errorDetails}</div>}
+                    {errorDetails && <div className="min-w-0 break-words">{errorDetails}</div>}
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>

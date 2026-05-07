@@ -37,7 +37,9 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
                                 {filteredAgents.map(agent => (
-                                    <AgentDisplayCard key={agent.name} agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
+                                    <div key={agent.name} className="w-full sm:w-auto">
+                                        <AgentDisplayCard agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
+                                    </div>
                                 ))}
                             </div>
                         </div>

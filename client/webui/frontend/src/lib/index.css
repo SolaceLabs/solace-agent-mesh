@@ -98,6 +98,17 @@
     .card-surface-hover:hover {
         box-shadow: 0px 4px 12px 0px var(--stateLayer-w10);
     }
+
+    /* Cross-browser "hide the scrollbar but keep scroll behavior" utility.
+       Used for compact horizontal nav rows (e.g. breadcrumbs) where a visible
+       scrollbar would dominate the small element. */
+    .scrollbar-hide {
+        scrollbar-width: none;             /* Firefox */
+        -ms-overflow-style: none;          /* legacy IE/Edge */
+    }
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;                     /* Chromium / WebKit */
+    }
 }
 
 .overlay-backdrop {
@@ -124,6 +135,13 @@
         color: var(--primary-text-wMain);
         font-family: "Rubik", sans-serif;
         font-size: 14px;
+        /* Reserve space for device safe areas (notch, status bar, gesture nav)
+           so headers don't get clipped at the top and bottom controls don't
+           sit behind the system bar on Android/iOS. The reported insets are
+           often a bit larger than the visible system bar — trim ~8px so the
+           layout sits closer to the chrome without colliding with it. */
+        padding-top: max(0px, env(safe-area-inset-top) - 8px);
+        padding-bottom: max(0px, env(safe-area-inset-bottom) - 4px);
     }
 
     /* Global scrollbar theming */

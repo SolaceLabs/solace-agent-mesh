@@ -2,6 +2,7 @@ import React from "react";
 import { XIcon } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { useIsMobile } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
 interface AttachmentCardShellProps {
@@ -26,6 +27,59 @@ interface AttachmentCardShellProps {
  */
 export const AttachmentCardShell: React.FC<AttachmentCardShellProps> = ({ filename, preview, inlineText, tooltipText, removeTooltip = "Remove", onClick, onRemove }) => {
     const clickable = Boolean(onClick);
+    const isMobile = useIsMobile();
+
+    // On mobile, render a compact thumbnail (icon/preview only, filename via tooltip)
+    // to fit multiple attachments alongside the input without dominating the viewport.
+    if (isMobile) {
+        const thumb = (
+            <div
+                className={cn("relative inline-flex size-16 overflow-hidden rounded-lg border bg-(--secondary-w10) shadow-sm transition-colors", clickable && "cursor-pointer hover:border-(--primary-w20)")}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? onClick : undefined}
+                onKeyDown={
+                    clickable
+                        ? event => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  onClick?.();
+                              }
+                          }
+                        : undefined
+                }
+                aria-label={filename}
+                title={tooltipText ?? filename}
+            >
+                {onRemove && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={event => {
+                            event.stopPropagation();
+                            onRemove();
+                        }}
+                        className="absolute -top-1.5 -left-1.5 z-10 h-5 w-5 rounded-full border bg-(--background-w10) p-0 shadow-sm hover:bg-(--secondary-w10)"
+                        tooltip={removeTooltip}
+                        tooltipSide="left"
+                    >
+                        <XIcon className="h-3 w-3" />
+                    </Button>
+                )}
+                {inlineText ?? preview}
+            </div>
+        );
+
+        if (!clickable) return thumb;
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>{thumb}</TooltipTrigger>
+                <TooltipContent side="top">
+                    <p>{tooltipText ?? filename}</p>
+                </TooltipContent>
+            </Tooltip>
+        );
+    }
 
     const body = (
         <div

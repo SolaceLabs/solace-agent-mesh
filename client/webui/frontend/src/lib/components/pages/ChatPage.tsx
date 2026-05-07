@@ -6,7 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsMobile, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -50,6 +50,7 @@ export function ChatPage() {
     const { configFeatureEnablement } = useConfigContext();
     const useNewNav = configFeatureEnablement?.newNavigation ?? false;
     const chatSharingEnabled = useIsChatSharingEnabled();
+    const isMobile = useIsMobile();
     const location = useLocation();
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
@@ -514,10 +515,7 @@ export function ChatPage() {
     return (
         <PageLayout className="relative">
             {!useNewNav && (
-                <div
-                    inert={isSessionSidePanelCollapsed}
-                    className={`absolute top-0 left-0 z-20 h-screen transition-[transform,visibility] duration-300 ${isSessionSidePanelCollapsed ? "invisible -translate-x-full delay-300" : "visible translate-x-0"}`}
-                >
+                <div inert={isSessionSidePanelCollapsed} className={`absolute top-0 left-0 z-20 h-dvh transition-[transform,visibility] duration-300 ${isSessionSidePanelCollapsed ? "invisible -translate-x-full delay-300" : "visible translate-x-0"}`}>
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
@@ -538,7 +536,7 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        useNewNav ? (
+                        isMobile ? null : useNewNav ? (
                             <ChatSessionDialog />
                         ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">

@@ -9,7 +9,7 @@ import type { AttachedArtifactRef } from "@/lib/types";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
+import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled, useIsMobile } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -92,6 +92,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
     const mentionsEnabled = useIsMentionsEnabled();
+    const isMobile = useIsMobile();
 
     // File selection support
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -811,6 +812,8 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     let inputPlaceholder: string;
     if (isRecording) {
         inputPlaceholder = "Recording...";
+    } else if (isMobile) {
+        inputPlaceholder = "Ask anything";
     } else if (mentionsEnabled) {
         inputPlaceholder = "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)";
     } else {
@@ -819,7 +822,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
 
     return (
         <div
-            className={`rounded-lg border bg-(--background-w10) p-4 shadow-sm ${isDragging ? "border-dotted border-(--primary-wMain) bg-(--background-w20)" : ""}`}
+            className={`rounded-lg bg-(--background-w10) shadow-sm ${isMobile ? "p-2" : "border p-4"} ${isDragging ? "border border-dotted border-(--primary-wMain) bg-(--background-w20)" : ""}`}
             onDragEnter={handleDragEnter}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -1064,29 +1067,131 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 />
             )}
 
-            {/* Chat Input with Mention Chips */}
-            <MentionContentEditable
-                ref={chatInputRef}
-                value={inputValue}
-                onChange={handleInputChange}
-                cursorPosition={desiredCursorPosition}
-                mentionMap={mentionMap}
-                disambiguatedIds={disambiguatedIds}
-                placeholder={inputPlaceholder}
-                className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
-                onPaste={handlePaste}
-                disabled={isRecording}
-                onKeyDown={event => {
-                    // Don't handle Enter if mentions or prompts popup is open
-                    if (showMentionsCommand || showPromptsCommand) {
-                        return;
-                    }
+            {(() => {
+                /* Shared interactive controls — declared once and placed differently on mobile vs desktop. */
+                const chatInput = (
+                    <MentionContentEditable
+                        ref={chatInputRef}
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        cursorPosition={desiredCursorPosition}
+                        mentionMap={mentionMap}
+                        disambiguatedIds={disambiguatedIds}
+                        placeholder={inputPlaceholder}
+                        className="max-h-50 resize-none overflow-y-auto rounded-2xl border-none p-3 text-base/normal shadow-none focus-visible:outline-none"
+                        onPaste={handlePaste}
+                        disabled={isRecording}
+                        onKeyDown={event => {
+                            if (showMentionsCommand || showPromptsCommand) {
+                                return;
+                            }
+                            if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
+                                onSubmit(event);
+                            }
+                        }}
+                    />
+                );
 
-                    if (event.key === "Enter" && !event.shiftKey && isSubmittingEnabled) {
-                        onSubmit(event);
-                    }
-                }}
-            />
+                const mobileIconBtnClass = "size-12 shrink-0 rounded-full border border-(--secondary-w20) bg-(--secondary-w10) p-0 hover:bg-(--secondary-w20)";
+                const paperclipBtn = artifactAttachmentEnabled ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" disabled={isResponding} tooltip="Attach" className={isMobile ? mobileIconBtnClass : ""}>
+                                <Paperclip className="size-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                            <DropdownMenuItem onSelect={() => handleFileSelect()}>
+                                <Upload className="text-(--primary-wMain)" />
+                                <span>Upload from computer</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => setShowAttachArtifactDialog(true)}>
+                                <Link2 className="text-(--primary-wMain)" />
+                                <span>Attach existing artifact</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : (
+                    <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file" className={isMobile ? mobileIconBtnClass : ""}>
+                        <Paperclip className="size-4" />
+                    </Button>
+                );
+
+                const agentSelect = (
+                    <Select value={selectedAgentName} onValueChange={agentName => handleAgentSelection(agentName)} disabled={isResponding || agents.length === 0}>
+                        <SelectTrigger className={isMobile ? "min-w-0 flex-1" : "min-w-0 flex-1 sm:w-[250px] sm:flex-none"}>
+                            <SelectValue placeholder="Select an agent..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {agents
+                                .filter(agent => !agent.isWorkflow)
+                                .map(agent => (
+                                    <SelectItem key={agent.name} value={agent.name}>
+                                        {agent.displayName || agent.name}
+                                    </SelectItem>
+                                ))}
+                        </SelectContent>
+                    </Select>
+                );
+
+                const contextIndicator = sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />;
+                const micBtn = sttEnabled && settings.speechToText && (
+                    <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} className={isMobile ? mobileIconBtnClass : ""} />
+                );
+                const sendBtn =
+                    isResponding && !isCancelling ? (
+                        <Button data-testid="cancel" className={isMobile ? `${mobileIconBtnClass} ml-auto` : "ml-auto gap-1.5"} onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Stop">
+                            <Ban className="size-4" />
+                            {!isMobile && <span className="hidden @[480px]:inline">Stop</span>}
+                        </Button>
+                    ) : (
+                        <Button
+                            data-testid="sendMessage"
+                            variant={isMobile ? "default" : "ghost"}
+                            className={isMobile ? "ml-auto size-12 shrink-0 rounded-full p-0" : "ml-auto gap-1.5"}
+                            onClick={onSubmit}
+                            disabled={!isSubmittingEnabled}
+                            tooltip="Send message"
+                        >
+                            <Send className="size-4" />
+                        </Button>
+                    );
+
+                if (isMobile) {
+                    return (
+                        <>
+                            {/* Row 1: paperclip · textarea · mic · send (each visually distinct) */}
+                            <div className="flex items-end gap-2">
+                                {paperclipBtn}
+                                <div className="min-w-0 flex-1 rounded-2xl border border-(--secondary-w20) bg-(--background-w10)">{chatInput}</div>
+                                {micBtn}
+                                {sendBtn}
+                            </div>
+                            {/* Row 2: agent · context */}
+                            <div className="mt-2 flex items-center gap-2">
+                                {agentSelect}
+                                {contextIndicator}
+                            </div>
+                        </>
+                    );
+                }
+
+                return (
+                    <>
+                        {chatInput}
+                        <div className="@container relative m-2 flex min-w-[420px] items-center gap-2">
+                            {paperclipBtn}
+                            <div className="hidden @[480px]:block">Agent: </div>
+                            {agentSelect}
+                            {/* Spacer to push buttons to the right */}
+                            <div className="flex-1" />
+                            {contextIndicator}
+                            {micBtn}
+                            {sendBtn}
+                        </div>
+                    </>
+                );
+            })()}
 
             {/* Standalone preview Dialog for attached artifacts (cross-session safe). */}
             {artifactAttachmentEnabled && (
@@ -1122,83 +1227,6 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
             {artifactAttachmentEnabled && (
                 <AttachArtifactDialog isOpen={showAttachArtifactDialog} onClose={() => setShowAttachArtifactDialog(false)} onAttach={handleAttachArtifacts} alreadyAttachedUris={selectedArtifactRefs.map(a => a.uri).filter((u): u is string => !!u)} />
             )}
-
-            {/* Buttons */}
-            <div className="@container relative m-2 flex min-w-0 items-center gap-2 sm:min-w-[420px]">
-                {artifactAttachmentEnabled ? (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" disabled={isResponding} tooltip="Attach">
-                                <Paperclip className="size-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-56">
-                            <DropdownMenuItem
-                                onSelect={() => {
-                                    handleFileSelect();
-                                }}
-                            >
-                                <Upload className="text-(--primary-wMain)" />
-                                <span>Upload from computer</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                                onSelect={() => {
-                                    setShowAttachArtifactDialog(true);
-                                }}
-                            >
-                                <Link2 className="text-(--primary-wMain)" />
-                                <span>Attach existing artifact</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : (
-                    <Button variant="ghost" onClick={handleFileSelect} disabled={isResponding} tooltip="Attach file">
-                        <Paperclip className="size-4" />
-                    </Button>
-                )}
-
-                <div className="hidden @[480px]:block">Agent: </div>
-                <Select
-                    value={selectedAgentName}
-                    onValueChange={agentName => {
-                        handleAgentSelection(agentName);
-                    }}
-                    disabled={isResponding || agents.length === 0}
-                >
-                    <SelectTrigger className="w-full min-w-0 sm:w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents
-                            .filter(agent => !agent.isWorkflow)
-                            .map(agent => (
-                                <SelectItem key={agent.name} value={agent.name}>
-                                    {agent.displayName || agent.name}
-                                </SelectItem>
-                            ))}
-                    </SelectContent>
-                </Select>
-
-                {/* Spacer to push buttons to the right */}
-                <div className="flex-1" />
-
-                {/* Context usage indicator - shows token usage before the microphone button */}
-                {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
-
-                {/* Microphone button - show if STT feature enabled and STT setting enabled */}
-                {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
-
-                {isResponding && !isCancelling ? (
-                    <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Stop">
-                        <Ban className="size-4" />
-                        <span className="hidden @[480px]:inline">Stop</span>
-                    </Button>
-                ) : (
-                    <Button data-testid="sendMessage" variant="ghost" className="ml-auto gap-1.5" onClick={onSubmit} disabled={!isSubmittingEnabled} tooltip="Send message">
-                        <Send className="size-4" />
-                    </Button>
-                )}
-            </div>
         </div>
     );
 };

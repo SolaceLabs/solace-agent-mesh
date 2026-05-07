@@ -110,7 +110,7 @@ function AppLayoutContent() {
             <EmptyState
                 variant="noImage"
                 title="Welcome to Solace Agent Mesh!"
-                className="h-screen w-screen"
+                className="h-dvh w-screen"
                 buttons={[
                     {
                         text: "Login",
@@ -137,12 +137,14 @@ function AppLayoutContent() {
     };
 
     return (
-        <div className={`relative flex h-screen`}>
-            {useNewNav ? (
-                <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
-            ) : (
-                <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            )}
+        <div className={`relative flex h-dvh`}>
+            <div className="hidden md:contents">
+                {useNewNav ? (
+                    <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
+                ) : (
+                    <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+                )}
+            </div>
             <main className="flex h-full w-full min-w-0 flex-1 flex-col">
                 <ModelWarningBanner />
                 <Outlet />

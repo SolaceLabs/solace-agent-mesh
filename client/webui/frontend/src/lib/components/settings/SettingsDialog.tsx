@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import type { ReactNode } from "react";
-import { Info, Settings, Type, Volume2 } from "lucide-react";
+import { ChevronLeft, Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useConfigContext } from "@/lib/hooks";
+import { useConfigContext, useIsMobile } from "@/lib/hooks";
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, LifecycleBadge, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
@@ -48,8 +48,18 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: Readonly<SettingsDialogProps>) {
     const { configFeatureEnablement } = useConfigContext();
+    const isMobile = useIsMobile();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
+    // On mobile, use a list-or-detail flow inside the dialog: the sidebar takes
+    // the full screen until the user taps a section, then the content takes over
+    // with a back button. Desktop ignores this state.
+    const [mobileShowContent, setMobileShowContent] = useState(false);
+
+    const handleSelectSection = (section: SettingsSection) => {
+        setActiveSection(section);
+        if (isMobile) setMobileShowContent(true);
+    };
 
     // Use controlled state if provided, otherwise use internal state
     const isControlled = controlledOpen !== undefined;
@@ -124,23 +134,23 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
                         </Button>
                     </DialogTrigger>
                 ))}
-            <DialogContent className="max-h-[90vh] w-[90vw] max-w-300! gap-0 p-0" showCloseButton={true}>
+            <DialogContent className={cn("gap-0 p-0", isMobile ? "h-dvh w-screen max-w-none rounded-none border-0" : "max-h-[90vh] w-[90vw] max-w-300!")} showCloseButton={true}>
                 <VisuallyHidden>
                     <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>Configure application settings</DialogDescription>
                 </VisuallyHidden>
-                <div className="flex h-[80vh] overflow-hidden">
+                <div className={cn("flex overflow-hidden", isMobile ? "h-full" : "h-[80vh]")}>
                     {/* Sidebar */}
-                    <div className="flex w-64 flex-col border-r">
+                    <div className={cn("flex flex-col border-r", isMobile ? cn("w-full border-r-0", mobileShowContent && "hidden") : "w-64")}>
                         <div className="flex h-15 items-center px-4 text-lg font-semibold">Settings</div>
 
                         <nav className="flex flex-1 flex-col">
                             {/* Top items, scrollable */}
                             <div className="flex-1 space-y-1 overflow-y-auto">
-                                <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => setActiveSection("general")} />
-                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => setActiveSection("speech")} />}
+                                <SidebarItem icon={<Type className="size-4" />} label="General" active={activeSection === "general"} onClick={() => handleSelectSection("general")} />
+                                {speechEnabled && <SidebarItem icon={<Volume2 className="size-4" />} label="Speech" active={activeSection === "speech"} onClick={() => handleSelectSection("speech")} />}
                                 {topTabs.map(t => (
-                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => handleSelectSection(t.id)} />
                                 ))}
                             </div>
                             {/* Bottom items, static */}
@@ -148,24 +158,29 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
                                 {/* Divider */}
                                 <div className="mt-4 border-t pb-2" />
                                 {bottomTabs.map(t => (
-                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => setActiveSection(t.id)} />
+                                    <SidebarItem key={t.id} icon={t.icon} label={t.label} active={activeSection === t.id} onClick={() => handleSelectSection(t.id)} />
                                 ))}
                                 {/* About entry — always last */}
-                                <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => setActiveSection("about")} />
+                                <SidebarItem icon={<Info className="size-4" />} label="About" active={activeSection === "about"} onClick={() => handleSelectSection("about")} />
                             </div>
                         </nav>
                     </div>
 
                     {/* Main Content */}
-                    <div className="flex min-w-0 flex-1 flex-col">
+                    <div className={cn("flex min-w-0 flex-1 flex-col", isMobile && !mobileShowContent && "hidden")}>
                         {/* Header */}
-                        <div className="flex items-center gap-2 border-b px-6 py-4">
-                            <h3 className="text-xl font-semibold">{getSectionTitle()}</h3>
+                        <div className="flex items-center gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
+                            {isMobile && (
+                                <Button variant="ghost" size="icon" onClick={() => setMobileShowContent(false)} className="-ml-2 h-9 w-9 shrink-0" aria-label="Back to settings list">
+                                    <ChevronLeft className="size-5" />
+                                </Button>
+                            )}
+                            <h3 className="truncate text-lg font-semibold sm:text-xl">{getSectionTitle()}</h3>
                             {activeSection === "speech" && <LifecycleBadge variant="transparent" />}
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto p-6">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                             <div className="mx-auto max-w-2xl">{renderContent()}</div>
                         </div>
                     </div>
