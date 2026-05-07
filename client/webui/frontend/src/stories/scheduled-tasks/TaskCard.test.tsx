@@ -72,10 +72,13 @@ describe("TaskCard", () => {
         expect(label.className).toContain("success");
     });
 
-    it("shows correct status indicator - paused (warning dot)", () => {
+    it("shows correct status indicator - paused (neutral grey badge)", () => {
         renderTaskCard({ status: "paused" });
         const labels = screen.getAllByText("Paused");
-        const badge = labels.find(el => el.className.includes("warning"));
+        // The pill badge uses the shared secondary palette (changed from
+        // warning amber). The other "Paused" element on the card is the
+        // status-line label, which uses primary text colour.
+        const badge = labels.find(el => el.className.includes("secondary-w20"));
         expect(badge).toBeInTheDocument();
     });
 
