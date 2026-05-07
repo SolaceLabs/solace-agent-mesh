@@ -35,7 +35,7 @@ const getStatusBadge = (status: string) => {
         skipped: { bg: "bg-(--secondary-w20)", text: "text-(--secondary-text-wMain)", label: "Skipped" },
         // Task lifecycle statuses
         active: { bg: "bg-(--success-w20)", text: "text-(--success-wMain)", label: "Active" },
-        paused: { bg: "bg-(--warning-w20)", text: "text-(--warning-wMain)", label: "Paused" },
+        paused: { bg: "bg-(--secondary-w20)", text: "text-(--secondary-text-wMain)", label: "Paused" },
         error: { bg: "bg-(--error-w20)", text: "text-(--error-wMain)", label: "Error" },
     };
     // Truly unknown statuses get a neutral pill with the raw value so they
