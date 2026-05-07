@@ -3,6 +3,8 @@ title: Kubernetes Production Installation
 sidebar_position: 5
 ---
 
+import HelmPreInstallCheck from '@site/docs/partials/helm-pre-install-check.mdx';
+
 # Kubernetes Production Installation
 
 Deploy Solace Agent Mesh Enterprise on Kubernetes for production with full configuration, high availability, and security.
@@ -1061,12 +1063,12 @@ Configure external PostgreSQL database and object storage. For production, set `
 
 ### Agent Mesh Doctor (Pre-Flight Validation)
 
-Run sam-doctor before install or upgrade to validate configuration. For production, consider enabling it to catch configuration issues early.
+<HelmPreInstallCheck />
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `samDoctor.enabled` | bool | `true` | Run sam-doctor validation before install/upgrade |
-| `samDoctor.failOnError` | bool | `true` | Block install/upgrade on validation failure. Set to `false` to always proceed. |
+| `samDoctor.enabled` | bool | `true` | Enable sam-doctor pre-flight validation |
+| `samDoctor.failOnError` | bool | `true` | Block install/upgrade on validation failure |
 | `samDoctor.timeoutSeconds` | int | `120` | Hook job timeout in seconds |
 | `samDoctor.tlsDnsName` | string | `""` | DNS name for TLS certificate validation. Defaults to `sam.dnsName` if not set. |
 
