@@ -6,5 +6,5 @@ sidebar_position: 18
 # Community vs Enterprise
 
 :::note
-This page is coming soon. 
+This page is coming soon.
 :::
