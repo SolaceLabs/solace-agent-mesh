@@ -48,7 +48,7 @@ from ..tools.executors import PythonToolLoader
 from ..tools.tool_definition import BuiltinTool
 from .app_llm_agent import AppLlmAgent
 from .embed_resolving_mcp_toolset import EmbedResolvingMCPToolset
-from .mcp_ssl_config import SslConfig
+from .mcp_ssl_config import SslConfig, is_tls_verify
 from .tool_result_processor import ToolResultProcessor
 from .tool_wrapper import ADKToolWrapper
 
@@ -481,6 +481,21 @@ async def _load_mcp_tool(component: "SamAgentComponent", tool_config: Dict) -> T
             component.log_identifier,
             ssl_verify,
             ssl_ca_bundle,
+        )
+
+    # Apply SAM_MCP_CONNECTOR_TLS_VERIFY override for HTTPS-based MCP
+    # connections (SSE, Streamable HTTP). Stdio connections do not use TLS so
+    # this override does not apply to them.
+    if connection_type in ("sse", "streamable-http") and not is_tls_verify():
+        if ssl_config is None:
+            ssl_config = SslConfig(verify=False)
+        else:
+            ssl_config.verify = False
+        log.warning(
+            "%s SSL verification disabled for MCP connection via "
+            "SAM_MCP_CONNECTOR_TLS_VERIFY=false. This should only be used in "
+            "development environments.",
+            component.log_identifier,
         )
 
     environment_variables = tool_config_model.environment_variables

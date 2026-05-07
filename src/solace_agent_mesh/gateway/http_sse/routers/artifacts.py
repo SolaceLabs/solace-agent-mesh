@@ -948,6 +948,50 @@ async def list_all_artifacts(
                     log.info("%s Found %d total sources (sessions + projects)", log_prefix, total_sources)
 
                     # ----------------------------------------------------------------
+                    # Step 1.5: Pre-filter sessions that have no artifacts in storage.
+                    #
+                    # Without this, every session row triggers one S3 list call even
+                    # when most sessions have no artifacts at all (one-message chats,
+                    # test runs, refreshes that allocated a session_id but never
+                    # produced output). For users with many empty sessions this
+                    # accumulates and can clip the upstream timeout.
+                    #
+                    # If the artifact service exposes a user-scoped listing, do ONE
+                    # S3 list with the user prefix and keep only sessions that appear
+                    # in it. Project-scoped sources are kept unfiltered — they use a
+                    # different key namespace and the user-prefix listing wouldn't
+                    # surface them. ``None`` from the helper means "skip the filter"
+                    # (S3 error, or user-scoped-only artifacts that aren't
+                    # addressable by session_id).
+                    # ----------------------------------------------------------------
+                    list_user_sessions_method = getattr(
+                        artifact_service, "list_sessions_with_artifacts_for_user", None
+                    )
+                    if list_user_sessions_method is not None and not search_query:
+                        try:
+                            sessions_with_artifacts = await list_user_sessions_method(
+                                app_name=app_name, user_id=user_id
+                            )
+                            if sessions_with_artifacts is not None:
+                                pre_count = len(all_source_entries)
+                                all_source_entries = [
+                                    e for e in all_source_entries
+                                    if e["session_id"] in sessions_with_artifacts
+                                    or e["session_id"].startswith("project-")
+                                ]
+                                total_sources = len(all_source_entries)
+                                log.info(
+                                    "%s Pre-filtered: %d -> %d sources (kept sessions in user-prefix list + projects)",
+                                    log_prefix, pre_count, total_sources,
+                                )
+                        except Exception as e:
+                            log.warning(
+                                "%s list_sessions_with_artifacts_for_user failed (%s); "
+                                "falling back to per-session scan",
+                                log_prefix, e,
+                            )
+
+                    # ----------------------------------------------------------------
                     # Step 2: Progressive fetch with early termination.
                     #         Fetch artifacts in batches and STOP once we have
                     #         enough to fill the requested page (with buffer for

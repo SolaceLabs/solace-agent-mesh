@@ -39,7 +39,7 @@ Your platform administrator must configure the platform service with a publicly 
 
 If you are unsure whether the storage bucket is configured, contact your platform administrator. Without this configuration, you will not be able to create OpenAPI connectors.
 
-For platform administrators: See [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs) in the enterprise installation guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts.
+For platform administrators: See [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../docker-installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs) in the enterprise installation guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts.
 
 ### API Credentials (if required)
 

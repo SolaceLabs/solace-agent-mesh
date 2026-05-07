@@ -55,6 +55,7 @@ from ...common.a2a import (
     translate_a2a_to_adk_content,
 )
 from ...common.constants import (
+    DEFAULT_MAX_LLM_CALLS_PER_TASK,
     EXTENSION_URI_AGENT_TYPE,
     EXTENSION_URI_SCHEMAS,
 )
@@ -1526,7 +1527,9 @@ async def _handle_send_message_request(
     # between aggregating a final response and streaming partial updates.
     streaming_mode = StreamingMode.SSE
 
-    max_llm_calls_per_task = component.get_config("max_llm_calls_per_task", 20)
+    max_llm_calls_per_task = component.get_config(
+        "max_llm_calls_per_task", DEFAULT_MAX_LLM_CALLS_PER_TASK
+    )
     log.debug(
         "%s Using max_llm_calls_per_task: %s",
         component.log_identifier,
