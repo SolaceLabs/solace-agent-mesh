@@ -1,6 +1,6 @@
 ---
 title: Architecture Overview
-sidebar_position: 18
+sidebar_position: 16
 ---
 
 Agent Mesh is an event-driven framework that creates a distributed ecosystem of collaborative AI agents. The architecture decouples agent logic from communication and orchestration, enabling you to build scalable, resilient, and modular AI systems.
