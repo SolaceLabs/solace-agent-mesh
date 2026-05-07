@@ -86,7 +86,7 @@ helm install sam /path/to/charts/solace-agent-mesh-<version>.tgz \
 
 The chart defaults are optimized for quickstart evaluation. No values file is needed beyond the credentials. After installation completes, the terminal displays post-install instructions including the port-forward command and the URL to access the Console UI.
 
-Note: By default, Helm pre-install checks are run. If they fail, you should see an installation error. See [Helm pre-install check failed](#helm-pre-install-check-failed) for how to view the logs.
+Note: By default, Helm pre-install checks are run before any workload pods are created. If they fail, you will see an installation error. See [Helm pre-install check failed](#helm-pre-install-check-failed) for how to view the logs.
 
 **What gets deployed** (chart defaults):
 

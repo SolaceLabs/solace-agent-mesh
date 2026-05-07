@@ -1061,7 +1061,7 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `samDeployment.resources.agentDeployer.limits.cpu` | string | `"200m"` | CPU limit for agent deployer container |
 | `samDeployment.resources.agentDeployer.limits.memory` | string | `"512Mi"` | Memory limit for agent deployer container |
 
-### Agent Mesh Doctor (Pre-Flight Validation)
+### Agent Mesh Pre-flight Validation (sam-doctor)
 
 <HelmPreInstallCheck />
 

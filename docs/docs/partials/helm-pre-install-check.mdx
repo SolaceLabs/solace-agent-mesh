@@ -1,4 +1,4 @@
-When `samDoctor.enabled=true` (the default), Agent Mesh runs a pre-install hook Job before any workload pods are created. By default, a failing check blocks `helm install` and `helm upgrade` with an error like:
+Agent Mesh runs a set of pre-flight validation checks (collectively called **sam-doctor**) before any workload pods are created. These checks catch environment misconfigurations up front. By default sam-doctor is enabled (`samDoctor.enabled: true`) and a failing check blocks `helm install` and `helm upgrade` with an error like:
 
 ```
 Error: INSTALLATION FAILED: failed pre-install: 1 error occurred:
@@ -9,6 +9,12 @@ To see the diagnostic report, view the job's logs (the job name appears in the h
 
 ```bash
 kubectl logs job/<release>-<chart-name>-sam-doctor -n <namespace>
+```
+
+For example, for the `solace-agent-mesh` chart with `helm install sam --namespace sam`:
+
+```bash
+kubectl logs job/sam-solace-agent-mesh-sam-doctor -n sam
 ```
 
 The report lists each check with a `PASS`, `WARN`, `FAIL`, or `SKIP` status and a reason for any failure.
