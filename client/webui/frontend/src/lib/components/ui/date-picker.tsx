@@ -109,14 +109,27 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
                     <span className="truncate">{displayValue ?? placeholder}</span>
                     <span className="flex items-center gap-1">
                         {value && (
+                            // Span (not <button>) because the wrapping element
+                            // is already a <button> popover trigger and nested
+                            // buttons are invalid HTML. We add explicit
+                            // keyboard support so Enter/Space clear the date,
+                            // matching real button semantics for a11y users.
                             <span
                                 role="button"
+                                tabIndex={0}
                                 aria-label="Clear date"
                                 onClick={e => {
                                     e.stopPropagation();
                                     onChange("");
                                 }}
-                                className="flex h-5 w-5 items-center justify-center rounded hover:bg-(--secondary-w20)"
+                                onKeyDown={e => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        onChange("");
+                                    }
+                                }}
+                                className="flex h-5 w-5 items-center justify-center rounded hover:bg-(--secondary-w20) focus-visible:ring-2 focus-visible:ring-(--brand-wMain) focus-visible:outline-none"
                             >
                                 <X className="h-3.5 w-3.5 text-(--secondary-text-wMain)" />
                             </span>

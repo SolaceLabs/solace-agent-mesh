@@ -27,6 +27,11 @@ _MAX_USER_ERROR_LENGTH = 256
 # result_summary.agent_response_full and rendered on the per-execution detail
 # page.
 _RESULT_SUMMARY_SNIPPET_CHARS = 1000
+# Cap on the full agent response we persist to result_summary. The full text
+# is also stored verbatim in the chat session's full_messages, so this column
+# only needs to be useful for the per-execution detail page; an unusually
+# large model output shouldn't bloat the executions table or API responses.
+_RESULT_SUMMARY_FULL_MAX_CHARS = 200_000
 
 
 def _sanitize_error_message(message: str) -> str:
@@ -266,9 +271,11 @@ class ResultHandler:
                     agent_text = a2a.get_text_from_message(result.status.message)
                     if agent_text:
                         # Truncated snippet for list views (Latest Execution
-                        # panel); full text for the per-execution detail view.
+                        # panel); bounded "full" text for the per-execution
+                        # detail view. The truly unbounded version stays in
+                        # the chat session's full_messages.
                         result_summary["agent_response"] = agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]
-                        result_summary["agent_response_full"] = agent_text
+                        result_summary["agent_response_full"] = agent_text[:_RESULT_SUMMARY_FULL_MAX_CHARS]
                         messages.append({"role": "agent", "text": agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]})
                         full_messages.append({"role": "agent", "text": agent_text})
 

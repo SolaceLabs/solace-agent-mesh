@@ -59,21 +59,27 @@ export const ExecutionArtifactsView: React.FC<ExecutionArtifactsViewProps> = ({ 
 
     return (
         <div className="space-y-2">
-            {artifacts.map(artifact => (
-                <div key={artifact.filename} className="overflow-hidden rounded-md border">
-                    <ArtifactBar
-                        filename={artifact.filename}
-                        mimeType={artifact.mime_type}
-                        size={artifact.size}
-                        status="completed"
-                        context="chat"
-                        actions={{
-                            onPreview: () => setPreviewArtifact(artifact),
-                            onDownload: () => handleDownload(artifact),
-                        }}
-                    />
-                </div>
-            ))}
+            {artifacts.map(artifact => {
+                // Filename alone isn't unique — two artifacts in one execution
+                // can share a name across versions. Match the keying we use in
+                // ExecutionInlineArtifacts.
+                const artifactKey = artifact.uri ?? `${artifact.filename}@${artifact.version ?? "latest"}`;
+                return (
+                    <div key={artifactKey} className="overflow-hidden rounded-md border">
+                        <ArtifactBar
+                            filename={artifact.filename}
+                            mimeType={artifact.mime_type}
+                            size={artifact.size}
+                            status="completed"
+                            context="chat"
+                            actions={{
+                                onPreview: () => setPreviewArtifact(artifact),
+                                onDownload: () => handleDownload(artifact),
+                            }}
+                        />
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -148,12 +154,17 @@ const ArtifactPreviewBody: React.FC<{ artifact: ArtifactInfo; sessionId: string;
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // The selected artifact's version (or "latest" if no specific version is
+    // pinned). Without this, every preview always pulled the latest version,
+    // even when the user clicked an older row.
+    const artifactVersion: number | "latest" = artifact.version ?? "latest";
+
     useEffect(() => {
         if (!preview.canPreview) return;
         let cancelled = false;
         setIsLoading(true);
         setError(null);
-        getArtifactContent({ filename: artifact.filename, sessionId, version: "latest" })
+        getArtifactContent({ filename: artifact.filename, sessionId, version: artifactVersion })
             .then(({ content: base64, mimeType }) => {
                 if (cancelled) return;
                 setContent({ name: artifact.filename, mime_type: mimeType, content: base64 });
@@ -168,7 +179,7 @@ const ArtifactPreviewBody: React.FC<{ artifact: ArtifactInfo; sessionId: string;
         return () => {
             cancelled = true;
         };
-    }, [artifact.filename, preview.canPreview, sessionId]);
+    }, [artifact.filename, artifactVersion, preview.canPreview, sessionId]);
 
     if (!preview.canPreview) {
         return <PreviewUnavailable message={preview.reason ?? ""} onDownload={onDownload} />;
@@ -194,7 +205,7 @@ const ArtifactPreviewBody: React.FC<{ artifact: ArtifactInfo; sessionId: string;
     const effectiveMime = content?.mime_type || artifact.mime_type;
     const rendererType = getRenderType(artifact.filename, effectiveMime);
     const fileContent = getFileContent(content);
-    const previewUrl = rendererType === "pdf" || rendererType === "application/pdf" ? getArtifactUrl({ filename: artifact.filename, sessionId, version: "latest" }) : undefined;
+    const previewUrl = rendererType === "pdf" || rendererType === "application/pdf" ? getArtifactUrl({ filename: artifact.filename, sessionId, version: artifactVersion }) : undefined;
 
     if (!rendererType || !fileContent) {
         return <PreviewUnavailable message="No preview available" onDownload={onDownload} />;

@@ -31,12 +31,17 @@ const getStatusBadge = (status: string) => {
         pending: { bg: "bg-(--info-w20)", text: "text-(--info-wMain)", label: "Pending" },
         running: { bg: "bg-(--info-w20)", text: "text-(--info-wMain)", label: "Running" },
         timeout: { bg: "bg-(--warning-w20)", text: "text-(--warning-wMain)", label: "Timeout" },
+        cancelled: { bg: "bg-(--secondary-w20)", text: "text-(--secondary-text-wMain)", label: "Cancelled" },
+        skipped: { bg: "bg-(--secondary-w20)", text: "text-(--secondary-text-wMain)", label: "Skipped" },
         // Task lifecycle statuses
         active: { bg: "bg-(--success-w20)", text: "text-(--success-wMain)", label: "Active" },
         paused: { bg: "bg-(--warning-w20)", text: "text-(--warning-wMain)", label: "Paused" },
         error: { bg: "bg-(--error-w20)", text: "text-(--error-wMain)", label: "Error" },
     };
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
+    // Truly unknown statuses get a neutral pill with the raw value so they
+    // don't masquerade as failures (and surface the unexpected value for
+    // debugging) instead of silently mislabeling them.
+    const config = statusConfig[status as keyof typeof statusConfig] ?? { bg: "bg-(--secondary-w20)", text: "text-(--secondary-text-wMain)", label: status };
     return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.bg} ${config.text}`}>{config.label}</span>;
 };
 

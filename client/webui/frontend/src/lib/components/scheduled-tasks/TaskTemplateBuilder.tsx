@@ -356,7 +356,10 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
     // Signature used to detect "user has not changed anything since the
     // conflict warning" — second Create click with same data acts as override.
-    const conflictSignature = (cfg: TaskConfig) => `${cfg.scheduleType}|${cfg.scheduleExpression}|${cfg.timezone}|${cfg.taskMessage}`;
+    // Must include every field forwarded to validateTaskConflict, otherwise
+    // changing one of them (e.g. switching the target agent) wouldn't clear
+    // the warning and a second Create would override under different inputs.
+    const conflictSignature = (cfg: TaskConfig) => `${cfg.scheduleType}|${cfg.scheduleExpression}|${cfg.timezone}|${cfg.taskMessage}|${cfg.targetAgentName}`;
 
     // Any edit to the conflict-relevant fields invalidates the prior verdict.
     useEffect(() => {
@@ -364,7 +367,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (conflictSignature(config) !== conflictError.signature) {
             setConflictError(null);
         }
-    }, [config.scheduleType, config.scheduleExpression, config.timezone, config.taskMessage, conflictError]);
+    }, [config.scheduleType, config.scheduleExpression, config.timezone, config.taskMessage, config.targetAgentName, conflictError]);
 
     const handleSave = async (activate?: boolean) => {
         if (!validateConfig()) {

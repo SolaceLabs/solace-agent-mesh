@@ -8,6 +8,7 @@ Tasks run forever while enabled; failures are tracked for observability only.
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
@@ -418,6 +419,16 @@ class SchedulerService:
         if task.schedule_type == ScheduleType.CRON:
             if not croniter.is_valid(task.schedule_expression):
                 raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
+            # Quartz-style day-of-week tokens (`1#2` = 2nd Monday, `5L` = last
+            # Friday) pass croniter validation but APScheduler's
+            # `CronTrigger.from_crontab` doesn't understand them — so route
+            # those patterns through the programmatic CronTrigger constructor,
+            # which does support `day="2nd mon"` / `day="last fri"`.
+            quartz_trigger = self._cron_with_quartz_weekday(
+                task.schedule_expression, task.timezone
+            )
+            if quartz_trigger is not None:
+                return quartz_trigger
             return CronTrigger.from_crontab(task.schedule_expression, timezone=task.timezone)
 
         elif task.schedule_type == ScheduleType.INTERVAL:
@@ -449,6 +460,52 @@ class SchedulerService:
     def _parse_interval(self, interval_str: str) -> int:
         """Parse interval string to seconds (delegates to shared utility)."""
         return parse_interval_to_seconds(interval_str)
+
+    @staticmethod
+    def _cron_with_quartz_weekday(expression: str, timezone: str):
+        """Build a CronTrigger for Quartz-style day-of-week tokens.
+
+        Returns a CronTrigger when ``expression`` uses ``D#N`` (Nth weekday)
+        or ``DL`` (last weekday), else ``None`` so the caller can fall back
+        to the standard ``from_crontab`` parser.
+        """
+        parts = expression.strip().split()
+        if len(parts) != 5:
+            return None
+        minute, hour, day_of_month, month, day_of_week = parts
+        # Only translate when the rest of the expression is plain enough
+        # that mapping `day_of_week` onto APScheduler's `day` field is
+        # unambiguous: month must be unrestricted and day_of_month must be `*`.
+        if month != "*" or day_of_month != "*":
+            return None
+
+        weekday_names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+        nth_words = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}
+
+        nth_match = re.fullmatch(r"(\d)#([1-4])", day_of_week)
+        last_match = re.fullmatch(r"(\d)L", day_of_week, re.IGNORECASE)
+
+        if nth_match:
+            wd_num = int(nth_match.group(1))
+            nth = nth_match.group(2)
+            if not 0 <= wd_num <= 6:
+                return None
+            day_expr = f"{nth_words[nth]} {weekday_names[wd_num]}"
+        elif last_match:
+            wd_num = int(last_match.group(1))
+            if not 0 <= wd_num <= 6:
+                return None
+            day_expr = f"last {weekday_names[wd_num]}"
+        else:
+            return None
+
+        return CronTrigger(
+            minute=minute,
+            hour=hour,
+            day=day_expr,
+            month=month,
+            timezone=timezone,
+        )
 
     async def _execute_scheduled_task(
         self,

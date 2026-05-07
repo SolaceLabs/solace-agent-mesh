@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/components/ui";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,10 @@ interface AgentPickerCardProps {
 const OTHER_VALUE = "__other__";
 
 export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, suggestions, allowOther, availableAgents, resolvedAgentName, onSelect }) => {
+    // Each rendered picker needs its own radio-group name; otherwise multiple
+    // pickers in the same DOM (e.g., several assistant turns) collapse into
+    // one group and selecting in one card clears another card's selection.
+    const radioGroupName = useId();
     const suggestedNames = useMemo(() => new Set(suggestions.map(s => s.name)), [suggestions]);
     const otherAgents = useMemo(() => availableAgents.filter(a => !suggestedNames.has(a.name)), [availableAgents, suggestedNames]);
     const isResolved = !!resolvedAgentName;
@@ -83,7 +87,7 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
                         >
                             <input
                                 type="radio"
-                                name="agent-picker"
+                                name={radioGroupName}
                                 value={suggestion.name}
                                 checked={isSelected}
                                 disabled={isResolved}
@@ -92,7 +96,7 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
                             />
                             <div className="min-w-0 flex-1">
                                 <a
-                                    href={`#/agents?agent=${encodeURIComponent(suggestion.name)}`}
+                                    href={`/agents?agent=${encodeURIComponent(suggestion.name)}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
