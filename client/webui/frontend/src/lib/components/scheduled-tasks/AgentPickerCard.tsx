@@ -115,7 +115,7 @@ export const AgentPickerCard: React.FC<AgentPickerCardProps> = ({ prompt, sugges
                     <label className={cn("flex cursor-pointer items-center gap-3 rounded-md border p-3 transition-colors", selectedRadio === OTHER_VALUE && "border-(--primary-wMain) bg-(--primary-w10)", isResolved && "cursor-default opacity-70")}>
                         <input
                             type="radio"
-                            name="agent-picker"
+                            name={radioGroupName}
                             value={OTHER_VALUE}
                             checked={selectedRadio === OTHER_VALUE}
                             disabled={isResolved}

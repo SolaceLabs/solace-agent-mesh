@@ -137,8 +137,10 @@ export const TimeOfDayPicker: React.FC<{ value: string; onChange: (hhmm: string)
             if (hhmm !== value) onChange(hhmm);
         } else {
             // Revert to last valid value rather than silently emitting garbage.
+            // Use Number.isFinite so 0 (midnight, 0 minutes) doesn't get
+            // stomped to the 9/0 fallback by truthiness coercion.
             const [h, m] = parts;
-            setDraft(formatTime12h(h || 9, m || 0));
+            setDraft(formatTime12h(Number.isFinite(h) ? h : 9, Number.isFinite(m) ? m : 0));
         }
     };
 

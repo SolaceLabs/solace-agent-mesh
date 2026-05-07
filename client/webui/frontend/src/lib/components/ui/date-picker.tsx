@@ -5,7 +5,18 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-const DAYS_OF_WEEK = ["S", "M", "T", "W", "T", "F", "S"];
+// Visual labels are intentionally single-letter to match the design mock,
+// but "S"/"T" are ambiguous (Sun/Sat, Tue/Thu) so we pair each with a full
+// aria-label for screen-reader users. Keep `letter` and `label` index-aligned.
+const DAYS_OF_WEEK = [
+    { letter: "S", label: "Sunday" },
+    { letter: "M", label: "Monday" },
+    { letter: "T", label: "Tuesday" },
+    { letter: "W", label: "Wednesday" },
+    { letter: "T", label: "Thursday" },
+    { letter: "F", label: "Friday" },
+    { letter: "S", label: "Saturday" },
+];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function getDaysInMonth(year: number, month: number): number {
@@ -156,9 +167,9 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
 
                 {/* Day-of-week headers */}
                 <div className="grid grid-cols-7 gap-0">
-                    {DAYS_OF_WEEK.map(d => (
-                        <div key={d} className="py-1 text-center text-xs font-medium text-(--secondary-text-wMain)">
-                            {d}
+                    {DAYS_OF_WEEK.map(({ letter, label }) => (
+                        <div key={label} aria-label={label} className="py-1 text-center text-xs font-medium text-(--secondary-text-wMain)">
+                            <span aria-hidden="true">{letter}</span>
                         </div>
                     ))}
 
