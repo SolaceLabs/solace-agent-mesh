@@ -1446,6 +1446,7 @@ class LiteLlm(BaseLlm):
             with MonitorLatency(gen_ai_monitor):
                 stream_response = await self._acompletion_with_thinking_fallback(completion_args)
                 async for part in stream_response:
+                    finish_reason = None
                     for chunk, finish_reason in _model_response_to_chunk(part):
                         if isinstance(chunk, FunctionChunk):
                             index = chunk.index or fallback_index
