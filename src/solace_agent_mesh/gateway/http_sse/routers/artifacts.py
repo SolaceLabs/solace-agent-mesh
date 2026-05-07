@@ -950,19 +950,19 @@ async def list_all_artifacts(
                     # ----------------------------------------------------------------
                     # Step 1.5: Pre-filter sessions that have no artifacts in storage.
                     #
-                    # Without this, every session row results in one S3 list call,
-                    # even though most sessions for power users have no artifacts at
-                    # all (one-message chats, test runs, refreshes that allocated a
-                    # session_id but never produced output). On staging amir had
-                    # 6,752 sessions and only ~36 with artifacts; on prod he had
-                    # 173 sessions and the scan was clipping the 60s upstream
-                    # timeout.
+                    # Without this, every session row triggers one S3 list call even
+                    # when most sessions have no artifacts at all (one-message chats,
+                    # test runs, refreshes that allocated a session_id but never
+                    # produced output). For users with many empty sessions this
+                    # accumulates and can clip the upstream timeout.
                     #
-                    # If the artifact service exposes a user-scoped listing, do
-                    # ONE S3 list with the user prefix and skip every session
-                    # that doesn't appear. Project-scoped sources are kept
-                    # unfiltered — they use a different key namespace and the
-                    # user-prefix listing wouldn't surface them.
+                    # If the artifact service exposes a user-scoped listing, do ONE
+                    # S3 list with the user prefix and keep only sessions that appear
+                    # in it. Project-scoped sources are kept unfiltered — they use a
+                    # different key namespace and the user-prefix listing wouldn't
+                    # surface them. ``None`` from the helper means "skip the filter"
+                    # (S3 error, or user-scoped-only artifacts that aren't
+                    # addressable by session_id).
                     # ----------------------------------------------------------------
                     list_user_sessions_method = getattr(
                         artifact_service, "list_sessions_with_artifacts_for_user", None
@@ -972,7 +972,7 @@ async def list_all_artifacts(
                             sessions_with_artifacts = await list_user_sessions_method(
                                 app_name=app_name, user_id=user_id
                             )
-                            if sessions_with_artifacts:
+                            if sessions_with_artifacts is not None:
                                 pre_count = len(all_source_entries)
                                 all_source_entries = [
                                     e for e in all_source_entries
