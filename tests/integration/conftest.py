@@ -1011,6 +1011,7 @@ def shared_solace_connector(
         ],
         model_suffix="empty-provider",
     )
+    empty_provider_agent_config["auto_inject_artifact_tools"] = True
 
     docstringless_agent_config = create_agent_config(
         agent_name="DocstringlessAgent",
