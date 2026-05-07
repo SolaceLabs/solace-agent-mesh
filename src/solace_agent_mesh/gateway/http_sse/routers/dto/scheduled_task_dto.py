@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from croniter import croniter
 import pytz
 
-from ...shared import MINIMUM_INTERVAL_SECONDS, parse_interval_to_seconds
+from ...shared import MINIMUM_INTERVAL_SECONDS, is_quartz_weekday_cron, parse_interval_to_seconds
 
 
 class NotificationChannelConfig(BaseModel):
@@ -84,7 +84,11 @@ class CreateScheduledTaskRequest(BaseModel):
         schedule_type = info.data.get("schedule_type")
 
         if schedule_type == "cron":
-            if not croniter.is_valid(v):
+            # Allow Quartz-style day-of-week tokens (`1#2`, `5L`) emitted by
+            # the monthly-weekday UI mode; they're translated to APScheduler's
+            # programmatic CronTrigger at schedule time. croniter rejects `5L`
+            # outright, so we check the Quartz form first.
+            if not is_quartz_weekday_cron(v) and not croniter.is_valid(v):
                 raise ValueError(f"Invalid cron expression: {v}")
         elif schedule_type == "interval":
             if not v or not v[-1] in "smhd":
@@ -163,7 +167,7 @@ class UpdateScheduledTaskRequest(BaseModel):
         expr = self.schedule_expression
         if expr is not None and stype is not None:
             if stype == "cron":
-                if not croniter.is_valid(expr):
+                if not is_quartz_weekday_cron(expr) and not croniter.is_valid(expr):
                     raise ValueError(f"Invalid cron expression: {expr}")
             elif stype == "interval":
                 try:

@@ -621,6 +621,69 @@ class TestCreateTrigger:
         with pytest.raises(ValueError, match="Invalid cron expression"):
             service._create_trigger(task)
 
+    def test_quartz_nth_weekday_routes_through_programmatic_constructor(self):
+        """`1#2` (2nd Monday) is rejected by APScheduler's `from_crontab`, so
+        the trigger factory must build a CronTrigger via the programmatic path
+        and translate the token to APScheduler's `day` field syntax (``2nd mon``)."""
+        from apscheduler.triggers.cron import CronTrigger
+
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.CRON
+        task.schedule_expression = "0 9 * * 1#2"
+        task.timezone = "UTC"
+
+        trigger = service._create_trigger(task)
+        assert isinstance(trigger, CronTrigger)
+        # Translation lands on the `day` field (not `day_of_week`).
+        rendered = repr(trigger)
+        assert "2nd mon" in rendered
+        assert "hour='9'" in rendered
+        assert "minute='0'" in rendered
+
+    def test_quartz_last_weekday_routes_through_programmatic_constructor(self):
+        """`5L` (last Friday) must translate to `day='last fri'` for APScheduler."""
+        from apscheduler.triggers.cron import CronTrigger
+
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.CRON
+        task.schedule_expression = "0 9 * * 5L"
+        task.timezone = "UTC"
+
+        trigger = service._create_trigger(task)
+        assert isinstance(trigger, CronTrigger)
+        assert "last fri" in repr(trigger)
+
+    def test_plain_cron_does_not_take_quartz_path(self):
+        """A standard 5-field cron should fall through to `from_crontab` —
+        the Quartz translator returns ``None`` so the regular path is used."""
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.CRON
+        task.schedule_expression = "0 9 * * 1"
+        task.timezone = "UTC"
+
+        # Sanity: the translator declines plain expressions.
+        assert service._cron_with_quartz_weekday(task.schedule_expression, task.timezone) is None
+        # And the factory still builds a CronTrigger.
+        from apscheduler.triggers.cron import CronTrigger
+
+        assert isinstance(service._create_trigger(task), CronTrigger)
+
+    def test_quartz_pattern_with_invalid_other_fields_is_rejected(self):
+        """`99 99 * * 1#1` looks like Quartz but has a bogus minute/hour —
+        the shared validator must catch it before we ask APScheduler to build
+        a CronTrigger that would only fail later."""
+        service, _ = _build_scheduler_service()
+        task = _make_mock_task()
+        task.schedule_type = ScheduleType.CRON
+        task.schedule_expression = "99 99 * * 1#1"
+        task.timezone = "UTC"
+
+        with pytest.raises(ValueError, match="Invalid cron expression"):
+            service._create_trigger(task)
+
 
 # ===========================================================================
 # _schedule_task

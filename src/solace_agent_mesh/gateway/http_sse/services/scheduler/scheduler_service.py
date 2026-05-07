@@ -35,7 +35,7 @@ from ...repository.models import (
 )
 from ...repository.models import SessionModel
 from ...repository.scheduled_task_repository import ScheduledTaskRepository
-from ...shared import now_epoch_ms, parse_interval_to_seconds
+from ...shared import is_quartz_weekday_cron, now_epoch_ms, parse_interval_to_seconds
 from .result_handler import ResultHandler
 from .notification_service import NotificationService
 
@@ -417,18 +417,18 @@ class SchedulerService:
         sense at task-creation time (see ``schedule_task``).
         """
         if task.schedule_type == ScheduleType.CRON:
-            if not croniter.is_valid(task.schedule_expression):
-                raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
             # Quartz-style day-of-week tokens (`1#2` = 2nd Monday, `5L` = last
-            # Friday) pass croniter validation but APScheduler's
-            # `CronTrigger.from_crontab` doesn't understand them — so route
-            # those patterns through the programmatic CronTrigger constructor,
-            # which does support `day="2nd mon"` / `day="last fri"`.
+            # Friday) aren't accepted by APScheduler's `CronTrigger.from_crontab`
+            # — and `5L` isn't accepted by croniter either — so try translating
+            # them to APScheduler's programmatic `day="2nd mon" / "last fri"`
+            # form first, before running the croniter validator.
             quartz_trigger = self._cron_with_quartz_weekday(
                 task.schedule_expression, task.timezone
             )
             if quartz_trigger is not None:
                 return quartz_trigger
+            if not croniter.is_valid(task.schedule_expression):
+                raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
             return CronTrigger.from_crontab(task.schedule_expression, timezone=task.timezone)
 
         elif task.schedule_type == ScheduleType.INTERVAL:
@@ -465,19 +465,17 @@ class SchedulerService:
     def _cron_with_quartz_weekday(expression: str, timezone: str):
         """Build a CronTrigger for Quartz-style day-of-week tokens.
 
-        Returns a CronTrigger when ``expression`` uses ``D#N`` (Nth weekday)
-        or ``DL`` (last weekday), else ``None`` so the caller can fall back
-        to the standard ``from_crontab`` parser.
+        Returns a CronTrigger when ``expression`` is a valid Quartz weekday
+        pattern (``D#N`` for Nth weekday or ``DL`` for last weekday), else
+        ``None`` so the caller can fall back to the standard ``from_crontab``
+        parser. Field-level validation of minute/hour/etc. is delegated to
+        ``is_quartz_weekday_cron`` so we never construct a CronTrigger with
+        garbage that APScheduler would reject anyway.
         """
-        parts = expression.strip().split()
-        if len(parts) != 5:
+        if not is_quartz_weekday_cron(expression):
             return None
-        minute, hour, day_of_month, month, day_of_week = parts
-        # Only translate when the rest of the expression is plain enough
-        # that mapping `day_of_week` onto APScheduler's `day` field is
-        # unambiguous: month must be unrestricted and day_of_month must be `*`.
-        if month != "*" or day_of_month != "*":
-            return None
+
+        minute, hour, day_of_month, month, day_of_week = expression.strip().split()
 
         weekday_names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
         nth_words = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}
@@ -488,16 +486,11 @@ class SchedulerService:
         if nth_match:
             wd_num = int(nth_match.group(1))
             nth = nth_match.group(2)
-            if not 0 <= wd_num <= 6:
-                return None
             day_expr = f"{nth_words[nth]} {weekday_names[wd_num]}"
-        elif last_match:
-            wd_num = int(last_match.group(1))
-            if not 0 <= wd_num <= 6:
-                return None
-            day_expr = f"last {weekday_names[wd_num]}"
         else:
-            return None
+            assert last_match is not None  # guaranteed by is_quartz_weekday_cron
+            wd_num = int(last_match.group(1))
+            day_expr = f"last {weekday_names[wd_num]}"
 
         return CronTrigger(
             minute=minute,

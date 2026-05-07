@@ -22,15 +22,16 @@ log = logging.getLogger(__name__)
 
 _MAX_USER_ERROR_LENGTH = 256
 
-# Char limit for the snippet stored in result_summary for list views (the
-# Latest Execution panel). The full untruncated text is kept separately in
+# Char limit for the short snippet stored in result_summary for list views
+# (the Latest Execution panel). A bounded long-form copy is kept separately in
 # result_summary.agent_response_full and rendered on the per-execution detail
-# page.
+# page; the truly unbounded transcript lives in the chat session's
+# full_messages.
 _RESULT_SUMMARY_SNIPPET_CHARS = 1000
-# Cap on the full agent response we persist to result_summary. The full text
-# is also stored verbatim in the chat session's full_messages, so this column
-# only needs to be useful for the per-execution detail page; an unusually
-# large model output shouldn't bloat the executions table or API responses.
+# Cap on the long-form agent response we persist to result_summary. Bounded
+# (not unbounded) because the executions table shouldn't bloat for a single
+# pathologically large model output, and the full transcript is already
+# captured in the chat session's full_messages.
 _RESULT_SUMMARY_FULL_MAX_CHARS = 200_000
 
 

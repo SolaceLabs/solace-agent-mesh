@@ -135,11 +135,17 @@ def _validate_inline_component(
     if not isinstance(prompt, str) or not prompt.strip():
         prompt = _DEFAULT_PICKER_PROMPT
 
+    # Strict bool: the LLM occasionally emits `"false"` / `"true"` strings,
+    # and `bool("false")` is `True`, which would silently flip the picker's
+    # behavior. Accept only real booleans; otherwise fall back to the default.
+    raw_allow_other = raw.get("allow_other", True)
+    allow_other = raw_allow_other if isinstance(raw_allow_other, bool) else True
+
     return InlineComponent(
         type="agent_picker",
         prompt=prompt[:_MAX_PICKER_PROMPT_LENGTH],
         suggestions=suggestions,
-        allow_other=bool(raw.get("allow_other", True)),
+        allow_other=allow_other,
     )
 
 
