@@ -88,16 +88,29 @@ def _fetch_latest_executions_by_filter(db: DBSession, task_ids: list[str], statu
     join_condition = (ScheduledTaskExecutionModel.scheduled_task_id == subq.c.tid) & (
         ScheduledTaskExecutionModel.scheduled_for == subq.c.max_for
     )
-    query = db.query(ScheduledTaskExecutionModel).join(subq, join_condition)
+    # Deterministic ordering for the (task_id, scheduled_for) tie:
+    # `started_at` first (most recent run wins), then `id` to break the
+    # remaining ties (e.g. two PENDING rows where started_at is NULL on
+    # both). Without this, the chosen "latest" execution flickers across
+    # requests on Postgres.
+    query = (
+        db.query(ScheduledTaskExecutionModel)
+        .join(subq, join_condition)
+        .order_by(
+            ScheduledTaskExecutionModel.started_at.desc().nullslast(),
+            ScheduledTaskExecutionModel.id.desc(),
+        )
+    )
     if status_filter is not None:
         query = query.filter(ScheduledTaskExecutionModel.status.in_(status_filter))
     rows = query.all()
 
     result: dict[str, LastExecutionSummary] = {}
     for row in rows:
-        # Two rows sharing (task_id, scheduled_for) — keep the most recent run.
-        existing = result.get(row.scheduled_task_id)
-        if existing is None or (row.started_at or 0) >= (existing.started_at or 0):
+        # First row per task wins thanks to the deterministic ordering above;
+        # subsequent rows for the same task share (scheduled_for) but lost the
+        # tie-break, so skip them.
+        if row.scheduled_task_id not in result:
             result[row.scheduled_task_id] = _row_to_summary(row)
     return result
 

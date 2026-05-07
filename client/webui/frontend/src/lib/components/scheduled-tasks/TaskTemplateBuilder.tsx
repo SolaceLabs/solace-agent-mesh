@@ -260,7 +260,13 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (updates.scheduleType || updates.schedule_type) taskUpdates.scheduleType = (updates.scheduleType || updates.schedule_type) as "cron" | "interval" | "one_time";
         if (updates.scheduleExpression || updates.schedule_expression) taskUpdates.scheduleExpression = String(updates.scheduleExpression || updates.schedule_expression);
         if (updates.targetType || updates.target_type) taskUpdates.targetType = (updates.targetType || updates.target_type) as TargetType;
-        if (updates.targetAgentName || updates.target_agent_name) taskUpdates.targetAgentName = String(updates.targetAgentName || updates.target_agent_name);
+        // Treat explicit null as a clear (e.g. when the AI emits an agent_picker
+        // and wants any previously-selected agent removed). Plain truthy check
+        // would silently drop the null and leave a stale selection on the form.
+        if (updates.targetAgentName !== undefined || updates.target_agent_name !== undefined) {
+            const next = updates.targetAgentName ?? updates.target_agent_name;
+            taskUpdates.targetAgentName = next == null ? "" : String(next);
+        }
         if (updates.taskMessage || updates.task_message) taskUpdates.taskMessage = String(updates.taskMessage || updates.task_message);
         if (updates.timezone) taskUpdates.timezone = String(updates.timezone);
 
@@ -574,7 +580,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                 Timezone <span className="text-(--primary-wMain)">*</span>
                                             </Label>
                                             <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
-                                                <SelectTrigger className="w-full">
+                                                <SelectTrigger className={cn("w-full", validationErrors.timezone && "border-(--error-w100)")}>
                                                     <SelectValue placeholder="Select timezone" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -585,6 +591,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                                     ))}
                                                 </SelectContent>
                                             </Select>
+                                            {validationErrors.timezone && <p className="text-sm text-(--error-wMain)">{validationErrors.timezone}</p>}
                                         </div>
                                     </div>
 
