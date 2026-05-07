@@ -72,14 +72,20 @@ class TestS3ArtifactServiceInit:
 
     @patch('boto3.client')
     def test_init_creates_client_when_none_provided(self, mock_boto_client, mock_s3_client):
-        """Test initialization creates S3 client when none provided"""
+        """Test initialization creates S3 client when none provided, with a tuned urllib3 pool size."""
         mock_boto_client.return_value = mock_s3_client
-        
+
         service = S3ArtifactService("test-bucket")
-        
+
         assert service.bucket_name == "test-bucket"
         assert service.s3 == mock_s3_client
-        mock_boto_client.assert_called_once_with("s3")
+
+        mock_boto_client.assert_called_once()
+        args, kwargs = mock_boto_client.call_args
+        assert args == ("s3",)
+        # boto3's default pool size of 10 starves the FastAPI loop under load —
+        # we override unless the caller passes their own Config.
+        assert kwargs["config"].max_pool_connections == 200
 
     def test_init_with_empty_bucket_name(self):
         """Test initialization with empty bucket name raises ValueError"""
@@ -618,6 +624,118 @@ class TestS3ArtifactServiceListArtifactKeys:
         
         # Should return empty list on error
         assert keys == []
+
+
+class TestS3ArtifactServiceListSessionsWithArtifactsForUser:
+    """Tests for list_sessions_with_artifacts_for_user method"""
+
+    @pytest.mark.asyncio
+    async def test_returns_session_ids_from_keys(self, mock_s3_client):
+        """Each unique session_id segment in the user prefix should appear in the result."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.return_value = [{
+            'Contents': [
+                {'Key': 'app/u1/sess-a/file1.txt/0'},
+                {'Key': 'app/u1/sess-a/file1.txt/1'},
+                {'Key': 'app/u1/sess-b/file2.txt/0'},
+            ]
+        }]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_sessions_with_artifacts_for_user(
+            app_name="app", user_id="u1"
+        )
+
+        assert result == {"sess-a", "sess-b"}
+
+    @pytest.mark.asyncio
+    async def test_excludes_user_token_from_session_set(self, mock_s3_client):
+        """The literal 'user' segment from user-scoped artifacts must not appear as a session id."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.return_value = [{
+            'Contents': [
+                {'Key': 'app/u1/sess-a/file1.txt/0'},
+                {'Key': 'app/u1/user/profile.txt/0'},
+            ]
+        }]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_sessions_with_artifacts_for_user(
+            app_name="app", user_id="u1"
+        )
+
+        assert result == {"sess-a"}
+        assert "user" not in (result or set())
+
+    @pytest.mark.asyncio
+    async def test_user_scoped_only_returns_none(self, mock_s3_client):
+        """If the user has only user-scoped artifacts (no session-scoped), return None
+        so the caller skips the prefilter — otherwise filtering by session_id would
+        drop the user-scoped artifacts that the legacy per-session scan would surface.
+        """
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.return_value = [{
+            'Contents': [
+                {'Key': 'app/u1/user/profile.txt/0'},
+                {'Key': 'app/u1/user/settings.txt/0'},
+            ]
+        }]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_sessions_with_artifacts_for_user(
+            app_name="app", user_id="u1"
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_no_objects_returns_empty_set(self, mock_s3_client):
+        """User with zero artifacts → empty set; caller can skip per-session scans entirely."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.return_value = [{'Contents': []}]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_sessions_with_artifacts_for_user(
+            app_name="app", user_id="u1"
+        )
+
+        assert result == set()
+
+    @pytest.mark.asyncio
+    async def test_client_error_returns_none(self, mock_s3_client):
+        """ClientError is best-effort: return None so the caller falls back to scan-all."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': '403'}}, 'ListObjectsV2'
+        )
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_sessions_with_artifacts_for_user(
+            app_name="app", user_id="u1"
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_strips_leading_trailing_slashes_from_app_name(self, mock_s3_client):
+        """app_name slashes are stripped — matches list_artifact_keys behaviour."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+        paginator = Mock()
+        paginator.paginate.return_value = [{'Contents': []}]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        await service.list_sessions_with_artifacts_for_user(
+            app_name="/app/", user_id="u1"
+        )
+
+        # paginate should have been called with the cleaned prefix
+        _, kwargs = paginator.paginate.call_args
+        assert kwargs["Prefix"] == "app/u1/"
 
 
 class TestS3ArtifactServiceDeleteArtifact:
