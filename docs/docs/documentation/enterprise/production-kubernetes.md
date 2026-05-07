@@ -1069,7 +1069,7 @@ Configure external PostgreSQL database and object storage. For production, set `
 |-----|------|---------|-------------|
 | `samDoctor.enabled` | bool | `true` | Enable sam-doctor pre-flight validation |
 | `samDoctor.failOnError` | bool | `true` | Block install/upgrade on validation failure |
-| `samDoctor.timeoutSeconds` | int | `120` | Hook job timeout in seconds |
+| `samDoctor.timeoutSeconds` | int | `180` | Hook job timeout in seconds |
 | `samDoctor.tlsDnsName` | string | `""` | DNS name for TLS certificate validation. Defaults to `sam.dnsName` if not set. |
 
 ### Bundled Components - Persistence Layer

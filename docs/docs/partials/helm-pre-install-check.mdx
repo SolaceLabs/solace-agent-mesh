@@ -1,11 +1,14 @@
-When `samDoctor.enabled=true` (the default), Agent Mesh runs a pre-install hook Job before any workload pods are created. By default, a failing check blocks `helm install` and `helm upgrade`. To see the diagnostic report:
+When `samDoctor.enabled=true` (the default), Agent Mesh runs a pre-install hook Job before any workload pods are created. By default, a failing check blocks `helm install` and `helm upgrade` with an error like:
+
+```
+Error: INSTALLATION FAILED: failed pre-install: 1 error occurred:
+    * job <release>-<chart-name>-sam-doctor failed: ...
+```
+
+To see the diagnostic report, view the job's logs (the job name appears in the helm error above):
 
 ```bash
-# Find the hook job (name includes your Helm release name):
-kubectl get jobs -n <namespace> | grep sam-doctor
-
-# View the diagnostic report using the actual job name:
-kubectl logs job/<job-name> -n <namespace>
+kubectl logs job/<release>-<chart-name>-sam-doctor -n <namespace>
 ```
 
 The report lists each check with a `PASS`, `WARN`, `FAIL`, or `SKIP` status and a reason for any failure.
