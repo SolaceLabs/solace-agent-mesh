@@ -43,6 +43,7 @@ from ...common.utils.mime_helpers import is_text_based_file, is_image_artifact
 
 log = logging.getLogger(__name__)
 
+ARTIFACT_MANAGEMENT_CATEGORY = "artifact_management"
 CATEGORY_NAME = "Artifact Management"
 CATEGORY_DESCRIPTION = "List, read, create, update, and delete artifacts."
 
@@ -1753,7 +1754,7 @@ append_to_artifact_tool_def = BuiltinTool(
     name="append_to_artifact",
     implementation=append_to_artifact,
     description="Appends a chunk of content to an existing artifact. This operation will create a new version of the artifact. The content_chunk should be a string, potentially base64 encoded if it represents binary data (indicated by mime_type). The chunk size should be limited (e.g., max 3KB) by the LLM.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:append"],
@@ -1782,7 +1783,7 @@ list_artifacts_tool_def = BuiltinTool(
     name="list_artifacts",
     implementation=list_artifacts,
     description="Lists all available data artifact filenames and their versions for the current session. Includes a summary of the latest version's metadata for each artifact.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:list"],
@@ -1798,7 +1799,7 @@ load_artifact_tool_def = BuiltinTool(
     name="load_artifact",
     implementation=load_artifact,
     description="Loads the content or metadata of a specific artifact version. If load_metadata_only is True, loads the full metadata dictionary. Otherwise, loads text content (potentially truncated) or a summary for binary types. For image artifacts (PNG, JPG, etc.) on vision-enabled agents, the image is returned inline so you can see and analyze it directly. Use this to view images created by tools or uploaded by users. Line numbers can be optionally included for precise line range identification.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:load"],
@@ -1838,7 +1839,7 @@ apply_embed_and_create_artifact_tool_def = BuiltinTool(
     name="apply_embed_and_create_artifact",
     implementation=apply_embed_and_create_artifact,
     description="Resolves an 'artifact_content' embed directive (including modifiers and formatting) and saves the resulting content as a new artifact. The entire embed directive must be provided as a string.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:create", "tool:artifact:load"],
@@ -1893,7 +1894,7 @@ extract_content_from_artifact_tool_def = BuiltinTool(
         "NOT attempt to generate or fabricate data. The tool returns a "
         "'message_to_llm' field explaining the error."
     ),
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:load", "tool:artifact:create"],
@@ -2045,7 +2046,7 @@ delete_artifact_tool_def = BuiltinTool(
     name="delete_artifact",
     implementation=delete_artifact,
     description="Deletes all versions of an artifact. IMPORTANT: Requires explicit confirmation via confirm_delete=True parameter. The first call without confirmation will return details about what will be deleted.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:delete"],
@@ -2565,7 +2566,7 @@ artifact_search_and_replace_regex_tool_def = BuiltinTool(
     name="artifact_search_and_replace_regex",
     implementation=artifact_search_and_replace_regex,
     description="Performs search and replace on an artifact's text content using either literal string matching or regular expressions. Supports both single replacements and atomic batch replacements for efficiency.",
-    category="artifact_management",
+    category=ARTIFACT_MANAGEMENT_CATEGORY,
     category_name=CATEGORY_NAME,
     category_description=CATEGORY_DESCRIPTION,
     required_scopes=["tool:artifact:load", "tool:artifact:create"],

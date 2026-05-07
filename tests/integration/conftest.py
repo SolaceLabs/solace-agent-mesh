@@ -950,6 +950,17 @@ def shared_solace_connector(
         model_suffix="peerD",
     )
 
+    # Agent intentionally omitting artifact_management from its YAML — used to
+    # verify that the runtime auto-injects artifact tools so the agent can still
+    # serve as a workflow node without explicit configuration.
+    no_artifact_agent_config = create_agent_config(
+        agent_name="TestPeerAgentNoArtifacts",
+        description="Peer agent without explicit artifact_management config (tests auto-injection)",
+        allow_list=[],
+        tools=[{"tool_type": "builtin-group", "group_name": "data_analysis"}],
+        model_suffix="noArtifacts",
+    )
+
     # Compaction test agent with auto-summarization enabled
     compaction_agent_config = create_agent_config(
         agent_name="TestAgentCompaction",
@@ -1187,6 +1198,12 @@ def shared_solace_connector(
         {
             "name": "TestPeerAgentD_App",
             "app_config": peer_d_config,
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.agent.sac.app",
+        },
+        {
+            "name": "TestPeerAgentNoArtifacts_App",
+            "app_config": no_artifact_agent_config,
             "broker": {"dev_mode": True},
             "app_module": "solace_agent_mesh.agent.sac.app",
         },
@@ -1864,6 +1881,35 @@ def shared_solace_connector(
             "app_module": "solace_agent_mesh.workflow.app",
         },
         {
+            "name": "TestMissingArtifactWorkflowApp",
+            "app_config": {
+                "namespace": "test_namespace",
+                "name": "MissingArtifactToolsWorkflow",
+                "display_name": "Missing Artifact Tools Workflow (error test)",
+                "artifact_scope": "namespace",
+                "workflow": {
+                    "description": "Workflow whose single node points at an agent missing artifact_management",
+                    "nodes": [
+                        {
+                            "id": "summarise",
+                            "type": "agent",
+                            "agent_name": "TestPeerAgentNoArtifacts",
+                        }
+                    ],
+                    "output_mapping": {
+                        "result": "{{summarise.output}}",
+                    },
+                },
+                "session_service": {"type": "memory", "default_behavior": "RUN_BASED"},
+                "artifact_service": {"type": "test_in_memory"},
+                "agent_card_publishing": {"interval_seconds": 1},
+                "agent_discovery": {"enabled": True},
+                "auto_summarization": {"enabled": False, "compaction_percentage": 0.25},
+            },
+            "broker": {"dev_mode": True},
+            "app_module": "solace_agent_mesh.workflow.app",
+        },
+        {
             "name": "TestA2AProxyApp",
             "app_config": {
                 "namespace": "test_namespace",
@@ -2000,6 +2046,26 @@ def peer_agent_d_app_under_test(
         app_instance, SamAgentApp
     ), "Failed to retrieve TestPeerAgentD_App."
     yield app_instance
+
+
+@pytest.fixture(scope="session")
+def no_artifacts_agent_app_under_test(
+    shared_solace_connector: SolaceAiConnector,
+) -> SamAgentApp:
+    """Retrieves the TestPeerAgentNoArtifacts_App instance."""
+    app_instance = shared_solace_connector.get_app("TestPeerAgentNoArtifacts_App")
+    assert isinstance(
+        app_instance, SamAgentApp
+    ), "Failed to retrieve TestPeerAgentNoArtifacts_App."
+    yield app_instance
+
+
+@pytest.fixture(scope="session")
+def no_artifacts_agent_component(
+    no_artifacts_agent_app_under_test: SamAgentApp,
+) -> SamAgentComponent:
+    """Retrieves the TestPeerAgentNoArtifacts component instance."""
+    return get_component_from_app(no_artifacts_agent_app_under_test)
 
 
 @pytest.fixture(scope="session")
