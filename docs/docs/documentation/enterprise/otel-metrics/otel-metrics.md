@@ -42,7 +42,7 @@ Metrics serve as your high-level health dashboard, while stimulus logs and the a
 
 ## In This Section
 
-- [Getting Started](./overview.md): Key concepts, prerequisites, enabling metrics, and verifying your setup
+- [Getting Started](./getting-started.md): Key concepts, prerequisites, enabling metrics, and verifying your setup
 - [Configuring OpenTelemetry Metrics](./configuration.md): Complete reference for all metric families, histogram bucket customization, cardinality control, and management server settings
 - [Integrating OpenTelemetry Metrics](./integration.md): Integration patterns including a DataDog quick-start walkthrough and OTLP exporter configuration
 - [Monitoring and Troubleshooting with Metrics](./monitoring.md): Dashboard examples, alert rules, best practices, and troubleshooting guidance

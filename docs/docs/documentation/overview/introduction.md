@@ -61,7 +61,7 @@ Agent Mesh is an agentic framework that provides several key technical advantage
 
 Whether you're building a proof-of-concept or planning a production deployment, Agent Mesh provides the foundation you need. For more information, see:
 
-- [Getting Started](../getting-started/getting-started.md): For an overview of Agent Mesh and what you can find in this documentation.
+- [Getting Started](./overview.md): For an overview of Agent Mesh and what you can find in this documentation.
 - [Installation](../installing-and-configuring/installation.md): For installing and setting up Agent Mesh.
 - [Quick Start](./try-agent-mesh.md): For creating a project, building, and running Agent Mesh.
 - [Component Overview](../components/components.md): Understanding the parts of Agent Mesh.
