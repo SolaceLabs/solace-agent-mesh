@@ -797,6 +797,7 @@ def shared_solace_connector(
             },
             "stream_batching_threshold_bytes": 0,
             "tools": tools,
+            "auto_inject_artifact_tools": False,
         }
 
         if inject_system_purpose:
@@ -960,6 +961,7 @@ def shared_solace_connector(
         tools=[{"tool_type": "builtin-group", "group_name": "data_analysis"}],
         model_suffix="noArtifacts",
     )
+    no_artifact_agent_config["auto_inject_artifact_tools"] = True
 
     # Compaction test agent with auto-summarization enabled
     compaction_agent_config = create_agent_config(
@@ -1009,6 +1011,7 @@ def shared_solace_connector(
         ],
         model_suffix="empty-provider",
     )
+    empty_provider_agent_config["auto_inject_artifact_tools"] = True
 
     docstringless_agent_config = create_agent_config(
         agent_name="DocstringlessAgent",
