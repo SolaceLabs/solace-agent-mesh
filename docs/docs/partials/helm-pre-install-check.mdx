@@ -2,13 +2,13 @@ When `samDoctor.enabled=true` (the default), Agent Mesh runs a pre-install hook 
 
 ```
 Error: INSTALLATION FAILED: failed pre-install: 1 error occurred:
-    * job <release>-sam-doctor failed: ...
+    * job <release>-<chart-name>-sam-doctor failed: ...
 ```
 
 To see the diagnostic report, view the job's logs (the job name appears in the helm error above):
 
 ```bash
-kubectl logs job/<release>-sam-doctor -n <namespace>
+kubectl logs job/<release>-<chart-name>-sam-doctor -n <namespace>
 ```
 
 The report lists each check with a `PASS`, `WARN`, `FAIL`, or `SKIP` status and a reason for any failure.
