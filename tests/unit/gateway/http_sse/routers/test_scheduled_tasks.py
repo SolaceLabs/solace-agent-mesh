@@ -1216,8 +1216,33 @@ class TestDeleteExecution:
         assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_rolls_back_and_500s_on_unexpected_error(self):
-        """Unexpected exception during delete → rollback + 500 (no leak of internal error)."""
+    async def test_rolls_back_and_500s_on_precommit_error(self):
+        """Pre-commit failure (lookup / auth) → rollback + 500."""
+        task_service = MagicMock()
+        # get_execution itself raises — we never get to the service.delete call
+        task_service.get_execution.side_effect = RuntimeError("session error")
+
+        mock_db = MagicMock()
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=mock_db,
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 500
+        mock_db.rollback.assert_called_once()
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_rollback_when_service_delete_fails(self):
+        """If task_service.delete_execution raises, the commit either already
+        happened inside the service or never started; the router must NOT
+        issue a rollback at that point (it would operate on a fresh implicit
+        transaction and mask the real error). 500 still surfaces to the user."""
         execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
         task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
 
@@ -1238,7 +1263,7 @@ class TestDeleteExecution:
             )
 
         assert exc_info.value.status_code == 500
-        mock_db.rollback.assert_called_once()
+        mock_db.rollback.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_returns_403_when_user_lacks_scheduling_permission(self):

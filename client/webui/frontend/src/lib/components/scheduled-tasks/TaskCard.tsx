@@ -7,7 +7,7 @@ import type { ScheduledTask, LastExecutionSummary } from "@/lib/types/scheduled-
 import { formatDuration, formatRelativeTime } from "@/lib/utils/format";
 import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
-import { getStatusBadge } from "./ExecutionList";
+import { getStatusBadge } from "./StatusBadge";
 
 const lastRunLabel = (last: LastExecutionSummary): string => {
     switch (last.status) {
@@ -133,7 +133,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, isSelected = false, on
             <div className="flex h-full w-full flex-col">
                 <div className="flex items-center justify-between px-4">
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <CalendarDays className="h-6 w-6 flex-shrink-0 text-[var(--color-brand-wMain)]" />
+                        <CalendarDays className="h-6 w-6 flex-shrink-0 text-(--brand-wMain)" />
                         <div className="min-w-0">
                             <h2 className="truncate text-lg font-semibold" title={task.name}>
                                 {task.name}

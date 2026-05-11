@@ -8,7 +8,6 @@ Tasks run forever while enabled; failures are tracked for observability only.
 
 import asyncio
 import logging
-import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
@@ -36,6 +35,7 @@ from ...repository.models import (
 from ...repository.models import SessionModel
 from ...repository.scheduled_task_repository import ScheduledTaskRepository
 from ...shared import is_quartz_weekday_cron, now_epoch_ms, parse_interval_to_seconds
+from ...shared.cron import NTH_WORDS, WEEKDAY_NAMES, parse_quartz_weekday_token
 from .result_handler import ResultHandler
 from .notification_service import NotificationService
 
@@ -476,21 +476,16 @@ class SchedulerService:
             return None
 
         minute, hour, day_of_month, month, day_of_week = expression.strip().split()
+        parsed = parse_quartz_weekday_token(day_of_week)
+        # `is_quartz_weekday_cron` already validated the token; this assert
+        # documents that invariant for type-checkers and future readers.
+        assert parsed is not None
 
-        weekday_names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
-        nth_words = {"1": "1st", "2": "2nd", "3": "3rd", "4": "4th"}
-
-        nth_match = re.fullmatch(r"(\d)#([1-4])", day_of_week)
-        last_match = re.fullmatch(r"(\d)L", day_of_week, re.IGNORECASE)
-
-        if nth_match:
-            wd_num = int(nth_match.group(1))
-            nth = nth_match.group(2)
-            day_expr = f"{nth_words[nth]} {weekday_names[wd_num]}"
+        if parsed.is_last:
+            day_expr = f"last {WEEKDAY_NAMES[parsed.weekday]}"
         else:
-            assert last_match is not None  # guaranteed by is_quartz_weekday_cron
-            wd_num = int(last_match.group(1))
-            day_expr = f"last {weekday_names[wd_num]}"
+            assert parsed.nth is not None
+            day_expr = f"{NTH_WORDS[parsed.nth]} {WEEKDAY_NAMES[parsed.weekday]}"
 
         return CronTrigger(
             minute=minute,
@@ -589,34 +584,44 @@ class SchedulerService:
             # Also persisted onto the execution row (see "task_snapshot"
             # column) so the UI can show per-execution config even after the
             # task is later edited.
+            #
+            # `schedule_type` is a SQLEnum column, so `.value` is always
+            # defined. `target_type` is a plain String column (see
+            # ScheduledTaskModel) — calling `.value` on it would AttributeError,
+            # so it's used as-is. The previous hasattr() guard obscured that
+            # asymmetry and would let a raw enum slip into the JSON column if
+            # the model ever changed shape.
             task_snapshot = {
                 "task_message": task.task_message,
                 "name": task.name,
                 "description": task.description,
                 "run_count": task.run_count,
                 "task_metadata": task.task_metadata,
-                "schedule_type": task.schedule_type.value if hasattr(task.schedule_type, "value") else task.schedule_type,
+                "schedule_type": task.schedule_type.value,
                 "schedule_expression": task.schedule_expression,
                 "target_agent_name": task.target_agent_name,
-                "target_type": task.target_type.value if hasattr(task.target_type, "value") else task.target_type,
+                "target_type": task.target_type,
                 "user_id": task.user_id,
                 "created_by": task.created_by,
                 "timezone": task.timezone,
             }
 
         # Subset persisted on the execution row for the UI's per-execution
-        # config view. Excludes internal/stateful fields like run_count and
-        # user_id which aren't shown in the Configuration sidebar.
-        persisted_snapshot = {
-            "name": task_snapshot["name"],
-            "description": task_snapshot["description"],
-            "schedule_type": task_snapshot["schedule_type"],
-            "schedule_expression": task_snapshot["schedule_expression"],
-            "timezone": task_snapshot["timezone"],
-            "target_agent_name": task_snapshot["target_agent_name"],
-            "target_type": task_snapshot["target_type"],
-            "task_message": task_snapshot["task_message"],
-        }
+        # config view. Excludes internal/stateful fields like run_count,
+        # user_id, and created_by which aren't shown in the Configuration
+        # sidebar. Derived from task_snapshot via an allowlist so the two
+        # can't drift.
+        _PERSISTED_SNAPSHOT_KEYS = (
+            "name",
+            "description",
+            "schedule_type",
+            "schedule_expression",
+            "timezone",
+            "target_agent_name",
+            "target_type",
+            "task_message",
+        )
+        persisted_snapshot = {k: task_snapshot[k] for k in _PERSISTED_SNAPSHOT_KEYS}
 
         for attempt in range(max_retries + 1):
             execution_id = None

@@ -405,18 +405,18 @@ class ScheduledTaskRepository:
         )
         return list(session.execute(query).scalars().all())
 
+    @MonitorLatency(DBMonitor.delete("scheduled_task_executions"))
     def delete_execution(
         self,
         session: DBSession,
         execution_id: str,
     ) -> bool:
         """Hard-delete a single execution by id. Returns True if a row was removed."""
-        with MonitorLatency(DBMonitor.delete("scheduled_task_executions")):
-            deleted = (
-                session.query(ScheduledTaskExecutionModel)
-                .filter(ScheduledTaskExecutionModel.id == execution_id)
-                .delete(synchronize_session=False)
-            )
+        deleted = (
+            session.query(ScheduledTaskExecutionModel)
+            .filter(ScheduledTaskExecutionModel.id == execution_id)
+            .delete(synchronize_session=False)
+        )
         return deleted > 0
 
     def delete_oldest_executions(

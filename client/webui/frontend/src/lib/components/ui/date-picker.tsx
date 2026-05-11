@@ -115,40 +115,35 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-between gap-2 font-normal", !value && "text-(--secondary-text-wMain)", invalid && "border-red-500", className)}>
-                    <span className="truncate">{displayValue ?? placeholder}</span>
-                    <span className="flex items-center gap-1">
-                        {value && (
-                            // Span (not <button>) because the wrapping element
-                            // is already a <button> popover trigger and nested
-                            // buttons are invalid HTML. We add explicit
-                            // keyboard support so Enter/Space clear the date,
-                            // matching real button semantics for a11y users.
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                aria-label="Clear date"
-                                onClick={e => {
-                                    e.stopPropagation();
-                                    onChange("");
-                                }}
-                                onKeyDown={e => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        onChange("");
-                                    }
-                                }}
-                                className="flex h-5 w-5 items-center justify-center rounded hover:bg-(--secondary-w20) focus-visible:ring-2 focus-visible:ring-(--brand-wMain) focus-visible:outline-none"
-                            >
-                                <X className="h-3.5 w-3.5 text-(--secondary-text-wMain)" />
-                            </span>
-                        )}
-                        <CalendarIcon className="h-4 w-4 text-(--secondary-text-wMain)" />
-                    </span>
-                </Button>
-            </PopoverTrigger>
+            {/* Trigger Button + Clear Button are siblings inside a relative
+                wrapper so the clear control isn't a nested interactive
+                element inside the popover trigger (which would be invalid
+                HTML and break a11y). The clear button is absolutely
+                positioned over the right edge of the trigger; the trigger's
+                right padding leaves room for it. */}
+            <div className={cn("relative inline-flex w-full", className)}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-between gap-2 pr-9 font-normal", !value && "text-(--secondary-text-wMain)", invalid && "border-(--error-w100)")}>
+                        <span className="truncate">{displayValue ?? placeholder}</span>
+                        <CalendarIcon className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                    </Button>
+                </PopoverTrigger>
+                {value && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Clear date"
+                        onClick={e => {
+                            e.stopPropagation();
+                            onChange("");
+                        }}
+                        className="absolute top-1/2 right-7 h-5 w-5 -translate-y-1/2 p-0 hover:bg-(--secondary-w20)"
+                    >
+                        <X className="h-3.5 w-3.5 text-(--secondary-text-wMain)" />
+                    </Button>
+                )}
+            </div>
             <PopoverContent className="w-auto p-3" align="start">
                 {/* Month/Year on the left, prev/next chevrons on the right */}
                 <div className="mb-2 flex items-center justify-between">

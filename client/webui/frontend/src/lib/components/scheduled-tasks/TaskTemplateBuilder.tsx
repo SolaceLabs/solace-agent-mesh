@@ -8,9 +8,11 @@ import { TaskPreviewPanel } from "./TaskPreviewPanel";
 import { ScheduleBuilder, SchedulePreviewBox, TimeOfDayPicker } from "./ScheduleBuilder";
 import { describeScheduleExpression } from "./utils";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
-import { useCreateScheduledTask, useUpdateScheduledTask, scheduledTaskService } from "@/lib/api/scheduled-tasks";
+import { useCreateScheduledTask, useUpdateScheduledTask } from "@/lib/api/scheduled-tasks";
+import { useValidateTaskConflict } from "./useValidateTaskConflict";
 import { cn } from "@/lib/utils";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
+import { INTERVAL_UNITS, MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS, intervalToSeconds, parseInterval, type IntervalUnit, type TaskConfig } from "./task-config";
 
 // Common timezones for the dropdown
 const COMMON_TIMEZONES = [
@@ -32,30 +34,8 @@ const COMMON_TIMEZONES = [
     "UTC",
 ];
 
-// Interval schedule supports integer values suffixed by a unit: s | m | h | d.
-// Backend enforces a minimum of 60 seconds (see parse_interval_to_seconds).
-type IntervalUnit = "s" | "m" | "h" | "d";
-const INTERVAL_UNITS: Array<{ value: IntervalUnit; label: string; seconds: number }> = [
-    { value: "s", label: "Seconds", seconds: 1 },
-    { value: "m", label: "Minutes", seconds: 60 },
-    { value: "h", label: "Hours", seconds: 3600 },
-    { value: "d", label: "Days", seconds: 86400 },
-];
-const MIN_INTERVAL_SECONDS = 60;
-// 1 year. Mirror the backend's MAXIMUM_INTERVAL_SECONDS — APScheduler's
-// IntervalTrigger overflows the underlying C int well past this bound, and
-// no realistic recurring task needs more than yearly cadence.
-const MAX_INTERVAL_SECONDS = 365 * 86400;
-
-function parseInterval(expr: string): { value: number; unit: IntervalUnit } {
-    const match = /^(\d+)([smhd])$/i.exec(expr.trim());
-    if (!match) return { value: 30, unit: "m" };
-    return { value: parseInt(match[1], 10), unit: match[2].toLowerCase() as IntervalUnit };
-}
-
-function intervalToSeconds(value: number, unit: IntervalUnit): number {
-    return value * (INTERVAL_UNITS.find(u => u.value === unit)?.seconds ?? 1);
-}
+// Default fallback when an interval expression can't be parsed.
+const INTERVAL_FALLBACK: { value: number; unit: IntervalUnit } = { value: 30, unit: "m" };
 
 // Local-state-driven interval value input. The previous implementation read
 // directly from the cron-derived `parsed.value` and rejected empty/invalid
@@ -102,18 +82,6 @@ const IntervalValueInput: React.FC<{ value: number; unit: IntervalUnit; onChange
     );
 };
 
-interface TaskConfig {
-    name: string;
-    description: string;
-    scheduleType: "cron" | "interval" | "one_time";
-    scheduleExpression: string;
-    targetType: TargetType;
-    targetAgentName: string;
-    taskMessage: string;
-    timezone: string;
-    enabled: boolean;
-}
-
 interface TaskTemplateBuilderProps {
     onBack: () => void;
     onSuccess?: (taskId?: string) => void;
@@ -143,6 +111,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
     const { agents } = useAgentCards();
     const createTaskMutation = useCreateScheduledTask();
     const updateTaskMutation = useUpdateScheduledTask();
+    const validateConflictMutation = useValidateTaskConflict();
     const isLoading = createTaskMutation.isPending || updateTaskMutation.isPending || isCheckingConflict;
 
     // For unsaved changes detection
@@ -365,7 +334,16 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
     // Must include every field forwarded to validateTaskConflict, otherwise
     // changing one of them (e.g. switching the target agent) wouldn't clear
     // the warning and a second Create would override under different inputs.
-    const conflictSignature = (cfg: TaskConfig) => `${cfg.scheduleType}|${cfg.scheduleExpression}|${cfg.timezone}|${cfg.taskMessage}|${cfg.targetAgentName}`;
+    // JSON.stringify avoids the collision that a delimiter-joined string
+    // would have if a field value happened to contain the delimiter.
+    const conflictSignature = (cfg: TaskConfig) =>
+        JSON.stringify({
+            scheduleType: cfg.scheduleType,
+            scheduleExpression: cfg.scheduleExpression,
+            timezone: cfg.timezone,
+            taskMessage: cfg.taskMessage,
+            targetAgentName: cfg.targetAgentName,
+        });
 
     // Any edit to the conflict-relevant fields invalidates the prior verdict.
     useEffect(() => {
@@ -390,7 +368,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (!alreadyWarned) {
             setIsCheckingConflict(true);
             try {
-                const result = await scheduledTaskService.validateTaskConflict({
+                const result = await validateConflictMutation.mutateAsync({
                     instructions: config.taskMessage,
                     scheduleType: config.scheduleType,
                     scheduleExpression: config.scheduleExpression,
@@ -407,8 +385,10 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     setPendingAction(null);
                     return;
                 }
-            } catch {
-                // Fail open — don't block the user if validation itself errors.
+            } catch (error) {
+                // Fail open — don't block the user if validation itself errors,
+                // but log so we don't silently swallow real backend failures.
+                console.warn("Conflict validation failed; allowing save", error);
             }
             setIsCheckingConflict(false);
         }
@@ -601,7 +581,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                     {/* Interval Input */}
                                     {config.scheduleType === "interval" &&
                                         (() => {
-                                            const parsed = parseInterval(config.scheduleExpression);
+                                            const parsed = parseInterval(config.scheduleExpression) ?? INTERVAL_FALLBACK;
                                             const invalid = !!validationErrors.scheduleExpression;
                                             return (
                                                 <>

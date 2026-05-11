@@ -5,7 +5,7 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger, DropdownMenu, Dropdown
 import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
 import { toEpochMs } from "@/lib/utils/sessionUnseen";
 import { formatSchedule } from "./utils";
-import { getStatusBadge } from "./ExecutionList";
+import { getStatusBadge } from "./StatusBadge";
 
 /** "5 minutes ago", "Yesterday", "YYYY-MM-DD HH:MM" — long-form relative time. */
 const formatRelativeLong = (epochMs: number): string => {

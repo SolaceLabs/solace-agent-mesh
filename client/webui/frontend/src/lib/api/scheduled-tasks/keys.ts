@@ -10,6 +10,7 @@ export const scheduledTaskKeys = {
     detail: (id: string) => [...scheduledTaskKeys.details(), id] as const,
     executions: (taskId: string) => [...scheduledTaskKeys.detail(taskId), "executions"] as const,
     executionList: (taskId: string, filters?: { pageNumber?: number; pageSize?: number }) => [...scheduledTaskKeys.executions(taskId), { filters }] as const,
+    execution: (executionId: string) => [...scheduledTaskKeys.all, "execution", executionId] as const,
     recentExecutions: (limit: number) => [...scheduledTaskKeys.all, "recent-executions", limit] as const,
     executionArtifacts: (executionId: string) => [...scheduledTaskKeys.all, "execution-artifacts", executionId] as const,
     schedulerStatus: () => [...scheduledTaskKeys.all, "scheduler-status"] as const,

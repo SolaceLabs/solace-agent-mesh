@@ -3,19 +3,7 @@ import { Badge, CardTitle, Label } from "@/lib/components/ui";
 import { CalendarDays } from "lucide-react";
 import { describeScheduleExpression } from "./utils";
 import { useAgentCards } from "@/lib/hooks";
-
-const INTERVAL_UNIT_LABELS: Record<string, string> = {
-    s: "Seconds",
-    m: "Minutes",
-    h: "Hours",
-    d: "Days",
-};
-
-function parseInterval(expr: string): { value: string; unit: string } | null {
-    const match = /^(\d+)([smhd])$/i.exec(expr.trim());
-    if (!match) return null;
-    return { value: match[1], unit: match[2].toLowerCase() };
-}
+import { INTERVAL_UNIT_LABELS, parseInterval, type TaskConfig } from "./task-config";
 
 function getScheduleTypeLabel(type: string) {
     switch (type) {
@@ -28,18 +16,6 @@ function getScheduleTypeLabel(type: string) {
         default:
             return type;
     }
-}
-
-interface TaskConfig {
-    name: string;
-    description: string;
-    scheduleType: "cron" | "interval" | "one_time";
-    scheduleExpression: string;
-    targetType: "agent" | "workflow";
-    targetAgentName: string;
-    taskMessage: string;
-    timezone: string;
-    enabled: boolean;
 }
 
 interface TaskPreviewPanelProps {

@@ -6,6 +6,7 @@ import { api } from "@/lib/api/client";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AgentPickerCard, type AgentPickerSuggestion } from "./AgentPickerCard";
 import { cn } from "@/lib/utils";
+import { uuid } from "@/lib/utils/uuid";
 
 interface InlineAgentPicker {
     type: "agent_picker";
@@ -15,6 +16,7 @@ interface InlineAgentPicker {
 }
 
 interface Message {
+    id: string;
     role: "user" | "assistant";
     content: string;
     timestamp: Date;
@@ -152,6 +154,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             : greetingQuery.data.message;
         setMessages([
             {
+                id: uuid(),
                 role: "assistant",
                 content: greetingMessage,
                 timestamp: new Date(),
@@ -162,6 +165,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         if (initialMessage) {
             setHasUserMessage(true);
             const userMessage: Message = {
+                id: uuid(),
                 role: "user",
                 content: initialMessage,
                 timestamp: new Date(),
@@ -179,7 +183,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                 {
                     onSuccess: apiData => {
                         const chatData = transformChatResponse(apiData);
-                        setMessages(prev => [...prev, { role: "assistant", content: chatData.message, timestamp: new Date(), inlineComponent: chatData.inlineComponent }]);
+                        setMessages(prev => [...prev, { id: uuid(), role: "assistant", content: chatData.message, timestamp: new Date(), inlineComponent: chatData.inlineComponent }]);
                         if (Object.keys(chatData.taskUpdates).length > 0) {
                             onConfigUpdate(chatData.taskUpdates);
                         }
@@ -188,7 +192,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                     },
                     onError: error => {
                         addNotification(error instanceof Error ? error.message : "Failed to process initial message", "warning");
-                        setMessages(prev => [...prev, { role: "assistant", content: "I encountered an error processing your request. Please try describing your task manually.", timestamp: new Date() }]);
+                        setMessages(prev => [...prev, { id: uuid(), role: "assistant", content: "I encountered an error processing your request. Please try describing your task manually.", timestamp: new Date() }]);
                     },
                 }
             );
@@ -203,6 +207,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             addNotification(greetingQuery.error instanceof Error ? greetingQuery.error.message : "Failed to initialize chat", "warning");
             setMessages([
                 {
+                    id: uuid(),
                     role: "assistant",
                     content: "Hi! I'll help you create a scheduled task. What would you like to automate?",
                     timestamp: new Date(),
@@ -257,6 +262,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         if (!trimmed || isLoading) return;
 
         const userMessage: Message = {
+            id: uuid(),
             role: "user",
             content: trimmed,
             timestamp: new Date(),
@@ -275,7 +281,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
             {
                 onSuccess: apiData => {
                     const data = transformChatResponse(apiData);
-                    setMessages(prev => [...prev, { role: "assistant", content: data.message, timestamp: new Date(), inlineComponent: data.inlineComponent }]);
+                    setMessages(prev => [...prev, { id: uuid(), role: "assistant", content: data.message, timestamp: new Date(), inlineComponent: data.inlineComponent }]);
                     if (Object.keys(data.taskUpdates).length > 0) {
                         onConfigUpdate(data.taskUpdates);
                     }
@@ -283,7 +289,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                 },
                 onError: error => {
                     addNotification(error instanceof Error ? error.message : "Failed to send message", "warning");
-                    setMessages(prev => [...prev, { role: "assistant", content: "I encountered an error. Could you please try again?", timestamp: new Date() }]);
+                    setMessages(prev => [...prev, { id: uuid(), role: "assistant", content: "I encountered an error. Could you please try again?", timestamp: new Date() }]);
                 },
                 onSettled: () => {
                     setTimeout(() => inputRef.current?.focus(), 100);
@@ -304,11 +310,11 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
         handleSend();
     };
 
-    const handleAgentPickerSelect = (messageIndex: number, agentName: string) => {
+    const handleAgentPickerSelect = (messageId: string, agentName: string) => {
         if (isLoading) return;
         const agent = availableAgents.find(a => a.name === agentName);
         const displayName = agent?.displayName || agentName;
-        setMessages(prev => prev.map((m, i) => (i === messageIndex ? { ...m, resolvedAgentName: agentName } : m)));
+        setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, resolvedAgentName: agentName } : m)));
         onConfigUpdate({ targetAgentName: agentName });
         sendMessage(`Use ${displayName}.`);
     };
@@ -338,8 +344,8 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
 
             {/* Messages */}
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
-                {messages.map((message, index) => (
-                    <div key={index} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
+                {messages.map(message => (
+                    <div key={message.id} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
                         <div className={cn(message.inlineComponent ? "w-full py-3" : "max-w-[80%] rounded-2xl px-4 py-3", message.role === "user" && "bg-(--secondary-w20)")}>
                             {message.role === "assistant" ? <MarkdownWrapper content={message.content} className="text-sm leading-relaxed" /> : <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</div>}
                             {message.inlineComponent?.type === "agent_picker" && (
@@ -349,7 +355,7 @@ export const TaskBuilderChat: React.FC<TaskBuilderChatProps> = ({ onConfigUpdate
                                     allowOther={message.inlineComponent.allowOther}
                                     availableAgents={availableAgents}
                                     resolvedAgentName={message.resolvedAgentName}
-                                    onSelect={agentName => handleAgentPickerSelect(index, agentName)}
+                                    onSelect={agentName => handleAgentPickerSelect(message.id, agentName)}
                                 />
                             )}
                         </div>

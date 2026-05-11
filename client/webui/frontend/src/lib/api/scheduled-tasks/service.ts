@@ -1,5 +1,5 @@
 import { api } from "@/lib/api/client";
-import type { ScheduledTask, ScheduledTaskListResponse, CreateScheduledTaskRequest, UpdateScheduledTaskRequest, ExecutionListResponse, SchedulerStatus } from "@/lib/types/scheduled-tasks";
+import type { ScheduledTask, ScheduledTaskListResponse, CreateScheduledTaskRequest, UpdateScheduledTaskRequest, ExecutionListResponse, SchedulerStatus, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { transformApiTask, transformApiExecution, transformTaskToApi, transformUpdateToApi } from "@/lib/types/scheduled-tasks";
 import type { ArtifactInfo } from "@/lib/types";
 
@@ -70,6 +70,11 @@ export const fetchExecutions = async (taskId: string, pageNumber: number = 1, pa
         ...data,
         executions: data.executions.map(transformApiExecution),
     };
+};
+
+export const fetchExecution = async (executionId: string): Promise<TaskExecution> => {
+    const data = await api.webui.get(`/api/v1/scheduled-tasks/executions/${executionId}`);
+    return transformApiExecution(data);
 };
 
 export const deleteExecution = async (executionId: string): Promise<void> => {

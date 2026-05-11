@@ -4,7 +4,7 @@ REST API router for scheduled tasks management.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -67,73 +67,106 @@ def _row_to_summary(row) -> LastExecutionSummary:
     )
 
 
-def _fetch_latest_executions_by_filter(db: DBSession, task_ids: list[str], status_filter=None) -> dict[str, LastExecutionSummary]:
-    """Fetch the most recent execution per task in one query, optionally filtered
-    by an iterable of status values. Used by both `_fetch_last_executions` (any
-    status) and `_fetch_last_completed_executions` (terminal statuses only)."""
+_TERMINAL_EXECUTION_STATUSES_CACHE = None
+
+
+def _terminal_execution_statuses():
+    """Lazy-loaded terminal status list. Import-deferred to avoid a circular
+    dependency between the router module and the repository models."""
+    global _TERMINAL_EXECUTION_STATUSES_CACHE
+    if _TERMINAL_EXECUTION_STATUSES_CACHE is None:
+        from ..repository.models import ExecutionStatus
+
+        _TERMINAL_EXECUTION_STATUSES_CACHE = [
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.TIMEOUT,
+            ExecutionStatus.CANCELLED,
+            ExecutionStatus.SKIPPED,
+        ]
+    return _TERMINAL_EXECUTION_STATUSES_CACHE
+
+
+def _fetch_last_and_completed_executions(
+    db: DBSession, task_ids: list[str]
+) -> tuple[dict[str, LastExecutionSummary], dict[str, LastExecutionSummary]]:
+    """Fetch, in a single round-trip, two maps keyed by task_id:
+
+    * the most recent execution per task regardless of status (drives the
+      list card's running/active pill); and
+    * the most recent *terminal* execution per task (drives the "Succeeded N
+      min ago" line, which must stay visible while a new run is in flight).
+
+    Previously two separate ``SELECT``s did this; the combined version uses a
+    single aggregate subquery with a CASE-filtered MAX so we can derive both
+    in one query and split the maps in Python.
+    """
     if not task_ids:
-        return {}
+        return {}, {}
 
     from ..repository.models import ScheduledTaskExecutionModel
-    from sqlalchemy import func
+    from sqlalchemy import case, func, or_
 
-    base = db.query(
-        ScheduledTaskExecutionModel.scheduled_task_id.label("tid"),
-        func.max(ScheduledTaskExecutionModel.scheduled_for).label("max_for"),
-    ).filter(ScheduledTaskExecutionModel.scheduled_task_id.in_(task_ids))
-    if status_filter is not None:
-        base = base.filter(ScheduledTaskExecutionModel.status.in_(status_filter))
-    subq = base.group_by(ScheduledTaskExecutionModel.scheduled_task_id).subquery()
+    terminal = _terminal_execution_statuses()
 
-    join_condition = (ScheduledTaskExecutionModel.scheduled_task_id == subq.c.tid) & (
-        ScheduledTaskExecutionModel.scheduled_for == subq.c.max_for
+    # Per-task aggregate: max scheduled_for overall + max scheduled_for
+    # restricted to terminal statuses. NULL terminal-max means the task has
+    # only in-flight executions, which we handle below.
+    agg = (
+        db.query(
+            ScheduledTaskExecutionModel.scheduled_task_id.label("tid"),
+            func.max(ScheduledTaskExecutionModel.scheduled_for).label("max_any"),
+            func.max(
+                case(
+                    (
+                        ScheduledTaskExecutionModel.status.in_(terminal),
+                        ScheduledTaskExecutionModel.scheduled_for,
+                    ),
+                    else_=None,
+                )
+            ).label("max_terminal"),
+        )
+        .filter(ScheduledTaskExecutionModel.scheduled_task_id.in_(task_ids))
+        .group_by(ScheduledTaskExecutionModel.scheduled_task_id)
+        .subquery()
     )
-    # Deterministic ordering for the (task_id, scheduled_for) tie:
-    # `started_at` first (most recent run wins), then `id` to break the
-    # remaining ties (e.g. two PENDING rows where started_at is NULL on
-    # both). Without this, the chosen "latest" execution flickers across
-    # requests on Postgres.
+
+    # Fetch every execution row whose scheduled_for matches *either* max for
+    # its task. Deterministic ordering (started_at DESC nullslast, id DESC)
+    # guarantees first-wins when multiple rows share the same scheduled_for.
     query = (
-        db.query(ScheduledTaskExecutionModel)
-        .join(subq, join_condition)
+        db.query(ScheduledTaskExecutionModel, agg.c.max_any, agg.c.max_terminal)
+        .join(agg, ScheduledTaskExecutionModel.scheduled_task_id == agg.c.tid)
+        .filter(
+            or_(
+                ScheduledTaskExecutionModel.scheduled_for == agg.c.max_any,
+                ScheduledTaskExecutionModel.scheduled_for == agg.c.max_terminal,
+            )
+        )
         .order_by(
             ScheduledTaskExecutionModel.started_at.desc().nullslast(),
             ScheduledTaskExecutionModel.id.desc(),
         )
     )
-    if status_filter is not None:
-        query = query.filter(ScheduledTaskExecutionModel.status.in_(status_filter))
-    rows = query.all()
 
-    result: dict[str, LastExecutionSummary] = {}
-    for row in rows:
-        # First row per task wins thanks to the deterministic ordering above;
-        # subsequent rows for the same task share (scheduled_for) but lost the
-        # tie-break, so skip them.
-        if row.scheduled_task_id not in result:
-            result[row.scheduled_task_id] = _row_to_summary(row)
-    return result
+    last_by_task: dict[str, LastExecutionSummary] = {}
+    last_completed_by_task: dict[str, LastExecutionSummary] = {}
+    terminal_set = set(terminal)
+    for row, max_any, max_terminal in query.all():
+        tid = row.scheduled_task_id
+        if row.scheduled_for == max_any and tid not in last_by_task:
+            last_by_task[tid] = _row_to_summary(row)
+        if (
+            max_terminal is not None
+            and row.scheduled_for == max_terminal
+            and row.status in terminal_set
+            and tid not in last_completed_by_task
+        ):
+            last_completed_by_task[tid] = _row_to_summary(row)
+
+    return last_by_task, last_completed_by_task
 
 
-def _fetch_last_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
-    """Most recent execution per task regardless of status — drives the card's
-    pill (running/active/etc.)."""
-    return _fetch_latest_executions_by_filter(db, task_ids)
-
-
-def _fetch_last_completed_executions(db: DBSession, task_ids: list[str]) -> dict[str, LastExecutionSummary]:
-    """Most recent *terminal* execution per task — drives the "Succeeded N min
-    ago" line so it stays visible even while a new run is in flight."""
-    from ..repository.models import ExecutionStatus
-
-    terminal = [
-        ExecutionStatus.COMPLETED,
-        ExecutionStatus.FAILED,
-        ExecutionStatus.TIMEOUT,
-        ExecutionStatus.CANCELLED,
-        ExecutionStatus.SKIPPED,
-    ]
-    return _fetch_latest_executions_by_filter(db, task_ids, status_filter=terminal)
 
 
 def get_scheduler_service():
@@ -172,14 +205,28 @@ def _validate_scheduling_permission(user_config: dict, config_resolver) -> None:
 
 # --- Task Builder Chat ---
 
+class AgentRef(BaseModel):
+    """A reference to an available agent passed in the chat context.
+
+    The assistant uses name + optional display_name + description to decide
+    which agents to suggest; nothing else is read. `extra="ignore"` keeps the
+    payload tolerant of unrelated keys the frontend may send.
+    """
+    name: str = Field(..., max_length=256)
+    display_name: Optional[str] = Field(None, max_length=256)
+    description: Optional[str] = Field(None, max_length=2000)
+
+    model_config = {"extra": "ignore"}
+
+
 class TaskBuilderChatRequest(BaseModel):
     """Request for task builder chat interaction."""
     message: str = Field(..., max_length=5000)
     conversation_history: List[Dict[str, str]] = Field(default=[], max_length=50)
     current_task: Dict[str, Any] = {}
-    # Each entry: {"name": str, "display_name"?: str, "description"?: str}.
-    # Backwards-compatible: a list of plain strings is also accepted.
-    available_agents: List[Any] = Field(default_factory=list, max_length=200)
+    # Each entry may be a bare agent name (legacy callers) or a full AgentRef.
+    # The assistant tolerates both via its own input sanitization.
+    available_agents: List[Union[str, AgentRef]] = Field(default_factory=list, max_length=200)
 
 
 class TaskBuilderChatResponse(BaseModel):
@@ -219,12 +266,20 @@ async def task_builder_chat(
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
     try:
+        # Normalize AgentRef instances into the dict-or-str shape the assistant
+        # already handles — keeps the typing strict at the router boundary
+        # without forcing the assistant to know about Pydantic models.
+        normalized_agents = [
+            agent if isinstance(agent, str) else agent.model_dump(exclude_none=True)
+            for agent in request.available_agents
+        ] or None
+
         response = await assistant.process_message(
             user_message=request.message,
             conversation_history=request.conversation_history,
             current_task=request.current_task,
             user_id=user_id,
-            available_agents=request.available_agents if request.available_agents else None,
+            available_agents=normalized_agents,
         )
         return TaskBuilderChatResponse(
             message=response.message,
@@ -263,27 +318,38 @@ async def validate_task_conflict(
     user: dict = Depends(get_current_user),
     user_config: dict = Depends(get_user_config),
     config_resolver=Depends(get_config_resolver),
+    agent_registry=Depends(get_agent_registry),
     assistant: TaskBuilderAssistant = Depends(get_task_builder_assistant),
 ):
     """Check if task instructions semantically conflict with the schedule (LLM-backed).
     On any error, returns conflict=False so a flaky LLM doesn't block saves."""
     _validate_scheduling_permission(user_config, config_resolver)
     try:
+        # Pass the current agent registry snapshot so the assistant can drop
+        # target_agent values the caller doesn't actually have access to.
+        try:
+            available_agent_names = list(agent_registry.get_agent_names())
+        except Exception:
+            log.debug("Could not enumerate agent registry for conflict validation", exc_info=True)
+            available_agent_names = None
+
         result = await assistant.validate_conflict(
             instructions=request.instructions,
             schedule_type=request.schedule_type,
             schedule_expression=request.schedule_expression,
             timezone=request.timezone,
             target_agent=request.target_agent,
+            available_agent_names=available_agent_names,
         )
         return ValidateConflictResponse(
             conflict=result.conflict,
             reason=result.reason,
             affected_fields=result.affected_fields,
         )
-    except Exception as e:
-        log.error("Error validating task conflict: %s", e, exc_info=True)
-        # Fail open — better to let the user save than block them on a flaky LLM.
+    except Exception:
+        # The assistant already logs at its own except handler; avoid a
+        # duplicate log line at the router layer. Fail open — better to let the
+        # user save than block them on a flaky LLM.
         return ValidateConflictResponse(conflict=False)
 
 
@@ -470,8 +536,7 @@ async def list_scheduled_tasks(
         )
 
         task_ids = [t.id for t in tasks]
-        last_by_task = _fetch_last_executions(db, task_ids)
-        last_completed_by_task = _fetch_last_completed_executions(db, task_ids)
+        last_by_task, last_completed_by_task = _fetch_last_and_completed_executions(db, task_ids)
         return ScheduledTaskListResponse(
             tasks=[
                 ScheduledTaskResponse.from_orm(
@@ -544,6 +609,33 @@ async def get_execution_by_a2a_task_id(
         raise HTTPException(status_code=500, detail="Failed to fetch execution") from e
 
 
+@router.get("/executions/{execution_id}", response_model=ExecutionResponse)
+async def get_execution(
+    execution_id: str,
+    db: DBSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    task_service: ScheduledTaskService = Depends(get_task_service),
+):
+    """Fetch a single execution by id, scoped to the caller's owned tasks."""
+    user_id = user.get("id")
+    try:
+        execution = task_service.get_execution(db, execution_id)
+        if not execution:
+            raise HTTPException(status_code=404, detail="Execution not found")
+
+        task = task_service.get_task(db, execution.scheduled_task_id, user_id=user_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Execution not found")
+        _check_task_ownership(task, user_id, user)
+
+        return ExecutionResponse.from_orm(execution)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Error fetching execution %s: %s", execution_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch execution") from e
+
+
 @router.delete("/executions/{execution_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_execution(
     execution_id: str,
@@ -556,6 +648,12 @@ async def delete_execution(
     """Hard-delete a single execution from a task's history."""
     _validate_scheduling_permission(user_config, config_resolver)
     user_id = user.get("id")
+
+    # Pre-commit phase: ownership checks + lookup. Rolled back on failure so a
+    # half-loaded session doesn't leave dirty state behind. The commit lives
+    # inside task_service.delete_execution; once it returns, the transaction is
+    # already closed and any later failure must NOT issue a rollback (it would
+    # operate on a fresh implicit transaction and mask the real error).
     try:
         execution = task_service.get_execution(db, execution_id)
         if not execution:
@@ -565,16 +663,21 @@ async def delete_execution(
         if not task:
             raise HTTPException(status_code=404, detail="Execution not found")
         _check_task_ownership(task, user_id, user)
-
-        deleted = task_service.delete_execution(db, execution_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Execution not found")
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
+        log.error("Error preparing execution delete %s: %s", execution_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete execution") from e
+
+    try:
+        deleted = task_service.delete_execution(db, execution_id)
+    except Exception as e:
         log.error("Error deleting execution %s: %s", execution_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete execution") from e
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Execution not found")
 
 
 @router.get("/scheduler/status", response_model=SchedulerStatusResponse)
@@ -610,8 +713,9 @@ async def get_scheduled_task(
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
         if task.user_id and task.user_id != user_id:
             raise HTTPException(status_code=404, detail=TASK_NOT_FOUND_MSG)
-        last = _fetch_last_executions(db, [task.id]).get(task.id)
-        last_completed = _fetch_last_completed_executions(db, [task.id]).get(task.id)
+        last_map, last_completed_map = _fetch_last_and_completed_executions(db, [task.id])
+        last = last_map.get(task.id)
+        last_completed = last_completed_map.get(task.id)
         return ScheduledTaskResponse.from_orm(task, last_execution=last, last_completed_execution=last_completed)
     except HTTPException:
         raise

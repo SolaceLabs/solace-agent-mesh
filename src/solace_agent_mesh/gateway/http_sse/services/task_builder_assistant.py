@@ -94,6 +94,14 @@ _MAX_PICKER_REASON_LENGTH = 240
 _MAX_PICKER_SUGGESTIONS = 5
 _DEFAULT_PICKER_PROMPT = "What agent would you like to use? We recommend the following:"
 
+# Agent metadata sanitization limits. Used by `_llm_response` to bound the
+# prompt size and reject obviously-malformed agent names that could be used
+# as prompt-injection vectors.
+_AGENT_NAME_PATTERN = re.compile(r"^[\w\-\.]+$")
+_MAX_AGENT_NAME_LENGTH = 128
+_MAX_AGENT_DISPLAY_LENGTH = 128
+_MAX_AGENT_DESCRIPTION_LENGTH = 500
+
 
 def _validate_inline_component(
     raw: Any,
@@ -423,11 +431,9 @@ REMEMBER:
         )
 
         # Sanitize agent metadata: allow only well-formed names; truncate
-        # display names and descriptions to keep prompt size bounded.
-        _AGENT_NAME_PATTERN = re.compile(r"^[\w\-\.]+$")
-        _MAX_AGENT_NAME_LENGTH = 128
-        _MAX_AGENT_DISPLAY_LENGTH = 128
-        _MAX_AGENT_DESCRIPTION_LENGTH = 500
+        # display names and descriptions to keep prompt size bounded. Limits
+        # are module-level constants (see top of file) so other call sites
+        # (e.g. validate_conflict) can apply the same allowlist.
         sanitized_agent_names: List[str] = []
         sanitized_agent_details: List[Dict[str, str]] = []
         if available_agents:
@@ -583,10 +589,19 @@ REMEMBER:
                 parsed.get("inline_component"),
                 allowed_agent_names=sanitized_agent_names,
             )
-            # Don't pre-fill target_agent_name when we're asking the user to pick.
-            # Explicitly emit None so any previously-persisted agent on the task
-            # is cleared from the form — otherwise the picker and the stale
-            # selection would render side by side.
+            # Suppress the picker when the form already has a target_agent_name
+            # (and the model isn't changing it in this turn). Emitting a picker
+            # in that case would clear the user's existing selection just to
+            # offer choices they've already resolved. Only let the picker
+            # through when the agent slot is genuinely empty.
+            existing_agent = current_task.get("target_agent_name") if isinstance(current_task, dict) else None
+            agent_is_being_changed = "target_agent_name" in task_updates
+            if inline_component is not None and existing_agent and not agent_is_being_changed:
+                log.info("Suppressing agent picker — task already has target_agent_name=%s", existing_agent)
+                inline_component = None
+            # When the picker IS surfaced, clear any stale agent on the form so
+            # the picker and a previously-persisted selection don't render
+            # side-by-side.
             if inline_component is not None:
                 task_updates["target_agent_name"] = None
                 ready_to_save = False
@@ -656,11 +671,30 @@ REMEMBER:
         schedule_expression: str,
         timezone: str,
         target_agent: Optional[str] = None,
+        available_agent_names: Optional[List[str]] = None,
     ) -> ConflictValidationResponse:
         """Ask the LLM whether the instructions conflict with the schedule. Failures
         return conflict=False so a flaky LLM never blocks the user from saving."""
         if not instructions or not instructions.strip() or not schedule_expression:
             return ConflictValidationResponse(conflict=False)
+
+        # Reject schedule_type values outside the known set so arbitrary
+        # caller-controlled text never flows into the LLM prompt. Fail open
+        # (conflict=False) — better to allow the save than to block on an
+        # unknown schedule_type the user genuinely wants to use.
+        if schedule_type not in _VALID_SCHEDULE_TYPES:
+            log.info("validate_conflict: unsupported schedule_type %r, skipping", schedule_type)
+            return ConflictValidationResponse(conflict=False)
+
+        # If the caller supplied an agent registry snapshot, only forward
+        # target_agent to the LLM when it's one the caller can actually use.
+        # Unknown agent names get stripped so they can't be used as a free-text
+        # prompt-injection channel. Stripping (rather than rejecting outright)
+        # keeps the schedule/instructions check working — the agent name is a
+        # hint, not a load-bearing input.
+        if target_agent and available_agent_names is not None and target_agent not in available_agent_names:
+            log.info("validate_conflict: stripping unknown target_agent %r", target_agent)
+            target_agent = None
 
         # Wrap fields in DATA-ONLY framing — same prompt-injection mitigation as
         # the chat path, since the user controls instructions and schedule_expression.
@@ -719,13 +753,19 @@ REMEMBER:
 
             conflict = bool(parsed.get("conflict", False))
             # Gate `conflict=true` on a confidence threshold so the prompt's
-            # "be conservative" rubric has an actual guard. Missing/invalid
-            # confidence means we cannot trust a True verdict, so fail open.
+            # "be conservative" rubric has an actual guard. When the LLM
+            # asserts conflict=true but omits/garbles confidence, default to
+            # 1.0 instead of 0.0 — defaulting to 0.0 silently suppresses
+            # every verdict that lacks confidence, which is the opposite of
+            # what the gate is for. The prompt asks for confidence; the
+            # default applies only when the model violates that contract.
             raw_confidence = parsed.get("confidence")
             try:
-                confidence = float(raw_confidence) if raw_confidence is not None else 0.0
+                confidence = float(raw_confidence) if raw_confidence is not None else None
             except (TypeError, ValueError):
-                confidence = 0.0
+                confidence = None
+            if confidence is None:
+                confidence = 1.0 if conflict else 0.0
             if conflict and confidence < self._CONFLICT_CONFIDENCE_THRESHOLD:
                 log.info(
                     "Conflict validator suppressed low-confidence verdict (confidence=%.2f)",
