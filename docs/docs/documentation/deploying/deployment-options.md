@@ -54,7 +54,7 @@ sam run <agent A1 config file path> <agent A2 config file path> <workflow W2 con
 
 Production deployments require different considerations than development environments. You need reproducible builds, scalable infrastructure, and robust monitoring capabilities. Containerization addresses these requirements by providing consistent runtime environments and enabling modern orchestration platforms.
 
-We recommend using Docker for single-node deployments or Kubernetes for multi-node, scalable deployments. These technologies ensure your application runs consistently across different environments and can scale to meet demand.
+We recommend using Docker for containerized deployments. Docker ensures your application runs consistently across different environments.
 
 :::note Platform Compatibility
 If your host system architecture is not `linux/amd64`, add the `--platform linux/amd64` flag when you run the container to ensure compatibility with the pre-built images.
@@ -109,7 +109,9 @@ dist
 
 Kubernetes excels at managing containerized applications at scale, providing features like automatic scaling, rolling updates, and self-healing capabilities. When your Agent Mesh deployment needs to handle varying loads or requires high availability, Kubernetes becomes the preferred orchestration platform.
 
-Agent Mesh provides Helm charts for Kubernetes deployments that handle resource management, scaling, and configuration. For prerequisites, Helm setup, and production configurations, see [Kubernetes](kubernetes/kubernetes.md).
+:::info Enterprise Feature
+Kubernetes deployment is available with Agent Mesh Enterprise. For Kubernetes deployment guidance, see the [Enterprise documentation](../enterprise/enterprise.md).
+:::
 
 ### Separating and Scaling Components
 

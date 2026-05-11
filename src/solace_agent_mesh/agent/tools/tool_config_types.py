@@ -1,7 +1,7 @@
 """
 Pydantic models for agent tool configurations defined in YAML.
 """
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union, get_args
 from pydantic import Field, model_validator
 from ...common.utils.pydantic_utils import SamConfigBase
 
@@ -114,3 +114,11 @@ AnyToolConfig = Union[
     McpToolConfig,
     OpenApiToolConfig,
 ]
+
+
+# Derived from the Pydantic Literal so a rename of the tool_type literal
+# propagates here automatically — any consumer importing this constant will
+# continue to match the canonical value without drift.
+BUILTIN_GROUP_TOOL_TYPE: str = get_args(
+    BuiltinGroupToolConfig.model_fields["tool_type"].annotation
+)[0]

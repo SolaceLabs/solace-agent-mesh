@@ -13,6 +13,13 @@ from src.solace_agent_mesh.agent.sac.app import (
     ArtifactServiceConfig,
     SamAgentApp,
     SamAgentAppConfig,
+    _ensure_artifact_management_tools,
+)
+from src.solace_agent_mesh.agent.tools.builtin_artifact_tools import (
+    ARTIFACT_MANAGEMENT_CATEGORY,
+)
+from src.solace_agent_mesh.agent.tools.tool_config_types import (
+    BUILTIN_GROUP_TOOL_TYPE,
 )
 
 class TestArtifactServiceConfig:
@@ -282,3 +289,83 @@ class TestAgentNameSanitization:
             mock_topic.assert_called()
             call_args = mock_topic.call_args
             assert call_args[0][1] == "test_agent"  # Second argument is agent_name
+
+
+class TestEnsureArtifactManagementTools:
+    """Unit tests for the _ensure_artifact_management_tools injector (DATAGO-130050)."""
+
+    _ARTIFACT_GROUP_ENTRY = {
+        "tool_type": BUILTIN_GROUP_TOOL_TYPE,
+        "group_name": ARTIFACT_MANAGEMENT_CATEGORY,
+    }
+
+    def _first_group_entry(self, tools):
+        return next(
+            t
+            for t in tools
+            if isinstance(t, dict) and t.get("tool_type") == BUILTIN_GROUP_TOOL_TYPE
+        )
+
+    @pytest.mark.parametrize(
+        "starting_tools_value",
+        [
+            pytest.param(None, id="tools-key-none"),
+            pytest.param([], id="tools-empty-list"),
+        ],
+    )
+    def test_injects_when_tools_missing_or_empty(self, starting_tools_value):
+        config = {"agent_name": "a"}
+        if starting_tools_value is not None:
+            config["tools"] = starting_tools_value
+
+        _ensure_artifact_management_tools(config, "a")
+
+        assert config["tools"] == [self._ARTIFACT_GROUP_ENTRY]
+
+    def test_injects_alongside_different_builtin_group(self):
+        existing = {"tool_type": BUILTIN_GROUP_TOOL_TYPE, "group_name": "data_analysis"}
+        config = {"agent_name": "a", "tools": [existing]}
+
+        _ensure_artifact_management_tools(config, "a")
+
+        assert config["tools"] == [self._ARTIFACT_GROUP_ENTRY, existing]
+
+    def test_noop_when_artifact_management_already_configured(self):
+        existing = [
+            {"tool_type": BUILTIN_GROUP_TOOL_TYPE, "group_name": ARTIFACT_MANAGEMENT_CATEGORY},
+            {"tool_type": "python", "component_module": "x.y", "function_name": "f"},
+        ]
+        config = {"agent_name": "a", "tools": list(existing)}
+
+        _ensure_artifact_management_tools(config, "a")
+
+        assert config["tools"] == existing
+
+    def test_opt_out_via_auto_inject_flag(self, caplog):
+        config = {"agent_name": "a", "auto_inject_artifact_tools": False, "tools": []}
+
+        with caplog.at_level("INFO"):
+            _ensure_artifact_management_tools(config, "a")
+
+        assert config["tools"] == []
+        assert "skipping" in caplog.text.lower()
+
+    def test_preserves_non_dict_entries_in_tools_list(self):
+        """Non-dict entries (e.g., a plain string) must not crash detection or injection."""
+        config = {"agent_name": "a", "tools": ["not-a-dict", {"tool_type": "python"}]}
+
+        _ensure_artifact_management_tools(config, "a")
+
+        # Injected entry is first, other entries preserved in order.
+        assert config["tools"][0] == self._ARTIFACT_GROUP_ENTRY
+        assert config["tools"][1:] == ["not-a-dict", {"tool_type": "python"}]
+
+    def test_log_message_uses_constants_not_literals(self, caplog):
+        """Guards against literal drift: the log line interpolates the shared constant."""
+        config = {"agent_name": "my_agent", "tools": []}
+
+        with caplog.at_level("INFO"):
+            _ensure_artifact_management_tools(config, "my_agent")
+
+        assert ARTIFACT_MANAGEMENT_CATEGORY in caplog.text
+        assert "my_agent" in caplog.text

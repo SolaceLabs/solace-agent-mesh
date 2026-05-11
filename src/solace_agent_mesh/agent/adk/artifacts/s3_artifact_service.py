@@ -8,6 +8,7 @@ import unicodedata
 
 import boto3
 from botocore.client import BaseClient
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from google.adk.artifacts import BaseArtifactService
 from google.adk.artifacts.base_artifact_service import ArtifactVersion
@@ -15,6 +16,12 @@ from google.genai import types as adk_types
 from typing_extensions import override
 
 logger = logging.getLogger(__name__)
+
+# boto3's default urllib3 pool size is 10. Under heavy concurrent artifact
+# traffic this saturates instantly, forcing per-request TLS handshakes and
+# stalling the FastAPI event loop on unrelated requests. Sized for a
+# high-concurrency gateway, not a CLI tool.
+_DEFAULT_S3_POOL_SIZE = 200
 
 
 class S3ArtifactService(BaseArtifactService):
@@ -76,6 +83,10 @@ class S3ArtifactService(BaseArtifactService):
         self.bucket_name = bucket_name
 
         if s3_client is None:
+            # Default to a larger urllib3 pool unless caller passed their own
+            # Config. Caller-provided config wins so power users can opt out.
+            if "config" not in kwargs:
+                kwargs["config"] = Config(max_pool_connections=_DEFAULT_S3_POOL_SIZE)
             try:
                 self.s3 = boto3.client("s3", **kwargs)
             except NoCredentialsError as e:
@@ -365,6 +376,71 @@ class S3ArtifactService(BaseArtifactService):
         sorted_filenames = sorted(list(filenames))
         logger.debug("%sFound %d artifact keys.", log_prefix, len(sorted_filenames))
         return sorted_filenames
+
+    async def list_sessions_with_artifacts_for_user(
+        self, *, app_name: str, user_id: str
+    ) -> set[str] | None:
+        """Single S3 list to find every session_id that has artifacts for this user.
+
+        S3 keys are structured ``{app_name}/{user_id}/{session_id}/{filename}/{version}``
+        for session-scoped artifacts, and ``{app_name}/{user_id}/user/{filename}/{version}``
+        for user-scoped artifacts (literal ``user`` segment). One ListObjectsV2 with
+        the user prefix enumerates both.
+
+        Used by the ``/api/v1/artifacts/all`` endpoint to skip sessions that have no
+        artifacts in storage, instead of doing one ``list_artifact_keys`` round-trip
+        per user session. For users with many empty sessions (test runs, abandoned
+        chats) this collapses N S3 calls into 1.
+
+        Returns:
+            ``set[str]``: session ids the caller should keep; an empty set means the
+                user has no artifacts at all and per-session scans can be skipped.
+            ``None``: caller should fall back to the per-session scan. Returned when
+                the S3 list errors, or when the user has user-scoped artifacts but no
+                session-scoped ones — in that case filtering by session id would drop
+                the user-scoped artifacts that the legacy per-session scan would have
+                surfaced.
+        """
+        log_prefix = "[S3Artifact:ListUserSessions] "
+        app_name = app_name.strip('/')
+        prefix = f"{app_name}/{user_id}/"
+        sessions: set[str] = set()
+        has_user_scoped = False
+
+        def _list_user_objects():
+            paginator = self.s3.get_paginator("list_objects_v2")
+            return paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
+
+        try:
+            pages = await asyncio.to_thread(_list_user_objects)
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    parts = obj["Key"].split("/")
+                    # scope/user/{session_id|"user"}/filename/version  (≥5 segments)
+                    if len(parts) >= 5:
+                        if parts[2] == "user":
+                            has_user_scoped = True
+                        else:
+                            sessions.add(parts[2])
+        except ClientError as e:
+            logger.warning(
+                "%sError listing user objects with prefix '%s': %s",
+                log_prefix, prefix, e,
+            )
+            return None
+
+        if has_user_scoped and not sessions:
+            # User has only user-scoped artifacts. Filtering by session id would
+            # drop them, so let the caller scan all sessions (legacy path surfaces
+            # user-scoped artifacts via each session's list_artifact_keys).
+            logger.debug(
+                "%sUser has only user-scoped artifacts; signalling caller to skip prefilter.",
+                log_prefix,
+            )
+            return None
+
+        logger.debug("%sFound %d sessions with artifacts for user.", log_prefix, len(sessions))
+        return sessions
 
     @override
     async def delete_artifact(

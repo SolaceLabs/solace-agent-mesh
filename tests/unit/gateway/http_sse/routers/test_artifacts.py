@@ -1288,6 +1288,178 @@ class TestListAllArtifacts:
         assert result.next_page is None
 
     @pytest.mark.asyncio
+    async def test_list_all_artifacts_prefilters_empty_sessions(self, mock_dependencies):
+        """When the artifact service exposes ``list_sessions_with_artifacts_for_user``,
+        sessions absent from that set should be skipped before per-session S3 calls.
+
+        Mirrors the production case where users accumulate thousands of empty
+        chat sessions; without this filter every empty session triggers a
+        wasted ``list_artifact_keys`` round-trip.
+        """
+        deps = mock_dependencies
+
+        # Three sessions in DB, only one has artifacts in storage
+        sessions = []
+        for sid, name in [("session-empty-1", "Empty 1"),
+                          ("session-with-art", "Has Artifacts"),
+                          ("session-empty-2", "Empty 2")]:
+            s = MagicMock()
+            s.id = sid
+            s.name = name
+            s.project_id = None
+            s.project_name = None
+            sessions.append(s)
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = sessions
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        # Mark the artifact service as supporting user-prefix listing — only one
+        # session has artifacts in storage.
+        async def _list_user_sessions(*, app_name, user_id):
+            return {"session-with-art"}
+        deps['artifact_service'].list_sessions_with_artifacts_for_user = _list_user_sessions
+
+        mock_artifact = MagicMock()
+        mock_artifact.filename = "result.txt"
+        mock_artifact.size = 100
+        mock_artifact.mime_type = "text/plain"
+        mock_artifact.last_modified = "2026-04-30T00:00:00Z"
+        mock_artifact.uri = "artifact://app/user/session-with-art/result.txt"
+        mock_artifact.tags = None
+
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast',
+            new=AsyncMock(return_value=[mock_artifact]),
+        ) as mock_get_list:
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+            )
+
+        # Only the session that the user-prefix listing said has artifacts
+        # should have been queried for keys.
+        called_session_ids = [
+            kwargs['session_id']
+            for _args, kwargs in mock_get_list.call_args_list
+        ]
+        assert called_session_ids == ["session-with-art"], (
+            f"Expected per-session fetch only for session-with-art; got {called_session_ids}"
+        )
+
+        assert isinstance(result, BulkArtifactsResponse)
+        assert len(result.artifacts) == 1
+        assert result.artifacts[0].session_id == "session-with-art"
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_skips_filter_when_prefilter_returns_none(self, mock_dependencies):
+        """When ``list_sessions_with_artifacts_for_user`` returns ``None``, the
+        prefilter MUST be skipped — every session continues to get its own
+        ``list_artifact_keys`` call. Returned by the helper for the S3 error path
+        and for users with only user-scoped artifacts.
+        """
+        deps = mock_dependencies
+
+        sessions = []
+        for sid, name in [("session-1", "S1"), ("session-2", "S2")]:
+            s = MagicMock()
+            s.id = sid
+            s.name = name
+            s.project_id = None
+            s.project_name = None
+            sessions.append(s)
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = sessions
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        async def _list_user_sessions(*, app_name, user_id):
+            return None
+        deps['artifact_service'].list_sessions_with_artifacts_for_user = _list_user_sessions
+
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast',
+            new=AsyncMock(return_value=[]),
+        ) as mock_get_list:
+            await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+            )
+
+        called_session_ids = [
+            kwargs['session_id'] for _args, kwargs in mock_get_list.call_args_list
+        ]
+        assert sorted(called_session_ids) == ["session-1", "session-2"], (
+            f"Expected per-session fetch for both sessions; got {called_session_ids}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_all_artifacts_falls_back_when_prefilter_raises(self, mock_dependencies):
+        """If the prefilter helper raises, the router MUST fall through to the
+        per-session scan rather than propagating the error or dropping sessions.
+        """
+        deps = mock_dependencies
+
+        sessions = []
+        for sid, name in [("session-1", "S1"), ("session-2", "S2")]:
+            s = MagicMock()
+            s.id = sid
+            s.name = name
+            s.project_id = None
+            s.project_name = None
+            sessions.append(s)
+
+        mock_sessions_response = MagicMock()
+        mock_sessions_response.data = sessions
+        mock_sessions_response.meta.pagination.next_page = None
+        deps['session_service'].get_user_sessions.return_value = mock_sessions_response
+        deps['project_service'].get_user_projects.return_value = []
+
+        async def _list_user_sessions(*, app_name, user_id):
+            raise RuntimeError("transient S3 issue")
+        deps['artifact_service'].list_sessions_with_artifacts_for_user = _list_user_sessions
+
+        with patch(
+            'solace_agent_mesh.gateway.http_sse.routers.artifacts.get_artifact_info_list_fast',
+            new=AsyncMock(return_value=[]),
+        ) as mock_get_list:
+            result = await list_all_artifacts(
+                artifact_service=deps['artifact_service'],
+                user_id=deps['user_id'],
+                component=deps['component'],
+                session_service=deps['session_service'],
+                project_service=deps['project_service'],
+                db=deps['db'],
+                user_config=deps['user_config'],
+                page=1,
+                page_size=50,
+            )
+
+        called_session_ids = [
+            kwargs['session_id'] for _args, kwargs in mock_get_list.call_args_list
+        ]
+        assert sorted(called_session_ids) == ["session-1", "session-2"]
+        assert isinstance(result, BulkArtifactsResponse)
+
+    @pytest.mark.asyncio
     async def test_list_all_artifacts_filters_generated_files(self, mock_dependencies):
         """Test that generated files (.converted.txt, project_bm25_index.zip) are filtered out."""
         deps = mock_dependencies

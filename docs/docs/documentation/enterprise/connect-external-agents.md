@@ -1,6 +1,6 @@
 ---
 title: Connect External Agents
-sidebar_position: 9
+sidebar_position: 11
 ---
 
 import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
