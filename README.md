@@ -132,6 +132,69 @@ sam add agent --gui
 sam plugin add <your-component-name> --plugin <plugin-name>
 ```
 
+## 🛠️ Local Development Setup
+
+Follow these steps to run Solace Agent Mesh locally from the source code for development and debugging.
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/SolaceLabs/solace-agent-mesh.git
+cd solace-agent-mesh
+```
+
+### 2. Create and activate a virtual environment
+
+#### Linux / macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### Windows (PowerShell)
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install the project and development dependencies
+
+Install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+Install test dependencies:
+
+```bash
+pip install -e .[test]
+```
+
+### 4. Open the project in VS Code
+
+```bash
+code .
+```
+
+### 5. Run the project in VS Code
+
+This repository includes VS Code debug configurations in `.vscode/launch.json`.
+
+To start debugging:
+
+1. Open the **Run and Debug** panel in VS Code
+2. Select the appropriate launch configuration
+3. Press `F5` or click **Start Debugging**
+
+You can also run the application directly from the terminal:
+
+```bash
+sam run
+```
+
 ---
 
 ## 🏗️ Architecture Overview
