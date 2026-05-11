@@ -87,7 +87,7 @@ class TestDocsHttpRequestHandler:
         handler.send_response.assert_called_once_with(302)
         handler.send_header.assert_called_once_with(
             'Location',
-            '/solace-agent-mesh/docs/documentation/getting-started/introduction/'
+            '/solace-agent-mesh/'
         )
         handler.end_headers.assert_called_once()
     
@@ -283,6 +283,6 @@ class TestDocsCommand:
         result = runner.invoke(docs, ["--port", "8585"])
         
         # Verify the exact URL format
-        expected_url = "http://localhost:8585/solace-agent-mesh/docs/documentation/getting-started/introduction/"
+        expected_url = "http://localhost:8585/solace-agent-mesh/"
         mock_browser.assert_called_once_with(expected_url)
         assert expected_url in result.output
