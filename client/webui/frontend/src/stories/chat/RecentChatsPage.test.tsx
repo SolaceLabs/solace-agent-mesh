@@ -62,9 +62,10 @@ async function loadPage() {
             }),
             useConfigContext: () => ({
                 persistenceEnabled: true,
-                configFeatureEnablement: { newNavigation: newNav, scheduler: schedulerEnabled, chatSharing },
+                configFeatureEnablement: { scheduler: schedulerEnabled, chatSharing },
             }),
             useIsAutoTitleGenerationEnabled: () => false,
+            useIsNewNavigationEnabled: () => newNav,
             useTitleGeneration: () => ({ generateTitle: vi.fn() }),
             useTitleAnimation: (name: string) => ({ text: name, isAnimating: false, isGenerating: false }),
             useIsChatSharingEnabled: () => chatSharing,

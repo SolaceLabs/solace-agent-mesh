@@ -25,7 +25,7 @@ const meta = {
         layout: "fullscreen",
         msw: { handlers },
         configContext: {
-            configFeatureEnablement: { newNavigation: true },
+            configFeatureEnablement: { new_navigation: true },
             persistenceEnabled: true,
         },
         chatContext: { sessionId: "session-1" },

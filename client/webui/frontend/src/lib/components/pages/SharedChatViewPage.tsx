@@ -19,13 +19,12 @@ import { ChatMessage, SessionSidePanel } from "@/lib/components/chat";
 import { SharedChatProvider } from "@/lib/providers/SharedChatProvider";
 import { SharedSidePanel } from "@/lib/components/share/SharedSidePanel";
 import { useSharedSession, formatDateYMD } from "@/lib/hooks/useSharedSession";
-import { useConfigContext } from "@/lib/hooks";
+import { useIsNewNavigationEnabled } from "@/lib/hooks";
 export function SharedChatViewPage() {
     const shared = useSharedSession();
     const location = useLocation();
     const navigate = useNavigate();
-    const { configFeatureEnablement } = useConfigContext();
-    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+    const useNewNav = useIsNewNavigationEnabled();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
 
     // Open sessions panel if navigated with state

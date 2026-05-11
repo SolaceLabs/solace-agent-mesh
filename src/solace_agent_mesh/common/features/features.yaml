@@ -145,3 +145,12 @@ features:
       evaluations against deployed SAM agents with per-request model
       overrides. When disabled, model override metadata is ignored and
       the resolver is not initialized.
+
+  - key: new_navigation
+    name: New Navigation
+    release_phase: experimental
+    default: false
+    jira: DATAGO-133974
+    description: >
+      Enable the new navigation experience in the frontend, including
+      the collapsible navigation sidebar.
