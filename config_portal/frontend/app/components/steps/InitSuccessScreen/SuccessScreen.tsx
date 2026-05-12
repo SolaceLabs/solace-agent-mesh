@@ -171,7 +171,7 @@ export default function SuccessScreen({
       ),
       title: "Getting Started",
       description: "Introduction and basic concepts",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/overview/introduction/",
     },
     {
       icon: (
@@ -192,7 +192,7 @@ export default function SuccessScreen({
       ),
       title: "Architecture",
       description: "System architecture and design",
-      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/architecture",
+      link: "https://solacelabs.github.io/solace-agent-mesh/docs/documentation/overview/architecture",
     },
     {
       icon: (
@@ -378,7 +378,7 @@ export default function SuccessScreen({
 
           <div className="mt-6 text-center">
             <a
-              href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/introduction/"
+              href="https://solacelabs.github.io/solace-agent-mesh/docs/documentation/overview/introduction/"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center px-5 py-2 rounded-md bg-solace-blue text-white hover:bg-solace-blue-dark transition-colors"
