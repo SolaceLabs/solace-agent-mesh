@@ -119,7 +119,7 @@ const OutputSummary: React.FC<{ execution: TaskExecution; onShowFullOutput: (id:
     return (
         <div className="rounded-md border bg-(--background-w10) p-4">
             <div ref={setContentNode} className="line-clamp-6 text-sm break-words [&_p]:my-0">
-                <ExecutionOutput executionId={execution.id} text={snippetText} hideArtifacts />
+                <ExecutionOutput executionId={execution.id} text={snippetText} hideArtifacts ragData={execution.resultSummary?.ragData} />
             </div>
             {overflowing && (
                 <button type="button" onClick={() => onShowFullOutput(execution.id)} className="mt-2 text-xs font-medium text-(--brand-wMain) hover:underline">

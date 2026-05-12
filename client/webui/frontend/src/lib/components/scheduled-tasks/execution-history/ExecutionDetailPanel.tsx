@@ -44,7 +44,12 @@ export const ExecutionDetailPanel: React.FC<ExecutionDetailPanelProps> = ({ exec
     // appearing in both places is intentional — the inline one is "this is
     // where the agent referred to the file"; the tab is "here are every
     // file produced by this run".)
-    const outputBody = !fullText && execution.errorMessage ? <div className="text-sm whitespace-pre-wrap text-(--error-wMain)">{execution.errorMessage}</div> : <ExecutionOutput executionId={execution.id} text={fullText} />;
+    const outputBody =
+        !fullText && execution.errorMessage ? (
+            <div className="text-sm whitespace-pre-wrap text-(--error-wMain)">{execution.errorMessage}</div>
+        ) : (
+            <ExecutionOutput executionId={execution.id} text={fullText} ragData={execution.resultSummary?.ragData} />
+        );
 
     if (!hasArtifacts) {
         return (

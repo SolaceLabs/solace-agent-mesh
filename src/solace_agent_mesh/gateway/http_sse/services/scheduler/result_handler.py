@@ -410,6 +410,14 @@ class ResultHandler:
                         self.log_prefix, len(accumulated), execution_id,
                     )
 
+            # Persist the aggregated RAG entries on the execution row so the
+            # exec-detail view can render inline citations the same way the
+            # chat page does. The chat page reads rag_data from chat-task
+            # metadata; the exec-detail surface has no chat-task context, so
+            # the data lives directly under result_summary instead.
+            if rag_data:
+                result_summary["rag_data"] = rag_data
+
             # Append `«artifact_return:NAME»` markers to the persisted
             # response strings so the execution-detail view renders artifacts
             # in textual position (its renderer extracts the same markers the

@@ -121,6 +121,10 @@ export interface TaskExecution {
         taskStatus?: string;
         errorCode?: number;
         errorData?: unknown;
+        /** RAG search results captured during this execution. Loose-typed so
+         *  the FE can survive shape changes upstream; consumers narrow via
+         *  `parseCitations` from utils/citations.ts. */
+        ragData?: unknown[];
     };
     errorMessage?: string;
     retryCount: number;
@@ -291,6 +295,7 @@ interface ApiTaskExecution {
         task_status?: string;
         error_code?: number;
         error_data?: unknown;
+        rag_data?: unknown[];
     };
     error_message?: string;
     retry_count: number;
@@ -405,6 +410,7 @@ export function transformApiExecution(apiExecution: ApiTaskExecution): TaskExecu
                   taskStatus: apiExecution.result_summary.task_status,
                   errorCode: apiExecution.result_summary.error_code,
                   errorData: apiExecution.result_summary.error_data,
+                  ragData: apiExecution.result_summary.rag_data,
               }
             : undefined,
         errorMessage: apiExecution.error_message,

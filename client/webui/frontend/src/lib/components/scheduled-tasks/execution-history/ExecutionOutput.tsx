@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import type { ArtifactInfo } from "@/lib/types";
+import type { ArtifactInfo, RAGSearchResult, RAGSource } from "@/lib/types";
 import { MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { ArtifactBar } from "@/lib/components/chat/artifact/ArtifactBar";
 import { ArtifactPreviewBody } from "@/lib/components/scheduled-tasks/ExecutionArtifactsView";
 import { useExecutionArtifacts } from "@/lib/api/scheduled-tasks";
 import { executionSessionId } from "@/lib/api/scheduled-tasks/service";
 import { downloadFile } from "@/lib/utils/download";
+import { parseCitations } from "@/lib/utils/citations";
 
 // Match the chat page's LIVE-streaming behaviour (processChatEvent.ts
 // appends parts in emission order, so text/artifact parts render interleaved
@@ -77,6 +78,42 @@ interface ExecutionOutputProps {
      * so the same files don't render in two places at once.
      */
     hideArtifacts?: boolean;
+    /**
+     * Raw RAG entries captured during the execution (as persisted under
+     * `result_summary.ragData`). Each entry is expected to roughly conform
+     * to RAGSearchResult; the type is intentionally loose so unknown shapes
+     * just produce zero citations instead of throwing.
+     */
+    ragData?: unknown[];
+}
+
+/**
+ * Merge an array of RAG entries into one combined RAGSearchResult with
+ * deduped sources, mirroring `ChatMessage.taskRagData`. Multiple tool calls
+ * during one execution produce multiple entries; for inline-citation
+ * rendering we just need every source reachable by its citationId.
+ */
+function aggregateRagSources(ragData: unknown[] | undefined): RAGSearchResult | undefined {
+    if (!ragData || ragData.length === 0) return undefined;
+    const entries = ragData as RAGSearchResult[];
+
+    if (entries.length === 1) return entries[0];
+
+    const seen = new Set<string>();
+    const uniqueSources: RAGSource[] = [];
+    for (const entry of entries) {
+        for (const source of entry?.sources ?? []) {
+            const id = source?.citationId;
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            uniqueSources.push(source);
+        }
+    }
+
+    return {
+        ...entries[entries.length - 1],
+        sources: uniqueSources,
+    };
 }
 
 /**
@@ -86,11 +123,17 @@ interface ExecutionOutputProps {
  * older executions whose agents emit no markers would show the bare text and
  * lose their artifact tail entirely.
  */
-export const ExecutionOutput: React.FC<ExecutionOutputProps> = ({ executionId, text, showPlaceholder = true, textClassName, hideArtifacts = false }) => {
+export const ExecutionOutput: React.FC<ExecutionOutputProps> = ({ executionId, text, showPlaceholder = true, textClassName, hideArtifacts = false, ragData }) => {
     const { data: artifacts, isLoading, error } = useExecutionArtifacts(executionId);
     const sessionId = executionSessionId(executionId);
 
     const { segments, mentionedNames } = useMemo(() => splitAgentText(text), [text]);
+
+    // Aggregate RAG sources once per execution so each text segment can be
+    // run through `parseCitations` with the full source set. parseCitations
+    // is cheap (regex walk over short segments) so calling it per segment
+    // inline is fine; the heavy work is the source aggregation.
+    const ragMetadata = useMemo(() => aggregateRagSources(ragData), [ragData]);
 
     const artifactsByName = useMemo(() => {
         const map = new Map<string, ArtifactInfo>();
@@ -118,7 +161,11 @@ export const ExecutionOutput: React.FC<ExecutionOutputProps> = ({ executionId, t
                 if (segment.kind === "text") {
                     const trimmed = segment.value.trim();
                     if (!trimmed) return null;
-                    return <MarkdownWrapper key={`seg-${idx}`} content={segment.value} className={textClassName ?? "text-sm"} />;
+                    // Parse inline citation markers (e.g. [cite:s0r1]) against
+                    // the aggregated RAG sources and let MarkdownWrapper
+                    // render them as clickable chips, matching the chat page.
+                    const citations = ragMetadata ? parseCitations(segment.value, ragMetadata) : undefined;
+                    return <MarkdownWrapper key={`seg-${idx}`} content={segment.value} className={textClassName ?? "text-sm"} citations={citations && citations.length > 0 ? citations : undefined} />;
                 }
                 // When hideArtifacts is set, drop inline artifact segments
                 // entirely so a sibling Artifacts tab/section can own the
