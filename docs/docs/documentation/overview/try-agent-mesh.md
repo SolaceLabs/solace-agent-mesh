@@ -1,6 +1,6 @@
 ---
 title: Try Agent Mesh
-sidebar_position: 16
+sidebar_position: 22
 ---
 
 # Try Agent Mesh

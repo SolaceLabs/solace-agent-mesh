@@ -1,9 +1,9 @@
 ---
-title: Getting Started
+title: Overview
 sidebar_position: 12
 ---
 
-# Get Started with Agent Mesh
+# Overview
 
 Agent Mesh is an open-source framework for building event-driven multi-agent AI systems that solve complex problems through intelligent collaboration. You can use it to create teams of specialized AI agents that work together seamlessly, each bringing unique capabilities while communicating through Solace's proven event-driven architecture.
 

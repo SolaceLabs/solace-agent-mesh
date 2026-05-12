@@ -474,7 +474,7 @@ sam plugin build
 
 This command packages your agent code, configuration, and dependencies into a distributable wheel file. The wheel file is a standard Python package format that can be installed into any Python environment.
 
-Check into [your Agent Mesh project directory](../getting-started/try-agent-mesh.md), and add the plugin wheel with a given name:
+Check into [your Agent Mesh project directory](../overview/try-agent-mesh.md), and add the plugin wheel with a given name:
 
 ```bash
 sam plugin add my-first-weather-agent --plugin PATH/TO/weather-agent/dist/weather-agent.whl

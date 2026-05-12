@@ -1,0 +1,10 @@
+{
+  "position": 100,
+  "label": "Overview",
+  "collapsible": true,
+  "collapsed": false,
+  "link": {
+    "type": "doc",
+    "id": "documentation/overview/overview"
+  }
+}

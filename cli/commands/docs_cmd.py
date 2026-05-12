@@ -17,7 +17,7 @@ class DocsHttpRequestHandler(http.server.SimpleHTTPRequestHandler):
     def send_error(self, code, message=None):
         if code == 404:
             self.send_response(302)
-            self.send_header('Location', '/solace-agent-mesh/docs/documentation/getting-started/introduction/')
+            self.send_header('Location', '/solace-agent-mesh/docs/documentation/overview/introduction/')
             self.end_headers()
         else:
             super().send_error(code, message)
@@ -51,7 +51,7 @@ def docs(port: int):
         return DocsHttpRequestHandler(*args, directory=docs_dir, **kwargs)
 
     with socketserver.TCPServer(("", port), handler) as httpd:
-        url = f"http://localhost:{port}/solace-agent-mesh/docs/documentation/getting-started/introduction/"
+        url = f"http://localhost:{port}/solace-agent-mesh/docs/documentation/overview/introduction/"
         click.echo(f"Starting documentation server on {url}")
         webbrowser.open_new_tab(url)
         try:
