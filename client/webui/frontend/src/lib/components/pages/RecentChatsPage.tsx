@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useSharedWithMe } from "@/lib/api/share";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
 import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
@@ -97,6 +97,7 @@ export const RecentChatsPage: React.FC = () => {
     const { persistenceEnabled, configFeatureEnablement } = useConfigContext();
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
+    const newNavigationEnabled = useIsNewNavigationEnabled();
     const inputRef = useRef<HTMLInputElement>(null);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
@@ -322,8 +323,8 @@ export const RecentChatsPage: React.FC = () => {
         return sessionWithProject?.projectId || null;
     }, [selectedProject, sessions]);
 
-    // Feature flag gate: redirect to /chat if newNavigation is not enabled
-    if (!configFeatureEnablement?.newNavigation) {
+    // Feature flag gate: redirect to /chat if new_navigation is not enabled
+    if (!newNavigationEnabled) {
         return <Navigate to="/chat" replace />;
     }
 
