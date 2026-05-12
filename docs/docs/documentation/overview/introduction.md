@@ -63,5 +63,5 @@ Whether you're building a proof-of-concept or planning a production deployment, 
 
 - [Getting Started](./overview.md): For an overview of Agent Mesh and what you can find in this documentation.
 - [Installation](../installing-and-configuring/installation.md): For installing and setting up Agent Mesh.
-- [Quick Start](./try-agent-mesh.md): For creating a project, building, and running Agent Mesh.
+- [Docker Playground](../get-started/docker-playground.md): For trying Agent Mesh quickly using a pre-configured Docker image.
 - [Component Overview](../components/components.md): Understanding the parts of Agent Mesh.

@@ -1,9 +1,9 @@
 ---
-title: Try Agent Mesh
-sidebar_position: 22
+title: Docker Playground
+sidebar_position: 2
 ---
 
-# Try Agent Mesh
+# Docker Playground
 
 Get started quickly with Agent Mesh using our pre-configured Docker image. This approach lets you explore the capabilities of Agent Mesh without setting up a complete project.
 
