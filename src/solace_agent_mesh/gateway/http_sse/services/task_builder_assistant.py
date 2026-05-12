@@ -225,14 +225,21 @@ SCHEDULE PATTERNS:
 
 EXAMPLES:
 
+CRITICAL: In the examples below, `target_agent_name` is intentionally OMITTED
+in early turns. NEVER copy a literal agent name from these examples into your
+response. The ONLY valid source of agent names is the `available_agents` list
+provided in the user message context. When you don't yet know which agent
+should handle the task, leave `target_agent_name` out of `task_updates` and
+either ask the user or emit an `inline_component` of type `agent_picker`
+whose `suggestions[*].name` values come exactly from `available_agents`.
+
 Example 1: Daily Report
 User: "I need a task to generate a daily report"
 {{
   "message": "Great! I'll help you create a daily report task. What time would you like the report generated? And what should the report include?",
   "task_updates": {{
     "name": "Daily Report Generation",
-    "schedule_type": "cron",
-    "target_agent_name": "OrchestratorAgent"
+    "schedule_type": "cron"
   }},
   "confidence": 0.6,
   "ready_to_save": false
@@ -240,18 +247,17 @@ User: "I need a task to generate a daily report"
 
 User: "Every morning at 9 AM, summarize yesterday's activities"
 {{
-  "message": "Perfect! I've configured a daily task that runs at 9 AM to summarize yesterday's activities. Check the preview!",
+  "message": "Perfect! I've configured a daily task that runs at 9 AM. Which agent in your environment should produce the summary?",
   "task_updates": {{
     "name": "Daily Activity Report",
     "description": "Generate summary of previous day's activities",
     "schedule_type": "cron",
     "schedule_expression": "0 9 * * *",
-    "target_agent_name": "OrchestratorAgent",
     "task_message": "Generate a comprehensive summary of yesterday's activities and key metrics",
     "timezone": "UTC"
   }},
-  "confidence": 0.9,
-  "ready_to_save": true
+  "confidence": 0.8,
+  "ready_to_save": false
 }}
 
 Example 2: Monitoring Task
@@ -261,8 +267,7 @@ User: "Create a monitoring task that checks system health every 30 minutes"
   "task_updates": {{
     "name": "System Health Monitor",
     "schedule_type": "interval",
-    "schedule_expression": "30m",
-    "target_agent_name": "OrchestratorAgent"
+    "schedule_expression": "30m"
   }},
   "confidence": 0.7,
   "ready_to_save": false
@@ -270,18 +275,17 @@ User: "Create a monitoring task that checks system health every 30 minutes"
 
 User: "Check API endpoints, database connections, and disk space"
 {{
-  "message": "Excellent! I've configured a monitoring task that checks API endpoints, database connections, and disk space every 30 minutes.",
+  "message": "I've configured a monitoring task that checks API endpoints, database connections, and disk space every 30 minutes. Which agent should run it?",
   "task_updates": {{
     "name": "System Health Monitor",
     "description": "Monitor system health metrics every 30 minutes",
     "schedule_type": "interval",
     "schedule_expression": "30m",
-    "target_agent_name": "OrchestratorAgent",
     "task_message": "Perform health check: verify API endpoints are responding, check database connections are active, and monitor disk space usage. Alert if any issues detected.",
     "timezone": "UTC"
   }},
-  "confidence": 0.9,
-  "ready_to_save": true
+  "confidence": 0.8,
+  "ready_to_save": false
 }}
 
 Example 3: Weekly Cleanup
@@ -291,8 +295,7 @@ User: "I want to clean up old data every Sunday"
   "task_updates": {{
     "name": "Weekly Data Cleanup",
     "schedule_type": "cron",
-    "schedule_expression": "0 2 * * 0",
-    "target_agent_name": "OrchestratorAgent"
+    "schedule_expression": "0 2 * * 0"
   }},
   "confidence": 0.7,
   "ready_to_save": false
@@ -300,18 +303,17 @@ User: "I want to clean up old data every Sunday"
 
 User: "At 2 AM, delete logs older than 30 days and archive completed tasks"
 {{
-  "message": "Perfect! Your weekly cleanup task is configured to run every Sunday at 2 AM.",
+  "message": "Your weekly cleanup task is configured to run every Sunday at 2 AM. Which agent should perform the cleanup?",
   "task_updates": {{
     "name": "Weekly Data Cleanup",
     "description": "Clean up old logs and archive completed tasks",
     "schedule_type": "cron",
     "schedule_expression": "0 2 * * 0",
-    "target_agent_name": "OrchestratorAgent",
     "task_message": "Perform weekly cleanup: delete log files older than 30 days and archive all completed tasks to long-term storage",
     "timezone": "UTC"
   }},
-  "confidence": 0.9,
-  "ready_to_save": true
+  "confidence": 0.8,
+  "ready_to_save": false
 }}
 
 REMEMBER:

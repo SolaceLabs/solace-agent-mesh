@@ -1,7 +1,6 @@
 import React from "react";
 
 import type { TaskExecution } from "@/lib/types/scheduled-tasks";
-import { MarkdownWrapper } from "@/lib/components";
 import { formatEpochTimestampShort } from "@/lib/utils/format";
 
 export const PAGE_SIZE = 10;
@@ -50,25 +49,3 @@ export const Metric: React.FC<{ label: string; children: React.ReactNode }> = ({
         <div className="text-sm">{children}</div>
     </div>
 );
-
-/**
- * Render the agent's response inside a scrollable bordered box. The Latest
- * Execution panel uses the truncated snippet from result_summary.agent_response;
- * the per-execution detail panel uses the untruncated agent_response_full.
- */
-export const renderOutput = (execution: TaskExecution, full: boolean) => {
-    const text = full ? execution.resultSummary?.agentResponseFull || execution.resultSummary?.agentResponse : execution.resultSummary?.agentResponse;
-    const fallback = execution.resultSummary?.messages?.find(m => m.role === "agent")?.text || "";
-    const content = text || fallback;
-    return (
-        <div className="max-h-[16rem] overflow-y-auto rounded-md border bg-(--background-w10) p-4 text-sm break-words">
-            {content ? (
-                <MarkdownWrapper content={content} className="text-sm" />
-            ) : execution.errorMessage ? (
-                <span className="whitespace-pre-wrap text-(--error-wMain)">{execution.errorMessage}</span>
-            ) : (
-                <span className="text-(--secondary-text-wMain) italic">No output yet.</span>
-            )}
-        </div>
-    );
-};

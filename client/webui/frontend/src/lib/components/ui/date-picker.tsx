@@ -120,8 +120,11 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
                 element inside the popover trigger (which would be invalid
                 HTML and break a11y). The clear button is absolutely
                 positioned over the right edge of the trigger; the trigger's
-                right padding leaves room for it. */}
-            <div className={cn("relative inline-flex w-full", className)}>
+                right padding leaves room for it. Wrapper is `block` (not
+                inline-flex) so the child Button keeps its own height/flex
+                semantics — using inline-flex on the wrapper was causing the
+                Button's content to sit above its geometric centre. */}
+            <div className={cn("relative block w-full", className)}>
                 <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-between gap-2 pr-9 font-normal", !value && "text-(--secondary-text-wMain)", invalid && "border-(--error-w100)")}>
                         <span className="truncate">{displayValue ?? placeholder}</span>

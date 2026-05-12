@@ -410,6 +410,27 @@ class ResultHandler:
                         self.log_prefix, len(accumulated), execution_id,
                     )
 
+            # Append `«artifact_return:NAME»` markers to the persisted
+            # response strings so the execution-detail view renders artifacts
+            # in textual position (its renderer extracts the same markers the
+            # chat-page deserializer reads). Mirrors the marker-appending that
+            # `_save_chat_task` does for the chat view — without this, the two
+            # views diverged: chat showed artifacts inline at end-of-text,
+            # exec detail dumped them in a separate tail block.
+            if artifacts:
+                marker_suffix = "".join(
+                    f"\n«artifact_return:{art['name']}»"
+                    for art in artifacts
+                    if isinstance(art, dict) and art.get("name")
+                )
+                if marker_suffix:
+                    if "agent_response_full" in result_summary:
+                        augmented = result_summary["agent_response_full"] + marker_suffix
+                        result_summary["agent_response_full"] = augmented[:_RESULT_SUMMARY_FULL_MAX_CHARS]
+                    if "agent_response" in result_summary:
+                        augmented = result_summary["agent_response"] + marker_suffix
+                        result_summary["agent_response"] = augmented[:_RESULT_SUMMARY_SNIPPET_CHARS]
+
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:
                 update_data = {

@@ -169,7 +169,7 @@ export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> =
                         <ExecutionDetailPanel execution={selectedExecution} activeTab={detailTab} onTabChange={setDetailTab} />
                     ) : (
                         <>
-                            <LatestExecutionPanel execution={latestExecution} onGoToChat={handleGoToChat} />
+                            <LatestExecutionPanel execution={latestExecution} onGoToChat={handleGoToChat} onShowFullOutput={handleSelectExecution} />
                             <div id="execution-history-anchor" />
                             <ExecutionHistoryTable
                                 executions={executions}

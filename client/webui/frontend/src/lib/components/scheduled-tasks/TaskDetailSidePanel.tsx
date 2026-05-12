@@ -25,24 +25,28 @@ const formatRelativeLong = (epochMs: number): string => {
 
 const RECENT_RUNS_COUNT = 5;
 
-const executionStatusIcon = (status: TaskExecution["status"]): { Icon: React.ComponentType<{ className?: string }>; className: string; label: string } => {
+// `iconClassName` is applied to the leading status icon (and may include
+// `animate-spin` for in-flight runs); `textClassName` is the colour-only
+// subset applied to the trailing label. Splitting them prevents the spinner
+// animation from also rotating the "Running"/"Pending" text.
+const executionStatusIcon = (status: TaskExecution["status"]): { Icon: React.ComponentType<{ className?: string }>; iconClassName: string; textClassName: string; label: string } => {
     switch (status) {
         case "completed":
-            return { Icon: CheckCircle2, className: "text-(--success-wMain)", label: "Succeeded" };
+            return { Icon: CheckCircle2, iconClassName: "text-(--success-wMain)", textClassName: "text-(--success-wMain)", label: "Succeeded" };
         case "failed":
-            return { Icon: XCircle, className: "text-(--error-wMain)", label: "Failed" };
+            return { Icon: XCircle, iconClassName: "text-(--error-wMain)", textClassName: "text-(--error-wMain)", label: "Failed" };
         case "timeout":
-            return { Icon: AlertCircle, className: "text-(--warning-wMain)", label: "Timed out" };
+            return { Icon: AlertCircle, iconClassName: "text-(--warning-wMain)", textClassName: "text-(--warning-wMain)", label: "Timed out" };
         case "running":
-            return { Icon: Loader2, className: "animate-spin text-(--info-wMain)", label: "Running" };
+            return { Icon: Loader2, iconClassName: "animate-spin text-(--info-wMain)", textClassName: "text-(--info-wMain)", label: "Running" };
         case "pending":
-            return { Icon: Loader2, className: "animate-spin text-(--info-wMain)", label: "Pending" };
+            return { Icon: Loader2, iconClassName: "animate-spin text-(--info-wMain)", textClassName: "text-(--info-wMain)", label: "Pending" };
         case "skipped":
-            return { Icon: AlertCircle, className: "text-(--secondary-text-wMain)", label: "Skipped" };
+            return { Icon: AlertCircle, iconClassName: "text-(--secondary-text-wMain)", textClassName: "text-(--secondary-text-wMain)", label: "Skipped" };
         case "cancelled":
-            return { Icon: XCircle, className: "text-(--secondary-text-wMain)", label: "Cancelled" };
+            return { Icon: XCircle, iconClassName: "text-(--secondary-text-wMain)", textClassName: "text-(--secondary-text-wMain)", label: "Cancelled" };
         default:
-            return { Icon: AlertCircle, className: "text-(--secondary-text-wMain)", label: String(status) };
+            return { Icon: AlertCircle, iconClassName: "text-(--secondary-text-wMain)", textClassName: "text-(--secondary-text-wMain)", label: String(status) };
     }
 };
 
@@ -64,7 +68,7 @@ const ExecutionHistory: React.FC<{ taskId: string; onViewAll: () => void }> = ({
             ) : (
                 <ul className="space-y-1">
                     {executions.map(ex => {
-                        const { Icon, className, label } = executionStatusIcon(ex.status);
+                        const { Icon, iconClassName, textClassName, label } = executionStatusIcon(ex.status);
                         const isInFlight = ex.status === "running" || ex.status === "pending";
                         // Running rows show "Started X ago" (anchored on startedAt);
                         // terminal rows show "X ago" (anchored on completedAt).
@@ -74,9 +78,9 @@ const ExecutionHistory: React.FC<{ taskId: string; onViewAll: () => void }> = ({
                         return (
                             <li key={ex.id}>
                                 <button type="button" onClick={onViewAll} className="flex w-full items-center gap-2 rounded py-1.5 text-left text-sm hover:bg-(--secondary-w10)" title={ex.errorMessage ?? label}>
-                                    <Icon className={`h-4 w-4 flex-shrink-0 ${className}`} />
+                                    <Icon className={`h-4 w-4 flex-shrink-0 ${iconClassName}`} />
                                     <span className="min-w-0 flex-1 truncate">{timeText}</span>
-                                    <span className={`flex-shrink-0 text-xs ${className}`}>{label}</span>
+                                    <span className={`flex-shrink-0 text-xs ${textClassName}`}>{label}</span>
                                 </button>
                             </li>
                         );

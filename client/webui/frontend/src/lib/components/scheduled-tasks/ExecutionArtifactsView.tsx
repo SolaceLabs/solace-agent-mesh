@@ -148,7 +148,7 @@ export const ExecutionInlineArtifacts: React.FC<{ executionId: string }> = ({ ex
     );
 };
 
-const ArtifactPreviewBody: React.FC<{ artifact: ArtifactInfo; sessionId: string; onDownload: () => void }> = ({ artifact, sessionId, onDownload }) => {
+export const ArtifactPreviewBody: React.FC<{ artifact: ArtifactInfo; sessionId: string; onDownload: () => void }> = ({ artifact, sessionId, onDownload }) => {
     const preview = useMemo(() => canPreviewArtifact(artifact), [artifact]);
     const [content, setContent] = useState<FileAttachment | null>(null);
     const [isLoading, setIsLoading] = useState(false);
