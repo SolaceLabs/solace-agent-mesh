@@ -126,6 +126,7 @@ class TestExecutionResponseFromOrm:
         obj.triggered_by = overrides.get("triggered_by", None)
         obj.artifacts = overrides.get("artifacts", None)
         obj.notifications_sent = overrides.get("notifications_sent", None)
+        obj.task_snapshot = overrides.get("task_snapshot", None)
         return obj
 
     def test_calculates_duration_ms_when_both_timestamps_present(self):

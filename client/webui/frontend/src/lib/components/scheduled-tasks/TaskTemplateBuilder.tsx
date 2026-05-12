@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker, TimePicker } from "@/lib/components/ui";
+import { Button, Input, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Label, DatePicker } from "@/lib/components/ui";
 import { Sparkles, Loader2, Pencil } from "lucide-react";
 import { Header } from "@/lib/components/header";
 import { MessageBanner } from "@/lib/components/common";
 import { TaskBuilderChat } from "./TaskBuilderChat";
 import { TaskPreviewPanel } from "./TaskPreviewPanel";
-import { ScheduleBuilder } from "./ScheduleBuilder";
+import { ScheduleBuilder, SchedulePreviewBox, TimeOfDayPicker } from "./ScheduleBuilder";
+import { describeScheduleExpression } from "./utils";
 import { useAgentCards, useNavigationBlocker } from "@/lib/hooks";
-import { useCreateScheduledTask, useUpdateScheduledTask } from "@/lib/api/scheduled-tasks";
+import { useCreateScheduledTask, useUpdateScheduledTask, useValidateTaskConflict } from "@/lib/api/scheduled-tasks";
+import { cn } from "@/lib/utils";
 import type { CreateScheduledTaskRequest, ScheduledTask, TargetType } from "@/lib/types/scheduled-tasks";
+import { INTERVAL_UNITS, MIN_INTERVAL_SECONDS, MAX_INTERVAL_SECONDS, intervalToSeconds, parseInterval, type IntervalUnit, type TaskConfig } from "./task-config";
 
 // Common timezones for the dropdown
 const COMMON_TIMEZONES = [
@@ -30,38 +33,53 @@ const COMMON_TIMEZONES = [
     "UTC",
 ];
 
-// Interval schedule supports integer values suffixed by a unit: s | m | h | d.
-// Backend enforces a minimum of 60 seconds (see parse_interval_to_seconds).
-type IntervalUnit = "s" | "m" | "h" | "d";
-const INTERVAL_UNITS: Array<{ value: IntervalUnit; label: string; seconds: number }> = [
-    { value: "s", label: "Seconds", seconds: 1 },
-    { value: "m", label: "Minutes", seconds: 60 },
-    { value: "h", label: "Hours", seconds: 3600 },
-    { value: "d", label: "Days", seconds: 86400 },
-];
-const MIN_INTERVAL_SECONDS = 60;
+// Default fallback when an interval expression can't be parsed.
+const INTERVAL_FALLBACK: { value: number; unit: IntervalUnit } = { value: 30, unit: "m" };
 
-function parseInterval(expr: string): { value: number; unit: IntervalUnit } {
-    const match = /^(\d+)([smhd])$/i.exec(expr.trim());
-    if (!match) return { value: 30, unit: "m" };
-    return { value: parseInt(match[1], 10), unit: match[2].toLowerCase() as IntervalUnit };
-}
+// Local-state-driven interval value input. The previous implementation read
+// directly from the cron-derived `parsed.value` and rejected empty/invalid
+// keystrokes, which trapped the user — they couldn't even delete the digits
+// to type a different number. This component lets the field accept any raw
+// digits while typing, and only commits back to the parent when the value
+// becomes a valid positive integer.
+const IntervalValueInput: React.FC<{ value: number; unit: IntervalUnit; onChange: (newValue: number) => void; invalid?: boolean }> = ({ value, unit, onChange, invalid }) => {
+    const [draft, setDraft] = useState(Number.isFinite(value) ? String(value) : "");
 
-function intervalToSeconds(value: number, unit: IntervalUnit): number {
-    return value * (INTERVAL_UNITS.find(u => u.value === unit)?.seconds ?? 1);
-}
+    // When the parent expression changes (e.g. the AI builder set a new
+    // interval, or the user switched units), sync the visible draft.
+    useEffect(() => {
+        setDraft(Number.isFinite(value) ? String(value) : "");
+    }, [value, unit]);
 
-interface TaskConfig {
-    name: string;
-    description: string;
-    scheduleType: "cron" | "interval" | "one_time";
-    scheduleExpression: string;
-    targetType: TargetType;
-    targetAgentName: string;
-    taskMessage: string;
-    timezone: string;
-    enabled: boolean;
-}
+    return (
+        <Input
+            id="interval-value"
+            type="text"
+            inputMode="numeric"
+            value={draft}
+            onChange={e => {
+                const next = e.target.value;
+                // Allow empty or digits-only while typing — don't reject the keystroke.
+                if (next === "" || /^\d+$/.test(next)) {
+                    setDraft(next);
+                    const n = parseInt(next, 10);
+                    if (Number.isFinite(n) && n >= 1) {
+                        onChange(n);
+                    }
+                }
+            }}
+            onBlur={() => {
+                // If the user left the field empty or zero, snap back to the last
+                // committed valid value so the cron expression stays well-formed.
+                if (!draft || parseInt(draft, 10) < 1) {
+                    setDraft(Number.isFinite(value) ? String(value) : "");
+                }
+            }}
+            className={cn("max-w-[7rem]", invalid && "border-(--error-w100)")}
+            aria-invalid={invalid}
+        />
+    );
+};
 
 interface TaskTemplateBuilderProps {
     onBack: () => void;
@@ -77,10 +95,23 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
     const [isReadyToSave, setIsReadyToSave] = useState(false);
     const [highlightedFields, setHighlightedFields] = useState<string[]>([]);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+    // LLM-detected semantic conflict between instructions and schedule. Surfaces
+    // as inline error text + red borders on the affected fields. The first save
+    // attempt that triggers a conflict aborts and shows the warning; a second
+    // save attempt with the same content overrides and proceeds (so the user
+    // can dismiss false positives without leaving the form).
+    type ConflictState = { reason: string; fields: Array<"instructions" | "schedule">; signature: string } | null;
+    const [conflictError, setConflictError] = useState<ConflictState>(null);
+    const [isCheckingConflict, setIsCheckingConflict] = useState(false);
+    // Tracks which footer button is currently in-flight so only that one shows
+    // its spinner. Without this, both Create and Create-and-Activate would
+    // show the spinner whenever either was clicked.
+    const [pendingAction, setPendingAction] = useState<"create" | "create-activate" | "save" | null>(null);
     const { agents } = useAgentCards();
     const createTaskMutation = useCreateScheduledTask();
     const updateTaskMutation = useUpdateScheduledTask();
-    const isLoading = createTaskMutation.isPending || updateTaskMutation.isPending;
+    const validateConflictMutation = useValidateTaskConflict();
+    const isLoading = createTaskMutation.isPending || updateTaskMutation.isPending || isCheckingConflict;
 
     // For unsaved changes detection
     const [initialConfig, setInitialConfig] = useState<TaskConfig | null>(null);
@@ -197,7 +228,13 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         if (updates.scheduleType || updates.schedule_type) taskUpdates.scheduleType = (updates.scheduleType || updates.schedule_type) as "cron" | "interval" | "one_time";
         if (updates.scheduleExpression || updates.schedule_expression) taskUpdates.scheduleExpression = String(updates.scheduleExpression || updates.schedule_expression);
         if (updates.targetType || updates.target_type) taskUpdates.targetType = (updates.targetType || updates.target_type) as TargetType;
-        if (updates.targetAgentName || updates.target_agent_name) taskUpdates.targetAgentName = String(updates.targetAgentName || updates.target_agent_name);
+        // Treat explicit null as a clear (e.g. when the AI emits an agent_picker
+        // and wants any previously-selected agent removed). Plain truthy check
+        // would silently drop the null and leave a stale selection on the form.
+        if (updates.targetAgentName !== undefined || updates.target_agent_name !== undefined) {
+            const next = updates.targetAgentName ?? updates.target_agent_name;
+            taskUpdates.targetAgentName = next == null ? "" : String(next);
+        }
         if (updates.taskMessage || updates.task_message) taskUpdates.taskMessage = String(updates.taskMessage || updates.task_message);
         if (updates.timezone) taskUpdates.timezone = String(updates.timezone);
 
@@ -258,8 +295,14 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 const seconds = intervalToSeconds(parseInt(match[1], 10), match[2].toLowerCase() as IntervalUnit);
                 if (seconds < MIN_INTERVAL_SECONDS) {
                     errors.scheduleExpression = `Interval must be at least ${MIN_INTERVAL_SECONDS} seconds`;
+                } else if (seconds > MAX_INTERVAL_SECONDS) {
+                    errors.scheduleExpression = "Interval must be at most 1 year";
                 }
             }
+        }
+
+        if (!config.timezone.trim()) {
+            errors.timezone = "Timezone is required";
         }
 
         if (!config.targetAgentName.trim()) {
@@ -267,7 +310,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         }
 
         if (!config.taskMessage.trim()) {
-            errors.taskMessage = "Task message is required";
+            errors.taskMessage = "Instructions are required";
         }
 
         setValidationErrors(errors);
@@ -285,9 +328,68 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         }
     };
 
+    // Signature used to detect "user has not changed anything since the
+    // conflict warning" — second Create click with same data acts as override.
+    // Must include every field forwarded to validateTaskConflict, otherwise
+    // changing one of them (e.g. switching the target agent) wouldn't clear
+    // the warning and a second Create would override under different inputs.
+    // JSON.stringify avoids the collision that a delimiter-joined string
+    // would have if a field value happened to contain the delimiter.
+    const conflictSignature = (cfg: TaskConfig) =>
+        JSON.stringify({
+            scheduleType: cfg.scheduleType,
+            scheduleExpression: cfg.scheduleExpression,
+            timezone: cfg.timezone,
+            taskMessage: cfg.taskMessage,
+            targetAgentName: cfg.targetAgentName,
+        });
+
+    // Any edit to the conflict-relevant fields invalidates the prior verdict.
+    useEffect(() => {
+        if (!conflictError) return;
+        if (conflictSignature(config) !== conflictError.signature) {
+            setConflictError(null);
+        }
+    }, [config.scheduleType, config.scheduleExpression, config.timezone, config.taskMessage, config.targetAgentName, conflictError]);
+
     const handleSave = async (activate?: boolean) => {
         if (!validateConfig()) {
             return;
+        }
+
+        const action: "create" | "create-activate" | "save" = isEditing ? "save" : activate ? "create-activate" : "create";
+        setPendingAction(action);
+
+        // Conflict-check on first save attempt. If the user clicks Create
+        // again with the exact same content, treat that as an explicit override.
+        const signature = conflictSignature(config);
+        const alreadyWarned = !!conflictError && conflictError.signature === signature;
+        if (!alreadyWarned) {
+            setIsCheckingConflict(true);
+            try {
+                const result = await validateConflictMutation.mutateAsync({
+                    instructions: config.taskMessage,
+                    scheduleType: config.scheduleType,
+                    scheduleExpression: config.scheduleExpression,
+                    timezone: config.timezone,
+                    targetAgent: config.targetAgentName,
+                });
+                if (result.conflict) {
+                    setConflictError({
+                        reason: result.reason || "Instructions are conflicting with the schedule configuration. Review the task instructions and schedule.",
+                        fields: result.affectedFields.length > 0 ? result.affectedFields : ["instructions", "schedule"],
+                        signature,
+                    });
+                    setIsCheckingConflict(false);
+                    setPendingAction(null);
+                    return;
+                }
+            } catch (error) {
+                // Fail open — don't block the user if validation itself errors,
+                // but log so we don't silently swallow real backend failures.
+                console.warn("Conflict validation failed; allowing save", error);
+            }
+            setIsCheckingConflict(false);
         }
 
         const enabled = isEditing ? config.enabled : activate === true;
@@ -323,6 +425,8 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : `An error occurred while ${isEditing ? "updating" : "creating"} the task`;
             setValidationErrors({ general: errorMsg });
+        } finally {
+            setPendingAction(null);
         }
     };
 
@@ -389,13 +493,13 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 {/* Content area with left and right panels */}
                 <div className="flex min-h-0 flex-1">
                     {/* Left Panel - AI Chat (keep mounted but hidden to preserve chat history) */}
-                    <div className={`w-[40%] overflow-hidden border-r ${builderMode === "manual" ? "hidden" : ""}`}>
+                    <div className={cn("w-[40%] overflow-hidden border-r", builderMode === "manual" && "hidden")}>
                         <TaskBuilderChat onConfigUpdate={handleConfigUpdate} currentConfig={config} onReadyToSave={setIsReadyToSave} initialMessage={initialMessage} availableAgents={agents} isEditing={isEditing} />
                     </div>
 
                     {/* Right Panel - Task Preview (only in AI mode) */}
                     {builderMode === "ai-assisted" && (
-                        <div className="w-[60%] overflow-hidden bg-(--background-w20)">
+                        <div className="w-[60%] overflow-hidden">
                             <TaskPreviewPanel config={config} highlightedFields={highlightedFields} isReadyToSave={isReadyToSave} />
                         </div>
                     )}
@@ -410,15 +514,15 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-name">
-                                            Task Name <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Task Name <span className="text-(--primary-wMain)">*</span>
                                         </Label>
-                                        <Input id="task-name" placeholder="e.g., Daily Report Generation" value={config.name} onChange={e => updateConfig({ name: e.target.value })} className={validationErrors.name ? "border-red-500" : ""} />
-                                        {validationErrors.name && <p className="text-sm text-red-600">{validationErrors.name}</p>}
+                                        <Input id="task-name" placeholder="e.g., Daily Report Generation" value={config.name} onChange={e => updateConfig({ name: e.target.value })} className={validationErrors.name ? "border-(--error-w100)" : ""} />
+                                        {validationErrors.name && <p className="text-sm text-(--error-wMain)">{validationErrors.name}</p>}
                                     </div>
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-description">Description</Label>
-                                        <Input id="task-description" placeholder="e.g., Generates a daily summary report" value={config.description} onChange={e => updateConfig({ description: e.target.value })} />
+                                        <Textarea id="task-description" placeholder="e.g., Generates a daily summary report" value={config.description} onChange={e => updateConfig({ description: e.target.value })} rows={3} />
                                     </div>
                                 </div>
 
@@ -426,24 +530,48 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                 <div className="space-y-4">
                                     <h3 className="text-base font-semibold">Schedule</h3>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="schedule-type">Schedule Type</Label>
-                                        <Select
-                                            value={config.scheduleType}
-                                            onValueChange={value => {
-                                                const newType = value as TaskConfig["scheduleType"];
-                                                updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
-                                            }}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="cron">Recurring Schedule</SelectItem>
-                                                <SelectItem value="interval">Interval</SelectItem>
-                                                <SelectItem value="one_time">One Time</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="schedule-type">
+                                                Schedule Type <span className="text-(--primary-wMain)">*</span>
+                                            </Label>
+                                            <Select
+                                                value={config.scheduleType}
+                                                onValueChange={value => {
+                                                    const newType = value as TaskConfig["scheduleType"];
+                                                    updateConfig({ scheduleType: newType, scheduleExpression: scheduleExprByType[newType] });
+                                                }}
+                                            >
+                                                <SelectTrigger className={cn("w-full", conflictError?.fields.includes("schedule") && "border-(--error-w100)")}>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="cron">Recurring Schedule</SelectItem>
+                                                    <SelectItem value="interval">Interval</SelectItem>
+                                                    <SelectItem value="one_time">One Time</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            {conflictError?.fields.includes("schedule") && <p className="text-sm text-(--error-wMain)">{conflictError.reason}</p>}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="timezone">
+                                                Timezone <span className="text-(--primary-wMain)">*</span>
+                                            </Label>
+                                            <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
+                                                <SelectTrigger className={cn("w-full", validationErrors.timezone && "border-(--error-w100)")}>
+                                                    <SelectValue placeholder="Select timezone" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {COMMON_TIMEZONES.map(tz => (
+                                                        <SelectItem key={tz} value={tz}>
+                                                            {tz}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {validationErrors.timezone && <p className="text-sm text-(--error-wMain)">{validationErrors.timezone}</p>}
+                                        </div>
                                     </div>
 
                                     {/* Use ScheduleBuilder for cron */}
@@ -452,92 +580,67 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                     {/* Interval Input */}
                                     {config.scheduleType === "interval" &&
                                         (() => {
-                                            const parsed = parseInterval(config.scheduleExpression);
+                                            const parsed = parseInterval(config.scheduleExpression) ?? INTERVAL_FALLBACK;
                                             const invalid = !!validationErrors.scheduleExpression;
                                             return (
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="interval-value">
-                                                        Interval <span className="text-[var(--color-primary-wMain)]">*</span>
-                                                    </Label>
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            id="interval-value"
-                                                            type="number"
-                                                            min={1}
-                                                            step={1}
-                                                            value={Number.isFinite(parsed.value) ? parsed.value : ""}
-                                                            onChange={e => {
-                                                                const n = parseInt(e.target.value, 10);
-                                                                if (isNaN(n) || n < 1) return;
-                                                                updateConfig({ scheduleExpression: `${n}${parsed.unit}` });
-                                                            }}
-                                                            className={`max-w-[7rem] ${invalid ? "border-red-500" : ""}`}
-                                                            aria-invalid={invalid}
-                                                        />
-                                                        <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
-                                                            <SelectTrigger className={`max-w-[10rem] ${invalid ? "border-red-500" : ""}`} aria-invalid={invalid}>
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {INTERVAL_UNITS.map(u => (
-                                                                    <SelectItem key={u.value} value={u.value}>
-                                                                        {u.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                <>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="interval-value">
+                                                            Interval <span className="text-(--primary-wMain)">*</span>
+                                                        </Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <IntervalValueInput value={parsed.value} unit={parsed.unit} onChange={n => updateConfig({ scheduleExpression: `${n}${parsed.unit}` })} invalid={invalid} />
+                                                            <Select value={parsed.unit} onValueChange={val => updateConfig({ scheduleExpression: `${parsed.value}${val}` })}>
+                                                                <SelectTrigger className={cn("max-w-[10rem]", invalid && "border-(--error-w100)")} aria-invalid={invalid}>
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {INTERVAL_UNITS.map(u => (
+                                                                        <SelectItem key={u.value} value={u.value}>
+                                                                            {u.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        {invalid && <p className="text-sm text-(--error-wMain)">{validationErrors.scheduleExpression}</p>}
+                                                        <p className="text-xs text-(--secondary-text-wMain)">Interval must be between {MIN_INTERVAL_SECONDS} seconds and 1 year.</p>
                                                     </div>
-                                                    {invalid && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
-                                                    <p className="text-xs text-(--secondary-text-wMain)">Minimum interval is {MIN_INTERVAL_SECONDS} seconds.</p>
-                                                </div>
+                                                </>
                                             );
                                         })()}
 
                                     {/* One Time Date & Time Picker */}
                                     {config.scheduleType === "one_time" && (
-                                        <div className="space-y-2">
-                                            <Label>
-                                                Date & Time <span className="text-[var(--color-primary-wMain)]">*</span>
-                                            </Label>
-                                            <div className="flex items-center gap-2">
-                                                <DatePicker
-                                                    value={config.scheduleExpression.split("T")[0] || ""}
-                                                    onChange={date => {
-                                                        const time = config.scheduleExpression.split("T")[1] || "09:00:00";
-                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}` : "" });
-                                                    }}
-                                                    min={new Date().toISOString().split("T")[0]}
-                                                    invalid={!!validationErrors.scheduleExpression}
-                                                />
-                                                <TimePicker
-                                                    value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
-                                                    onChange={time => {
-                                                        const date = config.scheduleExpression.split("T")[0] || "";
-                                                        updateConfig({ scheduleExpression: date ? `${date}T${time}:00` : "" });
-                                                    }}
-                                                    invalid={!!validationErrors.scheduleExpression}
-                                                />
+                                        <>
+                                            <div className="space-y-2">
+                                                <Label>
+                                                    Date & Time <span className="text-(--primary-wMain)">*</span>
+                                                </Label>
+                                                <div className="flex items-center gap-2">
+                                                    <DatePicker
+                                                        value={config.scheduleExpression.split("T")[0] || ""}
+                                                        onChange={date => {
+                                                            const time = config.scheduleExpression.split("T")[1] || "09:00:00";
+                                                            updateConfig({ scheduleExpression: date ? `${date}T${time}` : "" });
+                                                        }}
+                                                        min={new Date().toISOString().split("T")[0]}
+                                                        invalid={!!validationErrors.scheduleExpression}
+                                                    />
+                                                    <TimeOfDayPicker
+                                                        value={(config.scheduleExpression.split("T")[1] || "").substring(0, 5)}
+                                                        onChange={time => {
+                                                            const date = config.scheduleExpression.split("T")[0] || "";
+                                                            updateConfig({ scheduleExpression: date ? `${date}T${time}:00` : "" });
+                                                        }}
+                                                        invalid={!!validationErrors.scheduleExpression}
+                                                    />
+                                                </div>
+                                                {validationErrors.scheduleExpression && <p className="text-sm text-(--error-wMain)">{validationErrors.scheduleExpression}</p>}
                                             </div>
-                                            {validationErrors.scheduleExpression && <p className="text-sm text-red-600">{validationErrors.scheduleExpression}</p>}
-                                        </div>
+                                            {!validationErrors.scheduleExpression && config.scheduleExpression && <SchedulePreviewBox description={describeScheduleExpression("one_time", config.scheduleExpression)} />}
+                                        </>
                                     )}
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="timezone">Timezone</Label>
-                                        <Select value={config.timezone} onValueChange={value => updateConfig({ timezone: value })}>
-                                            <SelectTrigger className="max-w-md">
-                                                <SelectValue placeholder="Select timezone" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {COMMON_TIMEZONES.map(tz => (
-                                                    <SelectItem key={tz} value={tz}>
-                                                        {tz}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <p className="text-xs text-(--secondary-text-wMain)">Your local timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
-                                    </div>
                                 </div>
 
                                 {/* Task Configuration */}
@@ -545,52 +648,70 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                     <h3 className="text-base font-semibold">Task Configuration</h3>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="target-type">Target Type</Label>
-                                        <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
-                                            <SelectTrigger className="max-w-xs">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="agent">Agent</SelectItem>
-                                                <SelectItem value="workflow">Workflow</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <Label>
+                                            Output <span className="text-(--primary-wMain)">*</span>
+                                        </Label>
+                                        <p className="text-sm">Chat</p>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="target-agent">
-                                            Target {config.targetType === "workflow" ? "Workflow" : "Agent"} <span className="text-[var(--color-primary-wMain)]">*</span>
-                                        </Label>
-                                        <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
-                                            <SelectTrigger className={validationErrors.targetAgentName ? "border-red-500" : ""}>
-                                                <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {agents
-                                                    .filter(agent => (config.targetType === "workflow" ? agent.isWorkflow : !agent.isWorkflow))
-                                                    .map(agent => (
-                                                        <SelectItem key={agent.name} value={agent.name}>
-                                                            {agent.displayName || agent.name}
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {validationErrors.targetAgentName && <p className="text-sm text-red-600">{validationErrors.targetAgentName}</p>}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor="target-type">
+                                                Target <span className="text-(--primary-wMain)">*</span>
+                                            </Label>
+                                            <Select value={config.targetType} onValueChange={value => updateConfig({ targetType: value as TargetType, targetAgentName: "" })}>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="agent">Agent</SelectItem>
+                                                    <SelectItem value="workflow">Workflow</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label htmlFor="target-agent">
+                                                {config.targetType === "workflow" ? "Workflow Type" : "Agent Type"} <span className="text-(--primary-wMain)">*</span>
+                                            </Label>
+                                            <Select value={config.targetAgentName} onValueChange={value => updateConfig({ targetAgentName: value })}>
+                                                <SelectTrigger className={cn("w-full", validationErrors.targetAgentName && "border-(--error-w100)")}>
+                                                    <SelectValue placeholder={`Select a ${config.targetType === "workflow" ? "workflow" : "agent"}`} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {agents
+                                                        .filter(agent => (config.targetType === "workflow" ? agent.isWorkflow : !agent.isWorkflow))
+                                                        .map(agent => (
+                                                            <SelectItem key={agent.name} value={agent.name}>
+                                                                {agent.displayName || agent.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {validationErrors.targetAgentName && <p className="text-sm text-(--error-wMain)">{validationErrors.targetAgentName}</p>}
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <Label htmlFor="task-message">
-                                            Task Message <span className="text-[var(--color-primary-wMain)]">*</span>
+                                            Instructions <span className="text-(--primary-wMain)">*</span>
                                         </Label>
+                                        <p className="text-sm text-(--secondary-text-wMain)">Enter the task instructions for the agent to execute on the configured schedule.</p>
                                         <Textarea
                                             id="task-message"
                                             placeholder="Enter the message to send to the agent..."
                                             value={config.taskMessage}
                                             onChange={e => updateConfig({ taskMessage: e.target.value })}
                                             rows={6}
-                                            className={validationErrors.taskMessage ? "border-red-500" : ""}
+                                            className={validationErrors.taskMessage || conflictError?.fields.includes("instructions") ? "border-(--error-w100)" : ""}
                                         />
-                                        {validationErrors.taskMessage && <p className="text-sm text-red-600">{validationErrors.taskMessage}</p>}
+                                        <p className="text-xs text-(--secondary-text-wMain)">Ensure the instructions match the schedule and task configuration.</p>
+                                        {validationErrors.taskMessage && <p className="text-sm text-(--error-wMain)">{validationErrors.taskMessage}</p>}
+                                        {conflictError?.fields.includes("instructions") && (
+                                            <p className="text-sm text-(--error-wMain)">
+                                                {conflictError.reason} <span className="text-xs text-(--secondary-text-wMain)">— click Create again to save anyway.</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -605,7 +726,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     </Button>
                     {isEditing ? (
                         <Button onClick={() => handleSave()} disabled={isLoading}>
-                            {isLoading ? (
+                            {pendingAction === "save" ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Saving...
@@ -617,7 +738,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                     ) : (
                         <>
                             <Button variant="outline" onClick={() => handleSave(false)} disabled={isLoading}>
-                                {isLoading ? (
+                                {pendingAction === "create" ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         Creating...
@@ -627,7 +748,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                                 )}
                             </Button>
                             <Button onClick={() => handleSave(true)} disabled={isLoading}>
-                                {isLoading ? (
+                                {pendingAction === "create-activate" ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         Creating...

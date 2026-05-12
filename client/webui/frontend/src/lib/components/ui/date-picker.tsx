@@ -1,11 +1,22 @@
 import { useState, useMemo } from "react";
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-const DAYS_OF_WEEK = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+// Visual labels are intentionally single-letter to match the design mock,
+// but "S"/"T" are ambiguous (Sun/Sat, Tue/Thu) so we pair each with a full
+// aria-label for screen-reader users. Keep `letter` and `label` index-aligned.
+const DAYS_OF_WEEK = [
+    { letter: "S", label: "Sunday" },
+    { letter: "M", label: "Monday" },
+    { letter: "T", label: "Tuesday" },
+    { letter: "W", label: "Wednesday" },
+    { letter: "T", label: "Thursday" },
+    { letter: "F", label: "Friday" },
+    { letter: "S", label: "Saturday" },
+];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function getDaysInMonth(year: number, month: number): number {
@@ -97,35 +108,66 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
         setOpen(false);
     };
 
-    const displayValue = selectedDate ? selectedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null;
+    // Display in the same YYYY-MM-DD form used internally and elsewhere in
+    // the app, so the trigger text matches the rest of the page (e.g.,
+    // execution timestamps).
+    const displayValue = selectedDate ? formatDate(selectedDate) : null;
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("justify-start gap-2 font-normal", !value && "text-(--secondary-text-wMain)", invalid && "border-red-500", className)}>
-                    <CalendarIcon className="h-4 w-4 text-(--secondary-text-wMain)" />
-                    {displayValue ?? placeholder}
-                </Button>
-            </PopoverTrigger>
+            {/* Trigger Button + Clear Button are siblings inside a relative
+                wrapper so the clear control isn't a nested interactive
+                element inside the popover trigger (which would be invalid
+                HTML and break a11y). The clear button is absolutely
+                positioned over the right edge of the trigger; the trigger's
+                right padding leaves room for it. Wrapper is `block` (not
+                inline-flex) so the child Button keeps its own height/flex
+                semantics — using inline-flex on the wrapper was causing the
+                Button's content to sit above its geometric centre. */}
+            <div className={cn("relative block w-full", className)}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-between gap-2 pr-9 font-normal", !value && "text-(--secondary-text-wMain)", invalid && "border-(--error-w100)")}>
+                        <span className="truncate">{displayValue ?? placeholder}</span>
+                        <CalendarIcon className="h-4 w-4 flex-shrink-0 text-(--secondary-text-wMain)" />
+                    </Button>
+                </PopoverTrigger>
+                {value && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Clear date"
+                        onClick={e => {
+                            e.stopPropagation();
+                            onChange("");
+                        }}
+                        className="absolute top-1/2 right-7 h-5 w-5 -translate-y-1/2 p-0 hover:bg-(--secondary-w20)"
+                    >
+                        <X className="h-3.5 w-3.5 text-(--secondary-text-wMain)" />
+                    </Button>
+                )}
+            </div>
             <PopoverContent className="w-auto p-3" align="start">
-                {/* Month/Year navigation */}
+                {/* Month/Year on the left, prev/next chevrons on the right */}
                 <div className="mb-2 flex items-center justify-between">
-                    <button type="button" onClick={prevMonth} className="rounded p-1 hover:bg-(--primary-w10)">
-                        <ChevronLeftIcon className="h-4 w-4" />
-                    </button>
                     <span className="text-sm font-medium">
                         {MONTHS[viewMonth]} {viewYear}
                     </span>
-                    <button type="button" onClick={nextMonth} className="rounded p-1 hover:bg-(--primary-w10)">
-                        <ChevronRightIcon className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button type="button" onClick={prevMonth} className="rounded p-1 hover:bg-(--primary-w10)">
+                            <ChevronLeftIcon className="h-4 w-4" />
+                        </button>
+                        <button type="button" onClick={nextMonth} className="rounded p-1 hover:bg-(--primary-w10)">
+                            <ChevronRightIcon className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Day-of-week headers */}
                 <div className="grid grid-cols-7 gap-0">
-                    {DAYS_OF_WEEK.map(d => (
-                        <div key={d} className="py-1 text-center text-xs font-medium text-(--secondary-text-wMain)">
-                            {d}
+                    {DAYS_OF_WEEK.map(({ letter, label }) => (
+                        <div key={label} aria-label={label} className="py-1 text-center text-xs font-medium text-(--secondary-text-wMain)">
+                            <span aria-hidden="true">{letter}</span>
                         </div>
                     ))}
 
@@ -148,7 +190,7 @@ function DatePicker({ value, onChange, min, placeholder = "Pick a date", classNa
                                 disabled={disabled}
                                 onClick={() => handleSelect(day)}
                                 className={cn(
-                                    "m-0.5 h-8 w-8 rounded text-sm transition-colors",
+                                    "m-0.5 h-8 w-8 rounded-full text-sm transition-colors",
                                     disabled && "cursor-not-allowed opacity-30",
                                     !disabled && !selected && "hover:bg-(--primary-w10)",
                                     selected && "bg-(--primary-wMain) text-(--primary-text-w10)",

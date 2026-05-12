@@ -395,3 +395,149 @@ class TestConversationHistorySanitization:
         history_msgs = [m for m in messages if m["role"] == "user" and "x" * 100 in m["content"]]
         assert len(history_msgs) == 1
         assert len(history_msgs[0]["content"]) <= 5000
+
+
+# ---------------------------------------------------------------------------
+# TestValidateConflict
+# ---------------------------------------------------------------------------
+
+class TestValidateConflict:
+    """Tests for TaskBuilderAssistant.validate_conflict — covers the
+    confidence default, schedule_type allowlist, and target_agent gating."""
+
+    @pytest.mark.asyncio
+    async def test_short_circuits_when_instructions_empty(self):
+        """Empty instructions skip the LLM call entirely."""
+        assistant = _make_assistant()
+        result = await assistant.validate_conflict(
+            instructions="",
+            schedule_type="cron",
+            schedule_expression="0 9 * * *",
+            timezone="UTC",
+        )
+        assert result.conflict is False
+
+    @pytest.mark.asyncio
+    async def test_rejects_unknown_schedule_type(self):
+        """schedule_type outside the known set short-circuits to no-conflict
+        without invoking the LLM (preventing arbitrary caller text from
+        flowing into the prompt)."""
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.services.task_builder_assistant.acompletion",
+            new_callable=AsyncMock,
+        ) as mock_acompletion:
+            assistant = _make_assistant()
+            result = await assistant.validate_conflict(
+                instructions="Run every day at 9 AM",
+                schedule_type="rogue_type",
+                schedule_expression="0 9 * * *",
+                timezone="UTC",
+            )
+        assert result.conflict is False
+        mock_acompletion.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("solace_agent_mesh.gateway.http_sse.services.task_builder_assistant.acompletion")
+    async def test_conflict_true_with_missing_confidence_is_trusted(self, mock_acompletion):
+        """When the model asserts conflict=true but omits confidence, default
+        to 1.0 (trust the assertion) instead of 0.0 — defaulting to 0.0 would
+        silently suppress every verdict that lacked confidence, which is the
+        opposite of what the threshold gate is for."""
+        content = json.dumps({
+            "conflict": True,
+            # `confidence` deliberately omitted
+            "reason": "weekly task scheduled hourly",
+            "affected_fields": ["instructions", "schedule"],
+        })
+        mock_acompletion.side_effect = _mock_llm_content(content)
+        assistant = _make_assistant()
+
+        result = await assistant.validate_conflict(
+            instructions="Send a weekly summary",
+            schedule_type="cron",
+            schedule_expression="0 * * * *",
+            timezone="UTC",
+        )
+        assert result.conflict is True
+        assert result.reason == "weekly task scheduled hourly"
+        assert set(result.affected_fields) == {"instructions", "schedule"}
+
+    @pytest.mark.asyncio
+    @patch("solace_agent_mesh.gateway.http_sse.services.task_builder_assistant.acompletion")
+    async def test_low_confidence_conflict_is_suppressed(self, mock_acompletion):
+        """conflict=true below the threshold still flips to False."""
+        content = json.dumps({
+            "conflict": True,
+            "confidence": 0.5,
+            "reason": "maybe a conflict",
+            "affected_fields": ["instructions"],
+        })
+        mock_acompletion.side_effect = _mock_llm_content(content)
+        assistant = _make_assistant()
+
+        result = await assistant.validate_conflict(
+            instructions="Do things",
+            schedule_type="cron",
+            schedule_expression="0 9 * * *",
+            timezone="UTC",
+        )
+        assert result.conflict is False
+
+    @pytest.mark.asyncio
+    @patch("solace_agent_mesh.gateway.http_sse.services.task_builder_assistant.acompletion")
+    async def test_drops_unknown_target_agent_before_llm(self, mock_acompletion):
+        """If `available_agent_names` is supplied and `target_agent` isn't in
+        it, the target is stripped before reaching the LLM prompt."""
+        content = json.dumps({
+            "conflict": False,
+            "confidence": 1.0,
+            "reason": None,
+            "affected_fields": [],
+        })
+        mock_acompletion.side_effect = _mock_llm_content(content)
+        assistant = _make_assistant()
+
+        await assistant.validate_conflict(
+            instructions="Run something",
+            schedule_type="cron",
+            schedule_expression="0 9 * * *",
+            timezone="UTC",
+            target_agent="HallucinatedAgent",
+            available_agent_names=["RealAgent"],
+        )
+
+        call_kwargs = mock_acompletion.call_args.kwargs
+        messages = call_kwargs.get("messages", [])
+        joined = "\n".join(m.get("content", "") for m in messages)
+        assert "HallucinatedAgent" not in joined
+        # The conflict prompt double-encodes the payload, so the JSON null
+        # shows up with escaped quotes around target_agent.
+        assert "target_agent" in joined
+        assert "null" in joined
+
+    @pytest.mark.asyncio
+    @patch("solace_agent_mesh.gateway.http_sse.services.task_builder_assistant.acompletion")
+    async def test_keeps_target_agent_when_in_allowed_list(self, mock_acompletion):
+        """target_agent that IS in the allowed list flows through to the LLM."""
+        content = json.dumps({
+            "conflict": False,
+            "confidence": 1.0,
+            "reason": None,
+            "affected_fields": [],
+        })
+        mock_acompletion.side_effect = _mock_llm_content(content)
+        assistant = _make_assistant()
+
+        await assistant.validate_conflict(
+            instructions="Run something",
+            schedule_type="cron",
+            schedule_expression="0 9 * * *",
+            timezone="UTC",
+            target_agent="RealAgent",
+            available_agent_names=["RealAgent", "AnotherAgent"],
+        )
+
+        call_kwargs = mock_acompletion.call_args.kwargs
+        messages = call_kwargs.get("messages", [])
+        joined = "\n".join(m.get("content", "") for m in messages)
+        assert "RealAgent" in joined

@@ -22,6 +22,18 @@ log = logging.getLogger(__name__)
 
 _MAX_USER_ERROR_LENGTH = 256
 
+# Char limit for the short snippet stored in result_summary for list views
+# (the Latest Execution panel). A bounded long-form copy is kept separately in
+# result_summary.agent_response_full and rendered on the per-execution detail
+# page; the truly unbounded transcript lives in the chat session's
+# full_messages.
+_RESULT_SUMMARY_SNIPPET_CHARS = 1000
+# Cap on the long-form agent response we persist to result_summary. Bounded
+# (not unbounded) because the executions table shouldn't bloat for a single
+# pathologically large model output, and the full transcript is already
+# captured in the chat session's full_messages.
+_RESULT_SUMMARY_FULL_MAX_CHARS = 200_000
+
 
 def _sanitize_error_message(message: str) -> str:
     """Strip internal details from error messages before persisting for the frontend."""
@@ -259,8 +271,13 @@ class ResultHandler:
                 if result.status and result.status.message:
                     agent_text = a2a.get_text_from_message(result.status.message)
                     if agent_text:
-                        result_summary["agent_response"] = agent_text[:1000]
-                        messages.append({"role": "agent", "text": agent_text[:1000]})
+                        # Truncated snippet for list views (Latest Execution
+                        # panel); bounded "full" text for the per-execution
+                        # detail view. The truly unbounded version stays in
+                        # the chat session's full_messages.
+                        result_summary["agent_response"] = agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]
+                        result_summary["agent_response_full"] = agent_text[:_RESULT_SUMMARY_FULL_MAX_CHARS]
+                        messages.append({"role": "agent", "text": agent_text[:_RESULT_SUMMARY_SNIPPET_CHARS]})
                         full_messages.append({"role": "agent", "text": agent_text})
 
                     # Extract RAG metadata from data parts (inline citations)
@@ -291,7 +308,7 @@ class ResultHandler:
                         text = a2a.get_text_from_message(msg)
                         role = getattr(msg, 'role', 'unknown')
                         if text:
-                            messages.append({"role": str(role), "text": text[:1000]})
+                            messages.append({"role": str(role), "text": text[:_RESULT_SUMMARY_SNIPPET_CHARS]})
                             full_messages.append({"role": str(role), "text": text})
                         file_parts = a2a.get_file_parts_from_message(msg)
                         for file_part in file_parts:
@@ -392,6 +409,35 @@ class ResultHandler:
                         "%s Merged %d accumulated RAG entries for execution %s",
                         self.log_prefix, len(accumulated), execution_id,
                     )
+
+            # Persist the aggregated RAG entries on the execution row so the
+            # exec-detail view can render inline citations the same way the
+            # chat page does. The chat page reads rag_data from chat-task
+            # metadata; the exec-detail surface has no chat-task context, so
+            # the data lives directly under result_summary instead.
+            if rag_data:
+                result_summary["rag_data"] = rag_data
+
+            # Append `«artifact_return:NAME»` markers to the persisted
+            # response strings so the execution-detail view renders artifacts
+            # in textual position (its renderer extracts the same markers the
+            # chat-page deserializer reads). Mirrors the marker-appending that
+            # `_save_chat_task` does for the chat view — without this, the two
+            # views diverged: chat showed artifacts inline at end-of-text,
+            # exec detail dumped them in a separate tail block.
+            if artifacts:
+                marker_suffix = "".join(
+                    f"\n«artifact_return:{art['name']}»"
+                    for art in artifacts
+                    if isinstance(art, dict) and art.get("name")
+                )
+                if marker_suffix:
+                    if "agent_response_full" in result_summary:
+                        augmented = result_summary["agent_response_full"] + marker_suffix
+                        result_summary["agent_response_full"] = augmented[:_RESULT_SUMMARY_FULL_MAX_CHARS]
+                    if "agent_response" in result_summary:
+                        augmented = result_summary["agent_response"] + marker_suffix
+                        result_summary["agent_response"] = augmented[:_RESULT_SUMMARY_SNIPPET_CHARS]
 
             repo = ScheduledTaskRepository()
             with self.session_factory() as session:

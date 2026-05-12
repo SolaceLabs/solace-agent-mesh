@@ -132,8 +132,14 @@ export function ScheduledTasksPage() {
                 <TaskExecutionHistoryPage task={viewingTaskHistory} onBack={() => setViewingTaskHistory(null)} onEdit={handleEditTask} onDelete={handleDeleteFromHistory} />
                 <ConfirmationDialog
                     open={!!deleteConfirm}
-                    title="Delete Scheduled Task"
-                    description={`Are you sure you want to delete "${deleteConfirm?.taskName}"?`}
+                    title={deleteConfirm ? `Delete ${deleteConfirm.taskName}` : ""}
+                    content={
+                        deleteConfirm ? (
+                            <p className="text-sm">
+                                Deleting <strong>{deleteConfirm.taskName}</strong> will remove it from Scheduled Tasks and will no longer be active.
+                            </p>
+                        ) : null
+                    }
                     onOpenChange={open => {
                         if (!open) setDeleteConfirm(null);
                     }}

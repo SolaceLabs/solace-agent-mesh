@@ -2,6 +2,7 @@ import React from "react";
 import { Loader2 } from "lucide-react";
 import type { TaskExecution } from "@/lib/types/scheduled-tasks";
 import { formatEpochTimestamp, formatDuration } from "@/lib/utils/format";
+import { IN_PROGRESS_STATUSES, STATUS_LABELS } from "./StatusBadge";
 
 interface ExecutionListProps {
     executions: TaskExecution[];
@@ -9,28 +10,6 @@ interface ExecutionListProps {
     onSelect: (execution: TaskExecution) => void;
     isLoading: boolean;
 }
-
-const IN_PROGRESS_STATUSES = new Set(["pending", "running"]);
-
-const STATUS_LABELS: Record<string, string> = {
-    completed: "Completed",
-    failed: "Failed",
-    pending: "Pending",
-    running: "Running",
-    timeout: "Timeout",
-};
-
-const getStatusBadge = (status: string) => {
-    const statusConfig = {
-        completed: { bg: "bg-(--color-success-w20)", text: "text-(--color-success-wMain)", label: "Completed" },
-        failed: { bg: "bg-(--color-error-w20)", text: "text-(--color-error-wMain)", label: "Failed" },
-        pending: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Pending" },
-        running: { bg: "bg-(--color-info-w20)", text: "text-(--color-info-wMain)", label: "Running" },
-        timeout: { bg: "bg-(--color-warning-w20)", text: "text-(--color-warning-wMain)", label: "Timeout" },
-    };
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.failed;
-    return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${config.bg} ${config.text}`}>{config.label}</span>;
-};
 
 export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, selectedExecution, onSelect, isLoading }) => {
     return (
@@ -58,10 +37,7 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium">{STATUS_LABELS[execution.status] ?? execution.status}</span>
                                             {execution.triggerType === "manual" && (
-                                                <span
-                                                    className="rounded-full bg-(--color-info-w20) px-2 py-0.5 text-xs text-(--color-info-wMain)"
-                                                    title={execution.triggeredBy ? `Triggered manually by ${execution.triggeredBy}` : "Triggered manually"}
-                                                >
+                                                <span className="rounded-full bg-(--info-w20) px-2 py-0.5 text-xs text-(--info-wMain)" title={execution.triggeredBy ? `Triggered manually by ${execution.triggeredBy}` : "Triggered manually"}>
                                                     Manual
                                                 </span>
                                             )}
@@ -80,5 +56,3 @@ export const ExecutionList: React.FC<ExecutionListProps> = ({ executions, select
         </div>
     );
 };
-
-export { getStatusBadge };

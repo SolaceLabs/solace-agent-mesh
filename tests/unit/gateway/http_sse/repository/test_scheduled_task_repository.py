@@ -461,3 +461,122 @@ class TestUpdateTask:
 
     def test_update_task_returns_none_for_missing(self, repo, session):
         assert repo.update_task(session, "nonexistent", {"name": "x"}) is None
+
+
+# ===========================================================================
+# task_snapshot ORM round-trip
+# ===========================================================================
+
+class TestTaskSnapshotRoundTrip:
+    """Regression: task_snapshot is a JSON column populated by scheduler_service.
+    The previous implementation guarded enum serialization with a `hasattr`
+    check that could silently let a non-serializable enum into the JSON
+    payload; this test pins down what the column actually stores and reads
+    back so future changes can't break the contract again."""
+
+    def test_round_trips_dict_with_string_schedule_type(self, repo, session):
+        """A snapshot dict (with `.value`-resolved schedule_type) round-trips
+        through the JSON column unchanged."""
+        task = repo.create_task(session, _make_task_data())
+        session.flush()
+
+        snapshot = {
+            "name": task.name,
+            "description": "weekly summary",
+            "schedule_type": "cron",
+            "schedule_expression": "0 9 * * *",
+            "timezone": "UTC",
+            "target_agent_name": "agent-a",
+            "target_type": "agent",
+            "task_message": [{"type": "text", "text": "summarize"}],
+        }
+        execution = repo.create_execution(
+            session,
+            _make_execution_data(task.id, task_snapshot=snapshot),
+        )
+        session.flush()
+        session.expire_all()
+
+        reloaded = repo.find_execution_by_id(session, execution.id)
+        assert reloaded is not None
+        # Read back: types preserved, schedule_type is a plain string.
+        assert reloaded.task_snapshot == snapshot
+        assert isinstance(reloaded.task_snapshot["schedule_type"], str)
+
+    def test_raw_str_enum_normalizes_to_string_on_read(self, session, repo):
+        """ScheduleType is ``(str, Enum)`` so it happens to serialize cleanly
+        as JSON today. But the value read back is the bare string, NOT the
+        enum — which is what the scheduler's `.value` resolution makes
+        explicit. This pins the read-back contract so a future enum class
+        that ISN'T str-based would surface as a test failure."""
+        task = repo.create_task(session, _make_task_data())
+        session.flush()
+
+        # Storing the raw enum (str-based) works today; on read we get a str.
+        repo.create_execution(
+            session,
+            _make_execution_data(
+                task.id, id="enum-store", task_snapshot={"schedule_type": ScheduleType.CRON}
+            ),
+        )
+        session.flush()
+        session.expire_all()
+
+        reloaded = repo.find_execution_by_id(session, "enum-store")
+        assert reloaded is not None
+        # The string-Enum survives the round-trip but its identity is dropped.
+        # If ScheduleType is ever changed to a non-str Enum, this assertion
+        # will need updating in lockstep with the scheduler's snapshot logic.
+        assert reloaded.task_snapshot["schedule_type"] == "cron"
+        assert not isinstance(reloaded.task_snapshot["schedule_type"], ScheduleType)
+
+
+# ===========================================================================
+# scheduled_after / scheduled_before bounds on execution history
+# ===========================================================================
+
+class TestExecutionDateFilters:
+    """Pins down inclusive-bound behaviour for the
+    ``scheduled_after`` / ``scheduled_before`` filters on
+    ``find_executions_by_task`` and ``count_executions_by_task``. Drives the
+    UI's date-range filter in the execution history table."""
+
+    @pytest.fixture()
+    def populated(self, repo, session):
+        task = repo.create_task(session, _make_task_data())
+        # Three executions at three distinct scheduled_for timestamps.
+        repo.create_execution(session, _make_execution_data(task.id, id="e1", scheduled_for=1_000))
+        repo.create_execution(session, _make_execution_data(task.id, id="e2", scheduled_for=2_000))
+        repo.create_execution(session, _make_execution_data(task.id, id="e3", scheduled_for=3_000))
+        session.flush()
+        return task
+
+    def test_scheduled_after_is_inclusive(self, repo, session, populated):
+        rows = repo.find_executions_by_task(session, populated.id, scheduled_after=2_000)
+        assert {r.id for r in rows} == {"e2", "e3"}
+
+    def test_scheduled_before_is_inclusive(self, repo, session, populated):
+        rows = repo.find_executions_by_task(session, populated.id, scheduled_before=2_000)
+        assert {r.id for r in rows} == {"e1", "e2"}
+
+    def test_both_bounds_combine(self, repo, session, populated):
+        rows = repo.find_executions_by_task(
+            session, populated.id, scheduled_after=2_000, scheduled_before=2_000
+        )
+        assert [r.id for r in rows] == ["e2"]
+
+    def test_count_applies_same_bounds(self, repo, session, populated):
+        assert repo.count_executions_by_task(session, populated.id) == 3
+        assert (
+            repo.count_executions_by_task(
+                session, populated.id, scheduled_after=2_000, scheduled_before=2_000
+            )
+            == 1
+        )
+        # Empty window
+        assert (
+            repo.count_executions_by_task(
+                session, populated.id, scheduled_after=10_000
+            )
+            == 0
+        )

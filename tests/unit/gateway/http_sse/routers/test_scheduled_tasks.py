@@ -17,10 +17,16 @@ from solace_agent_mesh.gateway.http_sse.routers.scheduled_tasks import (
     get_scheduler_status,
     get_scheduled_task,
     delete_scheduled_task,
+    delete_execution,
     enable_scheduled_task,
     disable_scheduled_task,
     update_scheduled_task,
     run_scheduled_task_now,
+    validate_task_conflict,
+    ValidateConflictRequest,
+)
+from solace_agent_mesh.gateway.http_sse.services.task_builder_assistant import (
+    ConflictValidationResponse,
 )
 from solace_agent_mesh.gateway.http_sse.services.scheduler.scheduler_service import (
     TaskAlreadyRunningError,
@@ -53,6 +59,7 @@ def _mock_execution(scheduled_task_id="task-1", a2a_task_id="a2a-123", **overrid
     execution.triggered_by = overrides.get("triggered_by", None)
     execution.artifacts = None
     execution.notifications_sent = None
+    execution.task_snapshot = None
     return execution
 
 
@@ -947,3 +954,331 @@ class TestRunScheduledTaskNow:
                 )
 
         assert exc_info.value.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# TestValidateTaskConflict
+# ---------------------------------------------------------------------------
+
+
+def _conflict_request(**overrides):
+    """Build a ValidateConflictRequest with sensible defaults."""
+    payload = {
+        "instructions": "Send the daily sales report",
+        "schedule_type": "cron",
+        "schedule_expression": "0 9 * * *",
+        "timezone": "UTC",
+        "target_agent": "OrchestratorAgent",
+    }
+    payload.update(overrides)
+    return ValidateConflictRequest(**payload)
+
+
+class TestValidateTaskConflict:
+    """Tests for the ``validate_task_conflict`` endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_passes_through_assistant_result(self):
+        """When the assistant flags a conflict, the endpoint returns its reason and affected_fields."""
+        assistant = MagicMock()
+        assistant.validate_conflict = AsyncMock(
+            return_value=ConflictValidationResponse(
+                conflict=True,
+                reason="Instructions imply weekly cadence but schedule is daily.",
+                affected_fields=["schedule", "instructions"],
+            )
+        )
+
+        result = await validate_task_conflict(
+            request=_conflict_request(),
+            user={"id": "user-1"},
+            user_config={},
+            config_resolver=_mock_config_resolver(),
+            assistant=assistant,
+        )
+
+        assistant.validate_conflict.assert_awaited_once()
+        # Forwards every conflict-relevant field unchanged.
+        kwargs = assistant.validate_conflict.await_args.kwargs
+        assert kwargs["instructions"] == "Send the daily sales report"
+        assert kwargs["schedule_type"] == "cron"
+        assert kwargs["schedule_expression"] == "0 9 * * *"
+        assert kwargs["timezone"] == "UTC"
+        assert kwargs["target_agent"] == "OrchestratorAgent"
+
+        assert result.conflict is True
+        assert result.reason == "Instructions imply weekly cadence but schedule is daily."
+        assert result.affected_fields == ["schedule", "instructions"]
+
+    @pytest.mark.asyncio
+    async def test_returns_no_conflict_when_assistant_returns_no_conflict(self):
+        """``conflict=False`` from the assistant is forwarded as-is (no reason / fields)."""
+        assistant = MagicMock()
+        assistant.validate_conflict = AsyncMock(
+            return_value=ConflictValidationResponse(conflict=False)
+        )
+
+        result = await validate_task_conflict(
+            request=_conflict_request(),
+            user={"id": "user-1"},
+            user_config={},
+            config_resolver=_mock_config_resolver(),
+            assistant=assistant,
+        )
+
+        assert result.conflict is False
+        assert result.reason is None
+        assert result.affected_fields == []
+
+    @pytest.mark.asyncio
+    async def test_fails_open_on_assistant_exception(self):
+        """A flaky LLM/assistant must not block saves — return ``conflict=False``."""
+        assistant = MagicMock()
+        assistant.validate_conflict = AsyncMock(side_effect=RuntimeError("LLM timeout"))
+
+        result = await validate_task_conflict(
+            request=_conflict_request(),
+            user={"id": "user-1"},
+            user_config={},
+            config_resolver=_mock_config_resolver(),
+            assistant=assistant,
+        )
+
+        assert result.conflict is False
+        assert result.reason is None
+        assert result.affected_fields == []
+
+    @pytest.mark.asyncio
+    async def test_returns_403_when_user_lacks_scheduling_permission(self):
+        """Permission gating runs before the assistant is touched."""
+        assistant = MagicMock()
+        assistant.validate_conflict = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await validate_task_conflict(
+                request=_conflict_request(),
+                user={"id": "user-1"},
+                user_config={},
+                config_resolver=_mock_config_resolver(valid=False),
+                assistant=assistant,
+            )
+
+        assert exc_info.value.status_code == 403
+        assistant.validate_conflict.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# TestDeleteExecution
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteExecution:
+    """Tests for the ``delete_execution`` endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_deletes_execution_for_owner(self):
+        """Owner of the parent task can hard-delete one of its executions."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = task
+        task_service.delete_execution.return_value = True
+
+        mock_db = MagicMock()
+        result = await delete_execution(
+            execution_id="exec-1",
+            db=mock_db,
+            user={"id": "user-1", "roles": []},
+            user_config={},
+            config_resolver=_mock_config_resolver(),
+            task_service=task_service,
+        )
+
+        # 204 endpoint returns None.
+        assert result is None
+        task_service.get_execution.assert_called_once_with(mock_db, "exec-1")
+        task_service.get_task.assert_called_once_with(mock_db, "task-1", user_id="user-1")
+        task_service.delete_execution.assert_called_once_with(mock_db, "exec-1")
+        # No rollback should have been called on the happy path.
+        mock_db.rollback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_404_when_execution_not_found(self):
+        """Missing execution → 404; we never look up the task."""
+        task_service = MagicMock()
+        task_service.get_execution.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="nope",
+                db=MagicMock(),
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 404
+        task_service.get_task.assert_not_called()
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_404_when_parent_task_lookup_fails(self):
+        """Task missing for this user → 404 (not 403), so we don't leak existence."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = None  # filtered out by user_id
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=MagicMock(),
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 404
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_403_when_user_is_not_owner(self):
+        """Non-owner of the parent task cannot delete its executions."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task = _mock_task(task_id="task-1", created_by="owner", user_id="owner")
+
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = task
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=MagicMock(),
+                user={"id": "intruder", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 403
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_403_for_namespace_task_when_caller_not_admin(self):
+        """Namespace tasks (user_id is None) require admin role."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task = _mock_task(task_id="task-1", created_by="someone")
+        task.user_id = None  # namespace-level
+
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = task
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=MagicMock(),
+                user={"id": "regular-user", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 403
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_404_when_repo_delete_returns_false(self):
+        """Race: if the row vanishes between the lookup and the delete, surface 404."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = task
+        task_service.delete_execution.return_value = False
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=MagicMock(),
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_rolls_back_and_500s_on_precommit_error(self):
+        """Pre-commit failure (lookup / auth) → rollback + 500."""
+        task_service = MagicMock()
+        # get_execution itself raises — we never get to the service.delete call
+        task_service.get_execution.side_effect = RuntimeError("session error")
+
+        mock_db = MagicMock()
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=mock_db,
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 500
+        mock_db.rollback.assert_called_once()
+        task_service.delete_execution.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_does_not_rollback_when_service_delete_fails(self):
+        """If task_service.delete_execution raises, the commit either already
+        happened inside the service or never started; the router must NOT
+        issue a rollback at that point (it would operate on a fresh implicit
+        transaction and mask the real error). 500 still surfaces to the user."""
+        execution = _mock_execution(scheduled_task_id="task-1", id="exec-1")
+        task = _mock_task(task_id="task-1", created_by="user-1", user_id="user-1")
+
+        task_service = MagicMock()
+        task_service.get_execution.return_value = execution
+        task_service.get_task.return_value = task
+        task_service.delete_execution.side_effect = RuntimeError("db went away")
+
+        mock_db = MagicMock()
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=mock_db,
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 500
+        mock_db.rollback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_returns_403_when_user_lacks_scheduling_permission(self):
+        """Permission gating runs before any service call."""
+        task_service = MagicMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await delete_execution(
+                execution_id="exec-1",
+                db=MagicMock(),
+                user={"id": "user-1", "roles": []},
+                user_config={},
+                config_resolver=_mock_config_resolver(valid=False),
+                task_service=task_service,
+            )
+
+        assert exc_info.value.status_code == 403
+        task_service.get_execution.assert_not_called()

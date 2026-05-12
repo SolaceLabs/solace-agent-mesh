@@ -134,8 +134,10 @@ export const describeScheduleExpression = (type: string, expression: string): st
 
 /**
  * Convert a scheduled task's schedule configuration into a human-readable string.
+ * Accepts any object with `scheduleType` + `scheduleExpression` so this also
+ * works on per-execution snapshots.
  */
-export const formatSchedule = (task: ScheduledTask): string => {
+export const formatSchedule = (task: { scheduleType: ScheduledTask["scheduleType"]; scheduleExpression: string }): string => {
     if (task.scheduleType === "cron") {
         const cron = task.scheduleExpression;
         const parts = cron.trim().split(/\s+/);

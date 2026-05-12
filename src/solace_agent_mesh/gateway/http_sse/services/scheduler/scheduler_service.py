@@ -34,7 +34,8 @@ from ...repository.models import (
 )
 from ...repository.models import SessionModel
 from ...repository.scheduled_task_repository import ScheduledTaskRepository
-from ...shared import now_epoch_ms, parse_interval_to_seconds
+from ...shared import is_quartz_weekday_cron, now_epoch_ms, parse_interval_to_seconds
+from ...shared.cron import NTH_WORDS, WEEKDAY_NAMES, parse_quartz_weekday_token
 from .result_handler import ResultHandler
 from .notification_service import NotificationService
 
@@ -416,6 +417,16 @@ class SchedulerService:
         sense at task-creation time (see ``schedule_task``).
         """
         if task.schedule_type == ScheduleType.CRON:
+            # Quartz-style day-of-week tokens (`1#2` = 2nd Monday, `5L` = last
+            # Friday) aren't accepted by APScheduler's `CronTrigger.from_crontab`
+            # — and `5L` isn't accepted by croniter either — so try translating
+            # them to APScheduler's programmatic `day="2nd mon" / "last fri"`
+            # form first, before running the croniter validator.
+            quartz_trigger = self._cron_with_quartz_weekday(
+                task.schedule_expression, task.timezone
+            )
+            if quartz_trigger is not None:
+                return quartz_trigger
             if not croniter.is_valid(task.schedule_expression):
                 raise ValueError(f"Invalid cron expression: {task.schedule_expression}")
             return CronTrigger.from_crontab(task.schedule_expression, timezone=task.timezone)
@@ -449,6 +460,40 @@ class SchedulerService:
     def _parse_interval(self, interval_str: str) -> int:
         """Parse interval string to seconds (delegates to shared utility)."""
         return parse_interval_to_seconds(interval_str)
+
+    @staticmethod
+    def _cron_with_quartz_weekday(expression: str, timezone: str):
+        """Build a CronTrigger for Quartz-style day-of-week tokens.
+
+        Returns a CronTrigger when ``expression`` is a valid Quartz weekday
+        pattern (``D#N`` for Nth weekday or ``DL`` for last weekday), else
+        ``None`` so the caller can fall back to the standard ``from_crontab``
+        parser. Field-level validation of minute/hour/etc. is delegated to
+        ``is_quartz_weekday_cron`` so we never construct a CronTrigger with
+        garbage that APScheduler would reject anyway.
+        """
+        if not is_quartz_weekday_cron(expression):
+            return None
+
+        minute, hour, day_of_month, month, day_of_week = expression.strip().split()
+        parsed = parse_quartz_weekday_token(day_of_week)
+        # `is_quartz_weekday_cron` already validated the token; this assert
+        # documents that invariant for type-checkers and future readers.
+        assert parsed is not None
+
+        if parsed.is_last:
+            day_expr = f"last {WEEKDAY_NAMES[parsed.weekday]}"
+        else:
+            assert parsed.nth is not None
+            day_expr = f"{NTH_WORDS[parsed.nth]} {WEEKDAY_NAMES[parsed.weekday]}"
+
+        return CronTrigger(
+            minute=minute,
+            hour=hour,
+            day=day_expr,
+            month=month,
+            timezone=timezone,
+        )
 
     async def _execute_scheduled_task(
         self,
@@ -535,17 +580,48 @@ class SchedulerService:
             timeout_seconds = task.timeout_seconds or self.default_timeout_seconds
             max_retries = task.max_retries or 0
             retry_delay_seconds = task.retry_delay_seconds or DEFAULT_RETRY_DELAY_SECONDS
-            # Snapshot task fields for the retry loop so we don't re-read
+            # Snapshot task fields for the retry loop so we don't re-read.
+            # Also persisted onto the execution row (see "task_snapshot"
+            # column) so the UI can show per-execution config even after the
+            # task is later edited.
+            #
+            # `schedule_type` is a SQLEnum column, so `.value` is always
+            # defined. `target_type` is a plain String column (see
+            # ScheduledTaskModel) — calling `.value` on it would AttributeError,
+            # so it's used as-is. The previous hasattr() guard obscured that
+            # asymmetry and would let a raw enum slip into the JSON column if
+            # the model ever changed shape.
             task_snapshot = {
                 "task_message": task.task_message,
                 "name": task.name,
+                "description": task.description,
                 "run_count": task.run_count,
                 "task_metadata": task.task_metadata,
+                "schedule_type": task.schedule_type.value,
+                "schedule_expression": task.schedule_expression,
                 "target_agent_name": task.target_agent_name,
+                "target_type": task.target_type,
                 "user_id": task.user_id,
                 "created_by": task.created_by,
                 "timezone": task.timezone,
             }
+
+        # Subset persisted on the execution row for the UI's per-execution
+        # config view. Excludes internal/stateful fields like run_count,
+        # user_id, and created_by which aren't shown in the Configuration
+        # sidebar. Derived from task_snapshot via an allowlist so the two
+        # can't drift.
+        _PERSISTED_SNAPSHOT_KEYS = (
+            "name",
+            "description",
+            "schedule_type",
+            "schedule_expression",
+            "timezone",
+            "target_agent_name",
+            "target_type",
+            "task_message",
+        )
+        persisted_snapshot = {k: task_snapshot[k] for k in _PERSISTED_SNAPSHOT_KEYS}
 
         for attempt in range(max_retries + 1):
             execution_id = None
@@ -571,6 +647,7 @@ class SchedulerService:
                                     error_message=f"Skipped: max concurrent executions ({self.max_concurrent_executions}) reached",
                                     trigger_type=trigger_type,
                                     triggered_by=triggered_by,
+                                    task_snapshot=persisted_snapshot,
                                 )
                                 session.add(execution)
                                 session.commit()
@@ -597,6 +674,7 @@ class SchedulerService:
                             retry_count=attempt,
                             trigger_type=trigger_type,
                             triggered_by=triggered_by,
+                            task_snapshot=persisted_snapshot,
                         )
                         session.add(execution)
                         task.last_run_at = current_time

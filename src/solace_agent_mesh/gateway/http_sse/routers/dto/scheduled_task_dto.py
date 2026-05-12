@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from croniter import croniter
 import pytz
 
-from ...shared import MINIMUM_INTERVAL_SECONDS, parse_interval_to_seconds
+from ...shared import MINIMUM_INTERVAL_SECONDS, is_quartz_weekday_cron, parse_interval_to_seconds
 
 
 class NotificationChannelConfig(BaseModel):
@@ -84,7 +84,11 @@ class CreateScheduledTaskRequest(BaseModel):
         schedule_type = info.data.get("schedule_type")
 
         if schedule_type == "cron":
-            if not croniter.is_valid(v):
+            # Allow Quartz-style day-of-week tokens (`1#2`, `5L`) emitted by
+            # the monthly-weekday UI mode; they're translated to APScheduler's
+            # programmatic CronTrigger at schedule time. croniter rejects `5L`
+            # outright, so we check the Quartz form first.
+            if not is_quartz_weekday_cron(v) and not croniter.is_valid(v):
                 raise ValueError(f"Invalid cron expression: {v}")
         elif schedule_type == "interval":
             if not v or not v[-1] in "smhd":
@@ -163,7 +167,7 @@ class UpdateScheduledTaskRequest(BaseModel):
         expr = self.schedule_expression
         if expr is not None and stype is not None:
             if stype == "cron":
-                if not croniter.is_valid(expr):
+                if not is_quartz_weekday_cron(expr) and not croniter.is_valid(expr):
                     raise ValueError(f"Invalid cron expression: {expr}")
             elif stype == "interval":
                 try:
@@ -230,12 +234,16 @@ class ScheduledTaskResponse(BaseModel):
     last_run_at: Optional[int]
 
     last_execution: Optional[LastExecutionSummary] = None
+    # Most recent *terminal* execution. Surfaced separately so cards can keep
+    # showing "Succeeded N min ago" even while a new run is in flight (in which
+    # case `last_execution` reflects the running one).
+    last_completed_execution: Optional[LastExecutionSummary] = None
 
     class Config:
         from_attributes = True
 
     @classmethod
-    def from_orm(cls, obj, last_execution: Optional["LastExecutionSummary"] = None):
+    def from_orm(cls, obj, last_execution: Optional["LastExecutionSummary"] = None, last_completed_execution: Optional["LastExecutionSummary"] = None):
         """Create ScheduledTaskResponse from ORM model, computing status."""
         data = {
             'id': obj.id,
@@ -265,6 +273,7 @@ class ScheduledTaskResponse(BaseModel):
             'next_run_at': obj.next_run_at,
             'last_run_at': obj.last_run_at,
             'last_execution': last_execution,
+            'last_completed_execution': last_completed_execution,
         }
         return cls(**data)
 
@@ -321,6 +330,8 @@ class ExecutionResponse(BaseModel):
     artifacts: Optional[List[Union[str, Dict[str, Any], ArtifactInfo]]]
     notifications_sent: Optional[List[Dict[str, Any]]]
 
+    task_snapshot: Optional[Dict[str, Any]] = None
+
     class Config:
         from_attributes = True
 
@@ -342,6 +353,7 @@ class ExecutionResponse(BaseModel):
             'triggered_by': getattr(obj, 'triggered_by', None),
             'artifacts': obj.artifacts,
             'notifications_sent': obj.notifications_sent,
+            'task_snapshot': getattr(obj, 'task_snapshot', None),
         }
 
         if obj.started_at and obj.completed_at:
