@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateScheduledTaskRequest, UpdateScheduledTaskRequest } from "@/lib/types/scheduled-tasks";
+import { IN_PROGRESS_STATUSES } from "@/lib/types/scheduled-tasks";
 
 import { scheduledTaskKeys } from "./keys";
 import * as scheduledTaskService from "./service";
+import type { ConflictValidationRequest, ConflictValidationResult } from "./service";
 
 export function useScheduledTasks(pageNumber: number = 1, pageSize: number = 100, enabledOnly: boolean = false, includeNamespaceTasks: boolean = true) {
     return useQuery({
@@ -93,8 +95,6 @@ export function useRunScheduledTaskNow() {
     });
 }
 
-const IN_PROGRESS_STATUSES: ReadonlySet<string> = new Set(["pending", "running"]);
-
 const ACTIVE_REFETCH_MS = 5_000;
 const IDLE_REFETCH_MS = 30_000;
 
@@ -176,5 +176,14 @@ export function useSchedulerStatus() {
     return useQuery({
         queryKey: scheduledTaskKeys.schedulerStatus(),
         queryFn: scheduledTaskService.fetchSchedulerStatus,
+    });
+}
+
+// Mutation hook wrapping scheduledTaskService.validateTaskConflict so callers
+// can use mutateAsync/isPending instead of calling the service directly and
+// managing their own loading flag.
+export function useValidateTaskConflict() {
+    return useMutation<ConflictValidationResult, Error, ConflictValidationRequest>({
+        mutationFn: input => scheduledTaskService.validateTaskConflict(input),
     });
 }

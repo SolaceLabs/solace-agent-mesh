@@ -8,6 +8,22 @@ export type TaskStatus = "active" | "paused" | "error";
 export type TargetType = "agent" | "workflow";
 export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled" | "skipped";
 
+// Statuses considered "in flight" — drives adaptive polling cadence in
+// useTaskExecutions/useExecution and the loader rendering in StatusBadge.
+// Defined here so the api hook layer doesn't have to import from components.
+export const IN_PROGRESS_STATUSES: ReadonlySet<ExecutionStatus> = new Set<ExecutionStatus>(["pending", "running"]);
+
+// Human labels for the subset of statuses surfaced in compact list rows.
+// Kept alongside the type so future ExecutionStatus members surface as
+// TypeScript errors here before they ship a "raw enum" pill to the UI.
+export const STATUS_LABELS: Record<string, string> = {
+    completed: "Completed",
+    failed: "Failed",
+    pending: "Pending",
+    running: "Running",
+    timeout: "Timeout",
+};
+
 export interface MessagePart {
     type: "text" | "file";
     text?: string;
