@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "google-adk==1.18.0",
     "a2a-sdk[http-server]==0.3.7",
-    "pydantic==2.11.9",
+    "pydantic==2.12.5",
     "click==8.1.8",
     "python-dotenv==1.1.1",
     "google-genai==1.49.0",
