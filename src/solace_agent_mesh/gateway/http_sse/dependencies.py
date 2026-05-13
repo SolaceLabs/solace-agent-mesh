@@ -479,12 +479,19 @@ def get_db(request: Request) -> Generator[Session, None, None]:
         
         # Check if this is a transient connection error
         if _is_connection_error(e):
+            # Attribute the error to its originating endpoint when possible.
+            # Wrapped defensively: any failure to read request attributes must
+            # not mask the underlying connection error.
+            try:
+                request_info = f"{request.method} {request.url.path}"
+            except Exception:
+                request_info = "unknown request"
+
             log.warning(
-                    "Database connection error during commit on %s %s "
-                    "(connection may have been closed by server): %s",
-                    request.method,
-                    request.url.path,
-                    str(e),
+                "Database connection error during commit on %s "
+                "(connection may have been closed by server): %s",
+                request_info,
+                str(e),
             )
             # Re-raise as a service unavailable error for transient connection issues
             raise HTTPException(
