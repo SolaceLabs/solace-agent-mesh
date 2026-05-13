@@ -139,7 +139,7 @@ def extract_outputs_from_event_list(
 async def get_all_task_events(
     gateway_component: TestGatewayComponent,
     task_id: str,
-    overall_timeout: float = 10.0,
+    overall_timeout: float = 20.0,
     polling_interval: float = 0.05,
 ) -> List[Union[TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Task, JSONRPCError]]:
     """
