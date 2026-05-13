@@ -1,6 +1,6 @@
 ---
 title: Proxy Configuration
-sidebar_position: 550
+sidebar_position: 540
 ---
 
 # Proxy Configuration

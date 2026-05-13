@@ -1,6 +1,6 @@
 ---
-title: User Feedback
-sidebar_position: 345
+title: Configuring User Feedback
+sidebar_position: 360
 ---
 
 User Feedback allows users to provide ratings and comments on AI agent responses through the Web UI. This feature enables quality monitoring, model improvement through evaluation datasets, and user satisfaction tracking. Feedback can be stored in a database for analytics and optionally published to Solace message broker topics for integration with external systems.

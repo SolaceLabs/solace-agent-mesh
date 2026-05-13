@@ -96,4 +96,4 @@ If you specified a different port in your gateway configuration, use that port i
 
 ## Next Steps
 
-After running Agent Mesh Enterprise from the wheel file, you can configure authentication and authorization for your deployment. For information about setting up authentication, see [Single Sign-On](./single-sign-on.md). For information about configuring authorization, see [Role-Based Access Control](./rbac-setup-guide.md). For production deployment considerations, see [deployment options](../deploying/deployment-options.md).
+After running Agent Mesh Enterprise from the wheel file, you can configure authentication and authorization for your deployment. For information about setting up authentication, see [Single Sign-On](./single-sign-on.md). For information about configuring authorization, see [Role-Based Access Control](./rbac-setup-guide.md). For production deployment considerations, see [deployment options](../installing-and-configuring/deployment-options.md).

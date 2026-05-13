@@ -148,7 +148,7 @@ The following outbound connectivity is required:
 
 **Corporate Proxy Support:**
 - HTTP/HTTPS proxy configuration supported for egress filtering
-- See [Proxy Configuration](/docs/documentation/deploying/proxy_configuration) for setup
+- See [Proxy Configuration](/docs/documentation/installing-and-configuring/proxy_configuration) for setup
 
 **Application & Mesh Components:**
 - Custom agents may require access to external systems (Salesforce, Jira, databases, and so on)
@@ -312,7 +312,7 @@ After deploying Agent Mesh, verify queues are created with correct settings:
 3. Check that **Respect TTL** is enabled
 4. Verify **Maximum TTL** is set to 18000 seconds
 
-For more details on queue configuration, see [Queue Template Configuration](/docs/documentation/deploying/deployment-options#setting-up-queue-templates).
+For more details on queue configuration, see [Queue Template Configuration](/docs/documentation/installing-and-configuring/deployment-options#setting-up-queue-templates).
 
 ### S3-Compatible Storage
 
@@ -820,7 +820,7 @@ curl -s https://sam.example.com/health
 curl -s https://sam.example.com/api/v1/platform/health
 ```
 
-For detailed probe configuration options and examples, see [Health Checks](/docs/documentation/deploying/health-checks).
+For detailed probe configuration options and examples, see [Health Checks](/docs/documentation/installing-and-configuring/health-checks).
 
 ## Upgrading from Quick Start
 

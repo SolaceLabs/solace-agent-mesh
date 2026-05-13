@@ -1,6 +1,6 @@
 ---
 title: Diagnosing and Resolving Problems
-sidebar_position: 30
+sidebar_position: 520
 ---
 
 # Diagnosing and Resolving Problems

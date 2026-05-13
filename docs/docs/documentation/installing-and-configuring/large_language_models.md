@@ -1,6 +1,6 @@
 ---
 title: Configuring LLMs
-sidebar_position: 340
+sidebar_position: 325
 ---
 
 import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';

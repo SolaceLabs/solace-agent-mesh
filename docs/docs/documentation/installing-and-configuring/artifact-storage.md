@@ -1,6 +1,6 @@
 ---
 title: Artifact Storage
-sidebar_position: 360
+sidebar_position: 358
 ---
 
 # Configuring Artifact Storage
@@ -612,5 +612,5 @@ After configuring artifact storage, you may want to:
 
 - Configure [Session Storage](./session-storage.md) for conversation persistence
 - Explore [agent tools](../developing/create-agents.md) for working with artifacts
-- Review [deployment options](../deploying/deployment-options.md) for production considerations
-- Set up [monitoring and observability](../deploying/observability.md) to track artifact activity
+- Review [deployment options](./deployment-options.md) for production considerations
+- Set up [monitoring and observability](./observability.md) to track artifact activity

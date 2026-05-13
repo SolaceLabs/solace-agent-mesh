@@ -1,6 +1,6 @@
 ---
 title: Configuring Agent Mesh
-sidebar_position: 330
+sidebar_position: 325
 toc_max_heading_level: 4
 ---
 
@@ -113,7 +113,7 @@ Setting the `temporary_queue` parameter to `true` (default) will use [temporary 
 
 If you set `temporary_queue` to `false`, the system will create a durable queue for the client. Durable queues persist beyond the lifetime of the client connection, allowing multiple clients to connect to the same queue and ensuring that messages are not lost if the client disconnects. However, this requires manual management of the queues, including cleanup of unused queues.
 
-Check the [Setting up Queue Templates](../deploying/deployment-options.md#setting-up-queue-templates) section for guidance on configuring queue templates to manage message TTL.
+Check the [Setting up Queue Templates](./deployment-options.md#setting-up-queue-templates) section for guidance on configuring queue templates to manage message TTL.
 :::
 
 ## LLM Configuration

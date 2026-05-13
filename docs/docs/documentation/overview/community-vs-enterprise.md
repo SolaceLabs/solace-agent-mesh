@@ -1,5 +1,4 @@
 ---
-draft: true
 title: Community vs Enterprise
 sidebar_position: 18
 ---

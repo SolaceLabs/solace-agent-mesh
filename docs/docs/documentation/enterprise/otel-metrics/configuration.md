@@ -345,7 +345,7 @@ management_server:
     metric_prefix: sam
 ```
 
-For more information about the management server and health checks, see [Health Checks](../../deploying/health-checks.md).
+For more information about the management server and health checks, see [Health Checks](../../installing-and-configuring/health-checks.md).
 
 ## What's Next
 

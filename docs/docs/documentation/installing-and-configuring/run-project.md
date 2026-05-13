@@ -1,5 +1,5 @@
 ---
-title: Creating and Running an Agent Mesh Project
+title: Creating and Running a Project
 sidebar_position: 320
 ---
 
@@ -111,7 +111,7 @@ This command starts all configured agents and gateways, creating a complete agen
 
 **Environment Variables**: By default, environment variables are loaded from your configuration file (typically a `.env` file at the project root). To use system environment variables instead, use the `-u` or `--system-env` option.
 
-**Component Separation**: While the [`run`](../components/cli.md) command executes all components together, it's possible to split components into separate processes. See the [deployment guide](../deploying/deploying.md) for more information about advanced deployment options.
+**Component Separation**: While the [`run`](../components/cli.md) command executes all components together, it's possible to split components into separate processes. See the [deployment guide](./deploying.md) for more information about advanced deployment options.
 
 ### Docker Execution
 
