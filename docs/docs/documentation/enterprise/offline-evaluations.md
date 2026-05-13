@@ -69,7 +69,7 @@ app_config:
 For platform administrators: See [Infrastructure Setup: S3 Bucket for Eval Data](docker-installation.md#infrastructure-setup-s3-bucket-for-eval-data-offline-evaluations) in the enterprise installation guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts.
 
 :::warning
-The local filesystem backend is suitable for development and local testing only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. For non-Kubernetes deployments, set `EVAL_DATA_BUCKET_NAME` to a cloud object storage bucket to retain execution traces and artifact snapshots.
+The local filesystem backend is suitable for development and local testing only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. For non-Kubernetes deployments, set `EVAL_DATA_BUCKET_NAME` to an object storage bucket or container (S3, GCS, or Azure Blob) to retain execution traces and artifact snapshots.
 :::
 
 ### Dataset Generation Tuning

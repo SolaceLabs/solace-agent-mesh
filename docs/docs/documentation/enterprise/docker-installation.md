@@ -246,12 +246,12 @@ Some enterprise features require additional infrastructure setup. If you plan to
 
 ## Infrastructure Setup: S3 Bucket for Eval Data (Offline Evaluations)
 
-If you plan to use the [Offline Evaluations](offline-evaluations.md) feature, the platform service stores execution data and artifact snapshots in object storage. By default this reuses the artifacts bucket; provisioning a dedicated bucket is optional and only needed for IAM or lifecycle separation.
+If you plan to use the [Offline Evaluations](offline-evaluations.md) feature, the platform service stores execution data and artifact snapshots in object storage. Standalone deployments must configure a bucket explicitly via `EVAL_DATA_BUCKET_NAME`; otherwise the service falls back to an ephemeral local filesystem path that is not suitable for retaining eval results. Kubernetes deployments handle this automatically via Helm charts.
 
-### When is a dedicated eval data bucket required?
-- It is **optional** — by default, eval data shares the artifacts bucket under `{namespace}/eval/runs/...` keys
-- When you want separate IAM, retention, or replication policies for eval data
-- When deploying via Kubernetes (Helm charts handle this automatically)
+### When is an eval data bucket required?
+- When using Offline Evaluations in a standalone deployment (otherwise eval data lands on an ephemeral local filesystem)
+- When deploying via Kubernetes — Helm charts handle this automatically and share the artifacts bucket by default
+- When you want separate IAM, retention, or replication policies for eval data than for artifacts (optional in any deployment)
 
 ### Setup Instructions
 
