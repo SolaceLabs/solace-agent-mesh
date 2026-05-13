@@ -3,6 +3,7 @@ import StepIndicator from "./StepIndicator";
 import PathSelectionStep from "./steps/init/PathSelectionStep";
 import ProjectSetup from "./steps/init/ProjectSetup";
 import BrokerSetup from "./steps/init/BrokerSetup";
+import AIProviderSetup from "./steps/init/AIProviderSetup";
 import OrchestratorSetup from "./steps/init/OrchestratorSetup";
 import WebUIGatewaySetup from "./steps/init/WebUIGatewaySetup";
 import CompletionStep from "./steps/init/CompletionStep";
@@ -13,7 +14,6 @@ export interface StepComponentProps {
   updateData: (newData: Partial<Record<string, unknown>>) => void;
   onNext: () => void;
   onPrevious: () => void;
-  isLoading?: boolean;
 }
 
 export type Step = {
@@ -44,6 +44,12 @@ export const advancedInitSteps: Step[] = [
     component: BrokerSetup,
   },
   {
+    id: "ai-provider-setup",
+    title: "AI Provider",
+    description: "Configure your AI services (optional)",
+    component: AIProviderSetup,
+  },
+  {
     id: "orchestrator-setup",
     title: "Orchestrator",
     description: "Configure your main orchestrator",
@@ -54,6 +60,21 @@ export const advancedInitSteps: Step[] = [
     title: "Web UI & Platform Service",
     description: "Configure Web UI Gateway and Platform Service",
     component: WebUIGatewaySetup,
+  },
+  {
+    id: "completion",
+    title: "Review & Submit",
+    description: "Finalize your configuration",
+    component: CompletionStep,
+  },
+];
+
+export const quickInitSteps: Step[] = [
+  {
+    id: "ai-provider-setup",
+    title: "AI Provider",
+    description: "Configure your AI services (optional)",
+    component: AIProviderSetup,
   },
   {
     id: "completion",
@@ -74,46 +95,40 @@ export default function InitializationFlow() {
   const [activeSteps, setActiveSteps] = useState<Step[]>([pathSelectionStep]);
 
   useEffect(() => {
-    if (!setupPath) return;
+    if (setupPath) {
+      setIsLoading(true);
 
-    const controller = new AbortController();
-    setIsLoading(true);
-
-    fetch(`/api/default_options?path=${setupPath}`, {
-      signal: controller.signal,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch default options");
-        }
-        return response.json();
-      })
-      .then((data) => {
-        if (data?.default_options) {
-          const options = data.default_options;
-          setFormData((prevData) => ({ ...prevData, ...options }));
+      fetch(`/api/default_options?path=${setupPath}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("Failed to fetch default options");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data?.default_options) {
+            const options = data.default_options;
+            setFormData((prevData) => ({ ...prevData, ...options }));
+            setIsLoading(false);
+          } else {
+            throw new Error("Invalid response format");
+          }
+        })
+        .catch((err) => {
+          console.error("Error fetching default options:", err);
+          setError(
+            "Failed to connect to server, is the init process still running?"
+          );
           setIsLoading(false);
-        } else {
-          throw new Error("Invalid response format");
-        }
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        console.error("Error fetching default options:", err);
-        setError(
-          "Failed to connect to server, is the init process still running?"
-        );
-        setIsLoading(false);
-      });
-
-    return () => controller.abort();
+        });
+    }
   }, [setupPath]);
 
   useEffect(() => {
-    if (setupPath === "advanced") {
+    if (setupPath === "quick") {
+      setActiveSteps([pathSelectionStep, ...quickInitSteps]);
+    } else if (setupPath === "advanced") {
       setActiveSteps([pathSelectionStep, ...advancedInitSteps]);
-    } else {
-      setActiveSteps([pathSelectionStep]);
     }
   }, [setupPath]);
 
@@ -209,6 +224,7 @@ export default function InitializationFlow() {
   const showStepIndicator = currentStepIndex > 0;
 
   const getStepsForPath = () => {
+    if (setupPath === "quick") return quickInitSteps;
     if (setupPath === "advanced") return advancedInitSteps;
     return [];
   };
@@ -242,7 +258,6 @@ export default function InitializationFlow() {
           updateData={updateFormData}
           onNext={handleNext}
           onPrevious={handlePrevious}
-          isLoading={isLoading}
         />
       </div>
     </div>

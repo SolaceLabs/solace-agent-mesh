@@ -19,6 +19,14 @@ export interface BrokerSetupData {
   container_engine?: "docker" | "podman";
 }
 
+export interface AIProviderSetupData {
+  llm_provider: string;
+  llm_endpoint_url: string;
+  llm_api_key?: string;
+  llm_planning_model_name: string;
+  llm_general_model_name: string;
+}
+
 export interface OrchestratorSetupData {
   agent_name: string;
   supports_streaming: boolean;
@@ -57,6 +65,7 @@ export type InitializationData = PathSelectionData &
   ProjectSetupData &
   DatabaseSetupData &
   BrokerSetupData &
+  AIProviderSetupData &
   OrchestratorSetupData &
   WebUIGatewaySetupData & {
     showSuccess?: boolean;

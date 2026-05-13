@@ -1,13 +1,16 @@
+import { useState } from "react";
 import Button from "../../ui/Button";
-import Spinner from "../../ui/Spinner";
-import ErrorAlert from "../../ui/ErrorAlert";
+import {
+  PROVIDER_PREFIX_MAP,
+  formatModelName,
+} from "../../../common/providerModels";
 import { StepComponentProps } from "../../InitializationFlow";
-import { useInitSubmit } from "../../../common/useInitSubmit";
 
 const CAPITALIZED_WORDS = ["llm", "ai", "api", "url", "vpn"];
 
 const SENSITIVE_FIELDS = [
   "broker_password",
+  "llm_api_key",
   "webui_session_secret_key",
 ];
 
@@ -21,6 +24,7 @@ const CONFIG_GROUPS: Record<string, string[]> = {
     "broker_username",
     "broker_password",
   ],
+  "AI Provider": ["llm_model_name", "llm_endpoint_url", "llm_api_key"],
   Orchestrator: [
     "agent_name",
     "supports_streaming",
@@ -60,7 +64,8 @@ export default function CompletionStep({
   updateData,
   onPrevious,
 }: StepComponentProps) {
-  const { isSubmitting, submitError, submit } = useInitSubmit(data, updateData);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isValueEmpty = (value: unknown) => {
     return (
@@ -214,20 +219,119 @@ export default function CompletionStep({
     );
   };
 
+  const cleanDataBeforeSubmit = (dataToClean: Record<string, unknown>) => {
+    const cleanedData = { ...dataToClean };
+    if (cleanedData.namespace && !String(cleanedData.namespace).endsWith("/")) {
+      cleanedData.namespace += "/";
+    }
+    if (cleanedData.container_started) {
+      delete cleanedData.container_started;
+    }
+    
+    const originalProvider = cleanedData.llm_provider as string;
+    
+    // For AWS Bedrock, keep the provider as 'aws_bedrock' and don't transform
+    if (originalProvider === "aws_bedrock") {
+      // Keep llm_provider as 'aws_bedrock' for backend detection
+      // Don't format model name or delete provider
+    } else {
+      // For other providers, apply the normal transformation
+      if (cleanedData.llm_provider) {
+        cleanedData.llm_provider = PROVIDER_PREFIX_MAP[cleanedData.llm_provider as keyof typeof PROVIDER_PREFIX_MAP];
+      }
+
+      if (cleanedData.llm_model_name && cleanedData.llm_provider) {
+        cleanedData.llm_model_name = formatModelName(
+          String(cleanedData.llm_model_name),
+          String(cleanedData.llm_provider)
+        );
+      }
+    }
+    
+    if (data.broker_type === "container") {
+      
+      data.broker_type = "solace";
+    }
+    return cleanedData;
+  };
+
+  const submitConfiguration = async (force = true) => {
+    const cleanedData = cleanDataBeforeSubmit(data);
+    console.log("Submitting configuration:", cleanedData);
+    try {
+      const response = await fetch("api/save_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(force ? { ...cleanedData, force: true } : cleanedData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP error ${response.status}: ${result.message ?? "Unknown error"}`
+        );
+      }
+
+      if (result.status === "success") {
+        console.log("Configuration sent successfully!");
+
+        updateData({ showSuccess: true });
+
+        try {
+          const shutdownResponse = await fetch("api/shutdown", {
+            method: "POST",
+          });
+          if (!shutdownResponse.ok) {
+            console.warn("Shutdown request failed:", shutdownResponse.status);
+          } else {
+            console.log("Shutdown request sent successfully");
+          }
+        } catch (shutdownError) {
+          console.error("Error sending shutdown request:", shutdownError);
+        }
+      } else {
+        throw new Error(result.message ?? "Failed to save configuration");
+      }
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "An unknown error occurred"
+      );
+      console.error("Error saving configuration:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+    await submitConfiguration();
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    submit();
+    handleSubmit();
   };
 
   return (
     <div className="space-y-6">
       <form onSubmit={onSubmit}>
         <div className="bg-gray-100 border border-gray-300 rounded-md p-5 space-y-4">
-          {Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
-            renderGroup(groupName, keys)
-          )}
+          {(data.setupPath === "quick")
+            ? (data.llm_provider ? renderGroup("AI Provider", CONFIG_GROUPS["AI Provider"]) : null)
+            : Object.entries(CONFIG_GROUPS).map(([groupName, keys]) =>
+                groupName === "AI Provider" && !data.llm_provider
+                  ? null
+                  : renderGroup(groupName, keys)
+              )}
         </div>
-        {submitError && <ErrorAlert message={submitError} />}
+        {submitError && (
+          <div className="p-4 bg-red-50 text-red-700 rounded-md border border-red-200">
+            <p className="font-medium">Error initializing project</p>
+            <p>{submitError}</p>
+          </div>
+        )}
         <div className="mt-8 flex justify-end space-x-4">
           <Button onClick={onPrevious} variant="outline" type="button">
             Previous
@@ -235,7 +339,26 @@ export default function CompletionStep({
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
               <div className="flex items-center space-x-2">
-                <Spinner className="-ml-1 mr-2 text-white" />
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
                 <span>Initializing...</span>
               </div>
             ) : (
