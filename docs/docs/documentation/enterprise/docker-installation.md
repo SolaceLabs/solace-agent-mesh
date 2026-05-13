@@ -244,6 +244,34 @@ Some enterprise features require additional infrastructure setup. If you plan to
 - Public read is safe for API schemas only
 - Write access should be restricted to the platform
 
+## Infrastructure Setup: S3 Bucket for Eval Data (Offline Evaluations)
+
+If you plan to use the [Offline Evaluations](offline-evaluations.md) feature, the platform service stores execution data and artifact snapshots in object storage. By default this reuses the artifacts bucket; provisioning a dedicated bucket is optional and only needed for IAM or lifecycle separation.
+
+### When is a dedicated eval data bucket required?
+- It is **optional** — by default, eval data shares the artifacts bucket under `{namespace}/eval/runs/...` keys
+- When you want separate IAM, retention, or replication policies for eval data
+- When deploying via Kubernetes (Helm charts handle this automatically)
+
+### Setup Instructions
+
+1. **Create the eval data S3 bucket** (private, authenticated read/write):
+   ```bash
+   aws s3 mb s3://my-eval-data-bucket --region us-west-2
+   ```
+
+2. **IAM permissions for the SAM service**:
+   - Grant `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket` for this bucket.
+
+3. **Kubernetes deployments**: Set `dataStores.s3.evalDataBucketName` (or the Azure / GCS equivalent) in your Helm chart values. Leave empty to share the artifacts bucket.
+
+4. **Standalone deployments**: Set `EVAL_DATA_BUCKET_NAME` on the platform service. When unset, eval data falls back to an ephemeral local filesystem path.
+
+### Security Notes
+- Keep the bucket private — no public read access is needed
+- Apply lifecycle rules to age out historical eval data if desired
+- The same credential used for the artifacts bucket can be used here when both share a provider
+
 ## Accessing the Web UI
 
 After starting the container in either development or production mode, you can access the Agent Mesh Enterprise web interface through your browser. The UI provides a graphical interface for managing agents, monitoring activity, and configuring your deployment.
