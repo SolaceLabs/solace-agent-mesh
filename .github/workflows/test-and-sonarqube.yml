@@ -357,9 +357,6 @@ jobs:
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         if: ${{ fromJSON(inputs.run_sonarqube_analysis) }}
-        with:
-          args: >
-            -Dsonar.scanner.javaOpts=-Xss16m -Xmx3g
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
