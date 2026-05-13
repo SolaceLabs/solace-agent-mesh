@@ -123,10 +123,10 @@ jobs:
           set +e  # Don't exit on error - we want to generate coverage even if tests fail
 
           # Run tests in parallel with unbuffered output
-          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.1 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-non-integration.xml &
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.1 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/ --ignore=tests/integration --cov --cov-report= -v --tb=short --color=yes --maxfail=1 --junitxml=junit-non-integration.xml &
           PID1=$!
 
-          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.2 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/integration/ --cov --cov-report= -v --tb=short --color=yes --junitxml=junit-integration.xml &
+          PYTHONUNBUFFERED=1 COVERAGE_FILE=.coverage.2 hatch -v run hatch-test.py${{ matrix.python-version }}:pytest tests/integration/ --cov --cov-report= -v --tb=short --color=yes --maxfail=1 --junitxml=junit-integration.xml &
           PID2=$!
 
           # Wait and capture exit codes

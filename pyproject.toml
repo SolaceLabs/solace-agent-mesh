@@ -54,7 +54,7 @@ dependencies = [
     "jsonpath-ng==1.7.0",
     "pydub==0.25.1",
     "toml==0.10.2",
-    "GitPython==3.1.47",
+    "GitPython==3.1.50",
     "Flask==3.1.3",
     "flask-cors==6.0.1",
     "werkzeug==3.1.6",
