@@ -1,6 +1,6 @@
 ---
 title: Choosing Deployment Options
-sidebar_position: 10
+sidebar_position: 370
 ---
 
 # Choosing Deployment Options
@@ -105,14 +105,6 @@ dist
 ```
 
 
-### Deploying with Kubernetes
-
-Kubernetes excels at managing containerized applications at scale, providing features like automatic scaling, rolling updates, and self-healing capabilities. When your Agent Mesh deployment needs to handle varying loads or requires high availability, Kubernetes becomes the preferred orchestration platform.
-
-:::info Enterprise Feature
-Kubernetes deployment is available with Agent Mesh Enterprise. For Kubernetes deployment guidance, see the [Enterprise documentation](../enterprise/enterprise.md).
-:::
-
 ### Separating and Scaling Components
 
 A microservices approach to deployment offers significant advantages for production systems. By splitting your Agent Mesh components into separate containers, you achieve better fault isolation, independent scaling, and more granular resource management.
@@ -143,6 +135,7 @@ Consider using persistent volumes in Kubernetes or shared file systems in Docker
 Workflow deployment requires special attention, especially when workflows call agents running in separate containers. Agents must be discoverable and accessible for the workflow to function correctly.
 :::
 
+<!-- Phase 5: move to Administering -->
 ### Implementing Security Best Practices
 
 Production deployments require robust security measures to protect sensitive data and ensure system integrity. Implementing these practices helps safeguard your Agent Mesh deployment against common security threats.
@@ -159,9 +152,10 @@ The Solace event broker serves as the communication backbone for your agent mesh
 
 Solace Cloud-managed event brokers offer built-in high availability, automatic scaling, security updates, and professional support. These managed services eliminate the operational overhead of maintaining event broker infrastructure while providing enterprise-grade reliability and performance.
 
-For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](../installing-and-configuring/configurations.md#event-broker-connection).
+For more information about cloud-managed options, see [Solace Cloud](https://solace.com/products/event-broker/). For detailed configuration instructions, see [Configuring the Event Broker Connection](./configurations.md#event-broker-connection).
 
 
+<!-- Phase 5: move to Administering -->
 ### Setting up Queue Templates
 
 When the `app.broker.temporary_queue` parameter is set to `true` (default), the system uses [temporary endpoints](https://docs.solace.com/Messaging/Guaranteed-Msg/Endpoints.htm#temporary-endpoints) for A2A communication. Temporary queues are automatically created and deleted by the broker, which simplifies management and removes the need for manual cleanup. However, temporary queues do not support multiple client connections to the same queue, which may be limiting in scenarios where you run multiple instances of the same agent or need to start a new instance while an old one is still running.

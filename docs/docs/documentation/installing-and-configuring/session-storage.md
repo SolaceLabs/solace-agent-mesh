@@ -1,6 +1,6 @@
 ---
 title: Session Storage
-sidebar_position: 350
+sidebar_position: 355
 ---
 
 # Configuring Session Storage
@@ -465,5 +465,5 @@ Migration adds new storage without affecting existing sessions.
 After configuring session storage, you may want to:
 
 - Configure [Artifact Storage](./artifact-storage.md) for agent-generated files
-- Review [deployment options](../deploying/deployment-options.md) for production considerations
-- Set up [monitoring and observability](../deploying/observability.md) to track session activity
+- Review [deployment options](./deployment-options.md) for production considerations
+- Set up [monitoring and observability](./observability.md) to track session activity

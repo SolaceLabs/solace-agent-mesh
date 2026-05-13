@@ -1,5 +1,4 @@
 ---
-draft: true
 title: Choosing Your Path
 sidebar_position: 20
 ---

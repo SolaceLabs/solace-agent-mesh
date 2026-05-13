@@ -145,7 +145,7 @@ curl -s -X GET "${SAM_HOST}/api/v2/tasks/${TASK_ID}" \
 - `status` - Task status (e.g., `completed`, `in_progress`)
 
 :::warning
-It might take a while for the system to respond. See the [observability](../../deploying/observability.md) page for more information about monitoring the system while it processes the request.
+It might take a while for the system to respond. See the [observability](../../installing-and-configuring/observability.md) page for more information about monitoring the system while it processes the request.
 :::
 
 #### 5. List Artifacts

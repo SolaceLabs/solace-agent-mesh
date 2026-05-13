@@ -175,7 +175,7 @@ curl -s http://localhost:8080/api/v1/platform/health
 
 Both endpoints should return a successful response when Agent Mesh is running correctly.
 
-For detailed health check configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
+For detailed health check configuration, see [Health Checks](/docs/documentation/installing-and-configuring/health-checks).
 
 ### Common Issues
 

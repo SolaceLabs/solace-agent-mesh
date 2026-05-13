@@ -1,6 +1,6 @@
 ---
 title: Health Checks
-sidebar_position: 25
+sidebar_position: 510
 ---
 
 # Health Checks

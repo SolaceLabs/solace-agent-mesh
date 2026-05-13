@@ -174,7 +174,7 @@ This configuration is sufficient for **evaluation**. Embedded broker and persist
 For **production** air-gapped deployments, also configure external components. See [Step 3: Helm Chart Configuration](./production-kubernetes.md#step-3-helm-chart-configuration) in the Production guide.
 
 :::tip Forward Proxy
-If your air-gapped network uses a forward proxy, see [Proxy Configuration → Kubernetes](../deploying/proxy_configuration.md#kubernetes) for setup.
+If your air-gapped network uses a forward proxy, see [Proxy Configuration → Kubernetes](../installing-and-configuring/proxy_configuration.md#kubernetes) for setup.
 :::
 
 ## Step 5: Custom CA Certificates (If Required)
@@ -252,7 +252,7 @@ curl -s https://<your-sam-domain>/health
 curl -s https://<your-sam-domain>/api/v1/platform/health
 ```
 
-Both endpoints should return a successful response. For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
+Both endpoints should return a successful response. For detailed probe configuration, see [Health Checks](/docs/documentation/installing-and-configuring/health-checks).
 
 ## Air-Gapped-Specific Considerations
 
@@ -377,7 +377,7 @@ curl -s http://localhost:8000/health
 curl -s http://localhost:8080/api/v1/platform/health
 ```
 
-If using Ingress, replace `localhost` with your domain. For detailed probe configuration, see [Health Checks](/docs/documentation/deploying/health-checks).
+If using Ingress, replace `localhost` with your domain. For detailed probe configuration, see [Health Checks](/docs/documentation/installing-and-configuring/health-checks).
 
 ## Additional Resources
 

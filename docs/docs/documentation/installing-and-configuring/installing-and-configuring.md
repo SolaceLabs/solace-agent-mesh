@@ -1,9 +1,9 @@
 ---
-title: Installing and Configuring Agent Mesh
+title: Installing Agent Mesh (Community)
 sidebar_position: 300
 ---
 
-# Installing and Configuring Agent Mesh
+# Installing Agent Mesh (Community)
 
 Getting Agent Mesh up and running involves several key steps that prepare your development environment and configure the system for your specific needs. You'll install the framework, create your first project, configure essential settings, and connect to the language models that power your intelligent agents.
 

@@ -1,9 +1,9 @@
 ---
-title: Monitoring Your Agent Mesh
-sidebar_position: 20
+title: Monitoring Agent Mesh
+sidebar_position: 390
 ---
 
-# Monitoring Your Agent Mesh
+# Monitoring Agent Mesh
 
 Understanding how your Agent Mesh system operates in real-time is crucial for maintaining optimal performance and quickly identifying issues. The platform provides a comprehensive observability suite that gives you deep insights into system behavior, message flows, and agent interactions.
 

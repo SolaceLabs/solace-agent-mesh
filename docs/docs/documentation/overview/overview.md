@@ -57,9 +57,9 @@ Comprehensive command-line tools manage your projects from initial setup through
 
 As your AI systems grow in complexity and scale, Agent Mesh provides advanced features to support enterprise deployments and sophisticated use cases.
 
-Various approaches for running Agent Mesh in production range from single-machine setups to distributed enterprise deployments across multiple environments. To explore your deployment options, see [Deployment Options](../deploying/deployment-options.md).
+Various approaches for running Agent Mesh in production range from single-machine setups to distributed enterprise deployments across multiple environments. To explore your deployment options, see [Deployment Options](../installing-and-configuring/deployment-options.md).
 
-Real-time monitoring capabilities help you track performance metrics and debug issues when they occur, with the framework's event-driven architecture providing natural visibility into all system interactions. For guidance on system monitoring, see [Observability](../deploying/observability.md)
+Real-time monitoring capabilities help you track performance metrics and debug issues when they occur, with the framework's event-driven architecture providing natural visibility into all system interactions. For guidance on system monitoring, see [Observability](../installing-and-configuring/observability.md)
 
 Organizations with specific security and governance requirements can leverage advanced capabilities including role-based access control, single sign-on integration, Kubernetes deployment, and enterprise-grade security features. To learn about these advanced features, see [Enterprise Features](../enterprise/enterprise.md)
 
