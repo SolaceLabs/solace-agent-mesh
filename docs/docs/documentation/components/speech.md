@@ -1,5 +1,7 @@
 import NetworkAccessRequiredSingleFeature from '@site/docs/partials/network-access-required.mdx';
 
+{/* TODO(DATAGO-132137 / SAM Docs IA Phase 4): Move this page to the "Developing with Agent Mesh" section as "Adding Speech Integration". See KA: SAM Docs Information Architecture §3. */}
+
 # Speech Integration
 
 :::warning Experimental Feature
