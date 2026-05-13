@@ -197,7 +197,7 @@ Now that you have a working Agent Mesh project, you can:
 - **CLI commands**: Discover additional [CLI capabilities](../components/cli.md)
 
 ### Try Tutorials
-- **SQL Database Integration**: Follow the tutorial on adding an [SQL database agent](../developing/tutorials/sql-database.md)
+- **SQL Database Integration**: Follow the tutorial on adding an [SQL database agent](../tutorials/sql-database.md)
 - **Custom Integrations**: Explore other integration tutorials in the user guide
 
 To learn more about CLI commands and advanced configuration options, see the [CLI documentation](../components/cli.md).

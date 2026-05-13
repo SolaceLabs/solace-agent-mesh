@@ -89,7 +89,7 @@ For unique business logic or specialized tasks, you can create your own tools us
 For integrating with external, standalone tool servers that conform to the Model Context Protocol, you can configure an MCP tool. This allows agents to communicate with tools running in separate processes or on different machines.
 
 -   **Use Case**: For integrating with existing MCP-compliant tool servers or language-agnostic tool development.
--   **Learn More**: See the [MCP Integration Tutorial](../developing/tutorials/mcp-integration.md).
+-   **Learn More**: See the [MCP Integration Tutorial](../tutorials/mcp-integration.md).
 
 ## Agent Card
 

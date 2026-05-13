@@ -204,4 +204,4 @@ app_config:
 
 For extending agent capabilities beyond built-in tools:
 - **Custom Python Tools**: See [Creating Python Tools](../../developing/creating-python-tools.md) for creating custom tools with your own business logic
-- **MCP Integration**: See [MCP Integration Tutorial](../../developing/tutorials/mcp-integration.md) for connecting to Model Context Protocol servers
+- **MCP Integration**: See [MCP Integration Tutorial](../../tutorials/mcp-integration.md) for connecting to Model Context Protocol servers

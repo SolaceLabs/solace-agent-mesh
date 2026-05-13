@@ -22,8 +22,8 @@ This allows you to build agents that can answer questions about your own private
 ## Prerequisites
 
 Before you begin, ensure you have:
-- [Installed Agent Mesh and the Agent Mesh CLI](../../installing-and-configuring/installation.md).
-- [Created a new Agent Mesh project](../../installing-and-configuring/run-project.md).
+- [Installed Agent Mesh and the Agent Mesh CLI](../installing-and-configuring/installation.md).
+- [Created a new Agent Mesh project](../installing-and-configuring/run-project.md).
 - Access to a vector database (for example, Qdrant, Chroma, and Pinecone).
 - Access to an LLM for generation and an embedding model.
 - A directory with some documents for the agent to ingest.
