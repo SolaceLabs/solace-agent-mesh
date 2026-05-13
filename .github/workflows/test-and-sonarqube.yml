@@ -360,6 +360,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_SCANNER_OPTS: "-Xss16m -Xmx3g"
 
       - name: SonarQube Quality Gate
         if: ${{ fromJSON(inputs.run_quality_gate) }}
