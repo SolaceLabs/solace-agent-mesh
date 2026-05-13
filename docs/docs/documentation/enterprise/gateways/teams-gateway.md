@@ -6,7 +6,7 @@ sidebar_position: 3
 # Microsoft Teams Gateway Setup — Web Interface (SAM Cloud & SAM Kubernetes)
 
 :::info[Which guide is this?]
-This guide is for users deploying the Teams Gateway through the **Agent Mesh Enterprise web interface** (SAM Cloud or SAM Kubernetes). For Docker or wheel-based deployments without the web interface, see the [Manual Configuration guide](../../developing/tutorials/teams-integration.md).
+This guide is for users deploying the Teams Gateway through the **Agent Mesh Enterprise web interface** (SAM Cloud or SAM Kubernetes). For Docker or wheel-based deployments without the web interface, see the [Manual Configuration guide](../../tutorials/teams-integration.md).
 :::
 
 This guide explains how to configure the Microsoft Teams Gateway in Agent Mesh Enterprise. The guide covers both **Solace Agent Mesh (SAM) Cloud** and **SAM Kubernetes** environments.

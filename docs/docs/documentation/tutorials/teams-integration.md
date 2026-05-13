@@ -6,7 +6,7 @@ sidebar_position: 70
 # Microsoft Teams Gateway Setup — Manual Configuration (Docker & Wheel)
 
 :::info[Which guide is this?]
-This guide is for users deploying the Teams Gateway **manually** using Docker or wheel-based installations. If you are using the Agent Mesh Enterprise web interface, see the [Web Interface guide](../../enterprise/gateways/teams-gateway.md) instead.
+This guide is for users deploying the Teams Gateway **manually** using Docker or wheel-based installations. If you are using the Agent Mesh Enterprise web interface, see the [Web Interface guide](../enterprise/gateways/teams-gateway.md) instead.
 :::
 
 This tutorial shows you how to configure and run a Microsoft Teams Gateway with Agent Mesh Enterprise using Docker or wheel-based deployments.
@@ -19,7 +19,7 @@ The Microsoft Teams Gateway requires:
 :::
 
 :::info[Learn about gateways]
-For an introduction to gateways and how they work, see [Gateways](../../components/gateways.md).
+For an introduction to gateways and how they work, see [Gateways](../components/gateways.md).
 :::
 
 ## Prerequisites
@@ -33,7 +33,7 @@ Before you begin, make sure you have the following:
 
 ## Azure Setup and Teams App Installation
 
-Complete Steps 1 through 3 in the [Web Interface guide](../../enterprise/gateways/teams-gateway.md) to:
+Complete Steps 1 through 3 in the [Web Interface guide](../enterprise/gateways/teams-gateway.md) to:
 
 1. **Create an Azure App Registration** (Step 1) -- obtain your Application (client) ID, Directory (tenant) ID, and client secret
 2. **Create an Azure Bot Service** (Step 2) -- register your bot and enable the Microsoft Teams channel

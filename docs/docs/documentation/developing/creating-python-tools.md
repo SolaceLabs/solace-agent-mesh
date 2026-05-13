@@ -980,4 +980,4 @@ tools:
 
 For additional ways to extend agent capabilities:
 - **Built-in Tools**: See [Configuring Built-in Tools](../components/builtin-tools/builtin-tools.md) for pre-packaged tools for file management, data analysis, web requests, and more
-- **MCP Integration**: See [MCP Integration Tutorial](../developing/tutorials/mcp-integration.md) for connecting to Model Context Protocol servers to access external tools and resources
+- **MCP Integration**: See [MCP Integration Tutorial](../tutorials/mcp-integration.md) for connecting to Model Context Protocol servers to access external tools and resources

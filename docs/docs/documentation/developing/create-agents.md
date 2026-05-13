@@ -4,7 +4,7 @@ sidebar_position: 420
 ---
 
 :::tip
-For a more comprehensive tutorial example, see the [Build Your Own Agent](tutorials/custom-agent.md) guide.
+For a more comprehensive tutorial example, see the [Build Your Own Agent](../tutorials/custom-agent.md) guide.
 This page walks through the fundamental concepts for creating agents in Agent Mesh.
 :::
 
@@ -68,7 +68,7 @@ Tools are the fundamental building blocks of Agent Mesh agents. Each tool is imp
 Tools can process text and data, interact with external APIs, create and manipulate files, communicate with other agents, and access databases and services. You write tools as standard Python functions, and the framework handles the integration with the LLM.
 
 :::tip
-Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
+Agent Mesh provides a set of [built-in tools](../components/builtin-tools/builtin-tools.md) plus support for [model context protocol (MCP)](../tutorials/mcp-integration.md) servers, which can be configured in the tools list of your agent configuration.
 :::
 
 ### Configuration File: The Blueprint
@@ -117,7 +117,7 @@ You can create an agent either by using the `sam add agent` command or by creati
 For information and recommendations about these options, see [`Agent or Plugin: Which To use?`](../components/plugins.md#agent-or-plugin-which-to-use).
 :::
 
-In this tutorial, you create a new agent by creating a new plugin of type agent. For an example of custom agents, see [Build Your Own Agent](tutorials/custom-agent.md) guide.
+In this tutorial, you create a new agent by creating a new plugin of type agent. For an example of custom agents, see [Build Your Own Agent](../tutorials/custom-agent.md) guide.
 
 Although the directory structure for plugins is slightly different than the one for agents, both require a YAML configuration file, and a python module with the tools and lifecycle functions you want.
 

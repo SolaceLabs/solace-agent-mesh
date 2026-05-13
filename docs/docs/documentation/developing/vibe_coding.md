@@ -1,9 +1,9 @@
 ---
-title: Vibe Coding
-sidebar_position: 110
+title: AI-Assisted Development (Vibe Coding)
+sidebar_position: 405
 ---
 
-# Vibe Coding
+# AI-Assisted Development (Vibe Coding)
 
 Vibe Coding is an AI-assisted development approach that enables you to quickly create and extend Agent Mesh components—including plugins, agents, gateways, and core functionality—with minimal knowledge of the Solace Agent Mesh codebase. By leveraging Context7's MCP integration, your coding assistant gains deep knowledge of the Solace Agent Mesh codebase and documentation.
 

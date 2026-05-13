@@ -11,8 +11,8 @@ This tutorial sets up a SQL database agent in Agent Mesh, which allows the Agent
 
 Before starting this tutorial, ensure that you have installed and configured Agent Mesh:
 
-- [Installed Agent Mesh and the Agent Mesh CLI](../../installing-and-configuring/installation.md)
-- [Created a new Agent Mesh project](../../installing-and-configuring/run-project.md)
+- [Installed Agent Mesh and the Agent Mesh CLI](../installing-and-configuring/installation.md)
+- [Created a new Agent Mesh project](../installing-and-configuring/run-project.md)
 - Access to a SQL database (local or remote)
 
 ## Adding the SQL Database Plugin
