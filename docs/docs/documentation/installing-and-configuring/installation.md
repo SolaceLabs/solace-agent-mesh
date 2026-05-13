@@ -124,7 +124,7 @@ This command pulls the latest image (if not already present) and executes `solac
 
 If your host OS architecture is not `linux/amd64`, you need to add `--platform linux/amd64` when running the container.
 
-For more complex operations like building a project, you need to mount your project directory into the container. See the [Quick Start guide](../overview/try-agent-mesh.md) for examples.
+For more complex operations like building a project, you need to mount your project directory into the container. See the [Docker Playground](../get-started/docker-playground.md) for examples.
 :::
 
 :::warning Browser Requirement
@@ -163,7 +163,7 @@ solace-agent-mesh --help
 
 After successful installation, choose your next step based on your goals:
 
-**For Quick Exploration**: If you want to try SAM's capabilities immediately without project setup, use the [Docker quick start](../overview/try-agent-mesh.md) to explore SAM with minimal configuration.
+**For Quick Exploration**: If you want to try SAM's capabilities immediately without project setup, use the [Docker Playground](../get-started/docker-playground.md) to explore SAM with minimal configuration.
 
 **For Development Work**: If you're ready to build a complete project with full control over configuration, proceed directly to the [project setup guide](run-project.md).
 
