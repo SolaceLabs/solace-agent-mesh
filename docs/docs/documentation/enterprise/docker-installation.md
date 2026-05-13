@@ -246,12 +246,12 @@ Some enterprise features require additional infrastructure setup. If you plan to
 
 ## Infrastructure Setup: S3 Bucket for Eval Data (Offline Evaluations)
 
-If you plan to use the [Offline Evaluations](offline-evaluations.md) feature, the platform service stores execution data and artifact snapshots in object storage. Standalone deployments must configure a bucket explicitly via `EVAL_DATA_BUCKET_NAME`; otherwise the service falls back to an ephemeral local filesystem path that is not suitable for retaining eval results. Kubernetes deployments handle this automatically via Helm charts.
+If you plan to use the [Offline Evaluations](offline-evaluations.md) feature in production, the platform service should store execution data and artifact snapshots in object storage. Standalone deployments can either set `EVAL_DATA_BUCKET_NAME` to a bucket, or run with the default local filesystem backend at `<cwd>/tmp/eval-storage` — the latter works correctly for development and local testing, but data is wiped if the container restarts without a persistent volume. Kubernetes deployments handle this configuration automatically via Helm charts.
 
-### When is an eval data bucket required?
-- When using Offline Evaluations in a standalone deployment (otherwise eval data lands on an ephemeral local filesystem)
-- When deploying via Kubernetes — Helm charts handle this automatically and share the artifacts bucket by default
-- When you want separate IAM, retention, or replication policies for eval data than for artifacts (optional in any deployment)
+### When do you need a separate eval data bucket?
+- **Recommended for production standalone deployments** to retain eval data across container restarts (the local filesystem fallback is ephemeral in containerized environments without a persistent volume)
+- **Not required for Kubernetes by default** — Helm charts handle this automatically and share the artifacts bucket unless you set a dedicated eval data bucket (requires sam-kubernetes chart version 1.501.0 or later)
+- **Optional in any deployment** when you want different IAM, retention, or replication policies for eval data than for artifacts
 
 ### Setup Instructions
 
