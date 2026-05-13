@@ -89,7 +89,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - ${{ inputs.min-python-version }}
           - ${{ inputs.max-python-version }}
     steps:
       - name: Checkout
