@@ -8,7 +8,7 @@ sidebar_position: 17
 This tutorial walks you through setting up the MCP Gateway, which exposes Solace Agent Mesh agents as a Model Context Protocol (MCP) server. This allows MCP-compatible client (such as Claude Desktop, MCP Inspector, or custom applications) to interact with Solace Agent Mesh agents through a standardized interface.
 
 :::info[Learn about gateways]
-Read about [Gateways](../../components/gateways.md) before you start this tutorial.
+Read about [Gateways](../components/gateways.md) before you start this tutorial.
 :::
 
 ## Overview
@@ -22,7 +22,7 @@ The MCP Gateway adapter:
 
 ## Setting Up the Environment
 
-First, you need to [install Agent Mesh and the Agent Mesh CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md).
+First, you need to [install Agent Mesh and the Agent Mesh CLI](../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../installing-and-configuring/run-project.md).
 
 ## Adding the MCP Gateway Plugin
 
@@ -85,7 +85,7 @@ The path `/mcp` should point to the gateway service address.
 <details>
     <summary>MCP Server Gateway with Authentication </summary>
 
-If you have [authentication enabled in your gateway](../../enterprise/auth-proxy.md#gateway-configuration), you'd need to expose and map the following routes to your gateway service address:
+If you have [authentication enabled in your gateway](../enterprise/auth-proxy.md#gateway-configuration), you'd need to expose and map the following routes to your gateway service address:
 
 - `/oauth/authorize`
 - `/oauth/callback`

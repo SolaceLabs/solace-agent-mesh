@@ -8,12 +8,12 @@ sidebar_position: 60
 This tutorial integrates a Slack interface into Agent Mesh, enabling interaction with the system directly from your Slack workspace and channels.
 
 :::info[Learn about gateways]
-Read about [Gateways](../../components/gateways.md) before you start this tutorial.
+Read about [Gateways](../components/gateways.md) before you start this tutorial.
 :::
 
 ## Setting Up the Environment
 
-First, you need to [install Agent Mesh and the CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md) or [create a new gateway plugin](../../components/plugins.md#create-a-plugin).
+First, you need to [install Agent Mesh and the CLI](../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../installing-and-configuring/run-project.md) or [create a new gateway plugin](../components/plugins.md#create-a-plugin).
 
 ## Creating the Slack App
 
@@ -141,7 +141,7 @@ Launch the Slack gateway with:
 sam run configs/gateways/slack-bot.yaml
 ```
 
-For detailed information about available Agent Mesh CLI commands, see [Agent Mesh CLI](../../components/cli.md).
+For detailed information about available Agent Mesh CLI commands, see [Agent Mesh CLI](../components/cli.md).
 
 ## Testing the Installation
 

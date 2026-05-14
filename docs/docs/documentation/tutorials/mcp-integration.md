@@ -8,7 +8,7 @@ sidebar_position: 10
 This tutorial walks you through the process of integrating a Model Context Protocol (MCP) Server into Agent Mesh.
 
 :::info[Learn about agents]
-You should have an understanding of agents in Agent Mesh. For more information, see [Agents](../../components/agents.md).
+You should have an understanding of agents in Agent Mesh. For more information, see [Agents](../components/agents.md).
 :::
 
 Agent Mesh now provides **native MCP support** through the framework itself. No additional plugins are required - you can connect to MCP servers directly by configuring your agent YAML file with MCP tools.
@@ -17,7 +17,7 @@ MCP integration allows your agents to connect to external MCP servers and use th
 
 ## Setting Up the Environment
 
-You must [install Agent Mesh and the CLI](../../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../../installing-and-configuring/run-project.md).
+You must [install Agent Mesh and the CLI](../installing-and-configuring/installation.md), and then [create a new Agent Mesh project](../installing-and-configuring/run-project.md).
 
 For this tutorial using the filesystem MCP server, you also need Node.js and NPM installed.
 

@@ -8,7 +8,7 @@ sidebar_position: 400
 Agent Mesh provides a framework for creating distributed AI applications using an event-driven architecture. You can build agents that communicate through the A2A (Agent-to-Agent) protocol, extend them with custom tools, integrate external systems through gateways, and create reusable components as plugins.
 
 :::tip
-Vibe coding is recommended for faster development of agents, plugins, tools, and gateways. For more details, see the [Vibe Coding guide](../vibe_coding.md).
+Vibe coding is recommended for faster development of agents, plugins, tools, and gateways. For more details, see the [Vibe Coding guide](./vibe_coding.md).
 :::
 
 ## Understanding the Project Structure
@@ -19,7 +19,7 @@ The framework uses YAML configuration files to define agents, gateways, and plug
 
 Agents are LLM-powered components that use tools to accomplish tasks and communicate with other agents through the A2A protocol. You can define tools as Python functions, configure agent behavior through YAML, and manage agent lifecycles effectively. For comprehensive guidance on agent development, see [Creating Agents](create-agents.md).
 
-The [Build Your Own Agent](tutorials/custom-agent.md) tutorial demonstrates creating a weather agent with external API integration, resource management, and artifact creation.
+The [Build Your Own Agent](../tutorials/custom-agent.md) tutorial demonstrates creating a weather agent with external API integration, resource management, and artifact creation.
 
 ## Orchestrating Agents with Workflows
 
@@ -39,7 +39,7 @@ Service providers offer a standardized way to integrate backend systems like HR 
 
 ## Practical Integration Examples
 
-The tutorials provide hands-on examples for common scenarios: [Slack Integration](tutorials/slack-integration.md) for workspace connectivity, [REST Gateway](tutorials/rest-gateway.md) for RESTful APIs, and [MCP Integration](tutorials/mcp-integration.md) for Model Context Protocol servers. Additional tutorials cover database integration, RAG implementations, and cloud service connections.
+The tutorials provide hands-on examples for common scenarios: [Slack Integration](../tutorials/slack-integration.md) for workspace connectivity, [REST Gateway](../tutorials/rest-gateway.md) for RESTful APIs, and [MCP Integration](../tutorials/mcp-integration.md) for Model Context Protocol servers. Additional tutorials cover database integration, RAG implementations, and cloud service connections.
 
 ## Development Patterns
 

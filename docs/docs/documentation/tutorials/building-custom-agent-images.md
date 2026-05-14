@@ -9,7 +9,7 @@ This tutorial walks you through packaging a custom agent plugin into a Docker/OC
 
 ## Prerequisites
 
-You need Docker or Podman installed on your build machine, access to a container registry that your Kubernetes cluster can pull from, and a SAM Enterprise base image. Familiarity with Python packaging basics is helpful but not required---this tutorial covers everything you need. For background on tool function patterns, see [Creating Python Tools](../creating-python-tools.md). For plugin packaging basics, see [Plugins](../../components/plugins.md).
+You need Docker or Podman installed on your build machine, access to a container registry that your Kubernetes cluster can pull from, and a SAM Enterprise base image. Familiarity with Python packaging basics is helpful but not required---this tutorial covers everything you need. For background on tool function patterns, see [Creating Python Tools](../developing/creating-python-tools.md). For plugin packaging basics, see [Plugins](../components/plugins.md).
 
 ## Step 1: Create the Plugin
 
@@ -259,5 +259,5 @@ If you see `ModuleNotFoundError: No module named 'custom_echo_agent'` (or your p
 ## Next Steps
 
 - Deploy your image to Kubernetes using the [Agent and Workflow Deployment](https://solaceproducts.github.io/solace-agent-mesh-helm-quickstart/docs/standalone-agent-deployment) guide
-- Learn more about tool development patterns in [Creating Python Tools](../creating-python-tools.md)
-- Explore plugin packaging in detail at [Plugins](../../components/plugins.md)
+- Learn more about tool development patterns in [Creating Python Tools](../developing/creating-python-tools.md)
+- Explore plugin packaging in detail at [Plugins](../components/plugins.md)

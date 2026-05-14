@@ -10,7 +10,7 @@ Agent Mesh is an open-source framework for building event-driven multi-agent AI 
 Whether you're building intelligent automation systems, creating sophisticated AI workflows, or integrating AI capabilities across your enterprise, Agent Mesh provides the foundation you need. The framework handles agent communication automatically, so you can focus on building powerful AI experiences that scale with your needs.
 
 :::info
-Agent Mesh is built for modern development workflows. Whether you're using Claude, GitHub Copilot, or another AI coding assistant, our documentation is optimized to help you quickly understand the framework and build your projects faster. See our [Vibe Coding guide](../vibe_coding.md) to learn more.
+Agent Mesh is built for modern development workflows. Whether you're using Claude, GitHub Copilot, or another AI coding assistant, our documentation is optimized to help you quickly understand the framework and build your projects faster. See our [Vibe Coding guide](../developing/vibe_coding.md) to learn more.
 :::
 
 ## Understanding Agent Mesh
@@ -67,13 +67,13 @@ Organizations with specific security and governance requirements can leverage ad
 
 Practical tutorials help you understand how to apply Agent Mesh to real-world scenarios. These hands-on guides walk you through building complete solutions that demonstrate the framework's capabilities.
 
-Creating agents that can query databases and provide intelligent responses based on your organization's data demonstrates how to integrate with existing data sources. For a complete walkthrough, see [SQL Database Integration](../developing/tutorials/sql-database.md)
+Creating agents that can query databases and provide intelligent responses based on your organization's data demonstrates how to integrate with existing data sources. For a complete walkthrough, see [SQL Database Integration](../tutorials/sql-database.md)
 
-Building a gateway that lets users interact with your agent mesh directly through Slack brings AI capabilities into existing workflows and communication platforms. To learn how to set this up, see [Slack Integration](../developing/tutorials/slack-integration.md)
+Building a gateway that lets users interact with your agent mesh directly through Slack brings AI capabilities into existing workflows and communication platforms. To learn how to set this up, see [Slack Integration](../tutorials/slack-integration.md)
 
-Creating a specialized agent from scratch, including tool integration and configuration, shows you the complete development process for custom components. For step-by-step guidance, see [Custom Agent Tutorial](../developing/tutorials/custom-agent.md)
+Creating a specialized agent from scratch, including tool integration and configuration, shows you the complete development process for custom components. For step-by-step guidance, see [Custom Agent Tutorial](../tutorials/custom-agent.md)
 
-Incorporating Model Context Protocol servers into your agent mesh extends capabilities through standardized integrations with external tools and services. To understand this integration approach, see [MCP Integration](../developing/tutorials/mcp-integration.md)
+Incorporating Model Context Protocol servers into your agent mesh extends capabilities through standardized integrations with external tools and services. To understand this integration approach, see [MCP Integration](../tutorials/mcp-integration.md)
 
 ## Additional Resources
 
