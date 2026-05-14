@@ -1,7 +1,6 @@
 ---
 title: Managing Secrets
 sidebar_position: 20
-draft: true
 ---
 
 # Managing Secrets

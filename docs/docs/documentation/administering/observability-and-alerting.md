@@ -1,7 +1,6 @@
 ---
 title: Observability and Alerting
 sidebar_position: 50
-draft: true
 ---
 
 # Observability and Alerting

@@ -1,7 +1,6 @@
 ---
 title: Health Checks and Logging
 sidebar_position: 40
-draft: true
 ---
 
 # Health Checks and Logging

@@ -1,7 +1,6 @@
 ---
 title: Evaluating Agent Performance
 sidebar_position: 60
-draft: true
 ---
 
 # Evaluating Agent Performance

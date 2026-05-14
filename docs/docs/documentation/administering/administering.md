@@ -1,7 +1,6 @@
 ---
 title: Administering Agent Mesh
 sidebar_position: 1
-draft: true
 ---
 
 # Administering Agent Mesh

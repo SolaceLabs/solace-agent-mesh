@@ -1,7 +1,6 @@
 ---
 title: Upgrade Guides
 sidebar_position: 70
-draft: true
 ---
 
 # Upgrade Guides

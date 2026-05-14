@@ -1,7 +1,6 @@
 ---
 title: RBAC Reference
 sidebar_position: 10
-draft: true
 ---
 
 # RBAC Reference
