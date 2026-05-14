@@ -66,7 +66,7 @@ app_config:
 | `EVAL_DATA_BUCKET_NAME` | No | — | S3, GCS, or Azure Blob container name. When set, the service uses cloud object storage. |
 | `OBJECT_STORAGE_FS_ROOT` | No | `<cwd>/tmp/eval-storage` | Filesystem root used when `EVAL_DATA_BUCKET_NAME` is not set. Ignored when a bucket is configured. Defaults to a `tmp/eval-storage` directory relative to the process working directory. |
 
-For platform administrators: See [Infrastructure Setup: S3 Bucket for Eval Data](docker-installation.md#infrastructure-setup-s3-bucket-for-eval-data-offline-evaluations) in the enterprise installation guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts.
+For platform administrators: See [S3 Buckets for Offline Eval Data](production-kubernetes.md#s3-buckets-for-offline-eval-data) in the production Kubernetes guide for detailed setup instructions. Kubernetes deployments handle this configuration automatically via Helm charts and only require setup if you want a dedicated eval data bucket.
 
 :::warning
 The local filesystem backend is suitable for development and local testing only. Data stored under the default `tmp/eval-storage` path is not replicated and will be lost if the container restarts without a persistent volume. For non-Kubernetes deployments, set `EVAL_DATA_BUCKET_NAME` to an object storage bucket or container (S3, GCS, or Azure Blob) to retain execution traces and artifact snapshots.
