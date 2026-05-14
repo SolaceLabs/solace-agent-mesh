@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any, Optional
 from fastapi import Depends, HTTPException, Request, status, Path, Query
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-
 from ...common.agent_registry import AgentRegistry
 from ...common.middleware.config_resolver import ConfigResolver
 from ...common.services.identity_service import BaseIdentityService
@@ -100,10 +99,25 @@ def init_database(database_url: str):
                 # "idle in transaction" for more than 60 seconds to prevent deadlocks
                 # statement_timeout (120s): Prevent any single statement from running more than
                 # 2 minutes.
+                # TCP keepalives: let the OS detect dead/half-closed sockets within ~25s
+                # (idle=10s, then 3 probes 5s apart) instead of waiting on the kernel's
+                # default TCP retransmit timeout (30s-15min). Without this, when Postgres
+                # or the network silently closes a connection, pool_pre_ping's SELECT 1
+                # blocks on recv() until TCP gives up — freezing the worker's event loop
+                # for that entire wait. With keepalives, pre-ping fails fast and the pool
+                # invalidates the dead slot transparently.
                 engine_kwargs["connect_args"] = {
+                    "keepalives": 1,
+                    "keepalives_idle": 10,
+                    "keepalives_interval": 5,
+                    "keepalives_count": 3,
                     "options": "-c idle_in_transaction_session_timeout=60000 -c statement_timeout=120000"
                 }
-                log.info(f"Configuring {dialect_name} database with connection pooling and transaction timeouts (idle_in_transaction=60s, statement=120s)")
+                log.info(
+                        f"Configuring {dialect_name} database with connection pooling, "
+                        f"transaction timeouts (idle_in_transaction=60s, statement=120s), "
+                        f"and TCP keepalives (idle=10s, interval=5s, count=3)"
+                    )
             else:
                 log.info(f"Configuring {dialect_name} database with connection pooling")
 
@@ -446,7 +460,7 @@ def short_lived_session():
             pass
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db(request: Request) -> Generator[Session, None, None]:
     if SessionLocal is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -465,9 +479,19 @@ def get_db() -> Generator[Session, None, None]:
         
         # Check if this is a transient connection error
         if _is_connection_error(e):
+            # Attribute the error to its originating endpoint when possible.
+            # Wrapped defensively: any failure to read request attributes must
+            # not mask the underlying connection error.
+            try:
+                request_info = f"{request.method} {request.url.path}"
+            except Exception:
+                request_info = "unknown request"
+
             log.warning(
-                "Database connection error during commit (connection may have been closed by server): %s",
-                str(e)
+                "Database connection error during commit on %s "
+                "(connection may have been closed by server): %s",
+                request_info,
+                str(e),
             )
             # Re-raise as a service unavailable error for transient connection issues
             raise HTTPException(

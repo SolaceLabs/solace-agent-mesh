@@ -12,7 +12,7 @@ Tests cover:
 """
 
 import contextlib
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
 import pytest
 from fastapi import HTTPException, Request
@@ -443,13 +443,28 @@ class TestUserIdExtraction:
 class TestDatabaseDependencies:
     """Tests for database-related dependencies."""
 
-    def test_get_db_success(self, mock_db_session):
+    @pytest.fixture
+    def mock_request(self):
+        """Minimal Request mock for direct invocation of get_db in unit tests.
+
+        get_db() is declared as get_db(request: Request) so it can log the
+        originating endpoint on connection-error 503s. FastAPI auto-injects
+        Request at runtime; in unit tests we provide a mock exposing the
+        attributes the error path reads (method, url.path).
+        """
+        request = Mock(spec=Request)
+        request.method = "GET"
+        request.url = Mock()
+        request.url.path = "/test"
+        return request
+
+    def test_get_db_success(self, mock_db_session, mock_request):
         """Test getting database session when configured."""
         mock_session_maker = Mock(return_value=mock_db_session)
         dependencies.SessionLocal = mock_session_maker
 
         # Use generator
-        gen = get_db()
+        gen = get_db(mock_request)
         _ = next(gen)
 
         assert mock_db_session is not None
@@ -461,23 +476,23 @@ class TestDatabaseDependencies:
         mock_db_session.commit.assert_called_once()
         mock_db_session.close.assert_called_once()
 
-    def test_get_db_not_configured(self):
+    def test_get_db_not_configured(self, mock_request):
         """Test error when database is not configured."""
         dependencies.SessionLocal = None
 
         with pytest.raises(HTTPException) as exc_info:
-            gen = get_db()
+            gen = get_db(mock_request)
             next(gen)
 
         assert exc_info.value.status_code == 501
         assert "database configuration" in exc_info.value.detail.lower()
 
-    def test_get_db_rollback_on_error(self, mock_db_session):
+    def test_get_db_rollback_on_error(self, mock_db_session, mock_request):
         """Test database rollback on exception."""
         mock_session_maker = Mock(return_value=mock_db_session)
         dependencies.SessionLocal = mock_session_maker
 
-        gen = get_db()
+        gen = get_db(mock_request)
         _ = next(gen)
 
         # Simulate an error
@@ -489,6 +504,63 @@ class TestDatabaseDependencies:
 
         mock_db_session.rollback.assert_called_once()
         mock_db_session.close.assert_called_once()
+
+    def test_get_db_connection_error_logs_request_info(
+        self, mock_db_session, mock_request, caplog
+    ):
+        """503 path logs the originating request's method and URL path."""
+
+        # Mimics SQLAlchemy disconnection: _is_connection_error() returns True
+        # when an exception exposes connection_invalidated=True.
+        class FakeDisconnect(Exception):
+            connection_invalidated = True
+
+        mock_db_session.commit.side_effect = FakeDisconnect("connection lost")
+        dependencies.SessionLocal = Mock(return_value=mock_db_session)
+
+        mock_request.method = "POST"
+        mock_request.url.path = "/api/v1/widgets"
+
+        with caplog.at_level("WARNING", logger="solace_agent_mesh.gateway.http_sse.dependencies"):
+            with pytest.raises(HTTPException) as exc_info:
+                gen = get_db(mock_request)
+                next(gen)
+                with contextlib.suppress(StopIteration):
+                    next(gen)
+
+        assert exc_info.value.status_code == 503
+        assert "POST /api/v1/widgets" in caplog.text
+        mock_db_session.rollback.assert_called_once()
+
+    def test_get_db_connection_error_falls_back_to_unknown_request(
+        self, mock_db_session, caplog
+    ):
+        """If reading request attributes raises, log falls back to 'unknown request'."""
+
+        class FakeDisconnect(Exception):
+            connection_invalidated = True
+
+        mock_db_session.commit.side_effect = FakeDisconnect("connection lost")
+        dependencies.SessionLocal = Mock(return_value=mock_db_session)
+
+        # Build a Request whose .url.path raises during f-string formatting,
+        # forcing the except branch in get_db to use the fallback string.
+        bad_request = Mock(spec=Request)
+        bad_request.method = "GET"
+        bad_url = Mock()
+        type(bad_url).path = PropertyMock(side_effect=RuntimeError("scope unavailable"))
+        bad_request.url = bad_url
+
+        with caplog.at_level("WARNING", logger="solace_agent_mesh.gateway.http_sse.dependencies"):
+            with pytest.raises(HTTPException) as exc_info:
+                gen = get_db(bad_request)
+                next(gen)
+                with contextlib.suppress(StopIteration):
+                    next(gen)
+
+        assert exc_info.value.status_code == 503
+        assert "unknown request" in caplog.text
+        mock_db_session.rollback.assert_called_once()
 
     def test_get_db_optional_with_database(self, mock_db_session):
         """Test optional database dependency when configured."""
