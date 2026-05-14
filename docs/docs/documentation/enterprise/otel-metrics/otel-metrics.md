@@ -13,7 +13,7 @@ Agent Mesh Enterprise provides application metrics instrumentation powered by Op
 
 Application metrics provide aggregated insights into system behavior over time, complementing the request-level visibility you get from the activity viewer, stimulus logs, and broker monitoring. While those tools help you understand individual request flows and debug specific issues, metrics enable you to detect performance degradation, establish service-level objectives (SLOs), define alerts, and integrate Agent Mesh telemetry into your organization's existing observability stack.
 
-For more information about activity viewer, stimulus logs, and broker monitoring, see [Monitoring Your Agent Mesh](../../installing-and-configuring/observability.md).
+For more information about activity viewer, stimulus logs, and broker monitoring, see [Monitoring Agent Mesh](../../installing-and-configuring/observability.md).
 
 Agent Mesh Enterprise instruments critical application domains with latency-based histogram metrics, providing visibility into agent performance, LLM operations, gateway behavior, database interactions, and external dependencies. Agent Mesh exposes these metrics through a standard Prometheus-compatible `/metrics` endpoint and can integrate with observability platforms such as Prometheus, Grafana, Datadog, Dynatrace, Splunk, and other OpenTelemetry-compatible systems.
 

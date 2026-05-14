@@ -414,7 +414,7 @@ For more information about Agent Mesh observability and related topics, see:
 - [Application Metrics with OpenTelemetry](./otel-metrics.md): Overview of application metrics, key concepts, and getting started guide
 - [Configuring OpenTelemetry Metrics](./configuration.md): Complete reference for metric families and configuration
 - [Integrating OpenTelemetry Metrics](./integration.md): OTLP exporter setup and DataDog quick start
-- [Monitoring Your Agent Mesh](../../installing-and-configuring/observability.md): Overview of runtime observability features including activity viewer, broker monitoring, and stimulus logs
+- [Monitoring Agent Mesh](../../installing-and-configuring/observability.md): Overview of runtime observability features including activity viewer, broker monitoring, and stimulus logs
 - [Health Checks](../../installing-and-configuring/health-checks.md): Kubernetes-compatible health check endpoints for liveness, readiness, and startup probes
 - [Logging Configuration](../../installing-and-configuring/logging.md): Application logging configuration and best practices
 - [OpenTelemetry Documentation](https://opentelemetry.io/docs/): Official OpenTelemetry project documentation
