@@ -214,6 +214,7 @@ def _write_agent_yaml_from_data(
             "__MODEL_PROVIDER__": config_options.get(
                 "model_provider", AGENT_DEFAULTS.get("model_provider", "general")
             ),
+            "__MODEL_ALIAS__": f"*{config_options.get('model_provider', AGENT_DEFAULTS.get('model_provider', 'general'))}_model",
             "__INSTRUCTION__": instructions,
             "__TOOLS_CONFIG__": tools_replacement_value,
             "__SESSION_SERVICE__": session_service_block,
