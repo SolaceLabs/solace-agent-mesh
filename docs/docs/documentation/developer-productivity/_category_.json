@@ -1,0 +1,10 @@
+{
+  "position": 900,
+  "label": "Developer Productivity",
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "doc",
+    "id": "documentation/developer-productivity/developer-productivity"
+  }
+}
