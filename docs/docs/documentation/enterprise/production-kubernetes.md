@@ -428,6 +428,93 @@ curl https://my-connector-specs-bucket.s3.amazonaws.com/test-spec.yaml
 
 If you get a 403 Forbidden error, check your bucket policy. If you get 404 Not Found, the bucket is correctly configured (just no files uploaded yet).
 
+### S3 Buckets for Offline Eval Data
+
+If you plan to use the **Offline Evaluations** feature, the platform service writes evaluation execution data and artifact snapshots to object storage. By default, this data shares the artifacts bucket under `{namespace}/eval/runs/...` keys. You can optionally configure a dedicated bucket for separate IAM, retention, or replication policies.
+
+#### When is an Eval Data Bucket Required?
+
+- When you want different IAM, retention, or replication policies for eval data than for artifacts
+- When you want to isolate eval execution data from production artifacts for auditing or compliance
+- Not required by default - eval data shares the artifacts bucket automatically
+
+#### Why a Separate Bucket?
+
+- **IAM isolation** - Restrict access to eval data independently from artifacts
+- **Lifecycle policies** - Age out historical eval runs without affecting artifacts
+- **Private access** - Eval data is not publicly readable (unlike OpenAPI connector specs)
+
+#### Setup Instructions
+
+**Step 1: Create the Eval Data S3 Bucket**
+
+```bash
+aws s3 mb s3://my-eval-data-bucket --region us-west-2
+```
+
+Replace `my-eval-data-bucket` with your bucket name and `us-west-2` with your region.
+
+**Step 2: Configure IAM Permissions for Agent Mesh Platform**
+
+Grant the Agent Mesh platform's IAM user/role the following permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+      "s3:ListBucket"
+    ],
+    "Resource": [
+      "arn:aws:s3:::my-eval-data-bucket",
+      "arn:aws:s3:::my-eval-data-bucket/*"
+    ]
+  }]
+}
+```
+
+**Step 3: Configure in Helm Values**
+
+Add the bucket name to your `production-overrides.yaml`:
+
+```yaml
+dataStores:
+  s3:
+    bucketName: "sam-artifacts"              # Main artifact storage
+    evalDataBucketName: "my-eval-data-bucket"  # Offline eval data
+    region: "us-west-2"
+    # ... other S3 config
+```
+
+Requires sam-kubernetes chart version 1.501.0 or later.
+
+#### Other Cloud Providers
+
+For Azure Blob Storage, Google Cloud Storage, or other S3-compatible storage, configure the `evalDataBucketName` (or equivalent container name) in your Helm values under the appropriate `dataStores` section. Leaving the value empty causes eval data to share the artifacts bucket.
+
+#### Security Best Practices
+
+:::warning Security Guidelines
+- Keep the bucket private - eval data is not publicly readable
+- Use the same credentials as the artifacts bucket when both share a provider
+- Apply lifecycle rules to age out historical eval data if desired
+:::
+
+#### Verification
+
+After deploying Agent Mesh with the updated values, trigger an offline eval run and confirm that data is written to the bucket:
+
+```bash
+# Replace with your bucket name
+aws s3 ls s3://my-eval-data-bucket/ --recursive
+```
+
+You should see objects under your namespace prefix (for example, `sam/eval/runs/...`). If the bucket is empty after a successful eval run, verify the platform's IAM permissions and that `evalDataBucketName` is set correctly in your Helm values.
+
 ## Step 3: Helm Chart Configuration
 
 Create a production overrides file (`production-overrides.yaml`) based on the inline documentation in the chart's `values.yaml`.
@@ -483,6 +570,7 @@ dataStores:
     endpointUrl: "https://s3.us-east-1.amazonaws.com"
     bucketName: "my-sam-artifacts"
     connectorSpecBucketName: "my-sam-connector-specs"
+    evalDataBucketName: "my-sam-eval-data"
     accessKey: "AKIAIOSFODNN7EXAMPLE"
     secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     region: "us-east-1"
@@ -507,6 +595,7 @@ dataStores:
     endpointUrl: "https://your-project-id.storage.supabase.co/storage/v1/s3"
     bucketName: "your-bucket-name"
     connectorSpecBucketName: "your-connector-specs-bucket-name"
+    evalDataBucketName: "your-eval-data-bucket-name"
     accessKey: "your-supabase-s3-access-key"
     secretKey: "your-supabase-s3-secret-key"
 ```
@@ -531,6 +620,7 @@ dataStores:
     endpointUrl: "https://s3.amazonaws.com"
     bucketName: "my-sam-artifacts"
     connectorSpecBucketName: "my-sam-connector-specs"
+    evalDataBucketName: "my-sam-eval-data"
     accessKey: "your-access-key"
     secretKey: "your-secret-key"
 ```
@@ -557,6 +647,7 @@ dataStores:
     accountKey: "your-azure-storage-account-key"
     containerName: "my-sam-artifacts"
     connectorSpecContainerName: "my-sam-connector-specs"
+    evalDataContainerName: "my-sam-eval-data"
 ```
 
 Option 2 — connection string:
@@ -566,6 +657,7 @@ Option 2 — connection string:
     connectionString: "DefaultEndpointsProtocol=https;AccountName=mystorageaccount;AccountKey=...;EndpointSuffix=core.windows.net"
     containerName: "my-sam-artifacts"
     connectorSpecContainerName: "my-sam-connector-specs"
+    evalDataContainerName: "my-sam-eval-data"
 ```
 
 #### Google Cloud Storage
@@ -588,6 +680,7 @@ dataStores:
     credentialsJson: '{"type":"service_account","project_id":"my-gcp-project",...}'
     bucketName: "my-sam-artifacts"
     connectorSpecBucketName: "my-sam-connector-specs"
+    evalDataBucketName: "my-sam-eval-data"
 ```
 
 ### Workload Identity
@@ -1000,6 +1093,7 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `dataStores.s3.endpointUrl` | string | `""` | S3 endpoint URL. Leave empty for AWS S3. Set for MinIO or other S3-compatible stores. |
 | `dataStores.s3.bucketName` | string | `""` | S3 bucket for artifact storage |
 | `dataStores.s3.connectorSpecBucketName` | string | `""` | S3 bucket for connector specs (can be same as bucketName) |
+| `dataStores.s3.evalDataBucketName` | string | `""` | S3 bucket for offline eval data. Defaults to `bucketName` when empty. |
 | `dataStores.s3.accessKey` | string | `""` | S3 access key ID. Omit when using workload identity. |
 | `dataStores.s3.secretKey` | string | `""` | S3 secret access key. Omit when using workload identity. |
 | `dataStores.s3.region` | string | `"us-east-1"` | AWS S3 region |
@@ -1008,10 +1102,12 @@ Configure external PostgreSQL database and object storage. For production, set `
 | `dataStores.azure.connectionString` | string | `""` | Azure storage connection string. Alternative to accountName/accountKey. |
 | `dataStores.azure.containerName` | string | `""` | Azure Blob container for artifacts |
 | `dataStores.azure.connectorSpecContainerName` | string | `""` | Azure Blob container for connector specs |
+| `dataStores.azure.evalDataContainerName` | string | `""` | Azure Blob container for offline eval data. Defaults to `containerName` when empty. |
 | `dataStores.gcs.project` | string | `""` | GCP project ID |
 | `dataStores.gcs.credentialsJson` | string | `""` | GCS service account JSON credentials. Omit when using workload identity. |
 | `dataStores.gcs.bucketName` | string | `""` | GCS bucket for artifacts |
 | `dataStores.gcs.connectorSpecBucketName` | string | `""` | GCS bucket for connector specs |
+| `dataStores.gcs.evalDataBucketName` | string | `""` | GCS bucket for offline eval data. Defaults to `bucketName` when empty. |
 
 ### Agent Mesh Deployment
 
