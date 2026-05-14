@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.25.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.0...1.25.1) (2026-05-13)
+
+
+### Bug Fixes
+
+* **DATAGO-125452:** cleanup cypress tests rc ([#1478](https://github.com/SolaceLabs/solace-agent-mesh/issues/1478)) ([7bf6e07](https://github.com/SolaceLabs/solace-agent-mesh/commit/7bf6e07d9a99b9f9a1730c560b5b1cfce3f16189))
+* **DATAGO-134384:** Updated Scheduled Tasks based on UX feedback ([#1481](https://github.com/SolaceLabs/solace-agent-mesh/issues/1481)) ([3cb34ff](https://github.com/SolaceLabs/solace-agent-mesh/commit/3cb34fff0e8377c5a8953ffb9f9b930cb1b80c30))
+* **DATAGO-135912:** - gitpython vulnerabilities : solace-agent-mesh:main ([#1527](https://github.com/SolaceLabs/solace-agent-mesh/issues/1527)) ([06819b7](https://github.com/SolaceLabs/solace-agent-mesh/commit/06819b769aa5d3d50462d8997e968192d5a5fa15))
+* **DATAGO-136560:** - [prod] investigatge solace-chat slowness ([#1533](https://github.com/SolaceLabs/solace-agent-mesh/issues/1533)) ([79387a4](https://github.com/SolaceLabs/solace-agent-mesh/commit/79387a440efbff5f2bfed1c51b080c77ccb83914))
+
 ## [1.25.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.24.1...1.25.0) (2026-05-11)
 
 
