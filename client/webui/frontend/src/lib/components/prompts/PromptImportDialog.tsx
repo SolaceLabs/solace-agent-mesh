@@ -195,8 +195,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             if (data) {
                 setImportData(data);
                 // Initialize the form with the imported name and command
-                setValue("name", data.prompt.name || "");
-                setValue("command", data.prompt.command || "");
+                setValue("name", data.prompt.name || "", { shouldValidate: true });
+                setValue("command", data.prompt.command || "", { shouldValidate: true });
                 // Check for initial conflicts
                 checkInitialConflicts(data);
             }

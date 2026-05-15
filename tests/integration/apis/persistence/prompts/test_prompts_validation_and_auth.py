@@ -70,6 +70,57 @@ class TestPromptsInputValidation:
         error_msg = error_data.get("detail", "")
         assert "already exists" in error_msg.lower()
 
+    def test_import_with_invalid_command_returns_400(self, api_client: TestClient):
+        """Test that Commands containing characters outside [a-zA-Z0-9_-] are rejected"""
+        for invalid in [
+            "my prompt",
+            "my.command",
+            "cmd@host",
+            "cmd/sub",
+            "cmd!",
+            "cmd#1",
+        ]:
+            response = api_client.post(
+                "/api/v1/prompts/import",
+                json={
+                    "prompt_data": {
+                        "version": "1.0",
+                        "prompt": {
+                            "name": "Imported Prompt",
+                            "prompt_text": "Some prompt text",
+                            "command": invalid,
+                        },
+                    },
+                    "options": {"preserveCommand": True},
+                },
+            )
+            assert response.status_code == 400, (
+                f"Expected 400 for command '{invalid}', got {response.status_code}"
+            )
+            detail = response.json().get("detail", "")
+            assert invalid in detail
+
+    def test_import_invalid_command_ignored_when_preserve_command_false(
+        self, api_client: TestClient
+    ):
+        """Test that if preserve_command is False the command field is skipped
+        """
+        response = api_client.post(
+            "/api/v1/prompts/import",
+            json={
+                "prompt_data": {
+                    "version": "1.0",
+                    "prompt": {
+                        "name": "Imported Prompt",
+                        "prompt_text": "Some prompt text",
+                        "command": "bad command!",
+                    },
+                },
+                "options": {"preserveCommand": False},
+            },
+        )
+        assert response.status_code == 201
+
 
 class TestPromptsNotFound:
     """Tests for 404 not found scenarios"""
@@ -379,7 +430,9 @@ class TestPromptsVersioning:
         # Verify text was not changed
         group_response = api_client.get(f"/api/v1/prompts/groups/{group_id}")
         assert group_response.status_code == 200
-        assert group_response.json()["productionPrompt"]["promptText"] == "Original text"
+        assert (
+            group_response.json()["productionPrompt"]["promptText"] == "Original text"
+        )
 
     def test_update_in_place_without_new_version(
         self, api_client: TestClient, gateway_adapter: GatewayAdapter
