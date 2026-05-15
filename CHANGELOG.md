@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.26.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.1...1.26.0) (2026-05-15)
+
+
+### Features
+
+* **DATAGO-135978:** Revert model configuration - optionally allow model setup in sam init --gui ([#1532](https://github.com/SolaceLabs/solace-agent-mesh/issues/1532)) ([03c630a](https://github.com/SolaceLabs/solace-agent-mesh/commit/03c630a71cc20ac6aa5bef3df57a0791846b20c4))
+
+
+### Bug Fixes
+
+* **DATAGO-136753:** Missing RBAC handling and documentation on model config endpoints ([#1540](https://github.com/SolaceLabs/solace-agent-mesh/issues/1540)) ([47ee6cf](https://github.com/SolaceLabs/solace-agent-mesh/commit/47ee6cfc37b9a3b11a567a63f5561c4827209bec))
+
+
+### Documentation
+
+* **DATAGO-136350:** default EVAL_DATA_BUCKET_NAME so Quickstart K8s installs retain eval artifacts ([#1531](https://github.com/SolaceLabs/solace-agent-mesh/issues/1531)) ([d2ff4f8](https://github.com/SolaceLabs/solace-agent-mesh/commit/d2ff4f8cdc32acba2e9603b5696d8b8fe4a26b03))
+
 ## [1.25.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.0...1.25.1) (2026-05-13)
 
 
