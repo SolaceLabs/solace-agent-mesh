@@ -4,7 +4,7 @@ import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/sch
 import { Button, Label } from "@/lib/components/ui";
 import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter";
 import { formatEpochTimestamp, formatDuration } from "@/lib/utils/format";
-import { getStatusBadge } from "./ExecutionList";
+import { getStatusBadge } from "./StatusBadge";
 
 interface ExecutionDetailProps {
     execution: TaskExecution | null;

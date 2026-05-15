@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { AgentCardInfo } from "@/lib/types";
 
@@ -11,11 +11,49 @@ const AgentImage = <Bot className="text-(--secondary-text-wMain)" size={64} />;
 
 interface AgentMeshCardsProps {
     agents: AgentCardInfo[];
+    selectedAgent?: string | null;
 }
 
-export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
-    const [expandedAgentName, setExpandedAgentName] = useState<string | null>(null);
+export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selectedAgent }) => {
+    const [expandedAgentName, setExpandedAgentName] = useState<string | null>(selectedAgent ?? null);
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    // Honor deep-links arriving (or changing) after mount: expand the targeted
+    // agent, clear any active filter that would hide it, and scroll it into view.
+    // Guarded by a ref so a polling refetch of `agents` doesn't clobber the
+    // user's manual selection — only react when the deep-link value itself
+    // changes. The scroll is deferred via requestAnimationFrame because
+    // setSearchQuery("") may unhide the targeted card; the ref isn't attached
+    // until after the next render, so reading it synchronously here would
+    // return null.
+    const lastAppliedSelection = useRef<string | null>(null);
+    const pendingScrollTarget = useRef<string | null>(null);
+    useEffect(() => {
+        if (!selectedAgent) return;
+        if (lastAppliedSelection.current === selectedAgent) return;
+        if (!agents.some(a => a.name === selectedAgent)) return;
+        lastAppliedSelection.current = selectedAgent;
+        setExpandedAgentName(selectedAgent);
+        setSearchQuery("");
+        pendingScrollTarget.current = selectedAgent;
+    }, [selectedAgent, agents]);
+
+    // Run the scroll on the next frame after the targeted card has been
+    // rendered and its ref attached. Watching filteredAgents/searchQuery
+    // ensures we re-check after the filter clear flushes.
+    useEffect(() => {
+        const target = pendingScrollTarget.current;
+        if (!target) return;
+        const raf = requestAnimationFrame(() => {
+            const node = cardRefs.current[target];
+            if (node) {
+                node.scrollIntoView({ behavior: "smooth", block: "center" });
+                pendingScrollTarget.current = null;
+            }
+        });
+        return () => cancelAnimationFrame(raf);
+    }, [searchQuery, agents]);
 
     const handleToggleExpand = (agentName: string) => {
         setExpandedAgentName(prev => (prev === agentName ? null : agentName));
@@ -37,7 +75,13 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents }) => {
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             <div className="flex flex-wrap gap-10">
                                 {filteredAgents.map(agent => (
-                                    <div key={agent.name} className="w-full sm:w-auto">
+                                    <div
+                                        key={agent.name}
+                                        ref={node => {
+                                            cardRefs.current[agent.name] = node;
+                                        }}
+                                        className="w-full sm:w-auto"
+                                    >
                                         <AgentDisplayCard agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
                                     </div>
                                 ))}

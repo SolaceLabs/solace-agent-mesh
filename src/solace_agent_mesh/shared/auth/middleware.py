@@ -17,6 +17,14 @@ from solace_agent_mesh.gateway.http_sse.utils.sam_token_helpers import (
     is_sam_token_enabled,
 )
 from solace_agent_mesh.gateway.observability import OAuthRemoteMonitor
+from solace_agent_mesh.shared.auth.synthetic import (
+    SyntheticAuthConfig,
+    SyntheticTokenInvalid,
+    SyntheticTokenNotApplicable,
+    build_synthetic_user_state,
+    is_endpoint_allowed,
+    validate_synthetic_token,
+)
 
 log = logging.getLogger(__name__)
 
@@ -202,6 +210,27 @@ def create_oauth_middleware(component):
         def __init__(self, app, component):
             self.app = app
             self.component = component
+            # Loaded once at startup; None when synthetic auth is disabled
+            # or misconfigured. SyntheticAuthConfig.from_component fails
+            # closed and logs the reason if any required field is missing.
+            self._synthetic_config = SyntheticAuthConfig.from_component(component)
+            if self._synthetic_config is not None:
+                log.info(
+                    "AuthMiddleware: synthetic auth path ENABLED "
+                    "(role=%s, appids=%d, endpoints=%d, issuers=%d, principal_roles=%s)",
+                    self._synthetic_config.role_name,
+                    len(self._synthetic_config.appid_allowlist),
+                    len(self._synthetic_config.endpoint_allowlist),
+                    len(self._synthetic_config.issuers),
+                    list(self._synthetic_config.roles),
+                )
+            else:
+                log.warning(
+                    "AuthMiddleware: synthetic auth path is NOT enabled. "
+                    "Bearer tokens will be tried against sam_access_token and IdP paths only. "
+                    "If you expected synthetic auth, check synthetic_auth_enabled and other "
+                    "synthetic_auth_* config values."
+                )
 
         async def __call__(self, scope, receive, send):
             if scope["type"] != "http":
@@ -277,6 +306,61 @@ def create_oauth_middleware(component):
 
             await self.app(scope, receive, send)
 
+        async def _try_synthetic_auth(
+            self, request, scope, receive, send, access_token, soft: bool
+        ):
+            """
+            Attempt the synthetic auth path.
+
+            Returns:
+                None: token isn't claiming to be synthetic; caller falls through.
+                False: synthetic auth succeeded; caller proceeds to the app.
+                True: synthetic auth failed (or endpoint denied); caller stops.
+            """
+            config = self._synthetic_config
+            try:
+                claims = validate_synthetic_token(access_token, config)
+            except SyntheticTokenNotApplicable:
+                return None
+            except SyntheticTokenInvalid as exc:
+                # Hard reject — the token claimed to be synthetic but failed
+                # validation. Audit-log with full detail; return a generic
+                # error to the caller.
+                log.warning(
+                    "AuthMiddleware: synthetic token rejected (%s) path=%s method=%s",
+                    exc, request.url.path, request.method,
+                )
+                if soft:
+                    return False
+                response = JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Invalid token", "error_type": "invalid_token"},
+                )
+                await response(scope, receive, send)
+                return True
+
+            # Endpoint allowlist — default deny for synthetic principal.
+            if not is_endpoint_allowed(request.method, request.url.path, config):
+                log.warning(
+                    "AuthMiddleware: synthetic endpoint denied appid=%s method=%s path=%s",
+                    claims.get("appid") or claims.get("azp"),
+                    request.method, request.url.path,
+                )
+                response = JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "Forbidden", "error_type": "synthetic_endpoint_denied"},
+                )
+                await response(scope, receive, send)
+                return True
+
+            request.state.user = build_synthetic_user_state(claims, config.roles)
+            log.info(
+                "AuthMiddleware: synthetic authenticated appid=%s method=%s path=%s roles=%s",
+                request.state.user["appid"], request.method, request.url.path,
+                request.state.user["roles"],
+            )
+            return False
+
         async def _handle_authenticated_request(self, request, scope, receive, send, soft: bool = False) -> bool:
             """
             Handle authentication for a request.
@@ -310,6 +394,18 @@ def create_oauth_middleware(component):
                 )
                 await response(scope, receive, send)
                 return True
+
+            # Synthetic-monitor auth runs first when enabled. A token that
+            # *looks* synthetic (carries a configured appid or the synthetic
+            # role) but fails further validation is rejected outright — we
+            # don't fall through to other auth paths, which would let an
+            # attacker probe by varying claims.
+            if self._synthetic_config is not None:
+                synthetic_result = await self._try_synthetic_auth(
+                    request, scope, receive, send, access_token, soft
+                )
+                if synthetic_result is not None:
+                    return synthetic_result
 
             # Try sam_access_token validation first (fast, local JWT verification)
             # This is an enterprise feature - trust_manager and authorization_service

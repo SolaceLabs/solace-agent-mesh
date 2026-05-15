@@ -1,4 +1,5 @@
 DEFAULT_COMMUNICATION_TIMEOUT = 600  # 10 minutes
+DEFAULT_MAX_LLM_CALLS_PER_TASK = 30
 HEALTH_CHECK_TTL_SECONDS = (
     60  # 60 seconds - time after which a health check is considered stale
 )

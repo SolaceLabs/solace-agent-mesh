@@ -1,6 +1,6 @@
 ---
 title: Role-Based Access Control (RBAC)
-sidebar_position: 10
+sidebar_position: 14
 ---
 
 :::warning Security Notice

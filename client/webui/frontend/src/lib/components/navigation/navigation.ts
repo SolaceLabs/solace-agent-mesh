@@ -1,4 +1,4 @@
-import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, FileBox, CalendarClock } from "lucide-react";
+import { MessageCircle, Bot, SunMoon, FolderOpen, NotepadText, FileBox, CalendarDays } from "lucide-react";
 
 import type { NavigationItem } from "@/lib/types";
 
@@ -63,8 +63,8 @@ export const getTopNavigationItems = (featureFlags?: Record<string, boolean>): N
     if (schedulerEnabled) {
         items.push({
             id: "schedules",
-            label: "Schedules",
-            icon: CalendarClock,
+            label: "Scheduled Tasks",
+            icon: CalendarDays,
             badge: "EXPERIMENTAL",
         });
     }
@@ -103,8 +103,8 @@ export const topNavigationItems: NavigationItem[] = [
     },
     {
         id: "schedules",
-        label: "Schedules",
-        icon: CalendarClock,
+        label: "Scheduled Tasks",
+        icon: CalendarDays,
         badge: "EXPERIMENTAL",
     },
 ];

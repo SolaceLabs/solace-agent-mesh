@@ -247,7 +247,7 @@ For remote MCP connections (SSE and Streamable HTTP), you can configure SSL/TLS 
 #### Disable SSL Verification (Development Only)
 
 :::warning[Security Risk]
-Disabling SSL verification should only be used in development environments. Never disable SSL verification in production.
+Disabling TLS verification should only be used in development environments. Never disable TLS verification in production.
 :::
 
 ```yaml
@@ -276,6 +276,20 @@ tools:
 
 :::note
 The `ssl_config` option only applies to remote connections (`sse` and `streamable-http`). It has no effect on `stdio` connections which run as local processes.
+:::
+
+#### Disable TLS Verification Globally
+
+You can also disable TLS verification globally for all remote MCP connections by setting the `SAM_MCP_CONNECTOR_TLS_VERIFY` environment variable to `false`. This applies to every `sse` and `streamable-http` MCP connection in the agent and overrides the per-connection `ssl_config.verify` setting.
+
+```sh
+export SAM_MCP_CONNECTOR_TLS_VERIFY=false
+```
+
+When the variable is unset, empty, or set to any value other than `false`, TLS verification remains enabled. The check is case-insensitive, so `false`, `False`, and `FALSE` all disable verification.
+
+:::warning[Security Risk]
+Use `SAM_MCP_CONNECTOR_TLS_VERIFY=false` only in development environments with self-signed certificates. Never disable TLS verification in production. For production deployments that need to trust a private CA, set the `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` environment variables to point to your CA certificate bundle instead. For more information, see [Proxy Configuration](../../deploying/proxy_configuration.md).
 :::
 
 ## Running Your MCP-Enabled Agent

@@ -1,20 +1,29 @@
 /**
- * Full-page view for scheduled task execution history
+ * Task Execution History page.
+ *
+ * Layout (matches the redesign mock):
+ *   ┌──────────────┬────────────────────────────────────────────┐
+ *   │              │  Latest Execution                          │
+ *   │ Configuration│   Status • Completed On • Duration • [Chat]│
+ *   │  (sidebar)   │   Output Summary                           │
+ *   │              │                                            │
+ *   │              │  Execution History (sortable, paginated)   │
+ *   │              │   row click → opens that run's chat session│
+ *   └──────────────┴────────────────────────────────────────────┘
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { MoreHorizontal } from "lucide-react";
-import type { ScheduledTask, TaskExecution, ArtifactInfo } from "@/lib/types/scheduled-tasks";
+import React, { useState } from "react";
+import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
+import type { ScheduledTask, TaskExecution } from "@/lib/types/scheduled-tasks";
 import { Header } from "@/lib/components/header";
-import { Button } from "@/lib/components/ui";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
-import { useNavigate } from "react-router-dom";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/lib/components/ui";
 import { useChatContext } from "@/lib/hooks";
-import { api } from "@/lib/api/client";
-import { useTaskExecutions } from "@/lib/api/scheduled-tasks";
-import { ExecutionList } from "@/lib/components/scheduled-tasks/ExecutionList";
-import { ExecutionDetail } from "@/lib/components/scheduled-tasks/ExecutionDetail";
-import { ArtifactPreviewPanel } from "@/lib/components/scheduled-tasks/ArtifactPreviewPanel";
+import { useTaskExecutions, useExecution, useRunScheduledTaskNow, useEnableScheduledTask, useDisableScheduledTask, useDeleteExecution } from "@/lib/api/scheduled-tasks";
+import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
+import { IN_PROGRESS_STATUSES } from "@/lib/components/scheduled-tasks/StatusBadge";
+import { ConfigurationSidebar, LatestExecutionPanel, ExecutionDetailPanel, ExecutionHistoryTable, PAGE_SIZE, formatExecutionLabel } from "@/lib/components/scheduled-tasks/execution-history";
 
 interface TaskExecutionHistoryPageProps {
     task: ScheduledTask;
@@ -23,173 +32,188 @@ interface TaskExecutionHistoryPageProps {
     onDelete: (id: string, name: string) => void;
 }
 
-/**
- * Convert an artifact URI to an API path the browser can fetch.
- * `artifact://{session_id}/{filename}` → `/api/v1/artifacts/scheduled/{session_id}/{filename}`
- */
-const resolveArtifactUri = (uri: string): string => {
-    if (uri.startsWith("artifact://")) {
-        const path = uri.slice("artifact://".length);
-        return `/api/v1/artifacts/scheduled/${path}`;
-    }
-    return uri;
-};
-
 export const TaskExecutionHistoryPage: React.FC<TaskExecutionHistoryPageProps> = ({ task, onBack, onEdit, onDelete }) => {
     const navigate = useNavigate();
-    const { addNotification, handleSwitchSession } = useChatContext();
-    const [selectedExecution, setSelectedExecution] = useState<TaskExecution | null>(null);
-    const [previewArtifact, setPreviewArtifact] = useState<ArtifactInfo | null>(null);
-    const [artifactContent, setArtifactContent] = useState<string | null>(null);
-    const [artifactMimeType, setArtifactMimeType] = useState<string>("text/plain");
-    const [loadingArtifact, setLoadingArtifact] = useState(false);
-    const blobUrlRef = useRef<string | null>(null);
-    const hasInitializedRef = useRef(false);
+    const { handleSwitchSession } = useChatContext();
+    const [page, setPage] = useState(1);
+    const [filterFrom, setFilterFrom] = useState("");
+    const [filterTo, setFilterTo] = useState("");
 
-    // Use React Query for execution data with smart polling
-    const { data, isLoading, refetch } = useTaskExecutions(task.id, 1, 100);
+    // Convert YYYY-MM-DD → epoch ms in the user's *browser* timezone — that's
+    // the same timezone the row timestamps render in, so picking "May 4" in
+    // the filter matches the rows whose displayed Completed On is May 4.
+    // "From" is start-of-day, "To" is end-of-day so a single date inclusively
+    // covers all runs that day.
+    const filterFromMs = filterFrom ? new Date(`${filterFrom}T00:00:00`).getTime() : null;
+    const filterToMs = filterTo ? new Date(`${filterTo}T23:59:59.999`).getTime() : null;
+
+    // Reset page in the same handler that updates the filter so we don't fire
+    // a query with the stale page first and then a second query after a
+    // useEffect resets it.
+    const handleFilterFromChange = (value: string) => {
+        setFilterFrom(value);
+        setPage(1);
+    };
+    const handleFilterToChange = (value: string) => {
+        setFilterTo(value);
+        setPage(1);
+    };
+
+    const { data, isLoading } = useTaskExecutions(task.id, page, PAGE_SIZE, filterFromMs, filterToMs, { poll: true });
     const executions = data?.executions ?? [];
+    const totalCount = data?.total ?? executions.length;
 
-    // Auto-select first execution on initial load, or refresh selected
-    useEffect(() => {
-        if (executions.length === 0) return;
+    // The "Latest Execution" panel and the Configuration sidebar's snapshot
+    // must reflect the actual most recent run, independent of the table's
+    // current page or date filter. Fetch page 1, size 1, unfiltered.
+    const { data: latestData } = useTaskExecutions(task.id, 1, 1, null, null, { poll: true });
+    const latestExecutionFromQuery = latestData?.executions?.[0] ?? null;
 
-        setSelectedExecution(prev => {
-            if (!prev && !hasInitializedRef.current) {
-                hasInitializedRef.current = true;
-                return executions[0];
-            }
-            if (!prev) return prev;
-            const updated = executions.find((e: TaskExecution) => e.id === prev.id);
-            return updated || prev;
+    const runNowMutation = useRunScheduledTaskNow();
+    const enableMutation = useEnableScheduledTask();
+    const disableMutation = useDisableScheduledTask();
+    const deleteExecutionMutation = useDeleteExecution(task.id);
+    const [executionToDelete, setExecutionToDelete] = useState<TaskExecution | null>(null);
+
+    // Selection is URL-driven via ?execution=<id> so the detail view is
+    // deep-linkable and survives list refetches that move the row to another
+    // page or filter window.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const selectedExecutionId = searchParams.get("execution");
+    // Per-execution query keeps the detail view alive independent of the
+    // list — survives page changes, filter changes, and refetches that move
+    // the row out of the current window.
+    const { data: selectedExecutionFromQuery } = useExecution(selectedExecutionId, { poll: true });
+
+    const handleSelectExecution = (executionId: string) => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.set("execution", executionId);
+            return next;
         });
-    }, [executions]);
+    };
+    const handleClearSelection = () => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.delete("execution");
+            return next;
+        });
+    };
+    const [detailTab, setDetailTab] = useState<"output" | "artifacts">("output");
 
-    // Keep a ref that tracks whether any execution is active so the polling
-    // effect below doesn't need `executions` in its dependency array.
-    const hasActiveRef = useRef(false);
-    useEffect(() => {
-        hasActiveRef.current = executions.some(e => e.status === "running" || e.status === "pending");
-    }, [executions]);
+    // Polling cadence is driven by useTaskExecutions / useExecution
+    // ({ poll: true }) — adaptive 5s/30s based on whether the execution is in
+    // flight, plus refetch on window focus.
+    const latestExecution = latestExecutionFromQuery;
+    // Prefer the per-execution query (canonical source) but fall back to any
+    // matching row in the list/latest queries while the dedicated query is
+    // first loading, so the detail panel never flashes empty.
+    const selectedExecution: TaskExecution | null = selectedExecutionId
+        ? (selectedExecutionFromQuery ?? executions.find(e => e.id === selectedExecutionId) ?? (latestExecutionFromQuery?.id === selectedExecutionId ? latestExecutionFromQuery : null) ?? null)
+        : null;
+    // The Configuration sidebar reflects the currently-displayed execution's
+    // snapshot — latest by default, or the row the user opened.
+    const displayedExecution = selectedExecution ?? latestExecution;
 
-    // Smart polling: fast when executions are running, slow otherwise, paused when tab hidden.
-    useEffect(() => {
-        let timerId: ReturnType<typeof setTimeout>;
+    const handleGoToChat = async (executionId: string) => {
+        await handleSwitchSession(`scheduled_${executionId}`);
+        navigate("/chat");
+    };
 
-        const poll = () => {
-            if (!document.hidden) {
-                refetch();
-            }
-            timerId = setTimeout(poll, hasActiveRef.current ? 5_000 : 30_000);
-        };
+    const breadcrumbs = selectedExecution
+        ? [{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name, onClick: handleClearSelection }, { label: formatExecutionLabel(selectedExecution) }]
+        : [{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name }];
 
-        timerId = setTimeout(poll, hasActiveRef.current ? 5_000 : 30_000);
+    const headerTitle = selectedExecution ? formatExecutionLabel(selectedExecution) : task.name;
 
-        const onVisibilityChange = () => {
-            if (!document.hidden) {
-                refetch();
-            }
-        };
-        document.addEventListener("visibilitychange", onVisibilityChange);
-
-        return () => {
-            clearTimeout(timerId);
-            document.removeEventListener("visibilitychange", onVisibilityChange);
-            if (blobUrlRef.current) {
-                URL.revokeObjectURL(blobUrlRef.current);
-                blobUrlRef.current = null;
-            }
-        };
-    }, [refetch]);
-
-    const handleGoToChat = useCallback(
-        async (executionId: string) => {
-            await handleSwitchSession(`scheduled_${executionId}`);
-            navigate("/chat");
-        },
-        [handleSwitchSession, navigate]
-    );
-
-    const handlePreviewArtifact = useCallback(
-        async (artifact: ArtifactInfo) => {
-            // Toggle: if clicking the same artifact, close the panel
-            if (previewArtifact && previewArtifact.name === artifact.name) {
-                setPreviewArtifact(null);
-                setArtifactContent(null);
-                return;
-            }
-
-            setPreviewArtifact(artifact);
-            setArtifactContent(null);
-            if (blobUrlRef.current) {
-                URL.revokeObjectURL(blobUrlRef.current);
-                blobUrlRef.current = null;
-            }
-
-            if (artifact.uri) {
-                setLoadingArtifact(true);
-                try {
-                    const apiPath = resolveArtifactUri(artifact.uri);
-                    const response = await api.webui.get(apiPath, { fullResponse: true });
-
-                    const contentType = response.headers?.get("content-type") || "text/plain";
-                    setArtifactMimeType(contentType);
-                    const isText = contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("xml") || contentType.includes("javascript") || contentType.includes("csv");
-                    if (isText) {
-                        const content = await response.text();
-                        setArtifactContent(content);
-                    } else {
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        blobUrlRef.current = url;
-                        setArtifactContent(url);
-                    }
-                } catch (error) {
-                    const errorMsg = error instanceof Error ? error.message : "Failed to load artifact content";
-                    addNotification(errorMsg, "warning");
-                } finally {
-                    setLoadingArtifact(false);
-                }
-            }
-        },
-        [previewArtifact, addNotification]
-    );
+    const headerButtons = selectedExecution
+        ? [
+              <Button key="view-chat" onClick={() => handleGoToChat(selectedExecution.id)} disabled={IN_PROGRESS_STATUSES.has(selectedExecution.status) && !selectedExecution.startedAt}>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  View Chat Output
+              </Button>,
+              <DropdownMenu key="actions">
+                  <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" tooltip="Actions">
+                          <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setExecutionToDelete(selectedExecution)}>
+                          <Trash2 size={14} className="mr-2" />
+                          Delete
+                      </DropdownMenuItem>
+                  </DropdownMenuContent>
+              </DropdownMenu>,
+          ]
+        : undefined;
 
     return (
         <div className="flex h-full flex-col">
-            {/* Header with Breadcrumbs */}
-            <Header
-                title={task.name}
-                breadcrumbs={[{ label: "Scheduled Tasks", onClick: onBack }, { label: task.name }]}
-                buttons={[
-                    <DropdownMenu key="actions-menu">
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onEdit(task)}>Edit Task</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onDelete(task.id, task.name)}>Delete Task</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>,
-                ]}
-            />
+            <Header title={headerTitle} breadcrumbs={breadcrumbs} buttons={headerButtons} />
 
-            {/* Content */}
             <div className="flex min-h-0 flex-1">
-                <ExecutionList executions={executions} selectedExecution={selectedExecution} onSelect={setSelectedExecution} isLoading={isLoading} />
+                <ConfigurationSidebar
+                    task={task}
+                    execution={displayedExecution}
+                    isReadOnly={!!selectedExecution}
+                    onEdit={() => onEdit(task)}
+                    onRunNow={() => runNowMutation.mutate(task.id)}
+                    onToggleEnabled={() => (task.enabled ? disableMutation.mutate(task.id) : enableMutation.mutate(task.id))}
+                    onDelete={() => onDelete(task.id, task.name)}
+                    isRunNowPending={runNowMutation.isPending}
+                />
 
-                {/* Center Panel - Execution Details */}
-                <div className={`flex-1 overflow-y-auto ${previewArtifact ? "border-r" : ""}`}>
-                    <ExecutionDetail execution={selectedExecution} task={task} previewArtifact={previewArtifact} onPreviewArtifact={handlePreviewArtifact} onGoToChat={handleGoToChat} />
-                </div>
-
-                {/* Right Panel - Artifact Preview */}
-                {previewArtifact && (
-                    <ArtifactPreviewPanel artifact={previewArtifact} content={artifactContent} mimeType={artifactMimeType} isLoading={loadingArtifact} onClose={() => setPreviewArtifact(null)} resolveArtifactUri={resolveArtifactUri} />
-                )}
+                <main className="flex-1 space-y-8 overflow-y-auto px-8 py-6">
+                    {selectedExecution ? (
+                        <ExecutionDetailPanel execution={selectedExecution} activeTab={detailTab} onTabChange={setDetailTab} />
+                    ) : (
+                        <>
+                            <LatestExecutionPanel execution={latestExecution} onGoToChat={handleGoToChat} onShowFullOutput={handleSelectExecution} />
+                            <div id="execution-history-anchor" />
+                            <ExecutionHistoryTable
+                                executions={executions}
+                                totalCount={totalCount}
+                                page={page}
+                                onPageChange={setPage}
+                                onRowClick={handleSelectExecution}
+                                isLoading={isLoading}
+                                onDeleteExecution={setExecutionToDelete}
+                                filterFrom={filterFrom}
+                                filterTo={filterTo}
+                                onFilterFromChange={handleFilterFromChange}
+                                onFilterToChange={handleFilterToChange}
+                            />
+                        </>
+                    )}
+                </main>
             </div>
+
+            <ConfirmationDialog
+                open={!!executionToDelete}
+                onOpenChange={open => {
+                    if (!open) setExecutionToDelete(null);
+                }}
+                title={executionToDelete ? `Delete ${formatExecutionLabel(executionToDelete)}` : ""}
+                content={
+                    executionToDelete ? (
+                        <p className="text-sm">
+                            Deleting <strong>{formatExecutionLabel(executionToDelete)}</strong> will remove it from the <strong>{task.name}</strong> execution history and will no longer be available to view.
+                        </p>
+                    ) : null
+                }
+                actionLabels={{ confirm: "Delete" }}
+                isLoading={deleteExecutionMutation.isPending}
+                onConfirm={async () => {
+                    if (!executionToDelete) return;
+                    const deletedId = executionToDelete.id;
+                    await deleteExecutionMutation.mutateAsync(deletedId);
+                    setExecutionToDelete(null);
+                    if (selectedExecutionId === deletedId) {
+                        handleClearSelection();
+                    }
+                }}
+            />
         </div>
     );
 };

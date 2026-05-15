@@ -1,6 +1,6 @@
 {
     "name": "@SolaceLabs/solace-agent-mesh-ui",
-    "version": "2.10.1",
+    "version": "2.11.2",
     "description": "Solace Agent Mesh UI components - React library for building agent communication interfaces",
     "author": "SolaceLabs <solacelabs@solace.com>",
     "license": "Apache-2.0",
@@ -86,7 +86,7 @@
         "@use-gesture/react": "^10.3.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "dompurify": "^3.3.2",
+        "dompurify": "^3.4.0",
         "html-react-parser": "^5.2.5",
         "js-yaml": "^4.1.0",
         "json-edit-react": "^1.27.2",
@@ -124,9 +124,9 @@
         "@openfeature/react-sdk": "^1.2.1",
         "@openfeature/web-sdk": "^1.7.3",
         "@eslint/js": "^9.25.0",
-        "@storybook/addon-vitest": "^10.1.10",
-        "@storybook/react": "^10.1.8",
-        "@storybook/react-vite": "^10.1.10",
+        "@storybook/addon-vitest": "^10.2.10",
+        "@storybook/react": "^10.2.10",
+        "@storybook/react-vite": "^10.2.10",
         "@tailwindcss/typography": "^0.5.16",
         "@tailwindcss/vite": "^4.1.17",
         "@tanstack/eslint-plugin-query": "5.91.2",
@@ -145,7 +145,7 @@
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",
         "eslint-plugin-react-refresh": "^0.4.19",
-        "eslint-plugin-storybook": "^10.1.10",
+        "eslint-plugin-storybook": "^10.2.10",
         "globals": "^16.0.0",
         "jsdom": "^27.0.1",
         "lint-staged": "^16.2.3",
@@ -155,11 +155,11 @@
         "playwright": "^1.56.1",
         "prettier": "^3.6.2",
         "prettier-plugin-tailwindcss": "^0.6.13",
-        "storybook": "^10.1.10",
+        "storybook": "^10.2.10",
         "tw-animate-css": "^1.3.3",
         "typescript": "~5.8.3",
         "typescript-eslint": "^8.30.1",
-        "vite": "^6.3.5",
+        "vite": "^6.4.2",
         "vitest": "^4.0.8"
     },
     "optionalDependencies": {
@@ -179,7 +179,10 @@
     "overrides": {
         "cross-spawn": "^7.0.6",
         "minimatch": "^10.2.1",
-        "lodash-es": "^4.18.0"
+        "lodash-es": "^4.18.0",
+        "lodash": ">=4.18.0",
+        "flatted": ">=3.4.2",
+        "serialize-javascript": ">=7.0.3"
     },
     "msw": {
         "workerDirectory": [

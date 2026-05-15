@@ -35,7 +35,7 @@ For session storage configuration, see [Session Storage](./session-storage.md).
 
 ### Multiple S3 Buckets for OpenAPI Connector Feature
 
-> **Note:** The S3 bucket used for OpenAPI connector specifications is not for user or chat artifacts. For details on configuring the public S3 bucket for connector specs, see [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../enterprise/installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs).
+> **Note:** The S3 bucket used for OpenAPI connector specifications is not for user or chat artifacts. For details on configuring the public S3 bucket for connector specs, see [Infrastructure Setup: S3 Buckets for OpenAPI Connector Specs](../enterprise/docker-installation.md#infrastructure-setup-s3-buckets-for-openapi-connector-specs).
 
 ## Artifact Scoping
 
@@ -93,11 +93,11 @@ Agent Mesh supports multiple storage backends for artifacts. Choose based on you
 
 | Backend | Best For | Production Ready | Setup Complexity |
 |---------|----------|------------------|------------------|
-| Filesystem | Local development | ❌ | Simple |
-| S3 (AWS) | AWS deployments | ✅ | Medium |
-| S3-Compatible API | On-premises, private cloud | ✅ | Medium |
-| GCS | Google Cloud deployments | ✅ | Medium |
-| Azure Blob | Azure deployments | ✅ | Medium |
+| Filesystem | Local development | No | Simple |
+| S3 (AWS) | AWS deployments | Yes | Medium |
+| S3-Compatible API | On-premises, private cloud | Yes | Medium |
+| GCS | Google Cloud deployments | Yes | Medium |
+| Azure Blob | Azure deployments | Yes | Medium |
 
 ### Filesystem Storage (Default)
 

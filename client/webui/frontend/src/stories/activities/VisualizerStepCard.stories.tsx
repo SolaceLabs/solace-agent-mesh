@@ -310,10 +310,7 @@ export const ArtifactNotificationWithCustomHandler: Story = {
         await userEvent.click(viewFileButton);
 
         expect(args.artifactLookup).toHaveBeenCalledWith("quarterly_report.pdf");
-        expect(args.onViewArtifact).toHaveBeenCalledWith(
-            expect.objectContaining({ filename: "quarterly_report.pdf" }),
-            3,
-        );
+        expect(args.onViewArtifact).toHaveBeenCalledWith(expect.objectContaining({ filename: "quarterly_report.pdf" }), 3);
     },
 };
 

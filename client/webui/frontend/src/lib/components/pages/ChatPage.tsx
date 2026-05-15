@@ -6,7 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsMobile, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
+import { useChatContext, useIsAutoTitleGenerationEnabled, useIsMobile, useIsNewNavigationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -47,8 +47,7 @@ export function ChatPage() {
     const queryClient = useQueryClient();
     const { activeProject } = useProjectContext();
     const autoTitleGenerationEnabled = useIsAutoTitleGenerationEnabled();
-    const { configFeatureEnablement } = useConfigContext();
-    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+    const useNewNav = useIsNewNavigationEnabled();
     const chatSharingEnabled = useIsChatSharingEnabled();
     const isMobile = useIsMobile();
     const location = useLocation();

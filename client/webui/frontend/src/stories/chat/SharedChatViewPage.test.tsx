@@ -37,7 +37,7 @@ async function loadPage() {
     }));
 
     vi.doMock("@/lib/hooks", () => ({
-        useConfigContext: () => ({ configFeatureEnablement: { newNavigation: newNavigationFlag } }),
+        useIsNewNavigationEnabled: () => newNavigationFlag,
     }));
 
     const mod = await import("@/lib/components/pages/SharedChatViewPage");

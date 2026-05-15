@@ -1,5 +1,69 @@
 # Changelog
 
+## [1.25.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.0...1.25.1) (2026-05-13)
+
+
+### Bug Fixes
+
+* **DATAGO-125452:** cleanup cypress tests rc ([#1478](https://github.com/SolaceLabs/solace-agent-mesh/issues/1478)) ([7bf6e07](https://github.com/SolaceLabs/solace-agent-mesh/commit/7bf6e07d9a99b9f9a1730c560b5b1cfce3f16189))
+* **DATAGO-134384:** Updated Scheduled Tasks based on UX feedback ([#1481](https://github.com/SolaceLabs/solace-agent-mesh/issues/1481)) ([3cb34ff](https://github.com/SolaceLabs/solace-agent-mesh/commit/3cb34fff0e8377c5a8953ffb9f9b930cb1b80c30))
+* **DATAGO-135912:** - gitpython vulnerabilities : solace-agent-mesh:main ([#1527](https://github.com/SolaceLabs/solace-agent-mesh/issues/1527)) ([06819b7](https://github.com/SolaceLabs/solace-agent-mesh/commit/06819b769aa5d3d50462d8997e968192d5a5fa15))
+* **DATAGO-136560:** - [prod] investigatge solace-chat slowness ([#1533](https://github.com/SolaceLabs/solace-agent-mesh/issues/1533)) ([79387a4](https://github.com/SolaceLabs/solace-agent-mesh/commit/79387a440efbff5f2bfed1c51b080c77ccb83914))
+
+## [1.25.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.24.1...1.25.0) (2026-05-11)
+
+
+### Features
+
+* **DATAGO-130042:** synthetic-monitor auth path for Datadog smoke tests ([#1461](https://github.com/SolaceLabs/solace-agent-mesh/issues/1461)) ([9a76c0f](https://github.com/SolaceLabs/solace-agent-mesh/commit/9a76c0f2abaa3dbeb37b1cfd1893b778e4abfe75))
+
+
+### Bug Fixes
+
+* **DATAGO-129192:** Fix broken link from a recent doc update ([#1511](https://github.com/SolaceLabs/solace-agent-mesh/issues/1511)) ([f9eac54](https://github.com/SolaceLabs/solace-agent-mesh/commit/f9eac54badbca691ec18f9b978b56753b218ad9a))
+* **DATAGO-130050:** GH1258 Workflow nodes silently fail with "mandatory result embed" error if artifact_management tool group is missing  ([#1362](https://github.com/SolaceLabs/solace-agent-mesh/issues/1362)) ([7a7a2b8](https://github.com/SolaceLabs/solace-agent-mesh/commit/7a7a2b8b76b31f32c92d062bf609835b4c02039d))
+* **DATAGO-134114:** replace hardcoded max_llm_calls_per_task with constant and increase value to 30 ([#1471](https://github.com/SolaceLabs/solace-agent-mesh/issues/1471)) ([5b94bee](https://github.com/SolaceLabs/solace-agent-mesh/commit/5b94bee0d47211bb2ff19d57f9c47fb4b5612efd))
+* **DATAGO-134599:** Pre-filter empty sessions on /api/v1/artifacts/all ([#1491](https://github.com/SolaceLabs/solace-agent-mesh/issues/1491)) ([79f848e](https://github.com/SolaceLabs/solace-agent-mesh/commit/79f848e4cb4a797d71b5514283a697c405138b6a))
+* **DATAGO-135081:** bump deps for critical/high vulnerability fixes ([#1509](https://github.com/SolaceLabs/solace-agent-mesh/issues/1509)) ([598d049](https://github.com/SolaceLabs/solace-agent-mesh/commit/598d0498ee7add44eac7542d736b36843fbb7d5e))
+* **DATAGO-135081:** update libpng16 version to 1.6.48-1+deb13u5 in Dockerfile ([#1523](https://github.com/SolaceLabs/solace-agent-mesh/issues/1523)) ([6101c40](https://github.com/SolaceLabs/solace-agent-mesh/commit/6101c409931e30a5ff0b0414699ef940cbfc0cd7))
+
+
+### Documentation
+
+* **DATAGO-131495:** add Offline Evaluations UI documentation ([#1501](https://github.com/SolaceLabs/solace-agent-mesh/issues/1501)) ([4017879](https://github.com/SolaceLabs/solace-agent-mesh/commit/401787901812f774e9c20b95f898af17e991dd05))
+* **DATAGO-131495:** fix broken links and leftover conflict marker in… ([#1514](https://github.com/SolaceLabs/solace-agent-mesh/issues/1514)) ([9b6a9c3](https://github.com/SolaceLabs/solace-agent-mesh/commit/9b6a9c31cb6e44135812ad01cc06c612c0c8bd23))
+* **DATAGO-135351:** updating doctor docs ([#1515](https://github.com/SolaceLabs/solace-agent-mesh/issues/1515)) ([f53affd](https://github.com/SolaceLabs/solace-agent-mesh/commit/f53affd76cfff19eda98eca7da9d28360645d7e7))
+* **DATAGO-135351:** updating error and log reference ([#1516](https://github.com/SolaceLabs/solace-agent-mesh/issues/1516)) ([a4804c2](https://github.com/SolaceLabs/solace-agent-mesh/commit/a4804c2ab628d1461870acf1c973f492825a7ef3))
+* **DATAGO-135351:** updating sam-doctor docs for UX review ([#1522](https://github.com/SolaceLabs/solace-agent-mesh/issues/1522)) ([93267ef](https://github.com/SolaceLabs/solace-agent-mesh/commit/93267efc47125533f5303aa52baa54161e597bdf))
+
+## [1.24.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.24.0...1.24.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-132447:** - Enable Support to Skip TLS verification for MCP tools/connectors ([#1495](https://github.com/SolaceLabs/solace-agent-mesh/issues/1495)) ([e2adc1e](https://github.com/SolaceLabs/solace-agent-mesh/commit/e2adc1ea2cba0e5a9d90495868110819c72efb58))
+
+## [1.24.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.3...1.24.0) (2026-05-05)
+
+
+### Features
+
+* **DATAGO-134667:** promote offline_evals to beta and default true ([#1504](https://github.com/SolaceLabs/solace-agent-mesh/issues/1504)) ([d7050b0](https://github.com/SolaceLabs/solace-agent-mesh/commit/d7050b0cce143d80ac12e6b2b04cf1826a3e32f6))
+
+## [1.23.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.2...1.23.3) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134691:** improving artifacts appearing deleted during creation ([#1498](https://github.com/SolaceLabs/solace-agent-mesh/issues/1498)) ([ecfff47](https://github.com/SolaceLabs/solace-agent-mesh/commit/ecfff47fbb4dd215de75f8c6dc3d5c96808f0b2f))
+
+## [1.23.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.1...1.23.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* **DATAGO-134667:** strip max_input_tokens from per-request override ([#1499](https://github.com/SolaceLabs/solace-agent-mesh/issues/1499)) ([3f62e97](https://github.com/SolaceLabs/solace-agent-mesh/commit/3f62e975a7f780ebfebca2252c61a2131d930ca3))
+
 ## [1.23.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.23.0...1.23.1) (2026-05-04)
 
 

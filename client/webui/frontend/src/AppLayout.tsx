@@ -9,7 +9,7 @@ import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession, useIsNewNavigationEnabled } from "@/lib/hooks";
 import { useNotificationSSE } from "@/lib/hooks/useNotificationSSE";
 import { useModelConfigStatus } from "@/lib/api/models";
 
@@ -70,7 +70,7 @@ function AppLayoutContent() {
     }, []);
 
     const topNavItems = getTopNavigationItems(configFeatureEnablement);
-    const useNewNav = configFeatureEnablement?.newNavigation ?? false;
+    const useNewNav = useIsNewNavigationEnabled();
     const projectsEnabled = configFeatureEnablement?.projects ?? false;
     const logoutEnabled = configFeatureEnablement?.logout ?? false;
 

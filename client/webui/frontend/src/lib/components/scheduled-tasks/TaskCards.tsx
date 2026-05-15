@@ -229,6 +229,8 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                                 }}
                                 onViewExecutions={onViewExecutions}
                                 onToggleEnabled={onToggleEnabled}
+                                onRunNow={onRunNow}
+                                isRunNowPending={runNowPendingTaskId === selectedTask.id}
                             />
                         </ResizablePanel>
                     </>

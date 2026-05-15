@@ -54,7 +54,7 @@ For detailed integration setup instructions, see [Integrating OpenTelemetry Metr
 
 Before you enable application metrics, ensure you have the following:
 
-- **Agent Mesh Enterprise**: Application metrics with OpenTelemetry is an enterprise-only feature. For information about installing Agent Mesh Enterprise, see [Enterprise Installation](../installation.md).
+- **Agent Mesh Enterprise**: Application metrics with OpenTelemetry is an enterprise-only feature. For information about installing Agent Mesh Enterprise, see [Enterprise Installation](../enterprise.md#installation).
 
 - **Observability Platform** (optional at this stage): Although not required for initial testing, you need an observability platform such as Prometheus, Grafana, Datadog, or another compatible system to collect and visualize metrics in production.
 
