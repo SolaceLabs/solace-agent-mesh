@@ -3,6 +3,7 @@ Prompts API router for prompt library feature.
 """
 from __future__ import annotations
 
+import re
 import uuid
 from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, HTTPException, Depends, Query, status
@@ -1250,7 +1251,18 @@ async def import_prompt(
         if command and len(command) > 50:
             command = command[:50]
             warnings.append("Command was truncated to 50 characters")
-        
+
+        # Validate command pattern — must match PromptGroupResponse, otherwise the
+        # imported row would be silently dropped from list responses.
+        if command and not re.match(r"^[a-zA-Z0-9_-]+$", command):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid command '{command}': must contain only letters, "
+                    "numbers, dashes, and underscores"
+                ),
+            )
+
         prompt_text = prompt_info["prompt_text"]
         # Truncate prompt_text if it exceeds max length (10000 chars)
         if len(prompt_text) > 10000:

@@ -8,10 +8,18 @@ import { MessageBanner, FileUpload, ConfirmationDialog, ErrorLabel } from "@/lib
 import type { PromptGroup } from "@/lib/types/prompts";
 import { promptImportSchema, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, detectTruncationWarnings, type PromptImportData, type TruncationWarning } from "@/lib/schemas";
 
+
+const COMMAND_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 // Schema for the editable fields in the import dialog (name and command)
 const promptImportFormSchema = z.object({
     name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
-    command: z.string().max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Chat shortcut must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`).optional().or(z.literal("")),
+    command: z
+        .string()
+        .max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Chat shortcut must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`)
+        .regex(COMMAND_PATTERN, "Chat shortcut can only contain letters, numbers, dashes, and underscores.")
+        .optional()
+        .or(z.literal("")),
 });
 
 type PromptImportForm = z.infer<typeof promptImportFormSchema>;
@@ -38,12 +46,14 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
     const [initialNameConflict, setInitialNameConflict] = useState(false);
     const [initialCommandConflict, setInitialCommandConflict] = useState(false);
+    const [initialNameInvalid, setInitialNameInvalid] = useState(false);
+    const [initialCommandInvalid, setInitialCommandInvalid] = useState(false);
 
     // Form for the editable name and command fields
     const {
         register,
         handleSubmit,
-        formState: { errors },
+        formState: { errors, isValid },
         reset: resetForm,
         setValue,
         watch,
@@ -170,6 +180,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
 
             setInitialNameConflict(conflictInfo.hasNameConflict);
             setInitialCommandConflict(conflictInfo.hasCommandConflict);
+            setInitialNameInvalid(importedName.length > PROMPT_FIELD_LIMITS.NAME_MAX);
+            setInitialCommandInvalid(!!importedCommand && !COMMAND_PATTERN.test(importedCommand));
         },
         [detectConflicts]
     );
@@ -183,8 +195,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             if (data) {
                 setImportData(data);
                 // Initialize the form with the imported name and command
-                setValue("name", data.prompt.name || "");
-                setValue("command", data.prompt.command || "");
+                setValue("name", data.prompt.name || "", { shouldValidate: true });
+                setValue("command", data.prompt.command || "", { shouldValidate: true });
                 // Check for initial conflicts
                 checkInitialConflicts(data);
             }
@@ -264,6 +276,8 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
         setTruncationWarnings([]);
         setInitialNameConflict(false);
         setInitialCommandConflict(false);
+        setInitialNameInvalid(false);
+        setInitialCommandInvalid(false);
         resetForm();
     };
 
@@ -330,7 +344,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             <Label htmlFor="import-name" className="text-xs text-(--secondary-text-wMain)">
                                 Name{conflicts.hasNameConflict && <span className="text-(--error-wMain)">*</span>}
                             </Label>
-                            {initialNameConflict ? (
+                            {initialNameConflict || initialNameInvalid ? (
                                 <div className="space-y-2">
                                     <Input id="import-name" {...register("name")} className={`${errors.name || conflicts.hasNameConflict ? "border-(--error-w100)" : ""}`} maxLength={PROMPT_FIELD_LIMITS.NAME_MAX} />
 
@@ -359,7 +373,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
                             <Label htmlFor="import-command" className="text-xs text-(--secondary-text-wMain)">
                                 Chat Shortcut{conflicts.hasCommandConflict && <span className="text-(--error-wMain)">*</span>}
                             </Label>
-                            {initialCommandConflict ? (
+                            {initialCommandConflict || initialCommandInvalid ? (
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm text-(--secondary-text-wMain)">/</span>
@@ -403,7 +417,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             onConfirm={handleConfirm}
             onCancel={handleCancel}
             isLoading={isImporting}
-            isEnabled={!!importData && !hasConflicts}
+            isEnabled={!!importData && !hasConflicts && isValid}
         />
     );
 };
