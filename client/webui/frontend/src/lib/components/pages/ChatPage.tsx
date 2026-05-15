@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
+import { PanelLeftIcon, PanelRightIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
@@ -11,7 +11,7 @@ import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurn
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
 import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
-import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
+import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Sheet, SheetContent, SheetTitle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
@@ -84,6 +84,7 @@ export function ChatPage() {
     const { isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream } = useTaskContext();
     const [isSessionSidePanelCollapsed, setIsSessionSidePanelCollapsed] = useState(true);
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
+    const [isMobileSidePanelOpen, setIsMobileSidePanelOpen] = useState(false);
     const [isForkingChat, setIsForkingChat] = useState(false);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     // Share notification data: each entry represents a share action (user added at a specific time)
@@ -349,6 +350,10 @@ export function ChatPage() {
         }
 
         const handleExpandSidePanel = () => {
+            if (isMobile) {
+                setIsMobileSidePanelOpen(true);
+                return;
+            }
             if (chatSidePanelRef.current && isSidePanelCollapsed) {
                 // Set transitioning state to enable smooth animation
                 setIsSidePanelTransitioning(true);
@@ -368,7 +373,7 @@ export function ChatPage() {
         return () => {
             window.removeEventListener("expand-side-panel", handleExpandSidePanel);
         };
-    }, [isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
+    }, [isMobile, isSidePanelCollapsed, setIsSidePanelCollapsed, sidePanelSizes.default]);
 
     // Build collaborative users list from message sender info for presence avatars
     const collaborativeUsers = useMemo<CollaborativeUser[]>(() => {
@@ -458,8 +463,9 @@ export function ChatPage() {
         return () => {
             setTaskIdInSidePanel(currentTaskId);
             openSidePanelTab("activity");
+            if (isMobile) setIsMobileSidePanelOpen(true);
         };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
+    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled, isMobile]);
 
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
@@ -518,7 +524,7 @@ export function ChatPage() {
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
-            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "md:ml-100" : "ml-0"}`}>
                 <Header
                     title={
                         <div className="flex items-center gap-3">
@@ -548,33 +554,42 @@ export function ChatPage() {
                             </div>
                         ) : null
                     }
-                    buttons={
-                        sessionId && chatSharingEnabled
-                            ? [
-                                  // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
-                                  ...(isCollaborativeSession && collaborativeUsers.length > 0
-                                      ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
-                                      : sharedEditorUsers.length > 0
-                                        ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
-                                        : []),
-                                  // For editors: show "Continue in New Chat" (fork) button instead of Share
-                                  ...(isCollaborativeSession
-                                      ? [
-                                            <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
-                                                {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
-                                                Continue in New Chat
-                                            </Button>,
-                                        ]
-                                      : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
-                              ]
-                            : undefined
-                    }
+                    buttons={(() => {
+                        const baseButtons =
+                            sessionId && chatSharingEnabled
+                                ? [
+                                      // Show presence avatars for both editors (collaborativeUsers) and owners (sharedEditorUsers)
+                                      ...(isCollaborativeSession && collaborativeUsers.length > 0
+                                          ? [<UserPresenceAvatars key="presence-avatars" users={collaborativeUsers} currentUserId={currentUserEmail} />]
+                                          : sharedEditorUsers.length > 0
+                                            ? [<UserPresenceAvatars key="presence-avatars" users={sharedEditorUsers} />]
+                                            : []),
+                                      // For editors: show "Continue in New Chat" (fork) button instead of Share
+                                      ...(isCollaborativeSession
+                                          ? [
+                                                <Button key="fork-button" variant="outline" size="sm" onClick={handleForkCollaborativeChat} disabled={isForkingChat} title="Save a personal copy of this conversation">
+                                                    {isForkingChat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GitFork className="mr-2 h-4 w-4" />}
+                                                    {!isMobile && "Continue in New Chat"}
+                                                </Button>,
+                                            ]
+                                          : [<ShareButton key="share-button" sessionId={sessionId} sessionTitle={sessionName || "New Chat"} onClick={() => setIsShareDialogOpen(true)} />]),
+                                  ]
+                                : [];
+                        if (isMobile) {
+                            baseButtons.push(
+                                <Button key="mobile-side-panel" variant="ghost" onClick={() => setIsMobileSidePanelOpen(true)} className="h-10 w-10 p-0" tooltip="Show Activity Panel" aria-label="Show activity panel">
+                                    <PanelRightIcon className="size-5" />
+                                </Button>
+                            );
+                        }
+                        return baseButtons.length > 0 ? baseButtons : undefined;
+                    })()}
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
-                    <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
-                        <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "md:ml-100" : "ml-0"}`}>
+                    <ResizablePanelGroup key={isMobile ? "mobile" : "desktop"} direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
+                        <ResizablePanel defaultSize={isMobile ? 100 : chatPanelSizes.default} minSize={isMobile ? 100 : chatPanelSizes.min} maxSize={isMobile ? 100 : chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
                                 <div className="flex min-h-0 flex-1 flex-col py-6">
                                     {isLoadingSession ? (
@@ -662,27 +677,43 @@ export function ChatPage() {
                                 </div>
                             </div>
                         </ResizablePanel>
-                        <ResizableHandle />
-                        <ResizablePanel
-                            ref={chatSidePanelRef}
-                            defaultSize={sidePanelSizes.default}
-                            minSize={sidePanelSizes.min}
-                            maxSize={sidePanelSizes.max}
-                            collapsedSize={COLLAPSED_SIZE}
-                            collapsible={true}
-                            onCollapse={handleSidepanelCollapse}
-                            onExpand={handleSidepanelExpand}
-                            onResize={handleSidepanelResize}
-                            id="chat-side-panel"
-                            className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
-                        >
-                            <div className="h-full">
-                                <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} />
-                            </div>
-                        </ResizablePanel>
+                        {!isMobile && <ResizableHandle />}
+                        {!isMobile && (
+                            <ResizablePanel
+                                ref={chatSidePanelRef}
+                                defaultSize={sidePanelSizes.default}
+                                minSize={sidePanelSizes.min}
+                                maxSize={sidePanelSizes.max}
+                                collapsedSize={COLLAPSED_SIZE}
+                                collapsible={true}
+                                onCollapse={handleSidepanelCollapse}
+                                onExpand={handleSidepanelExpand}
+                                onResize={handleSidepanelResize}
+                                id="chat-side-panel"
+                                className={isSidePanelTransitioning ? "transition-all duration-300 ease-in-out" : ""}
+                            >
+                                <div className="h-full">
+                                    <ChatSidePanel onCollapsedToggle={handleSidepanelToggle} isSidePanelCollapsed={isSidePanelCollapsed} setIsSidePanelCollapsed={setIsSidePanelCollapsed} />
+                                </div>
+                            </ResizablePanel>
+                        )}
                     </ResizablePanelGroup>
                 </div>
             </div>
+            {isMobile && (
+                <Sheet open={isMobileSidePanelOpen} onOpenChange={setIsMobileSidePanelOpen}>
+                    <SheetContent side="right" showClose={false} className="w-screen max-w-none border-l-0 p-0 sm:max-w-none">
+                        <SheetTitle className="sr-only">Activity panel</SheetTitle>
+                        <ChatSidePanel
+                            onCollapsedToggle={() => setIsMobileSidePanelOpen(false)}
+                            isSidePanelCollapsed={false}
+                            setIsSidePanelCollapsed={collapsed => {
+                                if (collapsed) setIsMobileSidePanelOpen(false);
+                            }}
+                        />
+                    </SheetContent>
+                </Sheet>
+            )}
             <ChatSessionDeleteDialog open={!!sessionToDelete} onCancel={closeSessionDeleteModal} onConfirm={confirmSessionDelete} sessionName={sessionToDelete?.name || ""} />
             {sessionId && <ShareDialog sessionId={sessionId} sessionTitle={sessionName || "New Chat"} open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen} />}
         </PageLayout>
