@@ -119,9 +119,9 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedTask ? 70 : 100} minSize={50} maxSize={selectedTask ? 100 : 100} id="taskCardsMainPanel">
-                    <div className="flex h-full flex-col pt-6 pb-6 pl-6">
+                    <div className="flex h-full flex-col px-4 py-4 sm:pt-6 sm:pr-0 sm:pb-6 sm:pl-6">
                         {!isLibraryEmpty && (
-                            <div className="mb-4 flex items-center gap-2">
+                            <div className="mb-4 flex flex-wrap items-center gap-2">
                                 <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Filter by name, description, or agent..." testid="taskSearchInput" />
 
                                 {/* Status Filter Dropdown */}
@@ -137,8 +137,8 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
                                             {/* Backdrop */}
                                             <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)} />
 
-                                            {/* Dropdown */}
-                                            <div className="absolute top-full left-0 z-50 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border border-(--secondary-w20) bg-(--background-w10) p-1 shadow-md">
+                                            {/* Dropdown — anchored to the right edge of the trigger so it doesn't overflow viewport on mobile */}
+                                            <div className="absolute top-full right-0 z-50 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border border-(--secondary-w20) bg-(--background-w10) p-1 shadow-md sm:right-auto sm:left-0">
                                                 {selectedStatuses.length > 0 && (
                                                     <div className="border-b">
                                                         <button
@@ -194,7 +194,7 @@ export const TaskCards: React.FC<TaskCardsProps> = ({ tasks, onManualCreate, onA
 
                                     {/* Existing Task Cards */}
                                     {filteredTasks.map(task => (
-                                        <div key={task.id} data-task-id={task.id}>
+                                        <div key={task.id} data-task-id={task.id} className="w-full sm:w-auto">
                                             <TaskCard
                                                 task={task}
                                                 isSelected={selectedTask?.id === task.id}

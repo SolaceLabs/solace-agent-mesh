@@ -720,7 +720,7 @@ export const TaskTemplateBuilder: React.FC<TaskTemplateBuilderProps> = ({ onBack
                 </div>
                 <NavigationBlocker />
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-2 border-t p-4">
+                <div className="flex flex-col gap-2 border-t p-4 sm:flex-row sm:justify-end">
                     <Button variant="ghost" onClick={() => handleClose()} disabled={isLoading}>
                         {isEditing ? "Discard Changes" : "Cancel"}
                     </Button>

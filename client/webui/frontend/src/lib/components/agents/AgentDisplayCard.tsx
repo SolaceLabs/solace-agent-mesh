@@ -104,7 +104,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
         >
             {/* Front face */}
             <div className={`transform-style-preserve-3d relative h-full w-full transition-transform duration-700 ${isExpanded ? "rotate-y-180" : ""}`} style={{ transformStyle: "preserve-3d" }}>
-                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
+                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg bg-(--background-w10)" style={{ backfaceVisibility: "hidden", transform: "rotateY(0deg)" }}>
                     <div className="flex items-center p-4">
                         <div className="flex min-w-0 flex-1 items-center">
                             {isWorkflow ? <Workflow className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" /> : <Bot className="mr-3 h-8 w-8 flex-shrink-0 text-(--brand-wMain)" />}
@@ -126,7 +126,7 @@ export const AgentDisplayCard: React.FC<AgentDisplayCardProps> = ({ agent, isExp
                 </div>
 
                 {/* Back face */}
-                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
+                <div className="card-surface absolute flex h-full w-full flex-col overflow-hidden rounded-lg bg-(--background-w10)" style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}>
                     <div className="flex items-center p-3">
                         <h3 className="text-md truncate font-semibold" title={agent.name}>
                             Details: {agent.displayName || agent.name}

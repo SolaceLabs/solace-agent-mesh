@@ -1,12 +1,31 @@
 import { useState } from "react";
-import { Pencil, Trash2, MoreHorizontal, Share2 } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, Share2, MessageCircle, BookOpen } from "lucide-react";
 
-import { Button, Input, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Textarea, Spinner } from "@/lib/components/ui";
+import {
+    Button,
+    Input,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+    Textarea,
+    Spinner,
+} from "@/lib/components/ui";
 import { FieldFooter } from "@/lib/components/ui/fieldFooter";
 import { MessageBanner, Footer } from "@/lib/components/common";
 import { Header } from "@/lib/components/header";
 import { useProjectContext } from "@/lib/providers";
-import { useConfigContext, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
+import { useConfigContext, useIsMobile, useIsProjectOwner, useIsProjectSharingEnabled, useIndexingSSE, useChatContext, useSessionStorage } from "@/lib/hooks";
 import type { Project, UpdateProjectData } from "@/lib/types/projects";
 import { DEFAULT_MAX_DESCRIPTION_LENGTH } from "@/lib/constants/validation";
 import { formatTimestamp } from "@/lib/utils/format";
@@ -53,6 +72,7 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
     const { validationLimits } = useConfigContext();
     const { addNotification } = useChatContext();
     const isProjectSharingEnabled = useIsProjectSharingEnabled();
+    const isMobile = useIsMobile();
 
     const [indexingError, setIndexingError] = useSessionStorage<string | null>(`sam_indexing_error_${project.id}`, null);
     const { isIndexing } = useIndexingSSE({
@@ -210,26 +230,59 @@ export const ProjectDetailView = ({ project, onBack, onStartNewChat, onChatClick
                 ]}
             />
 
-            {/* Content area with left and right panels */}
-            <div className="flex min-h-0 flex-1">
-                {/* Left Panel - Description and Project Chats */}
-                <div className="w-[60%] overflow-y-auto border-r">
+            {/* Content area — side-by-side on md+, tabbed on mobile where the 40% context column would be too narrow */}
+            {isMobile ? (
+                <div className="flex min-h-0 flex-1 flex-col">
                     {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
                     {project.description && (
-                        <div className="px-8 py-4">
+                        <div className="px-4 pt-4">
                             <p className="text-sm text-(--secondary-text-wMain)">{project.description}</p>
                         </div>
                     )}
-                    {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
+                    <Tabs defaultValue="chats" className="flex min-h-0 flex-1 flex-col gap-0">
+                        <div className="@container px-4 pt-4">
+                            <TabsList className="flex w-full bg-transparent p-0">
+                                <TabsTrigger value="chats" title="Chats" className="relative min-w-0 flex-1 rounded-none rounded-l-md px-2 data-[state=active]:z-10">
+                                    <MessageCircle className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Chats</span>
+                                </TabsTrigger>
+                                <TabsTrigger value="context" title="Context" className="relative min-w-0 flex-1 rounded-none rounded-r-md border-x-0 border-y border-r px-2 data-[state=active]:z-10">
+                                    <BookOpen className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Context</span>
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+                        <TabsContent value="chats" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+                            {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
+                        </TabsContent>
+                        <TabsContent value="context" className="mt-0 flex min-h-0 flex-1 flex-col overflow-y-auto">
+                            <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
+                            <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
+                            <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
+                        </TabsContent>
+                    </Tabs>
                 </div>
+            ) : (
+                <div className="flex min-h-0 flex-1">
+                    {/* Left Panel - Description and Project Chats */}
+                    <div className="w-[60%] overflow-y-auto border-r">
+                        {getIndexingBanner(isIndexing, indexingError, () => setIndexingError(null))}
+                        {project.description && (
+                            <div className="px-8 py-4">
+                                <p className="text-sm text-(--secondary-text-wMain)">{project.description}</p>
+                            </div>
+                        )}
+                        {onChatClick && <ProjectChatsSection project={project} onChatClick={onChatClick} onStartNewChat={onStartNewChat} isDisabled={isIndexing} />}
+                    </div>
 
-                {/* Right Panel - Metadata Sidebar */}
-                <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
-                    <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
-                    <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
-                    <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
+                    {/* Right Panel - Metadata Sidebar */}
+                    <div className="flex min-h-0 w-[40%] flex-col overflow-y-auto">
+                        <SystemPromptSection project={project} onSave={handleSaveSystemPrompt} isSaving={isSaving} isDisabled={isIndexing} error={error} />
+                        <DefaultAgentSection project={project} onSave={handleSaveDefaultAgent} isSaving={isSaving} isDisabled={isIndexing} />
+                        <KnowledgeSection project={project} isDisabled={isIndexing} onFileChange={() => setIndexingError(null)} />
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Footer */}
             <Footer className="justify-between">

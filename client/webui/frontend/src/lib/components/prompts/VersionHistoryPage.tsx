@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Check, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Check, List, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Prompt, PromptGroup } from "@/lib/types/prompts";
 import { Header } from "@/lib/components/header";
 import { Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Label } from "@/lib/components/ui";
@@ -7,7 +7,8 @@ import { formatPromptDate } from "@/lib/utils/promptUtils";
 import { MessageBanner } from "@/lib/components/common";
 import { getErrorMessage } from "@/lib/utils/api";
 import { api } from "@/lib/api";
-import { useChatContext } from "@/lib/hooks";
+import { useChatContext, useIsMobile } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
 interface VersionHistoryPageProps {
     group: PromptGroup;
@@ -25,6 +26,10 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
     const [isLoading, setIsLoading] = useState(false);
     const [currentGroup, setCurrentGroup] = useState<PromptGroup>(group);
     const [showDeleteActiveError, setShowDeleteActiveError] = useState(false);
+    const isMobile = useIsMobile();
+    // List-or-detail flow on mobile: with a version auto-selected we default
+    // to the detail view; the user opens the version list via a header button.
+    const [mobileShowList, setMobileShowList] = useState(false);
     const hasInitializedRef = useRef(false);
 
     // Update currentGroup when group prop changes
@@ -172,6 +177,13 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                 title={`Version History: ${currentGroup.name}`}
                 breadcrumbs={[{ label: "Prompts", onClick: onBack }, { label: "Version History" }]}
                 buttons={[
+                    ...(isMobile
+                        ? [
+                              <Button key="toggle-versions" variant="ghost" size="sm" onClick={() => setMobileShowList(prev => !prev)} title="Versions" aria-label="Show versions list">
+                                  <List className="h-4 w-4" />
+                              </Button>,
+                          ]
+                        : []),
                     <DropdownMenu key="actions-menu">
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -194,7 +206,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
             {/* Content */}
             <div className="flex min-h-0 flex-1">
                 {/* Left Sidebar - Version List */}
-                <div className="w-[300px] overflow-y-auto border-r">
+                <div className={cn("overflow-y-auto border-r", isMobile ? cn("w-full border-r-0", !mobileShowList && "hidden") : "w-[300px]")}>
                     <div className="p-4">
                         <h3 className="mb-3 text-sm font-semibold text-(--secondary-text-wMain)">Versions</h3>
                         {isLoading ? (
@@ -211,7 +223,10 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                                         <button
                                             data-testid={version.id}
                                             key={version.id}
-                                            onClick={() => setSelectedVersion(version)}
+                                            onClick={() => {
+                                                setSelectedVersion(version);
+                                                if (isMobile) setMobileShowList(false);
+                                            }}
                                             className={`w-full p-3 text-left transition-colors ${isSelected ? "bg-(--secondary-w10)" : "hover:bg-(--primary-w10)"}`}
                                         >
                                             <div className="mb-1 flex items-center justify-between">
@@ -228,7 +243,7 @@ export const VersionHistoryPage: React.FC<VersionHistoryPageProps> = ({ group, o
                 </div>
 
                 {/* Right Panel - Version Details */}
-                <div className="flex-1 overflow-y-auto">
+                <div className={cn("flex-1 overflow-y-auto", isMobile && mobileShowList && "hidden")}>
                     {selectedVersion ? (
                         <div className="p-6">
                             <div className="mx-auto max-w-4xl space-y-6">
