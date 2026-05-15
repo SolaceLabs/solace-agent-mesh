@@ -5,15 +5,19 @@ Tests:
 - POST /models emits events after create
 - PUT /models/{model_id} emits events after update
 - DELETE /models/{model_id} emits events after delete
+- Each endpoint declares the correct ValidatedUserConfig scope (RBAC)
 """
 
+import inspect
 from unittest.mock import Mock, patch, AsyncMock
 
 import pytest
+from fastapi.params import Depends
 
 from solace_agent_mesh.services.platform.api.routers.model_configurations_router import (
     _emit_model_config_update,
 )
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 
 
 class TestEmitModelConfigUpdate:
@@ -207,4 +211,55 @@ class TestDeleteModelEndpoint:
         mock_service.delete.assert_called_once()
         mock_emit.assert_called_once_with(
             mock_component, "uuid-789", "my-alias", None
+        )
+
+
+def _endpoint_scopes(endpoint_func) -> list[list[str]]:
+    """Return all ValidatedUserConfig.required_scopes declared on an endpoint."""
+    scopes: list[list[str]] = []
+    for param in inspect.signature(endpoint_func).parameters.values():
+        default = param.default
+        if isinstance(default, Depends):
+            dep = default.dependency
+            if isinstance(dep, ValidatedUserConfig):
+                scopes.append(dep.required_scopes)
+    return scopes
+
+
+class TestModelEndpointScopes:
+    """Write endpoints gate on sam:model_config:write; reads stay open so
+    chat, agent builder, and evaluations keep working for non-admin users.
+
+    Runtime enforcement of ValidatedUserConfig itself is covered by
+    tests/unit/gateway/http_sse/test_dependencies.py — here we only verify
+    that each endpoint asks for the right scope (or no scope at all).
+    """
+
+    @pytest.mark.parametrize(
+        "endpoint_name",
+        ["create_model", "update_model", "delete_model"],
+    )
+    def test_write_endpoint_requires_model_config_write(self, endpoint_name):
+        from solace_agent_mesh.services.platform.api.routers import (
+            model_configurations_router,
+        )
+
+        endpoint = getattr(model_configurations_router, endpoint_name)
+        assert [["sam:model_config:write"]] == _endpoint_scopes(endpoint), (
+            f"{endpoint_name} should depend on ValidatedUserConfig(['sam:model_config:write'])"
+        )
+
+    @pytest.mark.parametrize(
+        "endpoint_name",
+        ["list_models", "get_model", "get_model_dependents"],
+    )
+    def test_read_endpoint_is_ungated(self, endpoint_name):
+        from solace_agent_mesh.services.platform.api.routers import (
+            model_configurations_router,
+        )
+
+        endpoint = getattr(model_configurations_router, endpoint_name)
+        assert _endpoint_scopes(endpoint) == [], (
+            f"{endpoint_name} should not declare a ValidatedUserConfig scope — "
+            "reads must stay open for chat/agent-builder/evaluations consumers"
         )

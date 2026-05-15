@@ -25,6 +25,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.responses import (
 )
 from solace_agent_mesh.shared.api.pagination import DataResponse
 from solace_agent_mesh.shared.api.response_utils import create_data_response
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig
 from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
 log = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ async def list_provider_models(
     provider: str,
     request: ProviderQueryBaseRequest,
     _: None = Depends(require_model_config_ui_enabled),
+    _user_config: dict = Depends(ValidatedUserConfig(["sam:model_config:write"])),
     db: Session = Depends(get_platform_db),
     service: ModelListService = Depends(get_model_list_service),
     config_service: ModelConfigService = Depends(get_model_config_service),
@@ -98,6 +100,7 @@ async def get_supported_params(
     provider: str,
     request: SupportedParamsRequest,
     _: None = Depends(require_model_config_ui_enabled),
+    _user_config: dict = Depends(ValidatedUserConfig(["sam:model_config:write"])),
     service: ModelListService = Depends(get_model_list_service),
 ) -> DataResponse[SupportedParamsResponse]:
     """

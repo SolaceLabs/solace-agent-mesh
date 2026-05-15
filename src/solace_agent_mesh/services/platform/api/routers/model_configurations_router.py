@@ -34,7 +34,7 @@ from solace_agent_mesh.services.platform.api.routers.dto.requests import (
 )
 from solace_agent_mesh.agent.adk.models.dynamic_model_provider_topics import get_model_config_update_topic
 from solace_agent_mesh.shared.api.pagination import DataResponse
-from solace_agent_mesh.shared.auth.dependencies import get_current_user
+from solace_agent_mesh.shared.auth.dependencies import ValidatedUserConfig, get_current_user
 from solace_agent_mesh.shared.api.response_utils import create_data_response
 from solace_agent_mesh.shared.exceptions.exceptions import ValidationErrorBuilder
 
@@ -147,6 +147,7 @@ async def create_model(
     request: ModelConfigurationBaseRequest,
     response: Response,
     _: None = Depends(require_model_config_ui_enabled),
+    _user_config: dict = Depends(ValidatedUserConfig(["sam:model_config:write"])),
     validate_only: bool = Query(False, alias="validateOnly"),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
@@ -195,6 +196,7 @@ async def update_model(
     model_id: str,
     request: ModelConfigurationUpdateRequest,
     _: None = Depends(require_model_config_ui_enabled),
+    _user_config: dict = Depends(ValidatedUserConfig(["sam:model_config:write"])),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),
@@ -262,6 +264,7 @@ async def get_model_dependents(
 async def delete_model(
     model_id: str,
     _: None = Depends(require_model_config_ui_enabled),
+    _user_config: dict = Depends(ValidatedUserConfig(["sam:model_config:write"])),
     db: Session = Depends(get_platform_db),
     user: dict = Depends(get_current_user),
     service: ModelConfigService = Depends(get_model_config_service),

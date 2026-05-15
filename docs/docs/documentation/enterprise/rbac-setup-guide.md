@@ -244,6 +244,22 @@ roles:
       - "tool:data:*"
 ```
 
+#### Model Configuration Scopes
+
+Model configuration scopes control who can create, edit, and delete LLM model configurations. A single scope governs every write operation:
+
+- `sam:model_config:write` - Permission to create, edit, and delete model configurations
+
+Example role configuration:
+
+```yaml
+roles:
+  model_admin:
+    description: "Manages LLM model configurations"
+    scopes:
+      - "sam:model_config:write"
+```
+
 #### Monitoring Scopes
 
 Monitoring scopes control access to system monitoring features and follow the pattern `monitor/namespace/<namespace>:a2a_messages:subscribe`. These scopes allow users to observe message traffic in specific namespaces.
