@@ -1327,7 +1327,7 @@ def _get_model_context_limit(
     response_model=ContextUsageResponse,
     response_model_by_alias=True,
 )
-async def get_session_context_usage(
+def get_session_context_usage(
     session_id: str,
     model: Optional[str] = None,
     agent_name: Optional[str] = None,
@@ -1342,6 +1342,10 @@ async def get_session_context_usage(
     Returns the current token count, model context limit, and usage percentage.
     Uses the gateway's own tasks and chat_tasks tables as the source of truth
     for token data (LLM-reported totals from completed tasks).
+
+    Declared sync (not ``async def``) so FastAPI runs the body — which is
+    purely synchronous SQLAlchemy + CPU work — in its threadpool, leaving
+    the event loop free for other concurrent requests.
     """
     user_id = user.get("id")
 
@@ -1389,8 +1393,18 @@ async def get_session_context_usage(
         # their later start_time would otherwise trick the agent-switch filter
         # below into treating the peer as the "current agent" whenever a peer
         # completion is the most-recent row in the session.
+        # Project only the columns we actually consume — TaskModel includes
+        # initial_request_text (Text) which is unused here and adds appreciable
+        # row weight on long sessions (p99 ≈ 138 rows per call).
         completed_tasks = (
-            db.query(TaskModel)
+            db.query(
+                TaskModel.id,
+                TaskModel.total_input_tokens,
+                TaskModel.total_output_tokens,
+                TaskModel.total_cached_input_tokens,
+                TaskModel.token_usage_details,
+                TaskModel.start_time,
+            )
             .filter(
                 TaskModel.session_id == session_id,
                 TaskModel.user_id == user_id,
@@ -1407,8 +1421,16 @@ async def get_session_context_usage(
         # leak into the new agent's indicator.
         if completed_tasks:
             task_ids = [t.id for t in completed_tasks]
-            request_events = (
-                db.query(TaskEventModel)
+            # Project only (task_id, payload) — id/topic/created_time/user_id
+            # aren't read here. payload stays JSON because TaskEventModel uses
+            # sqlalchemy JSON (not JSONB), so path extraction via ``->>`` isn't
+            # available. We can't push DISTINCT-per-task to the DB portably:
+            # ``.distinct(column)`` compiles to PostgreSQL-only ``DISTINCT ON``
+            # and raises CompileError on SQLite/MySQL (the gateway DB supports
+            # all three — see dependencies.init_database). Fold to the earliest
+            # request per task in Python instead.
+            request_rows = (
+                db.query(TaskEventModel.task_id, TaskEventModel.payload)
                 .filter(
                     TaskEventModel.task_id.in_(task_ids),
                     TaskEventModel.direction == "request",
@@ -1416,19 +1438,26 @@ async def get_session_context_usage(
                 .order_by(TaskEventModel.task_id, TaskEventModel.created_time.asc())
                 .all()
             )
-            first_request_by_task: dict[str, TaskEventModel] = {}
-            for ev in request_events:
-                first_request_by_task.setdefault(ev.task_id, ev)
 
-            def _task_agent(task_id: str) -> Optional[str]:
-                ev = first_request_by_task.get(task_id)
-                if not ev or not ev.payload:
+            def _row_agent(payload) -> Optional[str]:
+                if not payload:
                     return None
                 try:
-                    metadata = ev.payload.get("params", {}).get("message", {}).get("metadata", {})
+                    metadata = (
+                        payload.get("params", {}).get("message", {}).get("metadata", {})
+                    )
                     return metadata.get("workflow_name") or metadata.get("agent_name")
                 except AttributeError:
                     return None
+
+            first_request_by_task: dict[str, Optional[str]] = {}
+            for r in request_rows:
+                if r.task_id in first_request_by_task:
+                    continue
+                first_request_by_task[r.task_id] = _row_agent(r.payload)
+
+            def _task_agent(task_id: str) -> Optional[str]:
+                return first_request_by_task.get(task_id)
 
             # Find the most recent real (non-compaction) task's agent — that's the
             # ADK session currently active for this gateway session.
