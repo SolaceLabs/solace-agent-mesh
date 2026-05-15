@@ -348,11 +348,11 @@ export const PromptsPage: React.FC = () => {
                 buttons={[
                     <Button key="importPrompt" variant="ghost" title="Import Prompt" onClick={() => setShowImportDialog(true)}>
                         <Upload className="size-4" />
-                        Import Prompt
+                        <span className="hidden sm:inline">Import Prompt</span>
                     </Button>,
                     <Button key="refreshPrompts" data-testid="refreshPrompts" disabled={isLoading} variant="ghost" title="Refresh Prompts" onClick={() => fetchPromptGroups()}>
                         <RefreshCcw className="size-4" />
-                        Refresh Prompts
+                        <span className="hidden sm:inline">Refresh Prompts</span>
                     </Button>,
                 ]}
             />

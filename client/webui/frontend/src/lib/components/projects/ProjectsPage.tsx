@@ -190,11 +190,11 @@ export const ProjectsPage: React.FC = () => {
                     buttons={[
                         <Button key="importProject" variant="ghost" title="Import Project" onClick={() => setShowImportDialog(true)}>
                             <Upload className="size-4" />
-                            Import Project
+                            <span className="hidden sm:inline">Import Project</span>
                         </Button>,
                         <Button key="refreshProjects" data-testid="refreshProjects" disabled={isLoading} variant="ghost" title="Refresh Projects" onClick={() => refetch()}>
                             <RefreshCcw className="size-4" />
-                            Refresh Projects
+                            <span className="hidden sm:inline">Refresh Projects</span>
                         </Button>,
                     ]}
                 />
