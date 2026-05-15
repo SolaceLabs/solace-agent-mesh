@@ -67,6 +67,7 @@ def get_optional_user_id(request: Request) -> Optional[str]:
             return request.state.user.get('id')
         return None
     except Exception:
+        log.warning("Failed to get user ID from request", exc_info=True)
         return None
 
 
@@ -83,6 +84,7 @@ def get_optional_user_email(request: Request) -> Optional[str]:
             return request.state.user.get('email')
         return None
     except Exception:
+        log.warning("Failed to get user email from request", exc_info=True)
         return None
 
 
