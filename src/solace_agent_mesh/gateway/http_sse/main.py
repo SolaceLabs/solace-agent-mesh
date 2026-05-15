@@ -283,8 +283,37 @@ def setup_dependencies(component: "WebUIBackendComponent"):
 
 
 def _setup_middleware(component: "WebUIBackendComponent") -> None:
-    allowed_origins = component.get_cors_origins()
+    allowed_origins = component.get_cors_origins().copy()
     cors_origin_regex = component.get_cors_origin_regex()
+
+    # Security: wildcard CORS with allow_credentials=True lets any website
+    # make authenticated cross-origin requests. Strip the wildcard and
+    # fall through to the auto-construction below.
+    if "*" in allowed_origins:
+        log.warning(
+            "CORS wildcard origin '*' detected with allow_credentials=True. "
+            "This is insecure — removing '*'. Set explicit origins in "
+            "cors_allowed_origins to suppress this warning."
+        )
+        allowed_origins = [o for o in allowed_origins if o != "*"]
+
+    # Auto-construct localhost origins when none are configured
+    if not allowed_origins and not cors_origin_regex:
+        host = getattr(component, "fastapi_host", "127.0.0.1")
+        port = getattr(component, "fastapi_port", 8000)
+        display_host = "localhost" if host == "127.0.0.1" else host
+        ssl_key = getattr(component, "ssl_keyfile", "")
+        ssl_cert = getattr(component, "ssl_certfile", "")
+        if ssl_key and ssl_cert:
+            https_port = getattr(component, "fastapi_https_port", 8443)
+            allowed_origins = [f"https://{display_host}:{https_port}"]
+        else:
+            allowed_origins = [f"http://{display_host}:{port}"]
+        log.info(
+            "No CORS origins configured — auto-constructed from server settings: %s",
+            allowed_origins,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,

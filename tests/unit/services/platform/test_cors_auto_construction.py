@@ -266,3 +266,31 @@ class TestPlatformServiceCorsAutoConstruction:
         cors_regex = _get_cors_origin_regex(mock_fastapi_app)
 
         assert cors_regex is None
+
+    def test_wildcard_origin_is_stripped(
+        self, mock_fastapi_app, mock_component, clean_env
+    ):
+        """Wildcard '*' must not reach CORSMiddleware when credentials are enabled."""
+        mock_component.get_cors_origins.return_value = ["*"]
+        clean_env.setenv("FASTAPI_HOST", "127.0.0.1")
+        clean_env.setenv("FASTAPI_PORT", "8000")
+
+        _setup_middleware(mock_component)
+
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
+
+        assert "*" not in allowed_origins
+
+    def test_wildcard_stripped_with_auto_constructed_origins_present(
+        self, mock_fastapi_app, mock_component, clean_env
+    ):
+        """Auto-constructed origins remain after wildcard is stripped."""
+        mock_component.get_cors_origins.return_value = ["*"]
+        clean_env.setenv("FASTAPI_HOST", "127.0.0.1")
+        clean_env.setenv("FASTAPI_PORT", "8000")
+
+        _setup_middleware(mock_component)
+
+        allowed_origins = _get_cors_allowed_origins(mock_fastapi_app)
+
+        assert "http://localhost:8000" in allowed_origins
