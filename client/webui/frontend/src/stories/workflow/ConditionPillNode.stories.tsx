@@ -2,48 +2,37 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import ConditionPillNode from "@/lib/components/workflowVisualization/nodes/ConditionPillNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
+import { assertSelectedByText, centeredWorkflowNodeDecorator, clickNodeAndAssert, createLayoutNode } from "./helpers/workflowStoryHelpers";
 
 const meta = {
     title: "Workflow/WorkflowVisualization/ConditionPillNode",
     component: ConditionPillNode,
     parameters: { layout: "centered" },
-    decorators: [
-        Story => (
-            <div className="flex items-center justify-center bg-(--background-w10) p-8">
-                <Story />
-            </div>
-        ),
-    ],
+    decorators: [centeredWorkflowNodeDecorator],
 } satisfies Meta<typeof ConditionPillNode>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const conditionNode: LayoutNode = {
+const conditionNode: LayoutNode = createLayoutNode({
     id: "condition_1",
     type: "condition",
-    x: 0,
-    y: 0,
     width: 200,
     height: 28,
-    children: [],
     data: {
         label: "{{priority}} == 'high'",
         caseNumber: 1,
         isDefaultCase: false,
     },
-};
+});
 
-const defaultConditionNode: LayoutNode = {
+const defaultConditionNode: LayoutNode = createLayoutNode({
     id: "condition_default",
     type: "condition",
-    x: 0,
-    y: 0,
     width: 120,
     height: 28,
-    children: [],
     data: { label: "Default", isDefaultCase: true },
-};
+});
 
 export const Default: Story = {
     args: { node: conditionNode },
@@ -65,18 +54,14 @@ export const DefaultCase: Story = {
 export const Selected: Story = {
     args: { node: conditionNode, isSelected: true },
     play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const wrapper = (await canvas.findByText("1")).closest("[role='button']") as HTMLElement;
-        expect(wrapper).toHaveAttribute("data-selected", "true");
+        await assertSelectedByText(canvasElement, "1");
     },
 };
 
 export const ClickInteraction: Story = {
     args: { node: conditionNode, onClick: fn() },
     play: async ({ canvasElement, args }) => {
-        const canvas = within(canvasElement);
-        await userEvent.click(await canvas.findByText("1"));
-        expect(args.onClick).toHaveBeenCalledWith(conditionNode);
+        await clickNodeAndAssert(canvasElement, "1", args.onClick, conditionNode);
     },
 };
 

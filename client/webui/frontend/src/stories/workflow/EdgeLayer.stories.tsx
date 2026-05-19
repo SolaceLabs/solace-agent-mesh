@@ -2,18 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import EdgeLayer from "@/lib/components/workflowVisualization/edges/EdgeLayer";
 import type { Edge } from "@/lib/components/workflowVisualization/utils/types";
+import { EDGE_GROUP_TEST_ID, EDGE_LAYER_TEST_ID, EDGE_PATH_TEST_ID, centeredEdgeLayerDecorator } from "./helpers/workflowStoryHelpers";
 
 const meta = {
     title: "Workflow/WorkflowVisualization/EdgeLayer",
     component: EdgeLayer,
     parameters: { layout: "centered" },
-    decorators: [
-        Story => (
-            <div className="relative bg-(--background-w10) p-8" style={{ width: 400, height: 300 }}>
-                <Story />
-            </div>
-        ),
-    ],
+    decorators: [centeredEdgeLayerDecorator],
 } satisfies Meta<typeof EdgeLayer>;
 
 export default meta;
@@ -54,9 +49,9 @@ const conditionPillEdge: Edge = {
 export const Empty: Story = {
     args: { edges: [], width: 400, height: 300 },
     play: async ({ canvasElement }) => {
-        const svg = canvasElement.querySelector("[data-testid='edge-layer']");
+        const svg = canvasElement.querySelector(`[data-testid='${EDGE_LAYER_TEST_ID}']`);
         expect(svg).toBeInTheDocument();
-        expect(canvasElement.querySelectorAll("[data-testid='edge-group']").length).toBe(0);
+        expect(canvasElement.querySelectorAll(`[data-testid='${EDGE_GROUP_TEST_ID}']`).length).toBe(0);
     },
 };
 
@@ -65,7 +60,7 @@ export const BezierEdgeWithLabel: Story = {
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
         expect(canvas.getByText("yes")).toBeInTheDocument();
-        const renderedPath = canvasElement.querySelector("[data-testid='edge-path'][data-edge-id='edge_bezier']") as SVGPathElement | null;
+        const renderedPath = canvasElement.querySelector(`[data-testid='${EDGE_PATH_TEST_ID}'][data-edge-id='edge_bezier']`) as SVGPathElement | null;
         expect(renderedPath?.getAttribute("marker-end")).toContain("arrowhead");
     },
 };
@@ -74,7 +69,7 @@ export const StraightEdgeNoLabel: Story = {
     args: { edges: [straightEdge], width: 400, height: 300 },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const renderedPath = canvasElement.querySelector("[data-testid='edge-path'][data-edge-id='edge_straight']") as SVGPathElement | null;
+        const renderedPath = canvasElement.querySelector(`[data-testid='${EDGE_PATH_TEST_ID}'][data-edge-id='edge_straight']`) as SVGPathElement | null;
         expect(renderedPath?.getAttribute("d")).toMatch(/^M .* L .*/);
         expect(canvas.queryByText("yes")).not.toBeInTheDocument();
     },
@@ -83,7 +78,7 @@ export const StraightEdgeNoLabel: Story = {
 export const ConditionPillEdgeHasNoArrowhead: Story = {
     args: { edges: [conditionPillEdge], width: 400, height: 300 },
     play: async ({ canvasElement }) => {
-        const renderedPath = canvasElement.querySelector("[data-testid='edge-path'][data-edge-id='edge_pill']") as SVGPathElement | null;
+        const renderedPath = canvasElement.querySelector(`[data-testid='${EDGE_PATH_TEST_ID}'][data-edge-id='edge_pill']`) as SVGPathElement | null;
         expect(renderedPath?.getAttribute("marker-end")).toBeNull();
     },
 };
@@ -91,6 +86,6 @@ export const ConditionPillEdgeHasNoArrowhead: Story = {
 export const MultipleEdges: Story = {
     args: { edges: [bezierEdge, straightEdge, conditionPillEdge], width: 400, height: 300 },
     play: async ({ canvasElement }) => {
-        expect(canvasElement.querySelectorAll("[data-testid='edge-group']").length).toBe(3);
+        expect(canvasElement.querySelectorAll(`[data-testid='${EDGE_GROUP_TEST_ID}']`).length).toBe(3);
     },
 };

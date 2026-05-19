@@ -1,32 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import SwitchNode from "@/lib/components/workflowVisualization/nodes/SwitchNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
+import { assertSelectedAndHighlightedByText, centeredWorkflowNodeDecorator, clickNodeAndAssert, createLayoutNode } from "./helpers/workflowStoryHelpers";
 
 const meta = {
     title: "Workflow/WorkflowVisualization/SwitchNode",
     component: SwitchNode,
     parameters: { layout: "centered" },
-    decorators: [
-        Story => (
-            <div className="flex items-center justify-center bg-(--background-w10) p-8">
-                <Story />
-            </div>
-        ),
-    ],
+    decorators: [centeredWorkflowNodeDecorator],
 } satisfies Meta<typeof SwitchNode>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const switchNode: LayoutNode = {
+const switchNode: LayoutNode = createLayoutNode({
     id: "check_priority",
     type: "switch",
-    x: 0,
-    y: 0,
     width: 280,
     height: 120,
-    children: [],
     data: {
         label: "Check Priority",
         cases: [
@@ -34,7 +26,7 @@ const switchNode: LayoutNode = {
             { condition: "{{priority}} == 'low'", node: "slow_path" },
         ],
     },
-};
+});
 
 export const Default: Story = {
     args: { node: switchNode },
@@ -73,18 +65,13 @@ export const NoCases: Story = {
 export const SelectedAndHighlighted: Story = {
     args: { node: switchNode, isSelected: true, isHighlighted: true },
     play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const wrapper = (await canvas.findByText("Switch")).closest("[role='button']") as HTMLElement;
-        expect(wrapper).toHaveAttribute("data-selected", "true");
-        expect(wrapper).toHaveAttribute("data-highlighted", "true");
+        await assertSelectedAndHighlightedByText(canvasElement, "Switch");
     },
 };
 
 export const ClickInteraction: Story = {
     args: { node: switchNode, onClick: fn() },
     play: async ({ canvasElement, args }) => {
-        const canvas = within(canvasElement);
-        await userEvent.click(await canvas.findByText("Switch"));
-        expect(args.onClick).toHaveBeenCalledWith(switchNode);
+        await clickNodeAndAssert(canvasElement, "Switch", args.onClick, switchNode);
     },
 };

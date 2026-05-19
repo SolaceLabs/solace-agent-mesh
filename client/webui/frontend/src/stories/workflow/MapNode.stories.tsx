@@ -2,44 +2,25 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import MapNode from "@/lib/components/workflowVisualization/nodes/MapNode";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
+import { assertSelectedAndHighlightedByText, centeredWorkflowNodeDecorator, clickNodeAndAssert, createLayoutNode, renderChildLabels } from "./helpers/workflowStoryHelpers";
 
 const meta = {
     title: "Workflow/WorkflowVisualization/MapNode",
     component: MapNode,
     parameters: { layout: "centered" },
-    decorators: [
-        Story => (
-            <div className="flex items-center justify-center bg-(--background-w10) p-8">
-                <Story />
-            </div>
-        ),
-    ],
+    decorators: [centeredWorkflowNodeDecorator],
 } satisfies Meta<typeof MapNode>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const mapNode: LayoutNode = {
+const mapNode: LayoutNode = createLayoutNode({
     id: "process_items",
     type: "map",
-    x: 0,
-    y: 0,
-    width: 280,
-    height: 56,
-    children: [],
     data: { label: "Process Items", items: "{{workflow.input.order_items}}" },
-};
+});
 
-const childAgent: LayoutNode = {
-    id: "item_processor",
-    type: "agent",
-    x: 0,
-    y: 0,
-    width: 280,
-    height: 56,
-    children: [],
-    data: { label: "ItemProcessor" },
-};
+const childAgent: LayoutNode = createLayoutNode({ id: "item_processor", type: "agent", data: { label: "ItemProcessor" } });
 
 const mapNodeWithChildren: LayoutNode = {
     ...mapNode,
@@ -72,7 +53,7 @@ export const CollapsedWithChildAvailable: Story = {
 export const ExpandedWithChildren: Story = {
     args: {
         node: mapNodeWithChildren,
-        renderChildren: children => children.map(child => <div key={child.id}>{child.data.label}</div>),
+        renderChildren: renderChildLabels,
         onCollapse: fn(),
     },
     play: async ({ canvasElement, args }) => {
@@ -88,18 +69,13 @@ export const ExpandedWithChildren: Story = {
 export const SelectedAndHighlighted: Story = {
     args: { node: mapNode, isSelected: true, isHighlighted: true },
     play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const wrapper = (await canvas.findByText("Map")).closest("[role='button']") as HTMLElement;
-        expect(wrapper).toHaveAttribute("data-selected", "true");
-        expect(wrapper).toHaveAttribute("data-highlighted", "true");
+        await assertSelectedAndHighlightedByText(canvasElement, "Map");
     },
 };
 
 export const ClickInteraction: Story = {
     args: { node: mapNode, onClick: fn() },
     play: async ({ canvasElement, args }) => {
-        const canvas = within(canvasElement);
-        await userEvent.click(await canvas.findByText("Map"));
-        expect(args.onClick).toHaveBeenCalledWith(mapNode);
+        await clickNodeAndAssert(canvasElement, "Map", args.onClick, mapNode);
     },
 };
