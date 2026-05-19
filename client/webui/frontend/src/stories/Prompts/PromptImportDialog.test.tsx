@@ -8,20 +8,6 @@ import { StoryProvider } from "../mocks/StoryProvider";
 
 expect.extend(matchers);
 
-// Blob.text() is not implemented in jsdom 27 — polyfill via FileReader
-if (typeof Blob.prototype.text === "undefined") {
-    Object.defineProperty(Blob.prototype, "text", {
-        value: function (this: Blob) {
-            return new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = () => reject(reader.error);
-                reader.readAsText(this);
-            });
-        },
-    });
-}
-
 const defaultProps = {
     open: true,
     onOpenChange: vi.fn(),

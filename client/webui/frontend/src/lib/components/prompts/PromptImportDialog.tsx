@@ -1,28 +1,11 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 
 import { Input, Label } from "@/lib/components/ui";
 import { MessageBanner, FileUpload, ConfirmationDialog, ErrorLabel } from "@/lib/components/common";
 import type { PromptGroup } from "@/lib/types/prompts";
-import { promptImportSchema, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, detectTruncationWarnings, type PromptImportData, type TruncationWarning } from "@/lib/schemas";
-
-
-const COMMAND_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-// Schema for the editable fields in the import dialog (name and command)
-const promptImportFormSchema = z.object({
-    name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
-    command: z
-        .string()
-        .max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Chat shortcut must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`)
-        .regex(COMMAND_PATTERN, "Chat shortcut can only contain letters, numbers, dashes, and underscores.")
-        .optional()
-        .or(z.literal("")),
-});
-
-type PromptImportForm = z.infer<typeof promptImportFormSchema>;
+import { promptImportSchema, promptImportFormSchema, COMMAND_PATTERN, PROMPT_FIELD_LIMITS, formatZodErrors, hasPathError, getPathErrorMessage, detectTruncationWarnings, type PromptImportData, type PromptImportForm, type TruncationWarning } from "@/lib/schemas";
 
 interface ConflictInfo {
     hasNameConflict: boolean;

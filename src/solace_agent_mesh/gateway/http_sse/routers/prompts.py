@@ -3,7 +3,6 @@ Prompts API router for prompt library feature.
 """
 from __future__ import annotations
 
-import re
 import uuid
 from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, HTTPException, Depends, Query, status
@@ -15,6 +14,7 @@ from ..services.prompt_builder_assistant import PromptBuilderAssistant
 from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config, get_user_display_name
 from ..repository.models import PromptGroupModel, PromptModel, PromptGroupUserModel
 from .dto.prompt_dto import (
+    COMMAND_RE,
     PromptGroupCreate,
     PromptGroupUpdate,
     PromptGroupResponse,
@@ -1247,14 +1247,8 @@ async def import_prompt(
             warnings.append("Category was truncated to 100 characters")
         
         command = prompt_info.get("command") if options.preserve_command else None
-        # Truncate command if it exceeds max length (50 chars)
-        if command and len(command) > 50:
-            command = command[:50]
-            warnings.append("Command was truncated to 50 characters")
-
-        # Validate command pattern — must match PromptGroupResponse, otherwise the
-        # imported row would be silently dropped from list responses.
-        if command and not re.fullmatch(r"[a-zA-Z0-9_-]+", command):
+        # Validate before truncating so a trailing invalid char isn't silently dropped.
+        if command and not COMMAND_RE.fullmatch(command):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
@@ -1262,6 +1256,9 @@ async def import_prompt(
                     "numbers, dashes, and underscores"
                 ),
             )
+        if command and len(command) > 50:
+            command = command[:50]
+            warnings.append("Command was truncated to 50 characters")
 
         prompt_text = prompt_info["prompt_text"]
         # Truncate prompt_text if it exceeds max length (10000 chars)

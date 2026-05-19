@@ -101,6 +101,34 @@ class TestPromptsInputValidation:
             detail = response.json().get("detail", "")
             assert invalid in detail
 
+    def test_create_prompt_with_trailing_newline_command_returns_422(self, api_client: TestClient):
+        """Trailing newline must be rejected — re.match/$ would pass it, fullmatch does not"""
+        response = api_client.post(
+            "/api/v1/prompts/groups",
+            json={
+                "name": "Test Prompt",
+                "command": "valid-cmd\n",
+                "initial_prompt": "Some prompt text",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_update_prompt_with_trailing_newline_command_returns_422(
+        self, api_client: TestClient, gateway_adapter: GatewayAdapter
+    ):
+        """Trailing newline must be rejected on PATCH — re.match/$ would pass it, fullmatch does not"""
+        group_id = gateway_adapter.seed_prompt_group(
+            group_id="patch-cmd-test",
+            name="Patch Command Test",
+            user_id="sam_dev_user",
+            initial_prompt="Some prompt text",
+        )
+        response = api_client.patch(
+            f"/api/v1/prompts/groups/{group_id}",
+            json={"command": "valid-cmd\n"},
+        )
+        assert response.status_code == 422
+
     def test_import_invalid_command_ignored_when_preserve_command_false(
         self, api_client: TestClient
     ):

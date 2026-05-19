@@ -4,6 +4,8 @@ import { z } from "zod";
  * Field length constraints matching backend validation
  * These values should be kept in sync with the backend DTO constraints
  */
+export const COMMAND_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
 export const PROMPT_FIELD_LIMITS = {
     NAME_MAX: 255,
     DESCRIPTION_MAX: 1000,
@@ -57,17 +59,23 @@ export const promptImportSchema = z.object({
 });
 
 /**
- * Schema for the editable command field in the import dialog
+ * Schema for the editable name/command fields in the import dialog
  */
-export const promptImportCommandSchema = z.object({
-    command: z.string().max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Command must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`).optional().or(z.literal("")),
+export const promptImportFormSchema = z.object({
+    name: z.string().min(1, "Name is required").max(PROMPT_FIELD_LIMITS.NAME_MAX, `Name must be ${PROMPT_FIELD_LIMITS.NAME_MAX} characters or less`),
+    command: z
+        .string()
+        .max(PROMPT_FIELD_LIMITS.COMMAND_MAX, `Chat shortcut must be ${PROMPT_FIELD_LIMITS.COMMAND_MAX} characters or less`)
+        .regex(COMMAND_PATTERN, "Chat shortcut can only contain letters, numbers, dashes, and underscores.")
+        .optional()
+        .or(z.literal("")),
 });
 
 /**
  * Type inference from the schemas
  */
 export type PromptImportData = z.infer<typeof promptImportSchema>;
-export type PromptImportCommandForm = z.infer<typeof promptImportCommandSchema>;
+export type PromptImportForm = z.infer<typeof promptImportFormSchema>;
 
 /**
  * Represents a warning about a field that will be truncated during import
