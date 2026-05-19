@@ -452,7 +452,7 @@ class ModelListService:
                     result.append(model.split("/", 1)[1])
                 else:
                     result.append(model)
-            return result
+            return sorted(result)
         except Exception as e:
             log.debug("Could not get models from LiteLLM registry for %s: %s", provider, e)
             return []
