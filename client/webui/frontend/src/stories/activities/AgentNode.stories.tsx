@@ -109,7 +109,9 @@ export const Selected: Story = {
     args: { node: leafNode, isSelected: true },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        expect(await canvas.findByText("MyAgent")).toBeInTheDocument();
+        const label = await canvas.findByText("MyAgent");
+        const wrapper = label.closest("[role='button']") as HTMLElement;
+        expect(wrapper.className).toMatch(/!border-\(--accent-n2-wMain\)/);
     },
 };
 
@@ -126,7 +128,10 @@ export const Skipped: Story = {
     args: { node: { ...leafNode, data: { ...leafNode.data, isSkipped: true } } },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        expect(await canvas.findByText("MyAgent")).toBeInTheDocument();
+        const label = await canvas.findByText("MyAgent");
+        const wrapper = label.closest("[role='button']") as HTMLElement;
+        expect(wrapper.className).toMatch(/opacity-50/);
+        expect(wrapper.className).toMatch(/border-dashed/);
     },
 };
 

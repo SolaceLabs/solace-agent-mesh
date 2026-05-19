@@ -42,7 +42,7 @@ const compactNode: LayoutNode = {
     height: 50,
     children: [],
     data: {
-        label: "MyLoop",
+        label: "OriginalLabel",
         maxIterations: 100,
     },
 };
@@ -69,6 +69,17 @@ export const CompactNoChildren: Story = {
         const canvas = within(canvasElement);
         expect(await canvas.findByText("Loop")).toBeInTheDocument();
         expect(canvas.getByText("max: 100")).toBeInTheDocument();
+    },
+};
+
+export const CompactIgnoresDataLabel: Story = {
+    args: {
+        node: { ...compactNode, data: { ...compactNode.data, label: "ShouldNotAppear" } },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(await canvas.findByText("Loop")).toBeInTheDocument();
+        expect(canvas.queryByText("ShouldNotAppear")).not.toBeInTheDocument();
     },
 };
 

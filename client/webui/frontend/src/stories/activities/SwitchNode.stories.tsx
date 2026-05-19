@@ -31,7 +31,7 @@ const baseNode: LayoutNode = {
     height: 80,
     children: [],
     data: {
-        label: "Switch",
+        label: "OriginalLabel",
     },
 };
 
@@ -41,6 +41,15 @@ export const NoCases: Story = {
         const canvas = within(canvasElement);
         expect(await canvas.findByText("Switch")).toBeInTheDocument();
         expect(canvas.queryByText(/cases$/)).not.toBeInTheDocument();
+    },
+};
+
+export const IgnoresDataLabel: Story = {
+    args: { node: { ...baseNode, data: { ...baseNode.data, label: "ShouldNotAppear" } } },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        expect(await canvas.findByText("Switch")).toBeInTheDocument();
+        expect(canvas.queryByText("ShouldNotAppear")).not.toBeInTheDocument();
     },
 };
 

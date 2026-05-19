@@ -35,7 +35,7 @@ const baseNode: LayoutNode = {
     },
 };
 
-const findClickable = (canvas: ReturnType<typeof within>) => canvas.getAllByRole("button").find(el => el.tagName === "DIV") as HTMLElement;
+const findClickable = (canvas: ReturnType<typeof within>) => canvas.getByRole("button");
 
 export const Default: Story = {
     args: {
