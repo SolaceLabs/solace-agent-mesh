@@ -1252,7 +1252,7 @@ async def import_prompt(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Invalid command {repr(command)}: must contain only letters, "
+                    f"Invalid command '{command}': must contain only letters, "
                     "numbers, dashes, and underscores"
                 ),
             )
@@ -1278,7 +1278,8 @@ async def import_prompt(
                 # Generate alternative command
                 counter = 2
                 while True:
-                    new_command = f"{original_command}-{counter}"
+                    suffix = f"-{counter}"
+                    new_command = f"{original_command[:50 - len(suffix)]}{suffix}"
                     existing_alt = db.query(PromptGroupModel).filter(
                         PromptGroupModel.command == new_command,
                         PromptGroupModel.user_id == user_id,

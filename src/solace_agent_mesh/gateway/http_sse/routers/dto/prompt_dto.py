@@ -6,7 +6,8 @@ import re
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
-COMMAND_RE = re.compile(r"[a-zA-Z0-9_-]+")
+COMMAND_PATTERN = r"^[a-zA-Z0-9_-]+$"
+COMMAND_RE = re.compile(COMMAND_PATTERN)
 
 
 class PromptBase(BaseModel):
@@ -69,6 +70,7 @@ class PromptGroupBase(BaseModel):
         None,
         min_length=1,
         max_length=50,
+        pattern=COMMAND_PATTERN,
         description="Shorthand command (alphanumeric, dash, underscore only)"
     )
 
@@ -99,6 +101,7 @@ class PromptGroupUpdate(BaseModel):
         None,
         min_length=1,
         max_length=50,
+        pattern=COMMAND_PATTERN,
     )
 
     @field_validator("command")
