@@ -181,7 +181,7 @@ export const PromptImportDialog: React.FC<PromptImportDialogProps> = ({ open, on
             setInitialNameConflict(conflictInfo.hasNameConflict);
             setInitialCommandConflict(conflictInfo.hasCommandConflict);
             setInitialNameInvalid(importedName.length > PROMPT_FIELD_LIMITS.NAME_MAX);
-            setInitialCommandInvalid(!!importedCommand && !COMMAND_PATTERN.test(importedCommand));
+            setInitialCommandInvalid(!!importedCommand && (!COMMAND_PATTERN.test(importedCommand) || importedCommand.length > PROMPT_FIELD_LIMITS.COMMAND_MAX));
         },
         [detectConflicts]
     );

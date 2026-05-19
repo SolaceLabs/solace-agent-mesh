@@ -79,6 +79,7 @@ class TestPromptsInputValidation:
             "cmd/sub",
             "cmd!",
             "cmd#1",
+            "valid-cmd\n",  # trailing newline — re.match with $ would incorrectly pass this
         ]:
             response = api_client.post(
                 "/api/v1/prompts/import",

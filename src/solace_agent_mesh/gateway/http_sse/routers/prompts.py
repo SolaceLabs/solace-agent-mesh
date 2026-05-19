@@ -1254,7 +1254,7 @@ async def import_prompt(
 
         # Validate command pattern — must match PromptGroupResponse, otherwise the
         # imported row would be silently dropped from list responses.
-        if command and not re.match(r"^[a-zA-Z0-9_-]+$", command):
+        if command and not re.fullmatch(r"[a-zA-Z0-9_-]+", command):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
