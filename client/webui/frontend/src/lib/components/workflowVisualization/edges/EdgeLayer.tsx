@@ -35,7 +35,7 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
     };
 
     return (
-        <svg data-testid="edge-layer" className="pointer-events-none absolute top-0 left-0" width={width} height={height} style={{ overflow: "visible" }}>
+        <svg className="pointer-events-none absolute top-0 left-0" width={width} height={height} style={{ overflow: "visible" }}>
             {/* Arrow marker definition */}
             <defs>
                 <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
@@ -49,12 +49,9 @@ const EdgeLayer: FC<EdgeLayerProps> = ({ edges, width, height }) => {
                 const isConditionPillEdge = edge.target.startsWith("__condition_");
 
                 return (
-                    <g key={edge.id} data-testid="edge-group">
+                    <g key={edge.id}>
                         {/* Main edge path */}
                         <path
-                            data-testid="edge-path"
-                            data-edge-id={edge.id}
-                            data-edge-kind={isConditionPillEdge ? "condition-pill" : edge.isStraight ? "straight" : "bezier"}
                             d={generatePath(edge)}
                             className="fill-none stroke-(--secondary-w40)"
                             strokeWidth={2}

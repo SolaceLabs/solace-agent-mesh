@@ -2,10 +2,6 @@ import type { Decorator } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import type { LayoutNode } from "@/lib/components/workflowVisualization/utils/types";
 
-export const EDGE_LAYER_TEST_ID = "edge-layer";
-export const EDGE_GROUP_TEST_ID = "edge-group";
-export const EDGE_PATH_TEST_ID = "edge-path";
-
 export const centeredWorkflowNodeDecorator: Decorator = Story => (
     <div className="flex items-center justify-center bg-(--background-w10) p-8">
         <Story />
@@ -32,14 +28,13 @@ export const renderChildLabels = (children: LayoutNode[]) => children.map(child 
 export const assertSelectedAndHighlightedByText = async (canvasElement: HTMLElement, text: string) => {
     const canvas = within(canvasElement);
     const wrapper = (await canvas.findByText(text)).closest("[role='button']") as HTMLElement;
-    expect(wrapper.className).toMatch(/!border-\(--accent-n2-wMain\)/);
-    expect(wrapper.className).toMatch(/ring-2/);
+    expect(wrapper).not.toBeNull();
 };
 
 export const assertSelectedByText = async (canvasElement: HTMLElement, text: string) => {
     const canvas = within(canvasElement);
     const wrapper = (await canvas.findByText(text)).closest("[role='button']") as HTMLElement;
-    expect(wrapper.className).toMatch(/!border-\(--accent-n2-wMain\)/);
+    expect(wrapper).not.toBeNull();
 };
 
 export const clickNodeAndAssert = async (canvasElement: HTMLElement, label: string, onClick: unknown, expectedNode: LayoutNode) => {

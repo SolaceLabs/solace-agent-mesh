@@ -12,10 +12,6 @@ const WorkflowRefNode: React.FC<NodeProps> = ({ node, isSelected, isHighlighted,
 
     return (
         <div
-            data-testid="workflow-node"
-            data-node-type="workflow"
-            data-selected={isSelected ? "true" : "false"}
-            data-highlighted={isHighlighted ? "true" : "false"}
             className={`${NODE_BASE_STYLES.RECTANGULAR} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
             style={{
                 width: `${node.width}px`,
