@@ -44,6 +44,10 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
     if (isCollapsed || !hasChildren) {
         return (
             <div
+                data-testid="workflow-node"
+                data-node-type="loop"
+                data-selected={isSelected ? "true" : "false"}
+                data-highlighted={isHighlighted ? "true" : "false"}
                 {...clickableNodeProps(() => onClick?.(node))}
                 className={`${NODE_BASE_STYLES.RECTANGULAR_COMPACT} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
                 style={{
@@ -91,7 +95,14 @@ const LoopNode: FC<LoopNodeProps> = ({ node, isSelected, isHighlighted, onClick,
             </div>
 
             {/* Solid Header Box - straddles the dotted container border */}
-            <div className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`} {...clickableNodeProps(() => onClick?.(node))}>
+            <div
+                data-testid="workflow-node"
+                data-node-type="loop"
+                data-selected={isSelected ? "true" : "false"}
+                data-highlighted={isHighlighted ? "true" : "false"}
+                className={`${NODE_BASE_STYLES.CONTAINER_HEADER} ${isSelected ? NODE_SELECTED_CLASS : ""} ${isHighlighted ? NODE_HIGHLIGHT_CLASSES : ""}`}
+                {...clickableNodeProps(() => onClick?.(node))}
+            >
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-4 px-4 py-2">
                     <div className="flex items-center gap-2">

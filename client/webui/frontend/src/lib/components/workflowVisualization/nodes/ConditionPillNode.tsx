@@ -33,6 +33,9 @@ const ConditionPillNode: React.FC<NodeProps> = ({ node, isSelected, onClick, onH
 
     return (
         <div
+            data-testid="workflow-node"
+            data-node-type="condition"
+            data-selected={isSelected ? "true" : "false"}
             {...clickableNodeProps(() => onClick?.(node))}
             className={`${NODE_BASE_STYLES.CONDITION_PILL} text-(--secondary-text-wMain) ${isSelected ? NODE_SELECTED_CLASS_COMPACT : ""}`}
             style={{
