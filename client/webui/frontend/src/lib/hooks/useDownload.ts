@@ -32,7 +32,8 @@ export const useDownload = (projectIdOverride?: string | null) => {
     const onDownload = async (artifact: ArtifactInfo) => {
         try {
             const effectiveProjectId = projectIdOverride || activeProject?.id || null;
-            await downloadArtifactFile(sessionId, effectiveProjectId, artifact);
+            const effectiveSessionId = projectIdOverride ? null : sessionId;
+            await downloadArtifactFile(effectiveSessionId, effectiveProjectId, artifact);
             addNotification(`Downloaded artifact: ${artifact.filename}.`, "success");
         } catch (error) {
             displayError({ title: "Failed to Download Artifact", error: getErrorMessage(error, "An unknown error occurred while downloading the artifact.") });
