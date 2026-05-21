@@ -1,21 +1,24 @@
 # Regression test for issue #1261:
 #
-# _generate_workflow_instructions (handler.py) must reference the real tool
-# "append_to_artifact" in its prompt, not the non-existent "save_artifact".
+# _generate_workflow_instructions (handler.py) must not reference "save_artifact"
+# as a tool name. save_artifact is not a registered tool — it is the keyword
+# used inside the inline fenced block syntax («««save_artifact:...»»»).
 #
 # When a workflow node receives a StructuredInvocationRequest with an
 # output_schema, the handler injects instructions into the LLM prompt. The
-# injected text previously said "Use the save_artifact tool", which caused
-# LLMs to hallucinate tool names ($RESULT_TOOL, $ARTIFACT_TOOL etc.) and
-# triggered an unnecessary retry round-trip.
+# injected text previously said "Use the save_artifact tool", causing LLMs to
+# hallucinate tool names ($RESULT_TOOL, $ARTIFACT_TOOL etc.) and trigger an
+# unnecessary retry round-trip.
+#
+# The correct artifact creation mechanism is the inline fenced block syntax, NOT a tool call.
 #
 # This test verifies:
-#   1. append_to_artifact IS present in the tool list sent to the LLM
-#   2. save_artifact is NOT present (it is not a registered tool)
+#   1. append_to_artifact IS present in the tool list (it is a real registered tool)
+#   2. save_artifact is NOT present as a tool (it is not a registered tool)
 #   3. The workflow completes in a single round-trip per node (no retry)
 
 test_case_id: "workflow_correct_artifact_tool_in_prompt_001"
-description: "Regression guard for issue #1261: workflow node prompt must reference append_to_artifact, not save_artifact."
+description: "Regression guard for issue #1261: workflow node prompt must not reference save_artifact as a tool; inline fenced block syntax is the correct artifact creation mechanism."
 tags: ["all", "workflows", "validation"]
 skip_intermediate_events: true
 expected_completion_timeout_seconds: 20
