@@ -38,6 +38,14 @@ BM25_INDEX_FILENAME = "project_bm25_index.zip"
 DEFAULT_SCHEMA_MAX_KEYS = 20
 DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 
+# Caps concurrent artifact-metadata S3 loads across the whole process. Without
+# this, get_artifact_info_list_fast does an unbounded asyncio.gather over every
+# artifact in a session, and the /api/v1/artifacts/all router fans out across
+# many sessions in parallel. Under multi-user load the combined fan-out
+# exhausts the botocore connection pool (default 200), discards connections,
+# and stalls the FastAPI event loop on TLS handshakes for unrelated requests.
+_METADATA_LOAD_SEMAPHORE = asyncio.Semaphore(50)
+
 
 def is_internal_artifact(filename: str) -> bool:
     """
@@ -1305,16 +1313,17 @@ async def get_artifact_info_list_fast(
         async def _load_single_metadata(filename: str) -> Optional[ArtifactInfo]:
             """Load metadata for a single artifact. Returns None on failure."""
             try:
-                data = await load_artifact_content_or_metadata(
-                    artifact_service=artifact_service,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    version="latest",
-                    load_metadata_only=True,
-                    log_identifier_prefix=f"{log_prefix} [{filename}]",
-                )
+                async with _METADATA_LOAD_SEMAPHORE:
+                    data = await load_artifact_content_or_metadata(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=filename,
+                        version="latest",
+                        load_metadata_only=True,
+                        log_identifier_prefix=f"{log_prefix} [{filename}]",
+                    )
 
                 # `version` is the metadata file's resolved-latest version,
                 # captured for free here (load_artifact_content_or_metadata
