@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
+  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/main/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </p>
 <h2 align="center">
   Solace Agent Mesh
@@ -220,5 +220,5 @@ pytest
 ---
 
 <h3 align="center">
-  <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
+  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/main/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
