@@ -626,6 +626,96 @@ class TestS3ArtifactServiceListArtifactKeys:
         assert keys == []
 
 
+class TestS3ArtifactServiceListArtifactKeysWithLatestVersions:
+    """Tests for list_artifact_keys_with_latest_versions method"""
+
+    @pytest.mark.asyncio
+    async def test_returns_max_version_per_filename(self, mock_s3_client):
+        """Multiple versions of the same key collapse to the highest version."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        session_objects = [
+            {'Key': 'app/u1/sess1/doc.txt/0'},
+            {'Key': 'app/u1/sess1/doc.txt/2'},
+            {'Key': 'app/u1/sess1/doc.txt/1'},
+            {'Key': 'app/u1/sess1/doc.txt.metadata.json/0'},
+            {'Key': 'app/u1/sess1/doc.txt.metadata.json/2'},
+            {'Key': 'app/u1/sess1/doc.txt.metadata.json/1'},
+        ]
+        paginator.paginate.side_effect = [
+            [{'Contents': session_objects}],
+            [{'Contents': []}],
+        ]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_artifact_keys_with_latest_versions(
+            app_name="app", user_id="u1", session_id="sess1"
+        )
+
+        assert result == {"doc.txt": 2, "doc.txt.metadata.json": 2}
+
+    @pytest.mark.asyncio
+    async def test_user_scoped_keys_carry_user_prefix(self, mock_s3_client):
+        """User-namespaced keys are prefixed with 'user:' to match list_artifact_keys."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        paginator.paginate.side_effect = [
+            [{'Contents': []}],
+            [{'Contents': [
+                {'Key': 'app/u1/user/profile.json/0'},
+                {'Key': 'app/u1/user/profile.json/1'},
+            ]}],
+        ]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_artifact_keys_with_latest_versions(
+            app_name="app", user_id="u1", session_id="sess1"
+        )
+
+        assert result == {"user:profile.json": 1}
+
+    @pytest.mark.asyncio
+    async def test_skips_keys_with_non_integer_version_segment(self, mock_s3_client):
+        """Defensive: keys whose version segment isn't a number are skipped, not crashed on."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        paginator.paginate.side_effect = [
+            [{'Contents': [
+                {'Key': 'app/u1/sess1/ok.txt/3'},
+                {'Key': 'app/u1/sess1/weird.txt/not-a-number'},
+            ]}],
+            [{'Contents': []}],
+        ]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_artifact_keys_with_latest_versions(
+            app_name="app", user_id="u1", session_id="sess1"
+        )
+
+        assert result == {"ok.txt": 3}
+
+    @pytest.mark.asyncio
+    async def test_client_error_returns_partial_result(self, mock_s3_client):
+        """If one prefix LIST fails, the other still contributes (mirrors list_artifact_keys)."""
+        service = S3ArtifactService("test-bucket", s3_client=mock_s3_client)
+
+        paginator = Mock()
+        paginator.paginate.side_effect = [
+            ClientError({'Error': {'Code': '403'}}, 'ListObjectsV2'),
+            [{'Contents': [{'Key': 'app/u1/user/u.json/0'}]}],
+        ]
+        mock_s3_client.get_paginator.return_value = paginator
+
+        result = await service.list_artifact_keys_with_latest_versions(
+            app_name="app", user_id="u1", session_id="sess1"
+        )
+
+        assert result == {"user:u.json": 0}
+
+
 class TestS3ArtifactServiceListSessionsWithArtifactsForUser:
     """Tests for list_sessions_with_artifacts_for_user method"""
 
