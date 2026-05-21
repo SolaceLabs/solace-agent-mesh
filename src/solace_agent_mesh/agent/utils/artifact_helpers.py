@@ -1296,10 +1296,32 @@ async def get_artifact_info_list_fast(
     log_prefix = f"[ArtifactHelper:get_info_list_fast] App={app_name}, User={user_id}, Session={session_id} -"
 
     try:
-        list_keys_method = getattr(artifact_service, "list_artifact_keys")
-        keys = await list_keys_method(
-            app_name=app_name, user_id=user_id, session_id=session_id
+        # If the service can give us filenames + latest versions in a single
+        # listing pass, use that — load_artifact_content_or_metadata then skips
+        # its own per-artifact list_versions call to resolve "latest", saving
+        # one S3 round-trip per artifact on this list path.
+        keys_with_versions_method = getattr(
+            artifact_service, "list_artifact_keys_with_latest_versions", None
         )
+        latest_metadata_version_by_filename: Dict[str, int] = {}
+        if keys_with_versions_method is not None:
+            version_map = await keys_with_versions_method(
+                app_name=app_name, user_id=user_id, session_id=session_id
+            )
+            keys = list(version_map.keys())
+            # The metadata.json file's latest version drives what we load. In
+            # normal save flows it matches the content version, but the
+            # metadata sidecar is the source of truth here because that's what
+            # load_artifact_content_or_metadata(load_metadata_only=True) reads.
+            for key, version in version_map.items():
+                if key.endswith(METADATA_SUFFIX):
+                    base_filename = key[: -len(METADATA_SUFFIX)]
+                    latest_metadata_version_by_filename[base_filename] = version
+        else:
+            list_keys_method = getattr(artifact_service, "list_artifact_keys")
+            keys = await list_keys_method(
+                app_name=app_name, user_id=user_id, session_id=session_id
+            )
         log.debug("%s Found %d artifact keys.", log_prefix, len(keys))
 
         # Filter out metadata suffix keys
@@ -1313,6 +1335,15 @@ async def get_artifact_info_list_fast(
         async def _load_single_metadata(filename: str) -> Optional[ArtifactInfo]:
             """Load metadata for a single artifact. Returns None on failure."""
             try:
+                # Pass the concrete metadata version when we have it so the
+                # loader skips its internal list_versions "latest" resolve.
+                # Falls back to "latest" for services that don't expose
+                # list_artifact_keys_with_latest_versions, or for content
+                # artifacts that somehow have no matching metadata key
+                # (defensive — same-version save invariant should hold).
+                version_to_load: int | str = latest_metadata_version_by_filename.get(
+                    filename, "latest"
+                )
                 async with _METADATA_LOAD_SEMAPHORE:
                     data = await load_artifact_content_or_metadata(
                         artifact_service=artifact_service,
@@ -1320,17 +1351,16 @@ async def get_artifact_info_list_fast(
                         user_id=user_id,
                         session_id=session_id,
                         filename=filename,
-                        version="latest",
+                        version=version_to_load,
                         load_metadata_only=True,
                         log_identifier_prefix=f"{log_prefix} [{filename}]",
                     )
 
-                # `version` is the metadata file's resolved-latest version,
-                # captured for free here (load_artifact_content_or_metadata
-                # already had to call list_versions to resolve "latest"). The
-                # WebUI's attach-artifact dialog uses this to pre-fill its
-                # version picker default with a concrete number rather than a
-                # "Latest" sentinel.
+                # `version` is the metadata file's resolved version, returned
+                # by load_artifact_content_or_metadata. The WebUI's
+                # attach-artifact dialog uses this to pre-fill its version
+                # picker default with a concrete number rather than a "Latest"
+                # sentinel.
                 info = _metadata_to_artifact_info(
                     filename,
                     data.get("metadata", {}),

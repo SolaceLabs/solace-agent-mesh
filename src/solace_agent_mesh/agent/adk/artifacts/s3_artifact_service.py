@@ -377,6 +377,78 @@ class S3ArtifactService(BaseArtifactService):
         logger.debug("%sFound %d artifact keys.", log_prefix, len(sorted_filenames))
         return sorted_filenames
 
+    async def list_artifact_keys_with_latest_versions(
+        self, *, app_name: str, user_id: str, session_id: str
+    ) -> dict[str, int]:
+        """Like list_artifact_keys, but also returns the latest version per key.
+
+        Returns a dict mapping each filename (as stored, including any
+        ``.metadata.json`` suffix, and prefixed with ``user:`` for
+        user-scoped artifacts to match list_artifact_keys) to its highest
+        version number observed in S3.
+
+        Built from the same paginated ListObjectsV2 walk that
+        list_artifact_keys runs, so the version map is captured for free.
+        Callers on the list path can use this to pass a concrete version
+        into load_artifact_content_or_metadata and avoid an extra
+        list_versions S3 round-trip per artifact.
+        """
+        log_prefix = "[S3Artifact:ListKeysWithVersions] "
+        latest: dict[str, int] = {}
+        app_name = app_name.strip("/")
+
+        def _walk(pages, key_prefix: str = "") -> None:
+            for page in pages:
+                for obj in page.get("Contents", []):
+                    parts = obj["Key"].split("/")
+                    if len(parts) < 5:
+                        continue
+                    try:
+                        version = int(parts[4])
+                    except ValueError:
+                        # Non-integer version segment — unexpected, skip.
+                        continue
+                    name = f"{key_prefix}{parts[3]}"
+                    if version > latest.get(name, -1):
+                        latest[name] = version
+
+        session_prefix = f"{app_name}/{user_id}/{session_id}/"
+        try:
+
+            def _list_session_objects():
+                paginator = self.s3.get_paginator("list_objects_v2")
+                return paginator.paginate(
+                    Bucket=self.bucket_name, Prefix=session_prefix
+                )
+
+            _walk(await asyncio.to_thread(_list_session_objects))
+        except ClientError as e:
+            logger.warning(
+                "%sError listing session objects with prefix '%s': %s",
+                log_prefix,
+                session_prefix,
+                e,
+            )
+
+        user_prefix = f"{app_name}/{user_id}/user/"
+        try:
+
+            def _list_user_objects():
+                paginator = self.s3.get_paginator("list_objects_v2")
+                return paginator.paginate(Bucket=self.bucket_name, Prefix=user_prefix)
+
+            _walk(await asyncio.to_thread(_list_user_objects), key_prefix="user:")
+        except ClientError as e:
+            logger.warning(
+                "%sError listing user objects with prefix '%s': %s",
+                log_prefix,
+                user_prefix,
+                e,
+            )
+
+        logger.debug("%sFound %d artifact keys.", log_prefix, len(latest))
+        return latest
+
     async def list_sessions_with_artifacts_for_user(
         self, *, app_name: str, user_id: str
     ) -> set[str] | None:
