@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.26.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.1...1.26.0) (2026-05-21)
+
+
+### Features
+
+* **DATAGO-135978:** Revert model configuration - optionally allow model setup in sam init --gui ([#1532](https://github.com/SolaceLabs/solace-agent-mesh/issues/1532)) ([03c630a](https://github.com/SolaceLabs/solace-agent-mesh/commit/03c630a71cc20ac6aa5bef3df57a0791846b20c4))
+
+
+### Bug Fixes
+
+* **ci:** bump libc6 pin to 2.41-12+deb13u3 to unblock Docker build ([#1548](https://github.com/SolaceLabs/solace-agent-mesh/issues/1548)) ([b19a896](https://github.com/SolaceLabs/solace-agent-mesh/commit/b19a8969c2713f1e405cc64106d287e4eaba6c49))
+* **DATAGO-134649:** sort litellm fallback model list for OpenAI provider ([#1541](https://github.com/SolaceLabs/solace-agent-mesh/issues/1541)) ([3118fa7](https://github.com/SolaceLabs/solace-agent-mesh/commit/3118fa717678ea15ae464ccb7375d26973943573))
+* **DATAGO-136673:** bump python-multipart, mako, solace-ai-connector for vuln fixes ([#1549](https://github.com/SolaceLabs/solace-agent-mesh/issues/1549)) ([00f6a35](https://github.com/SolaceLabs/solace-agent-mesh/commit/00f6a35071171d42c6f87a625e597812bb894268))
+* **DATAGO-136753:** Missing RBAC handling and documentation on model config endpoints ([#1540](https://github.com/SolaceLabs/solace-agent-mesh/issues/1540)) ([47ee6cf](https://github.com/SolaceLabs/solace-agent-mesh/commit/47ee6cfc37b9a3b11a567a63f5561c4827209bec))
+* **DATAGO-137421:** WebUI slow due to S3 connection pool exhaustion on /api/v1/artifacts/all ([#1550](https://github.com/SolaceLabs/solace-agent-mesh/issues/1550)) ([4c15cf3](https://github.com/SolaceLabs/solace-agent-mesh/commit/4c15cf30ba65f10e58039dce1da5ec0f5d5bf418))
+
+
+### Documentation
+
+* **DATAGO-136350:** default EVAL_DATA_BUCKET_NAME so Quickstart K8s installs retain eval artifacts ([#1531](https://github.com/SolaceLabs/solace-agent-mesh/issues/1531)) ([d2ff4f8](https://github.com/SolaceLabs/solace-agent-mesh/commit/d2ff4f8cdc32acba2e9603b5696d8b8fe4a26b03))
+
 ## [1.25.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.0...1.25.1) (2026-05-13)
 
 
