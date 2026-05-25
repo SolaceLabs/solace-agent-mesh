@@ -62,6 +62,7 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Pin libc6=2.41-12+deb13u3 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 # Pin libcap2=1:2.75-10+deb13u1+b1 to fix CVE-2026-4878 (TOCTOU race condition)
+# Pin libsystemd0/libudev1=257.13-1~deb13u1 to fix CVE-2026-40226, CVE-2026-40225, CVE-2026-29111, CVE-2026-4105
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -77,6 +78,8 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libpng16-16t64=1.6.48-1+deb13u5 \
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
+    libsystemd0=257.13-1~deb13u1 \
+    libudev1=257.13-1~deb13u1 \
     libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.5-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
@@ -162,6 +165,7 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Pin libc6=2.41-12+deb13u3 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 # Pin libcap2=1:2.75-10+deb13u1+b1 to fix CVE-2026-4878 (TOCTOU race condition)
+# Pin libsystemd0/libudev1=257.13-1~deb13u1 to fix CVE-2026-40226, CVE-2026-40225, CVE-2026-29111, CVE-2026-4105
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -176,6 +180,8 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libpng16-16t64=1.6.48-1+deb13u5 \
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
+    libsystemd0=257.13-1~deb13u1 \
+    libudev1=257.13-1~deb13u1 \
     libvpx9=1.15.0-2.1+deb13u1 \
     openssl=3.5.5-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
