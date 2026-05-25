@@ -83,6 +83,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1 && \
     python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade "pip==26.1.1" && \
     uv pip install --system "virtualenv<21" hatch
 
 WORKDIR /app
