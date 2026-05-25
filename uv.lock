@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10.16, <3.14"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform == 'win32'",
@@ -4715,6 +4715,7 @@ dependencies = [
     { name = "kaleido" },
     { name = "litellm" },
     { name = "lxml" },
+    { name = "mako" },
     { name = "markdownify" },
     { name = "markitdown", extra = ["all"] },
     { name = "mermaid-cli" },
@@ -4821,6 +4822,7 @@ requires-dist = [
     { name = "kaleido", specifier = "==0.2.1" },
     { name = "litellm", specifier = "==1.83.14" },
     { name = "lxml", specifier = "==6.1.0" },
+    { name = "mako", specifier = ">=1.3.12" },
     { name = "markdownify", specifier = "==1.2.0" },
     { name = "markitdown", extras = ["all"], specifier = "==0.1.4" },
     { name = "mermaid-cli", specifier = "==0.1.2" },

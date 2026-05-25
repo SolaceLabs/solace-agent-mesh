@@ -68,6 +68,7 @@ dependencies = [
     "rouge==1.0.1",
     "SQLAlchemy==2.0.40",
     "alembic==1.16.5",
+    "mako>=1.3.12",  # [CVE-2026-44307, CVE-2026-41205] Security fix: path traversal vulnerabilities (transitive from alembic)
     "openai==2.24.0",
     "rich==13.9.4",
     "boto3==1.40.37",
