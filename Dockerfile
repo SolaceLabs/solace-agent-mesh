@@ -68,7 +68,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     build-essential \
     curl \
     dpkg=1.22.22 \
-    ffmpeg=7:7.1.3-0+deb13u1  \
+    ffmpeg=7:7.1.4-0+deb13u1  \
     git \
     libc6=2.41-12+deb13u3 \
     libtasn1-6/unstable \
@@ -164,7 +164,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     apt-get update && \
     apt-get install -y --no-install-recommends \
     dpkg=1.22.22 \
-    ffmpeg=7:7.1.3-0+deb13u1 \
+    ffmpeg=7:7.1.4-0+deb13u1 \
     git \
     libatomic1 \
     libc6=2.41-12+deb13u3 \
