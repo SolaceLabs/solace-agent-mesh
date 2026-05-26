@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.26.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.26.0...1.26.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* **DATAGO-132491:** bump mako to 1.3.12 for security vulnerabilities ([#1554](https://github.com/SolaceLabs/solace-agent-mesh/issues/1554)) ([cc1a845](https://github.com/SolaceLabs/solace-agent-mesh/commit/cc1a845eac38156d4567b11d4c56c652cac69337))
+* **DATAGO-134066:** bump authlib to 1.6.12+ for CVE-2026-41425, CVE-2026-44681 ([#1559](https://github.com/SolaceLabs/solace-agent-mesh/issues/1559)) ([ea29b0d](https://github.com/SolaceLabs/solace-agent-mesh/commit/ea29b0d45dfb8d3c7149f2c0b8123207c728a90a))
+* **DATAGO-135330:** upgrade pip to 26.1+ for CVE-2026-6357, CVE-2026-3219 ([#1562](https://github.com/SolaceLabs/solace-agent-mesh/issues/1562)) ([35ff2d1](https://github.com/SolaceLabs/solace-agent-mesh/commit/35ff2d14f791f35e48af6a6ef10b30e0166f9013))
+* **DATAGO-135331:** bump npm to 11.15.0 for CVE-2026-42338, CVE-2026-45149 ([#1561](https://github.com/SolaceLabs/solace-agent-mesh/issues/1561)) ([59768b9](https://github.com/SolaceLabs/solace-agent-mesh/commit/59768b98f73060d066850d40da71035e4b3c85e5))
+* **DATAGO-136672:** bump python-liquid to 2.2.0 for CVE-2026-45017 ([#1557](https://github.com/SolaceLabs/solace-agent-mesh/issues/1557)) ([35c0b14](https://github.com/SolaceLabs/solace-agent-mesh/commit/35c0b145ecfc7f8bc2a03ab8cf16fcb13733818a))
+* **DATAGO-136970:** bump ffmpeg to 7.1.4 for CVE-2026-40962 ([#1556](https://github.com/SolaceLabs/solace-agent-mesh/issues/1556)) ([852d0e6](https://github.com/SolaceLabs/solace-agent-mesh/commit/852d0e60dbd8dd4e52307ffdffe9bb44f20f0a72))
+* **DATAGO-137348:** bump idna to 3.15 for CVE-2026-45409 ([#1560](https://github.com/SolaceLabs/solace-agent-mesh/issues/1560)) ([d5a2c31](https://github.com/SolaceLabs/solace-agent-mesh/commit/d5a2c31307dabfb49702df33cf5e0d0dcb58963f))
+* **DATAGO-137349:** pin libcap2 to 1:2.75-10+deb13u1+b1 for CVE-2026-4878 ([#1558](https://github.com/SolaceLabs/solace-agent-mesh/issues/1558)) ([3cb0c3c](https://github.com/SolaceLabs/solace-agent-mesh/commit/3cb0c3c74fd41214b4727c8eaca27d7a4f885730))
+
 ## [1.26.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.25.1...1.26.0) (2026-05-21)
 
 
