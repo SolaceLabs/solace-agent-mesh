@@ -1727,3 +1727,75 @@ class TestGetArtifactInfoListFast:
             session_id="sess",
         )
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_uses_keys_with_versions_when_available(self):
+        """When the service exposes list_artifact_keys_with_latest_versions,
+        load_artifact_content_or_metadata is called with the concrete metadata
+        version (not 'latest'), so its internal list_versions step is skipped.
+        """
+        svc = AsyncMock(spec=BaseArtifactService)
+        svc.list_artifact_keys_with_latest_versions = AsyncMock(
+            return_value={
+                "report.csv": 3,
+                "report.csv.metadata.json": 3,
+                "notes.txt": 1,
+                "notes.txt.metadata.json": 1,
+            }
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 50},
+                "version": 3,
+            }
+            result = await get_artifact_info_list_fast(
+                artifact_service=svc,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+
+        # list_artifact_keys (the old per-artifact-version-resolving path) must
+        # not be called when the richer method is available.
+        assert not hasattr(svc, "list_artifact_keys") or not svc.list_artifact_keys.called
+        # Both content files come back, metadata sidecars are filtered out.
+        assert {r.filename for r in result} == {"report.csv", "notes.txt"}
+        # Each load was called with a concrete int version sourced from the map,
+        # never the "latest" sentinel.
+        load_versions = [call.kwargs["version"] for call in mock_load.call_args_list]
+        assert "latest" not in load_versions
+        assert sorted(load_versions) == [1, 3]
+
+    @pytest.mark.asyncio
+    async def test_keys_with_versions_falls_back_to_latest_when_metadata_missing(self):
+        """If the version map lacks a metadata sidecar for a content key
+        (unexpected, but defensive), the loader is asked for 'latest' so the
+        artifact still resolves rather than silently dropping."""
+        svc = AsyncMock(spec=BaseArtifactService)
+        svc.list_artifact_keys_with_latest_versions = AsyncMock(
+            return_value={
+                # Only the content key; no .metadata.json entry.
+                "orphan.bin": 7,
+            }
+        )
+
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "application/octet-stream", "size_bytes": 1},
+                "version": 7,
+            }
+            await get_artifact_info_list_fast(
+                artifact_service=svc,
+                app_name="app",
+                user_id="user",
+                session_id="sess",
+            )
+
+        assert mock_load.call_args.kwargs["version"] == "latest"
