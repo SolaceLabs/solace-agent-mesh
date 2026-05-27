@@ -775,7 +775,7 @@ You MUST follow these steps to complete this task:
    If validation fails, you will be asked to retry with error feedback.
 
 IMPORTANT NOTES:
-- Create the output artifact using the inline fenced block syntax («««save_artifact: filename=... mime_type=...»»»), NOT a tool call
+- Create the output artifact using the inline fenced block syntax («««save_artifact: filename="..." mime_type="..."»»»), NOT a tool call
 - The result embed («result:artifact=...») is MANDATORY - the invocation will fail without it
 - The artifact format (JSON, YAML, etc.) must be parseable
 - Additional fields beyond the schema are allowed, but all required fields must be present
