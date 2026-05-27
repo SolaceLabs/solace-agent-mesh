@@ -222,3 +222,41 @@ pytest
 <h3 align="center">
   <img src="./docs/static/img/solace-logo-text.svg" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
+
+## FAQ
+
+### What is Solace Agent Mesh?
+
+Solace Agent Mesh (SAM) is an open-source framework for building event-driven multi-agent AI systems. Multiple specialized AI agents work together using Solace Platform event messaging for scalability and reliability.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| Multi-Agent Event-Driven | Solace Event Mesh for scalability |
+| Agent Orchestration | Orchestrator breaks down tasks |
+| Flexible Interfaces | REST API, web UI, Slack, custom |
+| Extensible | Add agents, gateways, services |
+| Agent-to-Agent | A2A Protocol |
+| Dynamic Embeds | Embed real-time data |
+
+### Quick Start
+
+```bash
+mkdir my-sam && cd my-sam
+python3 -m venv .venv && source .venv/bin/activate
+pip install solace-agent-mesh
+sam -v
+```
+
+### Requirements
+
+Python 3.10.16-3.13.x, pip, macOS/Linux/Windows(WSL), LLM API key
+
+### License
+
+Apache 2.0 License
+
+### Help
+
+[Docs](https://solacelabs.github.io/solace-agent-mesh/)
