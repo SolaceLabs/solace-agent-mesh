@@ -17,7 +17,7 @@ export const FileDetailsDialog: React.FC<FileDetailsDialogProps> = ({ isOpen, ar
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-xl max-w-xl sm:max-w-xl">
+            <DialogContent className="w-[95vw] max-w-xl sm:max-w-xl">
                 <DialogHeader>
                     <div className="flex justify-between">
                         <h2 className="text-lg font-semibold">Project File Details</h2>

@@ -80,6 +80,7 @@ export const AgentMeshCards: React.FC<AgentMeshCardsProps> = ({ agents, selected
                                         ref={node => {
                                             cardRefs.current[agent.name] = node;
                                         }}
+                                        className="w-full sm:w-auto"
                                     >
                                         <AgentDisplayCard agent={agent} isExpanded={expandedAgentName === agent.name} onToggleExpand={() => handleToggleExpand(agent.name)} />
                                     </div>

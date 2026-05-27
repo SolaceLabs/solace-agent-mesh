@@ -16,7 +16,7 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, o
     // Don't render if there are no layouts or only one layout
     return layouts && layouts.length > 1 ? (
         <div className={`flex items-center space-x-1 ${className}`}>
-            <span className={`hidden text-sm font-semibold sm:inline`}>Layout:</span>
+            <span className="hidden text-sm font-semibold sm:inline">Layout:</span>
             <div className="flex gap-1 rounded-sm p-1">
                 {layouts.map(layout => {
                     const Icon = layout.icon;

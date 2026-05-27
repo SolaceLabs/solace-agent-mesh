@@ -35,9 +35,9 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ open, ti
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent className="w-xl max-w-xl sm:max-w-xl">
+            <DialogContent className="w-[95vw] max-w-xl sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle className="flex max-w-[400px] flex-row gap-1">{title}</DialogTitle>
+                    <DialogTitle className="flex min-w-0 flex-row gap-1 break-words">{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <div className="min-w-0 break-words">{content}</div>

@@ -358,20 +358,20 @@ export const RecentChatsPage: React.FC = () => {
                             <div className="flex justify-center">
                                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                                     <TabsList className="bg-transparent p-0">
-                                        <TabsTrigger value="chat" className="rounded-none rounded-l-md px-6">
+                                        <TabsTrigger value="chat" className="rounded-none rounded-l-md px-3 sm:px-6" title="Chats">
                                             <MessageCircle className="h-4 w-4 shrink-0" />
-                                            Chats
+                                            <span className="hidden sm:inline">Chats</span>
                                         </TabsTrigger>
                                         {configFeatureEnablement?.scheduler && (
-                                            <TabsTrigger value="scheduler" className={`rounded-none border-l-0 px-6 ${chatSharingEnabled ? "" : "rounded-r-md"}`}>
+                                            <TabsTrigger value="scheduler" className={`rounded-none border-l-0 px-3 sm:px-6 ${chatSharingEnabled ? "" : "rounded-r-md"}`} title="Scheduled Tasks">
                                                 <CalendarDays className="h-4 w-4 shrink-0" />
-                                                Scheduled Tasks
+                                                <span className="hidden sm:inline">Scheduled Tasks</span>
                                             </TabsTrigger>
                                         )}
                                         {chatSharingEnabled && (
-                                            <TabsTrigger value="shared" className="rounded-none rounded-r-md border-l-0 px-6">
+                                            <TabsTrigger value="shared" className="rounded-none rounded-r-md border-l-0 px-3 sm:px-6" title="Shared with Me">
                                                 <Share2 className="h-4 w-4 shrink-0" />
-                                                Shared with Me
+                                                <span className="hidden sm:inline">Shared with Me</span>
                                             </TabsTrigger>
                                         )}
                                     </TabsList>
@@ -381,16 +381,16 @@ export const RecentChatsPage: React.FC = () => {
 
                         {/* Search and Filter Bar - only show when there are sessions and not on shared tab */}
                         {activeTab !== "shared" && sessions.length > 0 && (
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                                     <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
                                 </div>
 
                                 {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex min-w-0 items-center gap-2">
                                         <label className="text-sm font-medium">Project:</label>
                                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                                            <SelectTrigger className="w-[200px] rounded-md">
+                                            <SelectTrigger className="min-w-0 flex-1 rounded-md sm:w-[200px] sm:flex-none">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>

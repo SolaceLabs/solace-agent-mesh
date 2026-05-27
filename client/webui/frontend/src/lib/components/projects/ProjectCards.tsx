@@ -35,16 +35,16 @@ interface ProjectCardsProps {
 export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectClick, onCreateNew, onDelete, onExport, isLoading = false, onShare, onTogglePin, isPinToggling }: ProjectCardsProps) => {
     return (
         <div className="flex h-full flex-col">
-            <div className="flex h-full flex-col pt-6 pb-6 pl-6">
+            <div className="flex h-full flex-col px-4 py-4 sm:pt-6 sm:pr-0 sm:pb-6 sm:pl-6">
                 <OnboardingBanner
                     storageKey={PROJECTS_ONBOARDING_DISMISSED_KEY}
                     header={PROJECTS_DESCRIPTION_LINE0}
                     description={`${PROJECTS_DESCRIPTION_LINE1} ${PROJECTS_DESCRIPTION_LINE2}`}
                     learnMoreText={"Learn more about projects."}
                     learnMoreUrl={"https://solacelabs.github.io/solace-agent-mesh/docs/documentation/components/projects"}
-                    className="mr-6 mb-4"
+                    className="mb-4 sm:mr-6"
                 />
-                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} className="mb-4 w-xs" testid="projectSearchInput" /> : null}
+                {projects.length > 0 || searchQuery ? <SearchInput value={searchQuery} onChange={onSearchChange} className="mb-4" testid="projectSearchInput" /> : null}
 
                 {/* Projects Grid */}
                 {isLoading ? (
@@ -56,9 +56,13 @@ export const ProjectCards = ({ projects, searchQuery, onSearchChange, onProjectC
                 ) : (
                     <div className="flex-1 overflow-y-auto">
                         <div className="flex flex-wrap gap-6">
-                            <CreateProjectCard onClick={onCreateNew} />
+                            <div className="w-full sm:w-auto">
+                                <CreateProjectCard onClick={onCreateNew} />
+                            </div>
                             {projects.map(project => (
-                                <ProjectCard key={project.id} project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} onTogglePin={onTogglePin} isPinToggling={isPinToggling} />
+                                <div key={project.id} className="w-full sm:w-auto">
+                                    <ProjectCard project={project} onClick={() => onProjectClick(project)} onDelete={onDelete} onExport={onExport} onShare={onShare} onTogglePin={onTogglePin} isPinToggling={isPinToggling} />
+                                </div>
                             ))}
                         </div>
                     </div>

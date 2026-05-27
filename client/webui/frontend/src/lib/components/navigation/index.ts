@@ -5,6 +5,7 @@ export { NavigationHeader } from "./NavigationHeader";
 export { NavigationList } from "./NavigationList";
 export { NavigationButton } from "./NavigationButton";
 export { NavItemButton } from "./NavItemButton";
+export { MobileNavDrawer, type MobileNavItem } from "./MobileNavDrawer";
 export type { NavItemButtonProps } from "./NavItemButton";
 export { navButtonStyles, iconWrapperStyles, iconStyles, navTextStyles } from "./navigationStyles";
 export { bottomNavigationItems, topNavigationItems, getTopNavigationItems } from "./navigation";

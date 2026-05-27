@@ -71,24 +71,24 @@ export const StandaloneArtifactPreview = memo(function StandaloneArtifactPreview
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => onDownload(artifact)}>
-                        <Download className="mr-1 h-4 w-4" />
-                        Download
+                <div className="flex flex-shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => onDownload(artifact)} tooltip="Download">
+                        <Download className="h-4 w-4 md:mr-1" />
+                        <span className="hidden md:inline">Download</span>
                     </Button>
                     {showGoToProject && (
-                        <Button variant="ghost" size="sm" onClick={() => onGoToProject!(artifact)}>
-                            <FolderOpen className="mr-1 h-4 w-4" />
-                            Go to Project
+                        <Button variant="ghost" size="sm" onClick={() => onGoToProject!(artifact)} tooltip="Go to Project">
+                            <FolderOpen className="h-4 w-4 md:mr-1" />
+                            <span className="hidden md:inline">Go to Project</span>
                         </Button>
                     )}
                     {showGoToChat && (
-                        <Button variant="ghost" size="sm" onClick={() => onGoToChat(artifact)}>
-                            <MessageCircle className="mr-1 h-4 w-4" />
-                            Go to Chat
+                        <Button variant="ghost" size="sm" onClick={() => onGoToChat(artifact)} tooltip="Go to Chat">
+                            <MessageCircle className="h-4 w-4 md:mr-1" />
+                            <span className="hidden md:inline">Go to Chat</span>
                         </Button>
                     )}
-                    <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8" tooltip="Close">
                         <X className="h-4 w-4" />
                     </Button>
                 </div>

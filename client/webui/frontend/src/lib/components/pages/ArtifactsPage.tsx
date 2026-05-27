@@ -356,7 +356,7 @@ const ArtifactGridCard = memo(function ArtifactGridCard({ artifact, onDownload, 
     };
 
     return (
-        <Card noPadding isCardSelected={isSelected} onCardSelect={handleCardClick} className="group relative flex h-55 w-[320px] shrink-0 flex-col gap-0 overflow-hidden">
+        <Card noPadding isCardSelected={isSelected} onCardSelect={handleCardClick} className="group relative flex h-55 w-full shrink-0 flex-col gap-0 overflow-hidden sm:w-[320px]">
             {/* Header with filename, project badge, and menu */}
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -804,9 +804,9 @@ export function ArtifactsPage() {
             <div className="flex min-h-0 flex-1">
                 {/* Main content area */}
                 <div className={cn("flex min-h-0 flex-col transition-all", previewArtifact ? "w-1/2" : "w-full")}>
-                    <div className="flex h-full flex-col gap-4 py-6 pl-6">
+                    <div className="flex h-full flex-col gap-4 px-4 py-4 sm:py-6 sm:pr-0 sm:pl-6">
                         {/* Search and Project Filter on same line */}
-                        <div className="flex items-center gap-4 pr-4">
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 sm:pr-4">
                             {/* Search Input */}
                             <div className="relative w-64">
                                 <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-(--secondary-text-wMain)" />
@@ -878,7 +878,7 @@ export function ArtifactsPage() {
                             )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto pr-4">
+                        <div className="flex-1 overflow-y-auto sm:pr-4">
                             {isLoading && (
                                 <div className="flex h-full items-center justify-center">
                                     <Spinner size="large" variant="muted" />

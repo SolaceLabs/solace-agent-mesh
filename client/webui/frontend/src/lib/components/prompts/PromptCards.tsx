@@ -152,6 +152,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                     promptRefs.current.delete(prompt.id);
                                 }
                             }}
+                            className="w-full sm:w-auto"
                         >
                             <PromptCard
                                 prompt={prompt}
@@ -175,9 +176,9 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
         <div className="absolute inset-0 h-full w-full">
             <ResizablePanelGroup id="promptCardsPanelGroup" direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={selectedPrompt ? 70 : 100} minSize={50} maxSize={100} id="promptCardsMainPanel">
-                    <div className="flex h-full flex-col pt-6 pb-6 pl-6">
+                    <div className="flex h-full flex-col px-4 py-4 sm:pt-6 sm:pr-0 sm:pb-6 sm:pl-6">
                         {!isLibraryEmpty && (
-                            <div className="mb-4 flex items-center gap-2">
+                            <div className="mb-4 flex flex-wrap items-center gap-2">
                                 <SearchInput value={searchQuery} onChange={setSearchQuery} testid="promptSearchInput" />
 
                                 {/* Category Filter Dropdown */}
@@ -195,7 +196,7 @@ export const PromptCards: React.FC<PromptCardsProps> = ({ prompts, onManualCreat
                                                 <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
 
                                                 {/* Dropdown */}
-                                                <div className="absolute top-full left-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border bg-(--background-w10) shadow-lg">
+                                                <div className="absolute top-full right-0 z-20 mt-1 max-h-[300px] min-w-[200px] overflow-y-auto rounded-md border bg-(--background-w10) shadow-lg sm:right-auto sm:left-0">
                                                     {selectedCategories.length > 0 && (
                                                         <div className="border-b">
                                                             <button
