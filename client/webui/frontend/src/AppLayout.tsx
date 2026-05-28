@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
@@ -136,13 +136,16 @@ function AppLayoutContent() {
         navigate("/chat");
     };
 
+    const [searchParams] = useSearchParams();
+    const isMinimalRoute = /^\/[^/]+\/chat$/.test(location.pathname) && searchParams.get("menu") !== "true";
+
     return (
         <div className={`relative flex h-screen`}>
-            {useNewNav ? (
+            {!isMinimalRoute && (useNewNav ? (
                 <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
             ) : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            )}
+            ))}
             <main className="flex h-full w-full min-w-0 flex-1 flex-col">
                 <ModelWarningBanner />
                 <Outlet />

@@ -1,3 +1,4 @@
+export { AgentChatPage } from "./AgentChatPage";
 export { AgentMeshPage } from "./AgentMeshPage";
 export { ArtifactsPage } from "./ArtifactsPage";
 export { ChatPage } from "./ChatPage";
