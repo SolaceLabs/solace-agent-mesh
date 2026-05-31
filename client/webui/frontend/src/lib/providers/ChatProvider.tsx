@@ -10,7 +10,7 @@ import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, getHashQueryParams } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, getHashQueryParams, selectInitialAgent } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -26,7 +26,6 @@ import type {
     Task,
     TextPart,
     ArtifactPart,
-    AgentCardInfo,
     Project,
     StoredTaskData,
     RAGSearchResult,
@@ -1783,52 +1782,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
-            // Priority order for agent selection:
-            // 1. URL parameter agent (?agent=AgentName)
-            // 2. Project's default agent (if in project context)
-            // 3. OrchestratorAgent (fallback)
-            // 4. First available agent
-            let selectedAgent = agents[0];
+            // Read the pinned agent from the hash query (/#/chat?agent=…), not
+            // window.location.search, so the URL structure matches v2 (Go).
+            const urlAgentName = getHashQueryParams().get("agent");
+            const { agent: selectedAgent, shouldSeedWelcome } = selectInitialAgent({
+                agents,
+                urlAgentName,
+                agentMode,
+                projectDefaultAgentId: activeProject?.defaultAgentId,
+            });
 
-            // Check URL parameter first. Read from the hash query (/#/chat?agent=…),
-            // not window.location.search, so the URL structure matches v2 (Go).
-            const urlParams = getHashQueryParams();
-            const urlAgentName = urlParams.get("agent");
-            let urlAgent: AgentCardInfo | undefined;
-
-            if (urlAgentName) {
-                urlAgent = agents.find(agent => agent.name === urlAgentName);
-                if (urlAgent) {
-                    selectedAgent = urlAgent;
-                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
-                } else {
-                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
-                }
-            }
-
-            // Agent Mode: pin to the named agent or wait — never fall back.
-            // When the pinned ?agent= is set but not (yet) discovered, bail entirely:
-            // leave selectedAgentName="" so the input shows a connecting state. The
-            // effect re-fires as agents register (dep array) and resolves the instant
-            // the pinned agent appears.
-            if (agentMode && urlAgentName && !urlAgent) {
+            // Agent Mode pinned agent not yet discovered: bail and leave
+            // selectedAgentName="" so the input shows a connecting state. The effect
+            // re-fires as agents register (dep array) and resolves the instant the
+            // pinned agent appears.
+            if (!selectedAgent) {
                 return;
-            }
-
-            // If no URL agent found, follow existing priority order
-            if (!urlAgent) {
-                if (activeProject?.defaultAgentId) {
-                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
-                    if (projectDefaultAgent) {
-                        selectedAgent = projectDefaultAgent;
-                        console.log(`Using project default agent: ${selectedAgent.name}`);
-                    } else {
-                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
-                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
-                    }
-                } else {
-                    selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
-                }
             }
 
             setSelectedAgentName(selectedAgent.name);
@@ -1836,7 +1805,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Agent Mode: skip the seeded welcome bubble so messages.length === 0
             // holds and the centered hero owns the empty state. Full UI keeps its
             // left-aligned seeded bubble.
-            if (agentMode) {
+            if (!shouldSeedWelcome) {
                 return;
             }
 

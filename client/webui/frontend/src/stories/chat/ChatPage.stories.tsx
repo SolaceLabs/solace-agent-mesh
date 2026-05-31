@@ -69,6 +69,34 @@ export const Default: Story = {
     },
 };
 
+export const AgentMode: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: [],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+            agentMode: true,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // The hero welcome owns the empty state, the input is ready to send.
+        await canvas.findByText("How can I help?");
+        await canvas.findByTestId("sendMessage");
+
+        // Agent Mode chrome: the agent selector is hidden.
+        expect(canvas.queryByText("Select an agent...")).toBeNull();
+    },
+};
+
 export const WithLoadingMessage: Story = {
     parameters: {
         chatContext: {

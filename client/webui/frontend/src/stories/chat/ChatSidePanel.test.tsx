@@ -65,3 +65,52 @@ describe("projectIndexing feature flag", () => {
         expect(screen.queryByText(/6 Sources/)).not.toBeInTheDocument();
     });
 });
+
+describe("Agent Mode hides the Activity tab", () => {
+    const taskContext = {
+        isReconnecting: false,
+        isTaskMonitorConnecting: false,
+        isTaskMonitorConnected: true,
+        monitoredTasks: {},
+        loadTaskFromBackend: vi.fn().mockResolvedValue(null),
+    };
+
+    test("expanded panel hides the Activity tab in Agent Mode but keeps Files", () => {
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ activeSidePanelTab: "files" as const }} taskContextValues={taskContext} configContextValues={{ agentMode: true }}>
+                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByTitle("Files")).toBeInTheDocument();
+        expect(screen.queryByTitle("Activity")).not.toBeInTheDocument();
+    });
+
+    test("expanded panel shows the Activity tab in Full UI", () => {
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ activeSidePanelTab: "files" as const }} taskContextValues={taskContext} configContextValues={{ agentMode: false }}>
+                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={false} setIsSidePanelCollapsed={vi.fn()} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByTitle("Files")).toBeInTheDocument();
+        expect(screen.getByTitle("Activity")).toBeInTheDocument();
+    });
+
+    test("collapsed panel hides the Activity icon in Agent Mode", () => {
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ activeSidePanelTab: "files" as const }} taskContextValues={taskContext} configContextValues={{ agentMode: true }}>
+                    <ChatSidePanel onCollapsedToggle={vi.fn()} isSidePanelCollapsed={true} setIsSidePanelCollapsed={vi.fn()} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByLabelText("Files")).toBeInTheDocument();
+        expect(screen.queryByLabelText("Activity")).not.toBeInTheDocument();
+    });
+});

@@ -1,3 +1,4 @@
+export { AgentModeWelcome } from "./AgentModeWelcome";
 export { AudioRecorder } from "./AudioRecorder";
 export { ChatInputArea } from "./ChatInputArea";
 export { ChatMessage } from "./ChatMessage";

@@ -35,6 +35,47 @@ export interface WorkflowNodeConfig {
     delay?: string;
 }
 
+export interface InitialAgentSelection {
+    /** The agent to select, or null to bail (Agent Mode pinned agent not yet available). */
+    agent: AgentCardInfo | null;
+    /** Whether the caller should seed the welcome bubble. Always false in Agent Mode. */
+    shouldSeedWelcome: boolean;
+}
+
+/**
+ * Decide which agent to pin when a chat opens with no agent yet selected.
+ *
+ * Priority: URL ?agent= param, then project default, then OrchestratorAgent,
+ * then first available. In Agent Mode a pinned ?agent= that isn't available yet
+ * bails (agent === null) so the caller waits for it to register, and the welcome
+ * bubble is never seeded.
+ *
+ * Callers must guarantee `agents` is non-empty.
+ */
+export function selectInitialAgent({ agents, urlAgentName, agentMode, projectDefaultAgentId }: { agents: AgentCardInfo[]; urlAgentName: string | null; agentMode: boolean; projectDefaultAgentId?: string | null }): InitialAgentSelection {
+    let selectedAgent = agents[0];
+
+    const urlAgent = urlAgentName ? agents.find(agent => agent.name === urlAgentName) : undefined;
+    if (urlAgent) {
+        selectedAgent = urlAgent;
+    }
+
+    // Agent Mode: pin to the named agent or wait — never fall back.
+    if (agentMode && urlAgentName && !urlAgent) {
+        return { agent: null, shouldSeedWelcome: false };
+    }
+
+    if (!urlAgent) {
+        if (projectDefaultAgentId) {
+            selectedAgent = agents.find(agent => agent.name === projectDefaultAgentId) ?? agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+        } else {
+            selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+        }
+    }
+
+    return { agent: selectedAgent, shouldSeedWelcome: !agentMode };
+}
+
 /**
  * Extract agent type from agent card extensions
  */

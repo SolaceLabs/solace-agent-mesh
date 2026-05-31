@@ -555,3 +555,34 @@ describe("Agent Mode no-agent-no-send guard", () => {
         });
     });
 });
+
+// ---------------------------------------------------------------------------
+// Agent Mode: agent selector hidden
+// ---------------------------------------------------------------------------
+
+describe("Agent Mode hides the agent selector", () => {
+    test("the agent selector is not rendered in Agent Mode", () => {
+        const firstAgent = mockAgents[0];
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ selectedAgentName: firstAgent.name }} configContextValues={{ agentMode: true }}>
+                    <ChatInputArea agents={mockAgents} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+        expect(screen.queryByText("Select an agent...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Agent:")).not.toBeInTheDocument();
+    });
+
+    test("the agent selector is rendered in Full UI", () => {
+        const firstAgent = mockAgents[0];
+        render(
+            <MemoryRouter>
+                <StoryProvider chatContextValues={{ selectedAgentName: firstAgent.name }} configContextValues={{ agentMode: false }}>
+                    <ChatInputArea agents={mockAgents} />
+                </StoryProvider>
+            </MemoryRouter>
+        );
+        expect(screen.getByText(firstAgent.displayName ?? firstAgent.name ?? "")).toBeInTheDocument();
+    });
+});

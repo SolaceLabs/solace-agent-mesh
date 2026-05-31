@@ -1160,27 +1160,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     </Button>
                 )}
 
-                <div className="hidden @[480px]:block">Agent: </div>
-                <Select
-                    value={selectedAgentName}
-                    onValueChange={agentName => {
-                        handleAgentSelection(agentName);
-                    }}
-                    disabled={isResponding || agents.length === 0}
-                >
-                    <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents
-                            .filter(agent => !agent.isWorkflow)
-                            .map(agent => (
-                                <SelectItem key={agent.name} value={agent.name}>
-                                    {agent.displayName || agent.name}
-                                </SelectItem>
-                            ))}
-                    </SelectContent>
-                </Select>
+                {!agentMode && (
+                    <>
+                        <div className="hidden @[480px]:block">Agent: </div>
+                        <Select
+                            value={selectedAgentName}
+                            onValueChange={agentName => {
+                                handleAgentSelection(agentName);
+                            }}
+                            disabled={isResponding || agents.length === 0}
+                        >
+                            <SelectTrigger className="w-[250px]">
+                                <SelectValue placeholder="Select an agent..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents
+                                    .filter(agent => !agent.isWorkflow)
+                                    .map(agent => (
+                                        <SelectItem key={agent.name} value={agent.name}>
+                                            {agent.displayName || agent.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />

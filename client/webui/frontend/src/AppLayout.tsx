@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { Button } from "@/lib/components/ui/button";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
@@ -17,7 +18,7 @@ function AppLayoutContent() {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, agentMode } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { hasModelConfigWrite } = useChatContext();
@@ -106,6 +107,15 @@ function AppLayoutContent() {
     };
 
     if (useAuthorization && !isAuthenticated) {
+        if (agentMode) {
+            return (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <Button testid="Login" title="Login" variant="default" onClick={() => login()}>
+                        Login
+                    </Button>
+                </div>
+            );
+        }
         return (
             <EmptyState
                 variant="noImage"
@@ -140,7 +150,7 @@ function AppLayoutContent() {
         <div className={`relative flex h-screen`}>
             {useNewNav ? (
                 <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
-            ) : (
+            ) : agentMode ? null : (
                 <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
             )}
             <main className="flex h-full w-full min-w-0 flex-1 flex-col">

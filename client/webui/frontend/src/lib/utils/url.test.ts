@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { getHashQueryParams } from "./url";
+import { getHashQueryParams, stashPostLoginRedirect, consumePostLoginRedirect } from "./url";
+
+const POST_LOGIN_REDIRECT_KEY = "sam_post_login_redirect";
 
 describe("getHashQueryParams", () => {
     afterEach(() => {
@@ -29,5 +31,45 @@ describe("getHashQueryParams", () => {
         const params = getHashQueryParams();
         expect(params.get("agentMode")).toBeNull();
         expect(params.get("agent")).toBeNull();
+    });
+});
+
+describe("post-login redirect stash/restore", () => {
+    afterEach(() => {
+        localStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+        window.history.replaceState({}, "", "/");
+    });
+
+    it("stashes the current URL and restores it once", () => {
+        window.history.replaceState({}, "", "/#/chat?agentMode=true&agent=Foo");
+        stashPostLoginRedirect();
+        expect(localStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toContain("agentMode=true");
+
+        const restored = consumePostLoginRedirect();
+        expect(restored).toContain("/#/chat?agentMode=true&agent=Foo");
+    });
+
+    it("is one-shot — the key is cleared after the first read", () => {
+        window.history.replaceState({}, "", "/#/chat?agentMode=true&agent=Foo");
+        stashPostLoginRedirect();
+
+        consumePostLoginRedirect();
+        expect(localStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+        // A second consume has nothing to restore and falls back to "/".
+        expect(consumePostLoginRedirect()).toBe("/");
+    });
+
+    it("falls back to / when nothing was stashed", () => {
+        expect(consumePostLoginRedirect()).toBe("/");
+    });
+
+    it("rejects a cross-origin stashed value (open-redirect guard)", () => {
+        localStorage.setItem(POST_LOGIN_REDIRECT_KEY, "https://evil.example.com/#/chat?agentMode=true");
+        expect(consumePostLoginRedirect()).toBe("/");
+    });
+
+    it("rejects an unparseable stashed value", () => {
+        localStorage.setItem(POST_LOGIN_REDIRECT_KEY, "not-a-url");
+        expect(consumePostLoginRedirect()).toBe("/");
     });
 });

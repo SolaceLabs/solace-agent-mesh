@@ -155,6 +155,7 @@ describe("ChatPage", () => {
         }));
 
         vi.doMock("@/lib/components/chat", () => ({
+            AgentModeWelcome: ({ message }: { message?: string }) => React.createElement("div", { "data-testid": "agent-mode-welcome" }, message || "How can I help?"),
             ChatMessage: ({ message }: { message: { parts: Array<{ text?: string }> } }) => React.createElement("div", { "data-testid": "chat-message" }, message.parts?.[0]?.text || ""),
             ChatSessionDialog: () => React.createElement("div", { "data-testid": "chat-session-dialog" }),
             ChatSessionDeleteDialog: () => React.createElement("div", { "data-testid": "chat-session-delete-dialog" }),

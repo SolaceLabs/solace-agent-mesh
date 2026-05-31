@@ -10,7 +10,7 @@ import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useI
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { AgentModeWelcome, ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
@@ -621,9 +621,7 @@ export function ChatPage() {
                                     ) : agentMode && messages.length === 0 ? (
                                         // Agent Mode hero welcome — centered empty state for the pinned agent.
                                         <>
-                                            <div className="flex min-h-0 flex-1 items-center justify-center">
-                                                <p className="text-base text-(--secondary-text-wMain)">{configWelcomeMessage || "How can I help?"}</p>
-                                            </div>
+                                            <AgentModeWelcome message={configWelcomeMessage} />
                                             <div style={CHAT_STYLES}>
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>
