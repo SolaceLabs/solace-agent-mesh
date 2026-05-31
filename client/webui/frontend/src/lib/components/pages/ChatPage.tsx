@@ -93,9 +93,10 @@ export function ChatPage() {
     // bad ?agent= (typo, down, or unauthorized) doesn't spin forever.
     const isAwaitingPinnedAgent = agentMode && messages.length === 0 && !selectedAgentName;
 
-    // Agent Mode hero heading. Match by displayName too: platform agents have a
-    // broker-safe UUID as the wire name while selectedAgentName is the displayName.
-    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName || a.displayName === selectedAgentName), [agents, selectedAgentName]);
+    // Agent Mode hero heading. Resolve the pinned agent by its wire name only —
+    // the same identifier ?agent= and message routing (agent_name) use — so the
+    // greeting label can never disagree with the agent that receives messages.
+    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName), [agents, selectedAgentName]);
     const heroMessage = configWelcomeMessage || (welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : `Hi, I'm ${selectedAgentName}. How can I help you?`);
     const [pinnedAgentTimedOut, setPinnedAgentTimedOut] = useState(false);
     useEffect(() => {

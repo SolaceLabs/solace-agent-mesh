@@ -36,6 +36,23 @@ describe("selectInitialAgent — pinned agent (Agent Mode)", () => {
         expect(result.agent).toBe(alpha);
         expect(result.shouldSeedWelcome).toBe(false);
     });
+
+    test("pins by wire name only — a shared displayName cannot misroute", () => {
+        // Two agents collide on displayName but have distinct wire names. ?agent=
+        // must resolve against the unique wire name, never the ambiguous label.
+        const first = { name: "agent-uuid-1", displayName: "Weather Agent" } as unknown as AgentCardInfo;
+        const second = { name: "agent-uuid-2", displayName: "Weather Agent" } as unknown as AgentCardInfo;
+        const result = selectInitialAgent({ agents: [first, second], urlAgentName: "agent-uuid-2", agentMode: true });
+
+        expect(result.agent).toBe(second);
+    });
+
+    test("does not resolve a ?agent= that matches only a displayName", () => {
+        const platform = { name: "agent-uuid-1", displayName: "Weather Agent" } as unknown as AgentCardInfo;
+        const result = selectInitialAgent({ agents: [platform], urlAgentName: "Weather Agent", agentMode: true });
+
+        expect(result.agent).toBeNull();
+    });
 });
 
 describe("selectInitialAgent — priority order (Full UI)", () => {
