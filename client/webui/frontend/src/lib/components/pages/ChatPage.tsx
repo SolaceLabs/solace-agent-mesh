@@ -6,7 +6,7 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
+import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
@@ -52,11 +52,13 @@ export function ChatPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const { agentMode, configWelcomeMessage } = useConfigContext();
     const {
         agents,
         agentsRefetch,
         sessionId,
         sessionName,
+        selectedAgentName,
         messages,
         isSidePanelCollapsed,
         setIsSidePanelCollapsed,
@@ -587,75 +589,89 @@ export function ChatPage() {
                                         </div>
                                     ) : (
                                         <>
-                                            <ChatMessageList className="text-base" ref={chatMessageListRef}>
-                                                {/* Old messages — slide out on new turn, collapsed after, expanded on scroll-up */}
-                                                {hasDivider && (
-                                                    <div style={isHistoryCollapsed ? COLLAPSED_STYLE : undefined}>
-                                                        {/* Show share notification for editor at the start */}
-                                                        {isCollaborativeSession && (
-                                                            <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
-                                                        )}
-                                                        {messages.slice(0, collapseIdx).map((message, index) => {
-                                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                            const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                            return (
-                                                                <div key={messageKey} style={NO_OVERFLOW_ANCHOR_STYLE}>
-                                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
-                                                                    {renderShareNotifications(index)}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                                {/* Previous turn messages (between old and new divider) — slide up during exit */}
-                                                {hasDivider && collapseIdx < dividerIdx && (
-                                                    <div
-                                                        ref={prevTurnRef}
-                                                        style={{
-                                                            marginTop: isExitingHistory && prevTurnHeight > 0 ? `-${prevTurnHeight}px` : 0,
-                                                            opacity: isExitingHistory ? 0 : 1,
-                                                            transition: isExitingHistory ? `margin-top ${SLIDE_OUT_DURATION_MS}ms ease-out, opacity ${FADE_OUT_DURATION_MS}ms ease-in` : undefined,
-                                                            overflow: "hidden",
-                                                        }}
-                                                    >
-                                                        {messages.slice(collapseIdx, dividerIdx).map((message, i) => {
-                                                            const index = i + collapseIdx;
-                                                            const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                            const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                            return (
-                                                                <div key={messageKey}>
-                                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
-                                                                    {renderShareNotifications(index)}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                                {/* New turn messages */}
-                                                {(hasDivider ? messages.slice(dividerIdx) : messages).map((message, i) => {
-                                                    const index = hasDivider ? i + dividerIdx : i;
-                                                    const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
-                                                    const messageKey = message.metadata?.messageId || `temp-${index}`;
-                                                    const isLastMessage = index === messages.length - 1;
-                                                    const shouldStream = isLastMessage && isResponding && !message.isUser;
-                                                    const isNewTurnStart = hasDivider && i === 0;
-
-                                                    const showCollabBannerInNewSection = isCollaborativeSession && i === 0 && (!hasDivider || isHistoryCollapsed || isExitingHistory);
-
-                                                    return (
-                                                        <div key={messageKey} ref={isNewTurnStart ? newTurnAnchorRef : undefined} style={isNewTurnStart ? OVERFLOW_ANCHOR_AUTO_STYLE : undefined}>
-                                                            {showCollabBannerInNewSection && (
+                                            {agentMode && messages.length === 0 && !selectedAgentName ? (
+                                                // Agent Mode: pinned agent not resolved yet — connecting state.
+                                                <div className="flex min-h-0 flex-1 items-center justify-center">
+                                                    <Spinner size="medium" variant="primary">
+                                                        <p className="mt-4 text-sm text-(--secondary-text-wMain)">Connecting…</p>
+                                                    </Spinner>
+                                                </div>
+                                            ) : agentMode && messages.length === 0 && selectedAgentName ? (
+                                                // Agent Mode hero welcome — centered empty state for the pinned agent.
+                                                <div className="flex min-h-0 flex-1 items-center justify-center">
+                                                    <p className="text-base text-(--secondary-text-wMain)">{configWelcomeMessage || "How can I help?"}</p>
+                                                </div>
+                                            ) : (
+                                                <ChatMessageList className="text-base" ref={chatMessageListRef}>
+                                                    {/* Old messages — slide out on new turn, collapsed after, expanded on scroll-up */}
+                                                    {hasDivider && (
+                                                        <div style={isHistoryCollapsed ? COLLAPSED_STYLE : undefined}>
+                                                            {/* Show share notification for editor at the start */}
+                                                            {isCollaborativeSession && (
                                                                 <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
                                                             )}
-                                                            <div>
-                                                                <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
-                                                            </div>
-                                                            {renderShareNotifications(index)}
+                                                            {messages.slice(0, collapseIdx).map((message, index) => {
+                                                                const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                                const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                                return (
+                                                                    <div key={messageKey} style={NO_OVERFLOW_ANCHOR_STYLE}>
+                                                                        <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
+                                                                        {renderShareNotifications(index)}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
-                                                    );
-                                                })}
-                                                {isResponding && <LoadingMessageRow onViewWorkflow={handleViewProgressClick} />}
-                                            </ChatMessageList>
+                                                    )}
+                                                    {/* Previous turn messages (between old and new divider) — slide up during exit */}
+                                                    {hasDivider && collapseIdx < dividerIdx && (
+                                                        <div
+                                                            ref={prevTurnRef}
+                                                            style={{
+                                                                marginTop: isExitingHistory && prevTurnHeight > 0 ? `-${prevTurnHeight}px` : 0,
+                                                                opacity: isExitingHistory ? 0 : 1,
+                                                                transition: isExitingHistory ? `margin-top ${SLIDE_OUT_DURATION_MS}ms ease-out, opacity ${FADE_OUT_DURATION_MS}ms ease-in` : undefined,
+                                                                overflow: "hidden",
+                                                            }}
+                                                        >
+                                                            {messages.slice(collapseIdx, dividerIdx).map((message, i) => {
+                                                                const index = i + collapseIdx;
+                                                                const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                                const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                                return (
+                                                                    <div key={messageKey}>
+                                                                        <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={false} />
+                                                                        {renderShareNotifications(index)}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                    {/* New turn messages */}
+                                                    {(hasDivider ? messages.slice(dividerIdx) : messages).map((message, i) => {
+                                                        const index = hasDivider ? i + dividerIdx : i;
+                                                        const isLastWithTaskId = !!(message.taskId && lastMessageIndexByTaskId.get(message.taskId) === index);
+                                                        const messageKey = message.metadata?.messageId || `temp-${index}`;
+                                                        const isLastMessage = index === messages.length - 1;
+                                                        const shouldStream = isLastMessage && isResponding && !message.isUser;
+                                                        const isNewTurnStart = hasDivider && i === 0;
+
+                                                        const showCollabBannerInNewSection = isCollaborativeSession && i === 0 && (!hasDivider || isHistoryCollapsed || isExitingHistory);
+
+                                                        return (
+                                                            <div key={messageKey} ref={isNewTurnStart ? newTurnAnchorRef : undefined} style={isNewTurnStart ? OVERFLOW_ANCHOR_AUTO_STYLE : undefined}>
+                                                                {showCollabBannerInNewSection && (
+                                                                    <ShareNotificationMessage variant="shared-with-users" sharedBy={sessionOwnerName || "Someone"} sharedWith={["you"]} accessLevel="editor" timestamp={collaborativeTimestamp} />
+                                                                )}
+                                                                <div>
+                                                                    <ChatMessage message={message} isLastWithTaskId={isLastWithTaskId} isStreaming={shouldStream} />
+                                                                </div>
+                                                                {renderShareNotifications(index)}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {isResponding && <LoadingMessageRow onViewWorkflow={handleViewProgressClick} />}
+                                                </ChatMessageList>
+                                            )}
                                             <div style={CHAT_STYLES}>
                                                 <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                                             </div>

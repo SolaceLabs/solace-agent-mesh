@@ -83,7 +83,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     } = useChatContext();
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
-    const { configFeatureEnablement } = useConfigContext();
+    const { configFeatureEnablement, agentMode } = useConfigContext();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { value: artifactAttachmentEnabled } = useBooleanFlagDetails("artifact_attachment", false);
     const { data: modelConfigStatus } = useModelConfigStatus();
@@ -417,8 +417,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     }, [selectedArtifactRefs.length]);
 
     const isSubmittingEnabled = useMemo(
-        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
-        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems, selectedArtifactRefs]
+        // Agent Mode: no agent, no send. Until the pinned agent resolves
+        // (selectedAgentName === ""), block sending into a void. UX-only — the
+        // provider re-guards on send.
+        () => !isResponding && !modelNotConfigured && (!agentMode || !!selectedAgentName) && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
+        [isResponding, modelNotConfigured, agentMode, selectedAgentName, inputValue, selectedFiles, pendingPastedTextItems, selectedArtifactRefs]
     );
 
     const onSubmit = async (event: FormEvent) => {

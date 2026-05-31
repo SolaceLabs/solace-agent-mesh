@@ -31,3 +31,17 @@ export function getCleanDomain(url: string): string {
 export function getFaviconUrl(domain: string, size: number = 32): string {
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
 }
+
+/**
+ * Agent Mode params live in the query segment of the hash route, after the
+ * route path: `/#/chat?agentMode=true&agent=Foo`. We read them from
+ * window.location.hash (not window.location.search) so the URL structure stays
+ * identical to v2 (Go), where the same query attaches to a real path:
+ * `/chat?agentMode=true&agent=Foo`. Migrating v1→v2 is then just dropping the
+ * `#`. Synchronous + read-once-at-load, so no Full-UI flash.
+ */
+export function getHashQueryParams(): URLSearchParams {
+    const hash = window.location.hash;
+    const queryIndex = hash.indexOf("?");
+    return new URLSearchParams(queryIndex >= 0 ? hash.slice(queryIndex + 1) : "");
+}

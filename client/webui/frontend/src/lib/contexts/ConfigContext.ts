@@ -17,6 +17,15 @@ export interface ConfigContextValue {
     configAuthLoginUrl: string;
     configUseAuthorization: boolean;
     configWelcomeMessage: string;
+    /**
+     * Agent Mode: chat-only, single-agent layout selected per Teams tab via the
+     * `agentMode=true` URL parameter, placed in the hash query after the route
+     * (`/#/chat?agentMode=true&agent=Foo`). URL-derived (synchronous read of the
+     * hash query via getHashQueryParams), not a server-sent flag — deliberately
+     * kept out of configFeatureEnablement and never persisted to localStorage so
+     * an admin on the same origin cannot inherit a sticky Agent Mode.
+     */
+    agentMode: boolean;
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;

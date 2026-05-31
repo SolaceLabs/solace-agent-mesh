@@ -3,6 +3,7 @@ import { ConfigContext, type ConfigContextValue } from "../contexts";
 import { useCsrfContext } from "../hooks/useCsrfContext";
 import { EmptyState } from "../components";
 import { api } from "../api";
+import { getHashQueryParams } from "../utils/url";
 
 interface BackendConfig {
     frontend_server_url: string;
@@ -115,6 +116,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,
+                    agentMode: getHashQueryParams().get("agentMode") === "true",
                     configRedirectUrl: data.frontend_redirect_url,
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,

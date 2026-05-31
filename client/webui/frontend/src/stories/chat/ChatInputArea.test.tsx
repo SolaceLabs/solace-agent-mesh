@@ -514,3 +514,44 @@ describe("form submission", () => {
         expect(handleCancel).toHaveBeenCalled();
     });
 });
+
+// ---------------------------------------------------------------------------
+// Agent Mode: no agent, no send
+// ---------------------------------------------------------------------------
+
+describe("Agent Mode no-agent-no-send guard", () => {
+    test("send stays disabled with text while the pinned agent is unresolved", async () => {
+        renderComponent({ isResponding: false, selectedAgentName: "" }, { agentMode: true });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("Hello");
+
+        // Text is present, but Agent Mode blocks sending until an agent resolves.
+        expect(screen.getByTestId("sendMessage")).toBeDisabled();
+    });
+
+    test("send enables with text once the pinned agent resolves", async () => {
+        renderComponent({ isResponding: false, selectedAgentName: "Foo" }, { agentMode: true });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("Hello");
+
+        await waitFor(() => {
+            expect(screen.getByTestId("sendMessage")).toBeEnabled();
+        });
+    });
+
+    test("Full UI does not gate sending on a selected agent", async () => {
+        renderComponent({ isResponding: false, selectedAgentName: "" }, { agentMode: false });
+
+        const input = screen.getByTestId("chat-input");
+        await userEvent.click(input);
+        await userEvent.keyboard("Hello");
+
+        await waitFor(() => {
+            expect(screen.getByTestId("sendMessage")).toBeEnabled();
+        });
+    });
+});

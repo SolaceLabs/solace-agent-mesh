@@ -261,4 +261,46 @@ describe("ChatPage", () => {
         // Share button should NOT be present for collaborative sessions
         expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();
     });
+
+    describe("Agent Mode empty state", () => {
+        test("shows the connecting state when the pinned agent is not yet resolved", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: true });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "" }));
+
+            renderPage();
+            expect(screen.getByText("Connecting…")).toBeInTheDocument();
+            // The hero and the message list must not own the empty state while connecting.
+            expect(screen.queryByTestId("chat-message-list")).not.toBeInTheDocument();
+            expect(screen.queryByText("How can I help?")).not.toBeInTheDocument();
+        });
+
+        test("shows the hero welcome once the pinned agent resolves", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: true });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "Foo" }));
+
+            renderPage();
+            expect(screen.getByText("How can I help?")).toBeInTheDocument();
+            expect(screen.queryByText("Connecting…")).not.toBeInTheDocument();
+            // Hero owns the empty state — no message list (and thus no seeded bubble).
+            expect(screen.queryByTestId("chat-message-list")).not.toBeInTheDocument();
+        });
+
+        test("hero uses configWelcomeMessage when provided", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: true, configWelcomeMessage: "Ask me anything" });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "Foo" }));
+
+            renderPage();
+            expect(screen.getByText("Ask me anything")).toBeInTheDocument();
+        });
+
+        test("Full UI empty state renders the message list, not the Agent Mode hero", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: false });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "" }));
+
+            renderPage();
+            expect(screen.getByTestId("chat-message-list")).toBeInTheDocument();
+            expect(screen.queryByText("Connecting…")).not.toBeInTheDocument();
+            expect(screen.queryByText("How can I help?")).not.toBeInTheDocument();
+        });
+    });
 });

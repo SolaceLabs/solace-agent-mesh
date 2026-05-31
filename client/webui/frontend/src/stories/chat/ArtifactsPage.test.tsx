@@ -22,6 +22,7 @@ const mockConfig: ConfigContextValue = {
     configAuthLoginUrl: "",
     configUseAuthorization: false,
     configWelcomeMessage: "",
+    agentMode: false,
     configRedirectUrl: "",
     configCollectFeedback: false,
     configBotName: "",

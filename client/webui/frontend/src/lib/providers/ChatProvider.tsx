@@ -10,7 +10,7 @@ import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, getHashQueryParams } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -41,7 +41,7 @@ interface ChatProviderProps {
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // ============ Hooks ============
-    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization, agentMode } = useConfigContext();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
     const { activeProject, setActiveProject, projects } = useProjectContext();
@@ -1790,8 +1790,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // 4. First available agent
             let selectedAgent = agents[0];
 
-            // Check URL parameter first
-            const urlParams = new URLSearchParams(window.location.search);
+            // Check URL parameter first. Read from the hash query (/#/chat?agent=…),
+            // not window.location.search, so the URL structure matches v2 (Go).
+            const urlParams = getHashQueryParams();
             const urlAgentName = urlParams.get("agent");
             let urlAgent: AgentCardInfo | undefined;
 
@@ -1803,6 +1804,15 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 } else {
                     console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
                 }
+            }
+
+            // Agent Mode: pin to the named agent or wait — never fall back.
+            // When the pinned ?agent= is set but not (yet) discovered, bail entirely:
+            // leave selectedAgentName="" so the input shows a connecting state. The
+            // effect re-fires as agents register (dep array) and resolves the instant
+            // the pinned agent appears.
+            if (agentMode && urlAgentName && !urlAgent) {
+                return;
             }
 
             // If no URL agent found, follow existing priority order
@@ -1823,6 +1833,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setSelectedAgentName(selectedAgent.name);
 
+            // Agent Mode: skip the seeded welcome bubble so messages.length === 0
+            // holds and the centered hero owns the empty state. Full UI keeps its
+            // left-aligned seeded bubble.
+            if (agentMode) {
+                return;
+            }
+
             const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
             setMessages([
                 {
@@ -1837,7 +1854,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages, agentMode]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     // Note: handleSseMessageRef is declared earlier (line ~103) for use in loadSessionTasks
