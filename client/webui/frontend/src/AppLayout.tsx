@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems } from "@/lib/components";
 import { Button } from "@/lib/components/ui/button";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
@@ -107,28 +107,12 @@ function AppLayoutContent() {
     };
 
     if (useAuthorization && !isAuthenticated) {
-        if (agentMode) {
-            return (
-                <div className="flex h-screen w-screen items-center justify-center">
-                    <Button testid="Login" title="Login" variant="default" onClick={() => login()}>
-                        Login
-                    </Button>
-                </div>
-            );
-        }
         return (
-            <EmptyState
-                variant="noImage"
-                title="Welcome to Solace Agent Mesh!"
-                className="h-screen w-screen"
-                buttons={[
-                    {
-                        text: "Login",
-                        onClick: () => login(),
-                        variant: "default",
-                    },
-                ]}
-            />
+            <div className="flex h-screen w-screen items-center justify-center">
+                <Button testid="Login" title="Login" variant="default" onClick={() => login()}>
+                    Login
+                </Button>
+            </div>
         );
     }
 

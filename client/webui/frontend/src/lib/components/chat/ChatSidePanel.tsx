@@ -44,6 +44,13 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         return hasDocumentSearchResults(ragData);
     }, [ragData]);
 
+    // Agent Mode hides the Activity tab; fall back to Files so the panel never lands on a hidden tab.
+    useEffect(() => {
+        if (agentMode && activeSidePanelTab === "activity") {
+            setActiveSidePanelTab("files");
+        }
+    }, [agentMode, activeSidePanelTab, setActiveSidePanelTab]);
+
     // Process task data for visualization when the selected activity task ID changes
     // or when monitoredTasks is updated with new data.
     useEffect(() => {
