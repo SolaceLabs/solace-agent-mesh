@@ -83,6 +83,9 @@ export const AgentMode: Story = {
         configContext: {
             persistenceEnabled: false,
             agentMode: true,
+            // Empty so the hero falls through to the per-agent greeting rather than
+            // the mock provider's default configWelcomeMessage.
+            configWelcomeMessage: "",
         },
     },
     play: async ({ canvasElement }) => {
