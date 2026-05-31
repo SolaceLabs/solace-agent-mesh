@@ -473,6 +473,8 @@ export function ChatPage() {
     );
 
     const handleViewProgressClick = useMemo(() => {
+        // Agent Mode hides the Activity panel, so don't surface a button that opens it.
+        if (agentMode) return undefined;
         if (inlineActivityTimelineEnabled) return undefined;
         if (!currentTaskId) return undefined;
 
@@ -480,7 +482,7 @@ export function ChatPage() {
             setTaskIdInSidePanel(currentTaskId);
             openSidePanelTab("activity");
         };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
+    }, [agentMode, currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
 
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();

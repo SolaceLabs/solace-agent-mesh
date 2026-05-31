@@ -101,6 +101,65 @@ export const AgentMode: Story = {
     },
 };
 
+// A single completed agent message carrying a taskId — the shape that renders the
+// "View Activity" affordance (ViewWorkflowButton) under the message.
+const completedAgentMessage: MessageFE = {
+    isUser: false,
+    parts: [{ kind: "text", text: "Here is your poem." }],
+    isComplete: true,
+    taskId: "task-1",
+    metadata: { sessionId: "mock-session-id", lastProcessedEventSequence: 0, messageId: "m1" },
+};
+
+export const AgentModeHidesViewActivity: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: [completedAgentMessage],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+            agentMode: true,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // The message rendered, but the View Activity button is hidden because the
+        // Activity panel it opens is unavailable in Agent Mode.
+        await canvas.findByText("Here is your poem.");
+        expect(canvas.queryByTestId("viewActivity")).toBeNull();
+    },
+};
+
+export const ViewActivityVisibleInFullUI: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-session-id",
+            messages: [completedAgentMessage],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        // Control for AgentModeHidesViewActivity: the same message shows the button in Full UI.
+        await canvas.findByTestId("viewActivity");
+    },
+};
+
 export const WithLoadingMessage: Story = {
     parameters: {
         chatContext: {
