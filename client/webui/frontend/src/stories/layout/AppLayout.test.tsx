@@ -33,6 +33,22 @@ beforeEach(() => {
     vi.spyOn(modelsApi, "useModelConfigStatus").mockImplementation((() => mockModelConfigStatus()) as unknown as typeof modelsApi.useModelConfigStatus);
 });
 
+describe("AppLayout navigation sidebar (old nav)", () => {
+    beforeEach(() => {
+        mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
+    });
+
+    test("renders the navigation sidebar in Full UI", async () => {
+        await renderWithProviders(<AppLayout />, { configContextValues: { agentMode: false } });
+        expect(screen.getByTestId("navigation-sidebar")).toBeInTheDocument();
+    });
+
+    test("hides the navigation sidebar in Agent Mode", async () => {
+        await renderWithProviders(<AppLayout />, { configContextValues: { agentMode: true } });
+        expect(screen.queryByTestId("navigation-sidebar")).not.toBeInTheDocument();
+    });
+});
+
 describe("AppLayout model warning banner", () => {
     describe("when model_config_ui flag is disabled", () => {
         beforeEach(() => {

@@ -368,9 +368,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setRagData(allRagData);
             }
 
-            // Set the agent name if found
+            // Set the agent name if found. In Agent Mode the surface is locked to
+            // the pinned ?agent=; never let a loaded session's stored agent override
+            // it, or the next message would silently route to an agent the URL never
+            // named (the agent selector is hidden, so the user couldn't detect it).
             if (agentName) {
-                setSelectedAgentName(agentName);
+                const pinnedAgent = agentMode ? getHashQueryParams().get("agent") : null;
+                setSelectedAgentName(pinnedAgent ?? agentName);
             }
 
             // Set taskIdInSidePanel to the most recent task for workflow visualization
@@ -546,7 +550,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
             // Sender info in messages is kept for UI display purposes only.
         },
-        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
+        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend, agentMode]
     );
 
     // Background task monitoring
