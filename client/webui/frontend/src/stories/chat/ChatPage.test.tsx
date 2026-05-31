@@ -1,6 +1,6 @@
 /// <reference types="@testing-library/jest-dom" />
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { MemoryRouter } from "react-router-dom";
@@ -291,6 +291,27 @@ describe("ChatPage", () => {
 
             renderPage();
             expect(screen.getByText("Ask me anything")).toBeInTheDocument();
+        });
+
+        test("falls back to an unavailable message if the pinned agent never resolves", () => {
+            vi.useFakeTimers();
+            try {
+                mockUseConfigContext.mockReturnValue({ agentMode: true });
+                mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "" }));
+
+                renderPage();
+                // Starts on the connecting spinner...
+                expect(screen.getByText("Connecting…")).toBeInTheDocument();
+
+                // ...and after the timeout shows a terminal state instead of spinning forever.
+                act(() => {
+                    vi.advanceTimersByTime(15000);
+                });
+                expect(screen.getByText("This agent is currently unavailable.")).toBeInTheDocument();
+                expect(screen.queryByText("Connecting…")).not.toBeInTheDocument();
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         test("Full UI empty state renders the message list, not the Agent Mode hero", () => {
