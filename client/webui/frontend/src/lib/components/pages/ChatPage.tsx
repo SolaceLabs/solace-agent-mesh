@@ -92,6 +92,11 @@ export function ChatPage() {
     // state, but fall back to a terminal "unavailable" message after a timeout so a
     // bad ?agent= (typo, down, or unauthorized) doesn't spin forever.
     const isAwaitingPinnedAgent = agentMode && messages.length === 0 && !selectedAgentName;
+
+    // Agent Mode hero heading. Match by displayName too: platform agents have a
+    // broker-safe UUID as the wire name while selectedAgentName is the displayName.
+    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName || a.displayName === selectedAgentName), [agents, selectedAgentName]);
+    const heroMessage = configWelcomeMessage || (welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : `Hi, I'm ${selectedAgentName}. How can I help you?`);
     const [pinnedAgentTimedOut, setPinnedAgentTimedOut] = useState(false);
     useEffect(() => {
         if (!isAwaitingPinnedAgent) {
@@ -604,8 +609,8 @@ export function ChatPage() {
                                     ) : isAwaitingPinnedAgent ? (
                                         // Agent Mode: pinned agent not resolved. Show connecting, then a
                                         // terminal "unavailable" state if it never registers.
-                                        <>
-                                            <div className="flex min-h-0 flex-1 items-center justify-center">
+                                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-32">
+                                            <div className="flex flex-col items-center gap-6" style={{ maxWidth: "900px" }}>
                                                 {pinnedAgentTimedOut ? (
                                                     <p className="text-base text-(--secondary-text-wMain)">This agent is currently unavailable.</p>
                                                 ) : (
@@ -613,19 +618,21 @@ export function ChatPage() {
                                                         <p className="mt-4 text-sm text-(--secondary-text-wMain)">Connecting…</p>
                                                     </Spinner>
                                                 )}
+                                                <div className="mt-4 w-full" style={CHAT_STYLES}>
+                                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                </div>
                                             </div>
-                                            <div style={CHAT_STYLES}>
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
-                                            </div>
-                                        </>
+                                        </div>
                                     ) : agentMode && messages.length === 0 ? (
                                         // Agent Mode hero welcome — centered empty state for the pinned agent.
-                                        <>
-                                            <AgentModeWelcome message={configWelcomeMessage} />
-                                            <div style={CHAT_STYLES}>
-                                                <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-32">
+                                            <div className="flex flex-col items-center gap-6" style={{ maxWidth: "900px" }}>
+                                                <AgentModeWelcome message={heroMessage} />
+                                                <div className="mt-4 w-full" style={CHAT_STYLES}>
+                                                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                                                </div>
                                             </div>
-                                        </>
+                                        </div>
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>

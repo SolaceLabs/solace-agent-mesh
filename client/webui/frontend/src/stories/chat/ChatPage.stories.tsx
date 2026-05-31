@@ -89,7 +89,8 @@ export const AgentMode: Story = {
         const canvas = within(canvasElement);
 
         // The hero welcome owns the empty state, the input is ready to send.
-        await canvas.findByText("How can I help?");
+        // No configured welcome message → per-agent greeting from the selected agent.
+        await canvas.findByText(/^Hi, I'm .+\. How can I help you\?$/);
         await canvas.findByTestId("sendMessage");
 
         // Agent Mode chrome: the agent selector is hidden.

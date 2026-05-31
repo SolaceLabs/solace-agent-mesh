@@ -8,22 +8,14 @@ import { AgentModeWelcome } from "@/lib/components/chat/AgentModeWelcome";
 expect.extend(matchers);
 
 describe("AgentModeWelcome", () => {
-    test("renders the default prompt when no message is provided", () => {
-        render(<AgentModeWelcome />);
-
-        expect(screen.getByText("How can I help?")).toBeInTheDocument();
-    });
-
-    test("renders the provided message instead of the default", () => {
-        render(<AgentModeWelcome message="Ask me anything" />);
-
+    test("renders the provided message, falling back to the default when absent or empty", () => {
+        const { rerender } = render(<AgentModeWelcome message="Ask me anything" />);
         expect(screen.getByText("Ask me anything")).toBeInTheDocument();
-        expect(screen.queryByText("How can I help?")).not.toBeInTheDocument();
-    });
 
-    test("falls back to the default prompt for an empty message", () => {
-        render(<AgentModeWelcome message="" />);
+        rerender(<AgentModeWelcome message="" />);
+        expect(screen.getByText("How can I help?")).toBeInTheDocument();
 
+        rerender(<AgentModeWelcome />);
         expect(screen.getByText("How can I help?")).toBeInTheDocument();
     });
 });

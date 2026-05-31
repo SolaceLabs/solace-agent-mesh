@@ -447,6 +447,25 @@ describe("prompt command trigger", () => {
             expect(screen.getByTestId("promptCommand")).toBeInTheDocument();
         });
     });
+
+    test("Agent Mode never opens the prompts popup when '/' is typed", async () => {
+        renderComponent({ selectedAgentName: mockAgents[0].name }, { agentMode: true });
+        const input = screen.getByTestId("chat-input");
+
+        await userEvent.click(input);
+        await userEvent.keyboard("/");
+
+        // Prompts are disallowed in Agent Mode — the popup must not appear.
+        expect(screen.queryByTestId("promptCommand")).not.toBeInTheDocument();
+    });
+
+    test("Agent Mode placeholder omits the 'insert a prompt' hint", () => {
+        renderComponent({ selectedAgentName: mockAgents[0].name }, { agentMode: true });
+        const placeholder = screen.getByTestId("chat-input").getAttribute("data-placeholder") || "";
+
+        expect(placeholder).toContain("How can I help you today?");
+        expect(placeholder).not.toContain("insert a prompt");
+    });
 });
 
 // ---------------------------------------------------------------------------

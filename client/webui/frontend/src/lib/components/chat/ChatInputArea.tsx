@@ -672,8 +672,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const textBeforeCursor = value.substring(0, cursorPosition);
 
         // Check if "/" is typed as the first character (position 0)
-        // Only trigger prompt popover when "/" is at the very start of the input
-        if (textBeforeCursor === "/") {
+        // Only trigger prompt popover when "/" is at the very start of the input.
+        // Agent Mode never invokes prompts.
+        if (!agentMode && textBeforeCursor === "/") {
             setShowPromptsCommand(true);
             setShowMentionsCommand(false); // Close mentions if open
         } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
@@ -814,6 +815,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     let inputPlaceholder: string;
     if (isRecording) {
         inputPlaceholder = "Recording...";
+    } else if (agentMode) {
+        // Agent Mode disallows prompts, so the "/" hint is omitted.
+        inputPlaceholder = mentionsEnabled ? "How can I help you today? (Type '@' to mention someone)" : "How can I help you today?";
     } else if (mentionsEnabled) {
         inputPlaceholder = "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)";
     } else {

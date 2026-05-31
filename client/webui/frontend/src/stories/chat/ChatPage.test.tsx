@@ -280,10 +280,38 @@ describe("ChatPage", () => {
             mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "Foo" }));
 
             renderPage();
-            expect(screen.getByText("How can I help?")).toBeInTheDocument();
+            // No configured welcome message and no matching agent card → per-agent greeting from selectedAgentName.
+            expect(screen.getByText("Hi, I'm Foo. How can I help you?")).toBeInTheDocument();
             expect(screen.queryByText("Connecting…")).not.toBeInTheDocument();
             // Hero owns the empty state — no message list (and thus no seeded bubble).
             expect(screen.queryByTestId("chat-message-list")).not.toBeInTheDocument();
+        });
+
+        test("hero greeting uses the matched agent's displayName", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: true });
+            mockUseChatContext.mockReturnValue(
+                makeDefaultChatContext({
+                    messages: [],
+                    selectedAgentName: "agent-uuid-123",
+                    agents: [{ name: "agent-uuid-123", displayName: "Weather Agent" }],
+                })
+            );
+
+            renderPage();
+            expect(screen.getByText("Hi, I'm Weather Agent. How can I help you?")).toBeInTheDocument();
+        });
+
+        test("renders the chat input within the centered welcome group, not bottom-docked", () => {
+            mockUseConfigContext.mockReturnValue({ agentMode: true });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ messages: [], selectedAgentName: "Foo" }));
+
+            renderPage();
+            const welcome = screen.getByTestId("agent-mode-welcome");
+            const input = screen.getByTestId("chat-input-area");
+            // The 900px-capped group centers the hero and holds the input as a sibling.
+            const group = welcome.parentElement as HTMLElement;
+            expect(group).toHaveStyle({ maxWidth: "900px" });
+            expect(group.contains(input)).toBe(true);
         });
 
         test("hero uses configWelcomeMessage when provided", () => {
