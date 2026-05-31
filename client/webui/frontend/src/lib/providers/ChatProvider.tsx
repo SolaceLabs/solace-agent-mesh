@@ -368,10 +368,13 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setRagData(allRagData);
             }
 
-            // Set the agent name if found. In Agent Mode the surface is locked to
-            // the pinned ?agent=; never let a loaded session's stored agent override
-            // it, or the next message would silently route to an agent the URL never
-            // named (the agent selector is hidden, so the user couldn't detect it).
+            // Set the agent name if found. In Agent Mode prefer the pinned ?agent=
+            // over the loaded session's stored agent, so a cross-agent session can't
+            // silently re-route the next message (the selector is hidden, so a user
+            // couldn't detect it). Best-effort only: in-app navigation (e.g. reopening
+            // a recent chat) can strip the hash query, in which case ?agent= is absent
+            // here and we fall back to the stored agent — harmless in practice because
+            // an Agent Mode tab always pins, so the stored agent is the pinned one.
             if (agentName) {
                 const pinnedAgent = agentMode ? getHashQueryParams().get("agent") : null;
                 setSelectedAgentName(pinnedAgent ?? agentName);
@@ -1787,7 +1790,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
             // Read the pinned agent from the hash query (/#/chat?agent=…), not
-            // window.location.search, so the URL structure matches v2 (Go).
+            // window.location.search, so the param travels with the hash route.
             const urlAgentName = getHashQueryParams().get("agent");
             const { agent: selectedAgent, shouldSeedWelcome } = selectInitialAgent({
                 agents,
