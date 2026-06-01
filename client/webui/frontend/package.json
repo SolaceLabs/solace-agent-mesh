@@ -120,10 +120,10 @@
     },
     "devDependencies": {
         "@a2a-js/sdk": "^0.3.2",
+        "@eslint/js": "^9.25.0",
         "@openfeature/core": "^1.9.2",
         "@openfeature/react-sdk": "^1.2.1",
         "@openfeature/web-sdk": "^1.7.3",
-        "@eslint/js": "^9.25.0",
         "@storybook/addon-vitest": "^10.2.10",
         "@storybook/react": "^10.2.10",
         "@storybook/react-vite": "^10.2.10",
@@ -139,8 +139,8 @@
         "@types/react-dom": "19.0.0",
         "@types/react-pdf": "7.0.0",
         "@vitejs/plugin-react": "^4.4.1",
-        "@vitest/browser-playwright": "^4.0.8",
-        "@vitest/coverage-v8": "^4.0.8",
+        "@vitest/browser-playwright": "^4.1.6",
+        "@vitest/coverage-v8": "^4.1.6",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",
@@ -160,7 +160,7 @@
         "typescript": "~5.8.3",
         "typescript-eslint": "^8.30.1",
         "vite": "^6.4.2",
-        "vitest": "^4.0.8"
+        "vitest": "^4.1.6"
     },
     "optionalDependencies": {
         "@esbuild/darwin-arm64": "0.25.5",
