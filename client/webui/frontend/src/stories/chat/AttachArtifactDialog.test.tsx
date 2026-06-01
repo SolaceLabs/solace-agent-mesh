@@ -21,6 +21,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AttachArtifactDialog } from "@/lib/components/chat/file/AttachArtifactDialog";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 import { artifactKeys } from "@/lib/api/artifacts/keys";
+import * as artifactService from "@/lib/api/artifacts/service";
 
 expect.extend(matchers);
 
@@ -92,8 +93,20 @@ function renderDialog(artifacts: ArtifactWithSession[], options: { hasMore?: boo
     // fetchNextPage via QueryClient's fetchNextPage event pipeline: the
     // IntersectionObserver callback calls `loadMore` which ultimately
     // triggers fetchNextPage — we intercept that on the QueryClient itself.
+    const rawArtifacts = artifacts.map(toRawArtifact);
+
+    // `useAllArtifacts` uses `refetchOnMount: "always"`, so it always refetches on mount
+    // through `getAllArtifacts`. Without a mock that refetch hits the (unmocked) network and,
+    // depending on the jsdom/fetch environment, resolves with empty data that clobbers the
+    // seeded cache. Stub the service to return the same artifacts so the refetch is deterministic.
+    vi.spyOn(artifactService, "getAllArtifacts").mockResolvedValue({
+        artifacts: rawArtifacts,
+        nextPage: options.hasMore ? 2 : null,
+        totalCount: artifacts.length,
+    } as Awaited<ReturnType<typeof artifactService.getAllArtifacts>>);
+
     qc.setQueryData([...artifactKeys.lists(), { search: undefined }], {
-        pages: [{ artifacts: artifacts.map(toRawArtifact), nextPage: options.hasMore ? 2 : null, totalCount: artifacts.length }],
+        pages: [{ artifacts: rawArtifacts, nextPage: options.hasMore ? 2 : null, totalCount: artifacts.length }],
         pageParams: [1],
     });
 
@@ -121,6 +134,7 @@ describe("AttachArtifactDialog", () => {
 
     afterEach(() => {
         vi.unstubAllGlobals();
+        vi.restoreAllMocks();
         qc?.clear();
     });
 

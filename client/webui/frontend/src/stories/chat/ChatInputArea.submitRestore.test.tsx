@@ -13,6 +13,7 @@ import { OpenFeatureTestProvider } from "@openfeature/react-sdk";
 import { ChatInputArea } from "@/lib/components/chat/ChatInputArea";
 import type { ArtifactWithSession } from "@/lib/api/artifacts";
 import { artifactKeys } from "@/lib/api/artifacts/keys";
+import * as artifactService from "@/lib/api/artifacts/service";
 import { queryClient } from "@/lib/providers/QueryClient";
 import { StoryProvider } from "../mocks/StoryProvider";
 
@@ -72,10 +73,20 @@ function seedArtifacts(artifacts: ArtifactWithSession[]) {
         pages: [{ artifacts: raw, nextPage: null, totalCount: raw.length }],
         pageParams: [1],
     });
+
+    // `useAllArtifacts` force-refetches on mount (refetchOnMount: "always"); without a mock that
+    // refetch hits the unmocked network and can clobber the seeded cache with empty data. Stub the
+    // service to return the same artifacts so the refetch is deterministic across environments.
+    vi.spyOn(artifactService, "getAllArtifacts").mockResolvedValue({
+        artifacts: raw,
+        nextPage: null,
+        totalCount: raw.length,
+    } as Awaited<ReturnType<typeof artifactService.getAllArtifacts>>);
 }
 
 afterEach(() => {
     queryClient.clear();
+    vi.restoreAllMocks();
 });
 
 // ---------------------------------------------------------------------------
