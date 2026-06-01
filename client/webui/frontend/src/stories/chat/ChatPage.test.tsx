@@ -25,7 +25,8 @@ const mockUseChatSurface = vi.fn();
 
 const FULL_SURFACE = {
     variant: "full",
-    navigation: ["newChat", "appNav", "recentChats"],
+    showNav: true,
+    showRecentChatsPanel: false,
     showAgentSelector: true,
     showActivityPanel: true,
     allowPrompts: true,
@@ -37,7 +38,8 @@ const FULL_SURFACE = {
 
 const EMBEDDED_SURFACE = {
     variant: "embedded",
-    navigation: ["recentChats"],
+    showNav: false,
+    showRecentChatsPanel: true,
     showAgentSelector: false,
     showActivityPanel: false,
     allowPrompts: false,
@@ -192,6 +194,7 @@ describe("ChatPage", () => {
             LoadingMessageRow: () => React.createElement("div", { "data-testid": "loading-message-row" }),
             ProjectBadge: ({ text }: { text: string }) => React.createElement("span", { "data-testid": "project-badge" }, text),
             SessionSidePanel: ({ onToggle }: { onToggle: () => void }) => React.createElement("div", { "data-testid": "session-side-panel", onClick: onToggle }),
+            RecentChatsSidePanel: () => React.createElement("div", { "data-testid": "recent-chats-side-panel" }),
             UserPresenceAvatars: () => React.createElement("div", { "data-testid": "user-presence-avatars" }),
             ShareNotificationMessage: () => React.createElement("div", { "data-testid": "share-notification" }),
         }));
@@ -308,7 +311,7 @@ describe("ChatPage", () => {
             mockUseChatContext.mockReturnValue(makeDefaultChatContext({ selectedAgentName: "", messages: [] }));
 
             renderPage();
-            expect(screen.getByText("Connecting…")).toBeInTheDocument();
+            expect(screen.getByText("Agent connecting...")).toBeInTheDocument();
             // No seeded welcome bubble and no Activity surfacing in embedded mode.
             expect(screen.queryByTestId("embedded-chat-welcome")).not.toBeInTheDocument();
         });
@@ -328,6 +331,22 @@ describe("ChatPage", () => {
             expect(hero).toBeInTheDocument();
             // Greeting is built from the resolved agent's display name.
             expect(hero).toHaveTextContent("Hi, I'm Weather. How can I help you?");
+        });
+
+        test("renders the Recent Chats toggle + drawer in embedded", () => {
+            mockUseChatSurface.mockReturnValue(EMBEDDED_SURFACE);
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ selectedAgentName: "WeatherAgent", agents: [{ name: "WeatherAgent", displayName: "Weather" }], messages: [] }));
+
+            renderPage();
+            expect(screen.getByTestId("showRecentChats")).toBeInTheDocument();
+            expect(screen.getByTestId("recent-chats-side-panel")).toBeInTheDocument();
+        });
+
+        test("does not render the Recent Chats toggle/drawer in the full surface", () => {
+            // FULL_SURFACE is the default mock.
+            renderPage();
+            expect(screen.queryByTestId("showRecentChats")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("recent-chats-side-panel")).not.toBeInTheDocument();
         });
     });
 });

@@ -8,21 +8,12 @@ import { createContext } from "react";
 export type SessionAction = "goToProject" | "rename" | "renameWithAI" | "move" | "share" | "delete";
 
 /**
- * A navigation-sidebar section.
- * - `newChat` — the New Chat button (new nav only)
- * - `appNav` — the app-level nav items (Chat/Projects/Artifacts/Agents/…); the legacy
- *   icon rail is entirely app-nav, so it renders only when this section is allowed
- * - `recentChats` — the Recent Chats list (new nav only)
- */
-export type NavSection = "newChat" | "appNav" | "recentChats";
-
-/**
  * The single source of truth for which chrome the chat UI exposes.
  *
  * Components read *intent* (e.g. `showActivityPanel`) rather than the activation
  * mechanism, so suppression decisions live here in one struct instead of being
  * threaded as scattered `if (embedded)` checks. The activation mechanism (today the
- * `/embed/chat` route) can change without touching consumers.
+ * `/embed/*` routes) can change without touching consumers.
  *
  * Derived once at load from the hash route (`/#/embed/chat?agent=Foo`), never
  * persisted, and deliberately NOT part of server config — so an admin on the same
@@ -31,13 +22,13 @@ export type NavSection = "newChat" | "appNav" | "recentChats";
 export interface ChatSurface {
     /** "full" = the standard web UI; "embedded" = chat-only, single-agent. */
     variant: "full" | "embedded";
+    /** Render the navigation sidebar (both the legacy and new-navigation variants). */
+    showNav: boolean;
     /**
-     * Which navigation sections the sidebar exposes. The new nav renders each allowed
-     * section (header always kept); the legacy icon rail is pure app-nav, so it renders
-     * only when `appNav` is allowed and nothing otherwise. `[]` means no sidebar at all.
-     * Embedded uses `["recentChats"]` — chat navigation only, no New Chat or app nav.
+     * Show the embedded Recent Chats affordance: a header toggle (left of New Chat) that
+     * opens a left drawer of the pinned agent's recent chats. Embedded only.
      */
-    navigation: ReadonlyArray<NavSection>;
+    showRecentChatsPanel: boolean;
     /** Render the agent selector dropdown in the chat input. */
     showAgentSelector: boolean;
     /** Render the Activity tab/icon and the per-message "View activity" button. */
@@ -60,7 +51,8 @@ export interface ChatSurface {
 /** The standard, unconstrained web UI. Also the context default: absence of a provider means full capabilities. */
 export const FULL_CHAT_SURFACE: ChatSurface = {
     variant: "full",
-    navigation: ["newChat", "appNav", "recentChats"],
+    showNav: true,
+    showRecentChatsPanel: false,
     showAgentSelector: true,
     showActivityPanel: true,
     allowPrompts: true,

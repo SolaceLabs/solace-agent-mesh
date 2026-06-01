@@ -30,7 +30,7 @@ describe("ChatSurfaceProvider", () => {
         window.history.replaceState({}, "", "/");
     });
 
-    test("defaults to the full surface when no agentMode param is present", () => {
+    test("defaults to the full surface on a non-embed route", () => {
         window.history.replaceState({}, "", "/#/chat");
         render(
             <ChatSurfaceProvider>
@@ -39,7 +39,8 @@ describe("ChatSurfaceProvider", () => {
         );
         const surface = readSurface();
         expect(surface.variant).toBe("full");
-        expect(surface.navigation).toEqual(["newChat", "appNav", "recentChats"]);
+        expect(surface.showNav).toBe(true);
+        expect(surface.showRecentChatsPanel).toBe(false);
         expect(surface.showAgentSelector).toBe(true);
         expect(surface.showActivityPanel).toBe(true);
         expect(surface.pinnedAgent).toBeNull();
@@ -55,13 +56,27 @@ describe("ChatSurfaceProvider", () => {
         );
         const surface = readSurface();
         expect(surface.variant).toBe("embedded");
-        expect(surface.navigation).toEqual(["recentChats"]);
+        expect(surface.showNav).toBe(false);
+        expect(surface.showRecentChatsPanel).toBe(true);
         expect(surface.showAgentSelector).toBe(false);
         expect(surface.showActivityPanel).toBe(false);
         expect(surface.allowPrompts).toBe(false);
         expect(surface.pinnedAgent).toBe("WeatherAgent");
         expect(surface.seedWelcomeBubble).toBe(false);
         expect(surface.sessionActions).toEqual(["rename", "renameWithAI", "delete"]);
+    });
+
+    test("treats the /embed/recent-chats route as embedded too (View All stays embedded)", () => {
+        window.history.replaceState({}, "", "/#/embed/recent-chats?agent=WeatherAgent");
+        render(
+            <ChatSurfaceProvider>
+                <SurfaceProbe />
+            </ChatSurfaceProvider>
+        );
+        const surface = readSurface();
+        expect(surface.variant).toBe("embedded");
+        expect(surface.showNav).toBe(false);
+        expect(surface.pinnedAgent).toBe("WeatherAgent");
     });
 
     test("keeps the pinned agent stable after the hash query is later stripped (issue #3)", () => {

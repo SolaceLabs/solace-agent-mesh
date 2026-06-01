@@ -4,6 +4,7 @@ import type { NavigateFunction } from "react-router-dom";
 import { api, getErrorFromResponse } from "@/lib/api";
 import { type ArtifactWithSession, getArtifactApiUrl } from "@/lib/api/artifacts";
 import { getErrorMessage } from "@/lib/utils";
+import { useChatRoute } from "@/lib/hooks/useChatRoute";
 import type { PasteMetadata, PastedTextItem } from "./paste";
 
 interface UseChatAttachmentsOptions {
@@ -78,6 +79,8 @@ export interface UseChatAttachmentsResult {
  * `restoreFromCapture`.
  */
 export function useChatAttachments({ addNotification, displayError, handleSwitchSession, navigate }: UseChatAttachmentsOptions): UseChatAttachmentsResult {
+    // Embedded-aware chat route so "Go to Chat" keeps the /embed/chat?agent= URL.
+    const chatRoute = useChatRoute();
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [selectedArtifactRefs, setSelectedArtifactRefs] = useState<ArtifactWithSession[]>([]);
     const [pendingPastedTextItems, setPendingPastedTextItems] = useState<PastedTextItem[]>([]);
@@ -179,9 +182,9 @@ export function useChatAttachments({ addNotification, displayError, handleSwitch
         async (artifact: ArtifactWithSession) => {
             setPreviewingArtifact(null);
             await handleSwitchSession(artifact.sessionId);
-            navigate("/chat");
+            navigate(chatRoute);
         },
-        [handleSwitchSession, navigate]
+        [handleSwitchSession, navigate, chatRoute]
     );
 
     const handlePreviewGoToProject = useCallback(

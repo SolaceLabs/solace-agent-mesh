@@ -99,3 +99,60 @@ class TestCountByUserSourceFilter:
         _seed_sessions(session)
         count = repo.count_by_user(session, USER_ID, source=None)
         assert count == 2
+
+
+# ---------------------------------------------------------------------------
+# agent_id filter tests (embedded single-agent surface)
+# ---------------------------------------------------------------------------
+
+def _seed_agent_sessions(session: DBSession):
+    """Insert chat sessions for USER_ID owned by different agents, plus one with no agent."""
+    session.add_all([
+        SessionModel(id="s-alpha", name="Alpha chat", user_id=USER_ID, source="chat", agent_id="AlphaAgent", created_time=1700000000000, updated_time=1700000000000),
+        SessionModel(id="s-beta", name="Beta chat", user_id=USER_ID, source="chat", agent_id="BetaAgent", created_time=1700000001000, updated_time=1700000001000),
+        SessionModel(id="s-none", name="No agent", user_id=USER_ID, source="chat", agent_id=None, created_time=1700000002000, updated_time=1700000002000),
+    ])
+    session.flush()
+
+
+class TestFindByUserAgentFilter:
+    def test_agent_filter_returns_only_that_agent(self, session, repo):
+        _seed_agent_sessions(session)
+        results = repo.find_by_user(session, USER_ID, agent_id="AlphaAgent")
+        assert [r.id for r in results] == ["s-alpha"]
+
+    def test_agent_filter_excludes_null_agent_sessions(self, session, repo):
+        _seed_agent_sessions(session)
+        results = repo.find_by_user(session, USER_ID, agent_id="BetaAgent")
+        assert {r.id for r in results} == {"s-beta"}
+
+    def test_agent_filter_none_returns_all(self, session, repo):
+        _seed_agent_sessions(session)
+        results = repo.find_by_user(session, USER_ID, agent_id=None)
+        assert len(results) == 3
+
+
+class TestCountByUserAgentFilter:
+    def test_count_agent_filter(self, session, repo):
+        _seed_agent_sessions(session)
+        assert repo.count_by_user(session, USER_ID, agent_id="AlphaAgent") == 1
+
+    def test_count_agent_none_returns_total(self, session, repo):
+        _seed_agent_sessions(session)
+        assert repo.count_by_user(session, USER_ID, agent_id=None) == 3
+
+
+class TestSearchAgentFilter:
+    def test_search_scoped_to_agent(self, session, repo):
+        _seed_agent_sessions(session)  # names: "Alpha chat", "Beta chat", "No agent"
+        results = repo.search(session, USER_ID, "chat", agent_id="AlphaAgent")
+        assert [r.id for r in results] == ["s-alpha"]
+
+    def test_search_without_agent_matches_all(self, session, repo):
+        _seed_agent_sessions(session)
+        results = repo.search(session, USER_ID, "chat")
+        assert {r.id for r in results} == {"s-alpha", "s-beta"}
+
+    def test_count_search_scoped_to_agent(self, session, repo):
+        _seed_agent_sessions(session)
+        assert repo.count_search_results(session, USER_ID, "chat", agent_id="BetaAgent") == 1

@@ -93,7 +93,8 @@ describe("AppLayout model warning banner", () => {
 
 const EMBEDDED_SURFACE: ChatSurface = {
     variant: "embedded",
-    navigation: ["recentChats"],
+    showNav: false,
+    showRecentChatsPanel: true,
     showAgentSelector: false,
     showActivityPanel: false,
     allowPrompts: false,
@@ -108,22 +109,20 @@ describe("AppLayout navigation gating by chat surface", () => {
         mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
     });
 
-    test("embedded + new_navigation renders the collapsible sidebar with Recent Chats but no New Chat / app nav (issue #1)", async () => {
+    test("embedded surface renders NO nav sidebar even when new_navigation is enabled (issue #1)", async () => {
         await renderWithProviders(
             <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>
                 <AppLayout />
             </ChatSurfaceContext.Provider>,
             { featureFlags: { new_navigation: true } }
         );
-        expect(screen.getByTestId("collapsible-navigation-sidebar")).toBeInTheDocument();
-        expect(screen.getByText("Recent Chats")).toBeInTheDocument();
-        // New Chat button and app nav items are suppressed in recent-chats-only mode.
+        // Neither nav variant renders: no collapsible (Recent Chats / New Chat) and no legacy rail.
+        expect(screen.queryByText("Recent Chats")).not.toBeInTheDocument();
         expect(screen.queryByText("New Chat")).not.toBeInTheDocument();
-        // The legacy icon rail is never shown alongside the new nav.
         expect(screen.queryByTestId("navigation-sidebar")).not.toBeInTheDocument();
     });
 
-    test("embedded + legacy nav renders no sidebar (the icon rail has no Recent Chats)", async () => {
+    test("embedded surface renders NO nav sidebar when new_navigation is disabled", async () => {
         await renderWithProviders(
             <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>
                 <AppLayout />
@@ -131,13 +130,13 @@ describe("AppLayout navigation gating by chat surface", () => {
             { featureFlags: { new_navigation: false } }
         );
         expect(screen.queryByTestId("navigation-sidebar")).not.toBeInTheDocument();
-        expect(screen.queryByTestId("collapsible-navigation-sidebar")).not.toBeInTheDocument();
+        expect(screen.queryByText("Recent Chats")).not.toBeInTheDocument();
     });
 
     test("full surface shows the full collapsible nav (incl. New Chat) when new_navigation is enabled", async () => {
         await renderWithProviders(<AppLayout />, { featureFlags: { new_navigation: true } });
-        expect(screen.getByTestId("collapsible-navigation-sidebar")).toBeInTheDocument();
         expect(screen.getByText("New Chat")).toBeInTheDocument();
+        expect(screen.getByText("Recent Chats")).toBeInTheDocument();
     });
 
     test("full surface still shows the legacy nav when new_navigation is disabled", async () => {

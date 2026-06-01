@@ -20,9 +20,6 @@ function AppLayoutContent() {
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
     const surface = useChatSurface();
-    const showNewChatNav = surface.navigation.includes("newChat");
-    const showAppNav = surface.navigation.includes("appNav");
-    const showRecentChatsNav = surface.navigation.includes("recentChats");
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { hasModelConfigWrite } = useChatContext();
@@ -154,14 +151,14 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {/* surface.navigation lists which sidebar sections to expose. The new nav renders
-                each allowed section (header always kept); the legacy icon rail is pure app-nav,
-                so it shows only when "appNav" is allowed. An empty list renders no sidebar. */}
-            {useNewNav ? (
-                surface.navigation.length > 0 && <CollapsibleNavigationSidebar items={showAppNav ? items : []} activeItemId={activeItemId} showNewChatButton={showNewChatNav} showRecentChats={showRecentChatsNav} />
-            ) : showAppNav ? (
-                <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            ) : null}
+            {/* surface.showNav gates BOTH nav variants, so the embedded surface is chat-only
+                (no sidebar) regardless of the new_navigation flag. */}
+            {surface.showNav &&
+                (useNewNav ? (
+                    <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
+                ) : (
+                    <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+                ))}
             <main className="flex h-full w-full min-w-0 flex-1 flex-col">
                 <ModelWarningBanner />
                 <Outlet />

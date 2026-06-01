@@ -10,13 +10,15 @@ describe("sessionKeys", () => {
         expect(sessionKeys.lists()).toEqual(["sessions", "list"]);
     });
 
-    test("recent(userId, max) is scoped by userId", () => {
-        expect(sessionKeys.recent("alice", 10)).toEqual(["sessions", "list", "recent", "alice", 10]);
+    test("recent(userId, max, agentId?) is scoped by userId (and agent)", () => {
+        expect(sessionKeys.recent("alice", 10)).toEqual(["sessions", "list", "recent", "alice", 10, null]);
+        expect(sessionKeys.recent("alice", 10, "AgentX")).toEqual(["sessions", "list", "recent", "alice", 10, "AgentX"]);
     });
 
-    test("infinite(userId, pageSize, source?) is scoped by userId", () => {
-        expect(sessionKeys.infinite("alice", 20)).toEqual(["sessions", "list", "infinite", "alice", 20, undefined]);
-        expect(sessionKeys.infinite("alice", 20, "scheduler")).toEqual(["sessions", "list", "infinite", "alice", 20, "scheduler"]);
+    test("infinite(userId, pageSize, source?, agentId?) is scoped by userId (and agent)", () => {
+        expect(sessionKeys.infinite("alice", 20)).toEqual(["sessions", "list", "infinite", "alice", 20, undefined, null]);
+        expect(sessionKeys.infinite("alice", 20, "scheduler")).toEqual(["sessions", "list", "infinite", "alice", 20, "scheduler", null]);
+        expect(sessionKeys.infinite("alice", 20, "chat", "AgentX")).toEqual(["sessions", "list", "infinite", "alice", 20, "chat", "AgentX"]);
     });
 
     test("different userId values produce non-equal recent keys", () => {

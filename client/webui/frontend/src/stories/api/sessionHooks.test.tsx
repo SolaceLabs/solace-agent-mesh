@@ -87,8 +87,8 @@ describe("useRecentSessions / useInfiniteSessions — auth user switch", () => {
 
         // Alice's cached entry must still be reachable under her own key —
         // proving the new fetch went to a *different* cache slot.
-        const aliceCached = queryClient.getQueryData(["sessions", "list", "recent", "alice", 10]) as Session[] | undefined;
-        const bobCached = queryClient.getQueryData(["sessions", "list", "recent", "bob", 10]) as Session[] | undefined;
+        const aliceCached = queryClient.getQueryData(["sessions", "list", "recent", "alice", 10, null]) as Session[] | undefined;
+        const bobCached = queryClient.getQueryData(["sessions", "list", "recent", "bob", 10, null]) as Session[] | undefined;
         expect(aliceCached?.[0]?.id).toBe("alice-sess");
         expect(bobCached?.[0]?.id).toBe("bob-sess");
     });

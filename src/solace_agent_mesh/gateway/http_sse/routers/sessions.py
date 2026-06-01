@@ -83,6 +83,7 @@ def _enrich_scheduler_sessions_with_task_info(db: Session, session_responses: li
 async def get_all_sessions(
     project_id: Optional[str] = Query(default=None, alias="project_id"),
     source: Optional[str] = Query(default=None, description="Filter by source: chat, scheduler, or omit for all"),
+    agent_id: Optional[str] = Query(default=None, alias="agent_id", description="Filter by agent (wire name); used by the embedded single-agent surface"),
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: Session = Depends(get_db),
@@ -116,11 +117,13 @@ async def get_all_sessions(
         log_msg += f" filtered by project_id={project_id}"
     if source:
         log_msg += f" filtered by source={source}"
+    if agent_id:
+        log_msg += f" filtered by agent_id={agent_id}"
     log.info(log_msg)
 
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
-        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id, source=source)
+        paginated_response = session_service.get_user_sessions(db, user_id, pagination, project_id=project_id, source=source, agent_id=agent_id)
 
         session_responses = []
         for session_domain in paginated_response.data:
@@ -155,6 +158,7 @@ async def get_all_sessions(
 async def search_sessions(
     query: str = Query(..., min_length=1, description="Search query"),
     project_id: Optional[str] = Query(default=None, alias="projectId"),
+    agent_id: Optional[str] = Query(default=None, alias="agent_id", description="Filter by agent (wire name); used by the embedded single-agent surface"),
     page_number: int = Query(default=1, ge=1, alias="pageNumber"),
     page_size: int = Query(default=20, ge=1, le=100, alias="pageSize"),
     db: Session = Depends(get_db),
@@ -176,7 +180,7 @@ async def search_sessions(
     try:
         pagination = PaginationParams(page_number=page_number, page_size=page_size)
         paginated_response = session_service.search_sessions(
-            db, user_id, query, pagination, project_id=project_id
+            db, user_id, query, pagination, project_id=project_id, agent_id=agent_id
         )
 
         session_responses = []

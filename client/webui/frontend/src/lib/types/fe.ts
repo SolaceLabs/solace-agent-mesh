@@ -352,6 +352,8 @@ export interface Session {
     createdTime: string;
     updatedTime: string;
     name: string | null;
+    /** Wire name of the agent this session belongs to (server `agentId`). Used to scope the embedded recent-chats list. */
+    agentId?: string | null;
     projectId?: string | null;
     projectName?: string | null;
     source?: string | null; // "chat" or "scheduler"

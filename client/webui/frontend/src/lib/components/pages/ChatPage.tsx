@@ -10,7 +10,20 @@ import { useChatContext, useChatSurface, useConfigContext, useIsAutoTitleGenerat
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, EmbeddedChatWelcome, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import {
+    ChatInputArea,
+    ChatMessage,
+    ChatSessionDialog,
+    ChatSessionDeleteDialog,
+    ChatSidePanel,
+    EmbeddedChatWelcome,
+    LoadingMessageRow,
+    ProjectBadge,
+    RecentChatsSidePanel,
+    SessionSidePanel,
+    UserPresenceAvatars,
+    ShareNotificationMessage,
+} from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -344,6 +357,12 @@ export function ChatPage() {
         setIsSessionSidePanelCollapsed(!isSessionSidePanelCollapsed);
     }, [isSessionSidePanelCollapsed]);
 
+    // Embedded surface only: a left drawer of the pinned agent's recent chats, toggled
+    // from the header (left of New Chat). Starts closed; opening pushes content right.
+    const [isRecentChatsOpen, setIsRecentChatsOpen] = useState(false);
+    const handleRecentChatsToggle = useCallback(() => setIsRecentChatsOpen(open => !open), []);
+    const recentChatsDrawerOpen = surface.showRecentChatsPanel && isRecentChatsOpen;
+
     const breadcrumbs = undefined;
 
     // Determine the page title with pulse/fade effect
@@ -562,7 +581,7 @@ export function ChatPage() {
 
     return (
         <PageLayout className="relative">
-            {!useNewNav && (
+            {!useNewNav && !surface.showRecentChatsPanel && (
                 <div
                     inert={isSessionSidePanelCollapsed}
                     className={`absolute top-0 left-0 z-20 h-screen transition-[transform,visibility] duration-300 ${isSessionSidePanelCollapsed ? "invisible -translate-x-full delay-300" : "visible translate-x-0"}`}
@@ -570,7 +589,12 @@ export function ChatPage() {
                     <SessionSidePanel onToggle={handleSessionSidePanelToggle} />
                 </div>
             )}
-            <div className={`transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+            {surface.showRecentChatsPanel && (
+                <div inert={!isRecentChatsOpen} className={`absolute top-0 left-0 z-20 h-screen transition-[transform,visibility] duration-300 ${isRecentChatsOpen ? "visible translate-x-0" : "invisible -translate-x-full delay-300"}`}>
+                    <RecentChatsSidePanel />
+                </div>
+            )}
+            <div className={`transition-all duration-300 ${(!useNewNav && !isSessionSidePanelCollapsed) || recentChatsDrawerOpen ? "ml-100" : "ml-0"}`}>
                 <Header
                     title={
                         <div className="flex items-center gap-3">
@@ -587,7 +611,17 @@ export function ChatPage() {
                     }
                     breadcrumbs={breadcrumbs}
                     leadingAction={
-                        useNewNav ? (
+                        surface.showRecentChatsPanel ? (
+                            // Embedded: a Recent Chats toggle to the LEFT of New Chat.
+                            <div className="flex items-center gap-2">
+                                <Button data-testid="showRecentChats" variant="ghost" onClick={handleRecentChatsToggle} className="h-10 w-10 p-0" tooltip="Toggle Chat Sessions">
+                                    <PanelLeftIcon className="size-5" />
+                                </Button>
+                                <div className="h-6 border-r"></div>
+
+                                <ChatSessionDialog />
+                            </div>
+                        ) : useNewNav ? (
                             <ChatSessionDialog />
                         ) : isSessionSidePanelCollapsed ? (
                             <div className="flex items-center gap-2">
@@ -624,7 +658,7 @@ export function ChatPage() {
                 />
             </div>
             <div className="flex min-h-0 flex-1">
-                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${!useNewNav && !isSessionSidePanelCollapsed ? "ml-100" : "ml-0"}`}>
+                <div className={`min-h-0 flex-1 overflow-x-auto transition-all duration-300 ${(!useNewNav && !isSessionSidePanelCollapsed) || recentChatsDrawerOpen ? "ml-100" : "ml-0"}`}>
                     <ResizablePanelGroup direction="horizontal" autoSaveId="chat-side-panel" className="h-full">
                         <ResizablePanel defaultSize={chatPanelSizes.default} minSize={chatPanelSizes.min} maxSize={chatPanelSizes.max} id="chat-panel">
                             <div className="flex h-full w-full flex-col">
@@ -644,11 +678,7 @@ export function ChatPage() {
                                         pinnedAgentTimedOut ? (
                                             <EmptyState variant="error" title="Agent unavailable" subtitle="This agent does not exist or is currently unavailable." />
                                         ) : (
-                                            renderEmbeddedEmptyState(
-                                                <Spinner size="medium" variant="primary">
-                                                    <p className="mt-4 text-sm text-(--secondary-text-wMain)">Connecting…</p>
-                                                </Spinner>
-                                            )
+                                            renderEmbeddedEmptyState(<EmptyState variant="loading" title="Agent connecting..." />)
                                         )
                                     ) : isEmbedded && messages.length === 0 ? (
                                         // Embedded hero welcome — centered empty state for the pinned agent.

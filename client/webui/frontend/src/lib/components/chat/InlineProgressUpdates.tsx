@@ -12,6 +12,7 @@ import { ChevronDown, ChevronRight, ChevronUp, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
 import { MarkdownWrapper } from "@/lib/components";
+import { useChatSurface } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import type { ProgressUpdate } from "@/lib/types";
 
@@ -32,6 +33,8 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
     const [isListExpanded, setIsListExpanded] = useState(false);
     const [expandedThinkingIds, setExpandedThinkingIds] = useState<Set<number>>(new Set());
     const hasAutoCollapsed = useRef(false);
+    // Embedded surface hides the Activity panel, so the inline activity timeline is removed entirely.
+    const { showActivityPanel } = useChatSurface();
 
     // Auto-collapse timeline when task completes
     useEffect(() => {
@@ -40,6 +43,9 @@ export const InlineProgressUpdates = ({ updates, isActive = false, onViewWorkflo
             setIsTimelineOpen(false);
         }
     }, [isActive, updates.length]);
+
+    // Embedded surface: no inline activity timeline at all.
+    if (!showActivityPanel) return null;
 
     // No updates yet — the inline breathing indicator under the message provides feedback.
     if (!updates || updates.length === 0) return null;

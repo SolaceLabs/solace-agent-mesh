@@ -9,6 +9,7 @@ export { LoadingMessageRow } from "./LoadingMessageRow";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
 export { RecentChatsList } from "./RecentChatsList";
+export { RecentChatsSidePanel } from "./RecentChatsSidePanel";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";

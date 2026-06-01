@@ -41,6 +41,7 @@ export * from "./useIsProjectIndexingEnabled";
 export * from "./useIsMentionsEnabled";
 export * from "./useIsNewNavigationEnabled";
 export * from "./useChatSurface";
+export * from "./useChatRoute";
 export * from "./useSSEContext";
 export * from "./useIndexingSSE";
 export * from "./useNavigationItems";
