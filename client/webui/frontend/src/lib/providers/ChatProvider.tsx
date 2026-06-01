@@ -5,12 +5,12 @@ import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { api } from "@/lib/api";
 import type { AttachedArtifactRef } from "@/lib/types";
 import { ChatContext, type ChatContextValue, type PendingPromptData } from "@/lib/contexts";
-import { useConfigContext, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
+import { useConfigContext, useChatSurface, useArtifacts, useAgentCards, useTaskContext, useErrorDialog, useBackgroundTaskMonitor, useArtifactPreview, useArtifactOperations, useCollaborativeSession } from "@/lib/hooks";
 import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, selectInitialAgent } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -26,7 +26,6 @@ import type {
     Task,
     TextPart,
     ArtifactPart,
-    AgentCardInfo,
     Project,
     StoredTaskData,
     RAGSearchResult,
@@ -42,6 +41,7 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     // ============ Hooks ============
     const { configWelcomeMessage, persistenceEnabled, configCollectFeedback, backgroundTasksEnabled, backgroundTasksDefaultTimeoutMs, configUseAuthorization } = useConfigContext();
+    const surface = useChatSurface();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
     const { activeProject, setActiveProject, projects } = useProjectContext();
@@ -369,9 +369,14 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 setRagData(allRagData);
             }
 
-            // Set the agent name if found
+            // Set the agent name if found. In the embedded surface, prefer the pinned
+            // agent (captured once at load, stable across navigation that strips the
+            // hash query) over the loaded session's stored agent, so a cross-agent
+            // session can't silently re-route the next message — the selector is hidden,
+            // so a user couldn't detect it.
             if (agentName) {
-                setSelectedAgentName(agentName);
+                const pinnedAgent = surface.variant === "embedded" ? surface.pinnedAgent : null;
+                setSelectedAgentName(pinnedAgent ?? agentName);
             }
 
             // Set taskIdInSidePanel to the most recent task for workflow visualization
@@ -547,7 +552,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // Collaborative session detection happens in switchSession via useCollaborativeSession hook.
             // Sender info in messages is kept for UI display purposes only.
         },
-        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend]
+        [backgroundTasksEnabled, setRagData, setMessages, saveTaskToBackend, surface.variant, surface.pinnedAgent]
     );
 
     // Background task monitoring
@@ -1783,45 +1788,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     useEffect(() => {
         // Don't show welcome message if we're loading a session
         if (!selectedAgentName && agents.length > 0 && messages.length === 0 && !isLoadingSession) {
-            // Priority order for agent selection:
-            // 1. URL parameter agent (?agent=AgentName)
-            // 2. Project's default agent (if in project context)
-            // 3. OrchestratorAgent (fallback)
-            // 4. First available agent
-            let selectedAgent = agents[0];
+            // Embedded surface pins to the captured ?agent= (stable across navigation);
+            // full UI keeps reading ?agent= from the (pre-hash) query string as before.
+            const urlAgentName = surface.variant === "embedded" ? surface.pinnedAgent : new URLSearchParams(window.location.search).get("agent");
+            const { agent: selectedAgent, shouldSeedWelcome } = selectInitialAgent({
+                agents,
+                urlAgentName,
+                embedded: surface.variant === "embedded",
+                projectDefaultAgentId: activeProject?.defaultAgentId,
+            });
 
-            // Check URL parameter first
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlAgentName = urlParams.get("agent");
-            let urlAgent: AgentCardInfo | undefined;
-
-            if (urlAgentName) {
-                urlAgent = agents.find(agent => agent.name === urlAgentName);
-                if (urlAgent) {
-                    selectedAgent = urlAgent;
-                    console.log(`Using URL parameter agent: ${selectedAgent.name}`);
-                } else {
-                    console.warn(`URL parameter agent "${urlAgentName}" not found in available agents, falling back to priority order`);
-                }
-            }
-
-            // If no URL agent found, follow existing priority order
-            if (!urlAgent) {
-                if (activeProject?.defaultAgentId) {
-                    const projectDefaultAgent = agents.find(agent => agent.name === activeProject.defaultAgentId);
-                    if (projectDefaultAgent) {
-                        selectedAgent = projectDefaultAgent;
-                        console.log(`Using project default agent: ${selectedAgent.name}`);
-                    } else {
-                        console.warn(`Project default agent "${activeProject.defaultAgentId}" not found, falling back to OrchestratorAgent`);
-                        selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
-                    }
-                } else {
-                    selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
-                }
+            // Embedded pinned agent not yet discovered: bail and leave selectedAgentName=""
+            // so the input shows a connecting state. The effect re-fires as agents register
+            // (dep array) and resolves the instant the pinned agent appears.
+            if (!selectedAgent) {
+                return;
             }
 
             setSelectedAgentName(selectedAgent.name);
+
+            // Embedded surface: skip the seeded welcome bubble so messages.length === 0
+            // holds and the centered hero owns the empty state. Full UI keeps its
+            // left-aligned seeded bubble.
+            if (!shouldSeedWelcome) {
+                return;
+            }
 
             const displayedText = configWelcomeMessage || `Hi! I'm the ${selectedAgent?.displayName}. How can I help?`;
             setMessages([
@@ -1837,7 +1828,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 },
             ]);
         }
-    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages]);
+    }, [agents, configWelcomeMessage, messages.length, selectedAgentName, sessionId, isLoadingSession, activeProject, setMessages, surface.variant, surface.pinnedAgent]);
 
     // Store the latest handlers in refs so they can be accessed without triggering effect re-runs
     // Note: handleSseMessageRef is declared earlier (line ~103) for use in loadSessionTasks

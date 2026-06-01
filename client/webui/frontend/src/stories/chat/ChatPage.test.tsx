@@ -21,6 +21,31 @@ const mockUseLocation = vi.fn();
 const mockUseNavigate = vi.fn();
 const mockUseShareLink = vi.fn();
 const mockUseShareUsers = vi.fn();
+const mockUseChatSurface = vi.fn();
+
+const FULL_SURFACE = {
+    variant: "full",
+    navigation: ["newChat", "appNav", "recentChats"],
+    showAgentSelector: true,
+    showActivityPanel: true,
+    allowPrompts: true,
+    allowMentions: true,
+    pinnedAgent: null,
+    seedWelcomeBubble: true,
+    sessionActions: ["goToProject", "rename", "renameWithAI", "move", "share", "delete"],
+};
+
+const EMBEDDED_SURFACE = {
+    variant: "embedded",
+    navigation: ["recentChats"],
+    showAgentSelector: false,
+    showActivityPanel: false,
+    allowPrompts: false,
+    allowMentions: true,
+    pinnedAgent: "WeatherAgent",
+    seedWelcomeBubble: false,
+    sessionActions: ["rename", "renameWithAI", "delete"],
+};
 
 function makeDefaultChatContext(overrides: Record<string, unknown> = {}) {
     return {
@@ -74,6 +99,7 @@ describe("ChatPage", () => {
         mockUseNavigate.mockReset();
         mockUseShareLink.mockReset();
         mockUseShareUsers.mockReset();
+        mockUseChatSurface.mockReset();
 
         // Default return values
         mockUseChatContext.mockReturnValue(makeDefaultChatContext());
@@ -87,6 +113,7 @@ describe("ChatPage", () => {
         mockUseNavigate.mockReturnValue(vi.fn());
         mockUseShareLink.mockReturnValue({ data: null });
         mockUseShareUsers.mockReturnValue({ data: { users: [] } });
+        mockUseChatSurface.mockReturnValue(FULL_SURFACE);
 
         vi.doMock("@/lib/hooks", async () => {
             const actual = await vi.importActual<typeof import("@/lib/hooks")>("@/lib/hooks");
@@ -98,6 +125,7 @@ describe("ChatPage", () => {
                 useConfigContext: mockUseConfigContext,
                 useIsChatSharingEnabled: mockUseIsChatSharingEnabled,
                 useIsAutoTitleGenerationEnabled: mockUseIsAutoTitleGenerationEnabled,
+                useChatSurface: mockUseChatSurface,
             };
         });
 
@@ -160,6 +188,7 @@ describe("ChatPage", () => {
             ChatSessionDeleteDialog: () => React.createElement("div", { "data-testid": "chat-session-delete-dialog" }),
             ChatSidePanel: () => React.createElement("div", { "data-testid": "chat-side-panel" }),
             ChatInputArea: () => React.createElement("div", { "data-testid": "chat-input-area" }),
+            EmbeddedChatWelcome: ({ message }: { message?: string }) => React.createElement("div", { "data-testid": "embedded-chat-welcome" }, message),
             LoadingMessageRow: () => React.createElement("div", { "data-testid": "loading-message-row" }),
             ProjectBadge: ({ text }: { text: string }) => React.createElement("span", { "data-testid": "project-badge" }, text),
             SessionSidePanel: ({ onToggle }: { onToggle: () => void }) => React.createElement("div", { "data-testid": "session-side-panel", onClick: onToggle }),
@@ -260,5 +289,45 @@ describe("ChatPage", () => {
         expect(screen.getByRole("button", { name: /Continue in New Chat/i })).toBeInTheDocument();
         // Share button should NOT be present for collaborative sessions
         expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();
+    });
+
+    describe("embedded surface", () => {
+        test("shows a 'No agent specified' error when the embedded URL has no ?agent=", () => {
+            mockUseChatSurface.mockReturnValue({ ...EMBEDDED_SURFACE, pinnedAgent: null });
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ selectedAgentName: "", messages: [] }));
+
+            renderPage();
+            expect(screen.getByText("No agent specified")).toBeInTheDocument();
+            // Misconfiguration is terminal — no connecting spinner, no input.
+            expect(screen.queryByText("Connecting…")).not.toBeInTheDocument();
+            expect(screen.queryByTestId("chat-input-area")).not.toBeInTheDocument();
+        });
+
+        test("shows the Connecting state while the pinned agent has not resolved", () => {
+            mockUseChatSurface.mockReturnValue(EMBEDDED_SURFACE);
+            mockUseChatContext.mockReturnValue(makeDefaultChatContext({ selectedAgentName: "", messages: [] }));
+
+            renderPage();
+            expect(screen.getByText("Connecting…")).toBeInTheDocument();
+            // No seeded welcome bubble and no Activity surfacing in embedded mode.
+            expect(screen.queryByTestId("embedded-chat-welcome")).not.toBeInTheDocument();
+        });
+
+        test("shows the centered hero greeting once the pinned agent resolves", () => {
+            mockUseChatSurface.mockReturnValue(EMBEDDED_SURFACE);
+            mockUseChatContext.mockReturnValue(
+                makeDefaultChatContext({
+                    selectedAgentName: "WeatherAgent",
+                    agents: [{ name: "WeatherAgent", displayName: "Weather" }],
+                    messages: [],
+                })
+            );
+
+            renderPage();
+            const hero = screen.getByTestId("embedded-chat-welcome");
+            expect(hero).toBeInTheDocument();
+            // Greeting is built from the resolved agent's display name.
+            expect(hero).toHaveTextContent("Hi, I'm Weather. How can I help you?");
+        });
     });
 });

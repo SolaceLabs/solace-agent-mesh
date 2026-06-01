@@ -9,7 +9,7 @@ import type { AttachedArtifactRef } from "@/lib/types";
 import { MessageBanner } from "@/lib/components/common";
 import { MentionContentEditable } from "@/lib/components/ui/chat/MentionContentEditable";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useChatContext, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
+import { useChatContext, useChatSurface, useDragAndDrop, useAgentSelection, useAudioSettings, useConfigContext, useIsMentionsEnabled } from "@/lib/hooks";
 import { useModelConfigStatus } from "@/lib/api/models";
 import type { AgentCardInfo, Person } from "@/lib/types";
 import type { PromptGroup } from "@/lib/types/prompts";
@@ -84,6 +84,7 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     const { handleAgentSelection } = useAgentSelection();
     const { settings } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
+    const surface = useChatSurface();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { value: artifactAttachmentEnabled } = useBooleanFlagDetails("artifact_attachment", false);
     const { data: modelConfigStatus } = useModelConfigStatus();
@@ -417,8 +418,11 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     }, [selectedArtifactRefs.length]);
 
     const isSubmittingEnabled = useMemo(
-        () => !isResponding && !modelNotConfigured && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
-        [isResponding, modelNotConfigured, inputValue, selectedFiles, pendingPastedTextItems, selectedArtifactRefs]
+        // Embedded surface: no agent, no send. Until the pinned agent resolves
+        // (selectedAgentName === ""), block sending into a void. UX-only — the
+        // provider re-guards on send.
+        () => !isResponding && !modelNotConfigured && (surface.variant !== "embedded" || !!selectedAgentName) && (inputValue?.trim() || selectedFiles.length !== 0 || pendingPastedTextItems.length !== 0 || selectedArtifactRefs.length !== 0),
+        [isResponding, modelNotConfigured, surface.variant, selectedAgentName, inputValue, selectedFiles, pendingPastedTextItems, selectedArtifactRefs]
     );
 
     const onSubmit = async (event: FormEvent) => {
@@ -669,8 +673,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
         const textBeforeCursor = value.substring(0, cursorPosition);
 
         // Check if "/" is typed as the first character (position 0)
-        // Only trigger prompt popover when "/" is at the very start of the input
-        if (textBeforeCursor === "/") {
+        // Only trigger prompt popover when "/" is at the very start of the input.
+        // The embedded surface never invokes prompts.
+        if (surface.allowPrompts && textBeforeCursor === "/") {
             setShowPromptsCommand(true);
             setShowMentionsCommand(false); // Close mentions if open
         } else if (showPromptsCommand && !textBeforeCursor.startsWith("/")) {
@@ -811,6 +816,9 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
     let inputPlaceholder: string;
     if (isRecording) {
         inputPlaceholder = "Recording...";
+    } else if (!surface.allowPrompts) {
+        // Embedded surface disallows prompts, so the "/" hint is omitted.
+        inputPlaceholder = mentionsEnabled && surface.allowMentions ? "How can I help you today? (Type '@' to mention someone)" : "How can I help you today?";
     } else if (mentionsEnabled) {
         inputPlaceholder = "How can I help you today? (Type '/' to insert a prompt, '@' to mention someone)";
     } else {
@@ -1157,27 +1165,31 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                     </Button>
                 )}
 
-                <div className="hidden @[480px]:block">Agent: </div>
-                <Select
-                    value={selectedAgentName}
-                    onValueChange={agentName => {
-                        handleAgentSelection(agentName);
-                    }}
-                    disabled={isResponding || agents.length === 0}
-                >
-                    <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="Select an agent..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {agents
-                            .filter(agent => !agent.isWorkflow)
-                            .map(agent => (
-                                <SelectItem key={agent.name} value={agent.name}>
-                                    {agent.displayName || agent.name}
-                                </SelectItem>
-                            ))}
-                    </SelectContent>
-                </Select>
+                {surface.showAgentSelector && (
+                    <>
+                        <div className="hidden @[480px]:block">Agent: </div>
+                        <Select
+                            value={selectedAgentName}
+                            onValueChange={agentName => {
+                                handleAgentSelection(agentName);
+                            }}
+                            disabled={isResponding || agents.length === 0}
+                        >
+                            <SelectTrigger className="w-[250px]">
+                                <SelectValue placeholder="Select an agent..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents
+                                    .filter(agent => !agent.isWorkflow)
+                                    .map(agent => (
+                                        <SelectItem key={agent.name} value={agent.name}>
+                                            {agent.displayName || agent.name}
+                                        </SelectItem>
+                                    ))}
+                            </SelectContent>
+                        </Select>
+                    </>
+                )}
 
                 {/* Spacer to push buttons to the right */}
                 <div className="flex-1" />

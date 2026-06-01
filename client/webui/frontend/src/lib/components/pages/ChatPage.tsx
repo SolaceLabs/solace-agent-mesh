@@ -6,13 +6,14 @@ import { PanelLeftIcon, Loader2, GitFork } from "lucide-react";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { Header } from "@/lib/components/header";
-import { useChatContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
+import { useChatContext, useChatSurface, useConfigContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTaskContext, useTitleAnimation, useIsChatSharingEnabled, useTurnDividerAnimation } from "@/lib/hooks";
 import { SLIDE_OUT_DURATION_MS, FADE_OUT_DURATION_MS } from "@/lib/hooks/useTurnDividerAnimation";
 import { useProjectContext } from "@/lib/providers";
 import type { CollaborativeUser } from "@/lib/types/collaboration";
-import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
+import { ChatInputArea, ChatMessage, ChatSessionDialog, ChatSessionDeleteDialog, ChatSidePanel, EmbeddedChatWelcome, LoadingMessageRow, ProjectBadge, SessionSidePanel, UserPresenceAvatars, ShareNotificationMessage } from "@/lib/components/chat";
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
+import { EmptyState } from "@/lib/components/common/EmptyState";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
@@ -24,6 +25,10 @@ import { ShareDialog } from "@/lib/components/share/ShareDialog";
 const COLLAPSED_STYLE = { height: 0, overflow: "hidden" } as const;
 const NO_OVERFLOW_ANCHOR_STYLE = { overflowAnchor: "none" } as const;
 const OVERFLOW_ANCHOR_AUTO_STYLE = { overflowAnchor: "auto" } as const;
+// How long the embedded surface waits for its pinned ?agent= to register before
+// showing a terminal "unavailable" message instead of spinning forever.
+const PINNED_AGENT_TIMEOUT_MS = 15000;
+const HERO_MAX_WIDTH_STYLE = { maxWidth: "900px" } as const;
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
 const PANEL_SIZES_CLOSED = {
@@ -52,11 +57,14 @@ export function ChatPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
+    const surface = useChatSurface();
+    const { configWelcomeMessage } = useConfigContext();
     const {
         agents,
         agentsRefetch,
         sessionId,
         sessionName,
+        selectedAgentName,
         messages,
         isSidePanelCollapsed,
         setIsSidePanelCollapsed,
@@ -85,6 +93,33 @@ export function ChatPage() {
     const [isSidePanelTransitioning, setIsSidePanelTransitioning] = useState(false);
     const [isForkingChat, setIsForkingChat] = useState(false);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+    const isEmbedded = surface.variant === "embedded";
+
+    // Embedded surface requires an explicit ?agent=. With none, it's a misconfiguration —
+    // show a terminal error rather than guessing an agent (the selector is hidden).
+    const noAgentSpecified = isEmbedded && !surface.pinnedAgent && messages.length === 0;
+
+    // A named pinned agent hasn't resolved yet (selectedAgentName still ""). Show a
+    // connecting state, falling back to a terminal "unavailable" error after a timeout
+    // so a bad ?agent= (typo, down, or unauthorized) doesn't spin forever.
+    const isAwaitingPinnedAgent = isEmbedded && !!surface.pinnedAgent && messages.length === 0 && !selectedAgentName;
+
+    // Embedded hero heading. Resolve the pinned agent by its wire name only — the same
+    // identifier ?agent= and message routing (agent_name) use — so the greeting label
+    // can never disagree with the agent that receives messages.
+    const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName), [agents, selectedAgentName]);
+    const heroMessage = configWelcomeMessage || (welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : `Hi, I'm ${selectedAgentName}. How can I help you?`);
+    const [pinnedAgentTimedOut, setPinnedAgentTimedOut] = useState(false);
+    useEffect(() => {
+        if (!isAwaitingPinnedAgent) {
+            setPinnedAgentTimedOut(false);
+            return;
+        }
+        const timer = setTimeout(() => setPinnedAgentTimedOut(true), PINNED_AGENT_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [isAwaitingPinnedAgent]);
+
     // Share notification data: each entry represents a share action (user added at a specific time)
     const [shareNotifications, setShareNotifications] = useState<
         Array<
@@ -451,6 +486,8 @@ export function ChatPage() {
     );
 
     const handleViewProgressClick = useMemo(() => {
+        // The embedded surface hides the Activity panel, so don't surface a button that opens it.
+        if (!surface.showActivityPanel) return undefined;
         if (inlineActivityTimelineEnabled) return undefined;
         if (!currentTaskId) return undefined;
 
@@ -458,7 +495,7 @@ export function ChatPage() {
             setTaskIdInSidePanel(currentTaskId);
             openSidePanelTab("activity");
         };
-    }, [currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
+    }, [surface.showActivityPanel, currentTaskId, setTaskIdInSidePanel, openSidePanelTab, inlineActivityTimelineEnabled]);
 
     const lastMessageIndexByTaskId = useMemo(() => {
         const map = new Map<string, number>();
@@ -509,6 +546,19 @@ export function ChatPage() {
             window.removeEventListener("focus", handleWindowFocus);
         };
     }, [isTaskMonitorConnected, isTaskMonitorConnecting, taskMonitorSseError, connectTaskMonitorStream]);
+
+    // Embedded surface empty states (connecting / unavailable / hero) share a centered
+    // layout with the chat input below — factored out so the two branches don't duplicate it.
+    const renderEmbeddedEmptyState = (hero: React.ReactNode) => (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-32">
+            <div className="flex flex-col items-center gap-6" style={HERO_MAX_WIDTH_STYLE}>
+                {hero}
+                <div className="mt-4 w-full" style={CHAT_STYLES}>
+                    <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <PageLayout className="relative">
@@ -585,6 +635,24 @@ export function ChatPage() {
                                                 <p className="mt-4 text-sm text-(--secondary-text-wMain)">Loading session...</p>
                                             </Spinner>
                                         </div>
+                                    ) : noAgentSpecified ? (
+                                        // Embedded with no ?agent= — a misconfiguration. Fail loud rather than guess.
+                                        <EmptyState variant="error" title="No agent specified" subtitle="This chat needs an “agent” to be specified in its address." />
+                                    ) : isAwaitingPinnedAgent ? (
+                                        // Embedded: named agent not resolved yet. Show connecting, then a terminal
+                                        // "unavailable" error if it never registers.
+                                        pinnedAgentTimedOut ? (
+                                            <EmptyState variant="error" title="Agent unavailable" subtitle="This agent does not exist or is currently unavailable." />
+                                        ) : (
+                                            renderEmbeddedEmptyState(
+                                                <Spinner size="medium" variant="primary">
+                                                    <p className="mt-4 text-sm text-(--secondary-text-wMain)">Connecting…</p>
+                                                </Spinner>
+                                            )
+                                        )
+                                    ) : isEmbedded && messages.length === 0 ? (
+                                        // Embedded hero welcome — centered empty state for the pinned agent.
+                                        renderEmbeddedEmptyState(<EmbeddedChatWelcome message={heroMessage} />)
                                     ) : (
                                         <>
                                             <ChatMessageList className="text-base" ref={chatMessageListRef}>

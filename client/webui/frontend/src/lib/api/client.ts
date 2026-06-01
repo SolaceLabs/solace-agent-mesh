@@ -1,4 +1,5 @@
 import { getApiBearerToken, getSamAccessToken } from "@/lib/utils/api";
+import { stashPostLoginRedirect } from "@/lib/utils/url";
 
 interface RequestOptions {
     headers?: HeadersInit;
@@ -167,6 +168,7 @@ const refreshToken = async () => {
         }
 
         clearTokens();
+        stashPostLoginRedirect();
         globalThis.location.href = "/api/v1/auth/login";
         return null;
     })()
@@ -274,6 +276,7 @@ const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
             // Redirect to login to break any external retry loop.
             if (retryResponse.status === 401) {
                 clearTokens();
+                stashPostLoginRedirect();
                 globalThis.location.href = "/api/v1/auth/login";
                 // Navigation is async — return the 401 as-is; the page will
                 // navigate away before callers can act on it.

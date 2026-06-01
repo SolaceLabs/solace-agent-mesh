@@ -31,3 +31,63 @@ export function getCleanDomain(url: string): string {
 export function getFaviconUrl(domain: string, size: number = 32): string {
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
 }
+
+/**
+ * Embedded chat params live in the query segment of the hash route, after the
+ * route path: `/#/embed/chat?agent=Foo`. We read them from window.location.hash
+ * (not window.location.search) so the params travel with the hash route.
+ * Synchronous + read-once-at-load, so no full-UI flash.
+ */
+export function getHashQueryParams(): URLSearchParams {
+    const hash = window.location.hash;
+    const queryIndex = hash.indexOf("?");
+    return new URLSearchParams(queryIndex >= 0 ? hash.slice(queryIndex + 1) : "");
+}
+
+/**
+ * The route path inside the hash, without the leading "#" or any query segment.
+ * `/#/embed/chat?agent=Foo` → `/embed/chat`. Used to detect the embedded surface
+ * route synchronously at load (read-once, no flash).
+ */
+export function getHashPath(): string {
+    const hash = window.location.hash.replace(/^#/, "");
+    return hash.split("?")[0];
+}
+
+const POST_LOGIN_REDIRECT_KEY = "sam_post_login_redirect";
+
+/**
+ * Remember the current URL before leaving the SPA for the IdP, so the embedded
+ * chat params (which the login round-trip would otherwise drop) can be restored
+ * after the callback. Written at every exit-to-login site.
+ */
+export function stashPostLoginRedirect(): void {
+    try {
+        localStorage.setItem(POST_LOGIN_REDIRECT_KEY, window.location.href);
+    } catch {
+        // localStorage unavailable (private mode / disabled) — restore falls back to "/".
+    }
+}
+
+/**
+ * Read and clear the stashed post-login URL. One-shot (deleted on read) and
+ * same-origin checked so a poisoned key cannot drive an open redirect. Falls back
+ * to "/" when absent, unparseable, or cross-origin.
+ */
+export function consumePostLoginRedirect(): string {
+    let stashed: string | null = null;
+    try {
+        stashed = localStorage.getItem(POST_LOGIN_REDIRECT_KEY);
+        localStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+    } catch {
+        return "/";
+    }
+    if (!stashed) return "/";
+    try {
+        const url = new URL(stashed);
+        if (url.origin === window.location.origin) return url.href;
+    } catch {
+        // Not an absolute same-origin URL — ignore.
+    }
+    return "/";
+}

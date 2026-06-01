@@ -26,6 +26,12 @@ export const createRouter = () => {
                     element: <ChatPage />,
                 },
                 {
+                    // Embedded, chat-only single-agent surface (?agent=Foo). Reuses ChatPage;
+                    // ChatSurfaceProvider keys the embedded layout off this route path.
+                    path: "embed/chat",
+                    element: <ChatPage />,
+                },
+                {
                     path: "recent-chats",
                     element: <RecentChatsPage />,
                 },

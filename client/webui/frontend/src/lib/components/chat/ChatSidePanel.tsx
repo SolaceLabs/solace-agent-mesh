@@ -3,10 +3,10 @@ import React, { useState, useEffect, useMemo } from "react";
 import { PanelRightIcon, FileText, Network, RefreshCw, Link2 } from "lucide-react";
 
 import { Button, Tabs, TabsList, TabsTrigger, TabsContent } from "@/lib/components/ui";
-import { useTaskContext, useChatContext, useIsProjectIndexingEnabled } from "@/lib/hooks";
+import { useTaskContext, useChatContext, useChatSurface, useIsProjectIndexingEnabled } from "@/lib/hooks";
 import { FlowChartPanel, processTaskForVisualization } from "@/lib/components/activities";
 import type { VisualizedTask } from "@/lib/types";
-import { hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
+import { cn, hasSourcesWithUrls, hasDocumentSearchResults } from "@/lib/utils";
 
 import { ArtifactPanel } from "./artifact/ArtifactPanel";
 import { FlowChartDetails } from "../activities/FlowChartDetails";
@@ -21,6 +21,7 @@ interface ChatSidePanelProps {
 
 export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle, isSidePanelCollapsed, setIsSidePanelCollapsed }) => {
     const { activeSidePanelTab, setActiveSidePanelTab, setPreviewArtifact, taskIdInSidePanel, ragData, ragEnabled } = useChatContext();
+    const surface = useChatSurface();
     const { isReconnecting, isTaskMonitorConnecting, isTaskMonitorConnected, monitoredTasks, connectTaskMonitorStream, loadTaskFromBackend } = useTaskContext();
     const isProjectIndexingEnabled = useIsProjectIndexingEnabled();
     const [visualizedTask, setVisualizedTask] = useState<VisualizedTask | null>(null);
@@ -42,6 +43,13 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
         // Also check for document search results
         return hasDocumentSearchResults(ragData);
     }, [ragData]);
+
+    // The embedded surface hides the Activity tab; fall back to Files so the panel never lands on a hidden tab.
+    useEffect(() => {
+        if (!surface.showActivityPanel && activeSidePanelTab === "activity") {
+            setActiveSidePanelTab("files");
+        }
+    }, [surface.showActivityPanel, activeSidePanelTab, setActiveSidePanelTab]);
 
     // Process task data for visualization when the selected activity task ID changes
     // or when monitoredTasks is updated with new data.
@@ -168,9 +176,11 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                     <FileText className="size-5" />
                 </Button>
 
-                <Button variant="ghost" size="sm" onClick={() => handleIconClick("activity")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip="Activity">
-                    <Network className="size-5" />
-                </Button>
+                {surface.showActivityPanel && (
+                    <Button variant="ghost" size="sm" onClick={() => handleIconClick("activity")} className={hasSourcesInSession ? "mb-2 h-10 w-10 p-0" : "h-10 w-10 p-0"} tooltip="Activity">
+                        <Network className="size-5" />
+                    </Button>
+                )}
 
                 {hasSourcesInSession && (
                     <Button variant="ghost" size="sm" onClick={() => handleIconClick("rag")} className="h-10 w-10 p-0" tooltip="Sources">
@@ -191,14 +201,16 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             <PanelRightIcon className="size-5" />
                         </Button>
                         <TabsList className="flex min-w-0 flex-1 bg-transparent p-0">
-                            <TabsTrigger value="files" title="Files" className="relative min-w-0 flex-1 rounded-none rounded-l-md px-2 data-[state=active]:z-10" onClick={() => setPreviewArtifact(null)}>
+                            <TabsTrigger value="files" title="Files" className={cn("relative min-w-0 flex-1 rounded-none rounded-l-md px-2 data-[state=active]:z-10", !surface.showActivityPanel && !hasSourcesInSession && "rounded-r-md border-r")} onClick={() => setPreviewArtifact(null)}>
                                 <FileText className="h-4 w-4 shrink-0" />
                                 <span className="ml-1.5 hidden truncate @[240px]:inline">Files</span>
                             </TabsTrigger>
-                            <TabsTrigger value="activity" title="Activity" className={`relative min-w-0 flex-1 rounded-none border-x-0 border-y px-2 data-[state=active]:z-10 ${!hasSourcesInSession ? "rounded-r-md border-r" : ""}`}>
-                                <Network className="h-4 w-4 shrink-0" />
-                                <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
-                            </TabsTrigger>
+                            {surface.showActivityPanel && (
+                                <TabsTrigger value="activity" title="Activity" className={cn("relative min-w-0 flex-1 rounded-none border-x-0 border-y px-2 data-[state=active]:z-10", !hasSourcesInSession && "rounded-r-md border-r")}>
+                                    <Network className="h-4 w-4 shrink-0" />
+                                    <span className="ml-1.5 hidden truncate @[240px]:inline">Activity</span>
+                                </TabsTrigger>
+                            )}
                             {hasSourcesInSession && (
                                 <TabsTrigger value="rag" title="Sources" className="relative min-w-0 flex-1 rounded-none rounded-r-md px-2 data-[state=active]:z-10">
                                     <Link2 className="h-4 w-4 shrink-0" />
@@ -214,44 +226,46 @@ export const ChatSidePanel: React.FC<ChatSidePanelProps> = ({ onCollapsedToggle,
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="activity" className="m-0 h-full">
-                            <div className="h-full">
-                                {(() => {
-                                    const emptyStateContent = getActivityPanelContent();
+                        {surface.showActivityPanel && (
+                            <TabsContent value="activity" className="m-0 h-full">
+                                <div className="h-full">
+                                    {(() => {
+                                        const emptyStateContent = getActivityPanelContent();
 
-                                    if (!emptyStateContent && visualizedTask) {
+                                        if (!emptyStateContent && visualizedTask) {
+                                            return (
+                                                <div className="flex h-full flex-col">
+                                                    <FlowChartDetails task={visualizedTask} />
+                                                    <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} />
+                                                </div>
+                                            );
+                                        }
+
                                         return (
-                                            <div className="flex h-full flex-col">
-                                                <FlowChartDetails task={visualizedTask} />
-                                                <FlowChartPanel processedSteps={visualizedTask.steps || []} isRightPanelVisible={false} />
+                                            <div className="flex h-full items-center justify-center p-4">
+                                                <div className="text-center text-(--secondary-text-wMain)">
+                                                    <Network className="mx-auto mb-4 h-12 w-12" />
+                                                    <div className="text-lg font-medium">Activity</div>
+                                                    <div className="mt-2 text-sm">{emptyStateContent?.message}</div>
+                                                    {emptyStateContent?.showButton && (
+                                                        <div className="mt-4">
+                                                            <Button onClick={emptyStateContent.buttonAction}>
+                                                                {emptyStateContent.buttonIcon &&
+                                                                    (() => {
+                                                                        const ButtonIcon = emptyStateContent.buttonIcon;
+                                                                        return <ButtonIcon className="h-4 w-4" />;
+                                                                    })()}
+                                                                {emptyStateContent.buttonText}
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
-                                    }
-
-                                    return (
-                                        <div className="flex h-full items-center justify-center p-4">
-                                            <div className="text-center text-(--secondary-text-wMain)">
-                                                <Network className="mx-auto mb-4 h-12 w-12" />
-                                                <div className="text-lg font-medium">Activity</div>
-                                                <div className="mt-2 text-sm">{emptyStateContent?.message}</div>
-                                                {emptyStateContent?.showButton && (
-                                                    <div className="mt-4">
-                                                        <Button onClick={emptyStateContent.buttonAction}>
-                                                            {emptyStateContent.buttonIcon &&
-                                                                (() => {
-                                                                    const ButtonIcon = emptyStateContent.buttonIcon;
-                                                                    return <ButtonIcon className="h-4 w-4" />;
-                                                                })()}
-                                                            {emptyStateContent.buttonText}
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        </TabsContent>
+                                    })()}
+                                </div>
+                            </TabsContent>
+                        )}
 
                         {hasSourcesInSession && (
                             <TabsContent value="rag" className="m-0 h-full">

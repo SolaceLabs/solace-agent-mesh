@@ -21,6 +21,7 @@ export { MessageAttribution } from "./MessageAttribution";
 export { CollaborativeUserMessage } from "./CollaborativeUserMessage";
 export { InlineProgressUpdates } from "./InlineProgressUpdates";
 export { ContextUsageIndicator } from "./ContextUsageIndicator";
+export { EmbeddedChatWelcome } from "./EmbeddedChatWelcome";
 export * from "./file";
 export * from "./selection";
 

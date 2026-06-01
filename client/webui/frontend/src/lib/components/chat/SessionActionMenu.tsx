@@ -3,6 +3,7 @@ import { Trash2, Pencil, FolderInput, MoreHorizontal, PanelsTopLeft, Sparkles, S
 
 import { cn } from "@/lib/utils";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/lib/components/ui";
+import { useChatSurface } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 
 export interface SessionActionMenuProps {
@@ -19,6 +20,14 @@ export interface SessionActionMenuProps {
 }
 
 export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, onRename, onRenameWithAI, onMove, onDelete, onGoToProject, onShare, isRegeneratingTitle = false, triggerClassName }) => {
+    const surface = useChatSurface();
+    // Which items appear is driven by the surface allowlist (in canonical order),
+    // so a new action is added once here — there's no separate per-surface branch to keep in sync.
+    const allows = surface.sessionActions;
+
+    const showGoToProject = allows.includes("goToProject") && !!session.projectId && !!onGoToProject;
+    const showShare = allows.includes("share") && !!onShare;
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -27,12 +36,12 @@ export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, o
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-                {session.projectId && onGoToProject && (
+                {showGoToProject && (
                     <>
                         <DropdownMenuItem
                             onClick={e => {
                                 e.stopPropagation();
-                                onGoToProject(session);
+                                onGoToProject?.(session);
                             }}
                         >
                             <PanelsTopLeft size={16} className="mr-2" />
@@ -41,55 +50,65 @@ export const SessionActionMenu: React.FC<SessionActionMenuProps> = ({ session, o
                         <DropdownMenuSeparator />
                     </>
                 )}
-                <DropdownMenuItem
-                    onClick={e => {
-                        e.stopPropagation();
-                        onRename(session);
-                    }}
-                >
-                    <Pencil size={16} className="mr-2" />
-                    Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                    onClick={e => {
-                        e.stopPropagation();
-                        onRenameWithAI(session);
-                    }}
-                    disabled={isRegeneratingTitle}
-                >
-                    <Sparkles size={16} className={cn("mr-2", isRegeneratingTitle && "animate-pulse")} />
-                    Rename with AI
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                    onClick={e => {
-                        e.stopPropagation();
-                        onMove(session);
-                    }}
-                >
-                    <FolderInput size={16} className="mr-2" />
-                    Move to Project
-                </DropdownMenuItem>
-                {onShare && (
+                {allows.includes("rename") && (
                     <DropdownMenuItem
                         onClick={e => {
                             e.stopPropagation();
-                            onShare(session);
+                            onRename(session);
+                        }}
+                    >
+                        <Pencil size={16} className="mr-2" />
+                        Rename
+                    </DropdownMenuItem>
+                )}
+                {allows.includes("renameWithAI") && (
+                    <DropdownMenuItem
+                        onClick={e => {
+                            e.stopPropagation();
+                            onRenameWithAI(session);
+                        }}
+                        disabled={isRegeneratingTitle}
+                    >
+                        <Sparkles size={16} className={cn("mr-2", isRegeneratingTitle && "animate-pulse")} />
+                        Rename with AI
+                    </DropdownMenuItem>
+                )}
+                {allows.includes("move") && (
+                    <DropdownMenuItem
+                        onClick={e => {
+                            e.stopPropagation();
+                            onMove(session);
+                        }}
+                    >
+                        <FolderInput size={16} className="mr-2" />
+                        Move to Project
+                    </DropdownMenuItem>
+                )}
+                {showShare && (
+                    <DropdownMenuItem
+                        onClick={e => {
+                            e.stopPropagation();
+                            onShare?.(session);
                         }}
                     >
                         <Share2 size={16} className="mr-2" />
                         Share
                     </DropdownMenuItem>
                 )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onClick={e => {
-                        e.stopPropagation();
-                        onDelete(session);
-                    }}
-                >
-                    <Trash2 size={16} className="mr-2" />
-                    Delete
-                </DropdownMenuItem>
+                {allows.includes("delete") && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onClick={e => {
+                                e.stopPropagation();
+                                onDelete(session);
+                            }}
+                        >
+                            <Trash2 size={16} className="mr-2" />
+                            Delete
+                        </DropdownMenuItem>
+                    </>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     );

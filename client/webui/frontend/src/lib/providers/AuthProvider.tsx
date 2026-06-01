@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, scheduleProactiveRefresh, cancelProactiveRefresh } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
+import { stashPostLoginRedirect } from "@/lib/utils/url";
 import { EmptyState } from "../components";
 
 interface AuthProviderProps {
@@ -81,6 +82,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
     const login = () => {
+        stashPostLoginRedirect();
         window.location.href = configAuthLoginUrl;
     };
 
