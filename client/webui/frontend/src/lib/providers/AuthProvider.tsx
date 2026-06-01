@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, scheduleProactiveRefresh, cancelProactiveRefresh } from "@/lib/api";
 import { AuthContext } from "@/lib/contexts/AuthContext";
 import { useConfigContext, useCsrfContext } from "@/lib/hooks";
+import { buildLoginUrl } from "@/lib/utils/loginRedirect";
 import { EmptyState } from "../components";
 
 interface AuthProviderProps {
@@ -81,7 +82,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, [configUseAuthorization, configAuthLoginUrl, fetchCsrfToken]);
 
     const login = () => {
-        window.location.href = configAuthLoginUrl;
+        // Preserve the destination the user was trying to reach (e.g. ?agent=X#/chat)
+        // so it survives the OAuth round-trip and is restored after login.
+        window.location.href = buildLoginUrl(configAuthLoginUrl, window.location.search, window.location.hash);
     };
 
     const logout = async () => {
