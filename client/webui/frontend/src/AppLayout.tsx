@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
 import { Button } from "@/lib/components/ui/button";
+import { EmbeddedRouteGuard } from "@/lib/components/navigation/EmbeddedRouteGuard";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
@@ -151,6 +152,8 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
+            {/* Keeps the embedded surface locked to /embed/* (redirects any drift back). No-op in full UI. */}
+            <EmbeddedRouteGuard />
             {/* surface.showNav gates BOTH nav variants, so the embedded surface is chat-only
                 (no sidebar) regardless of the new_navigation flag. */}
             {surface.showNav &&
