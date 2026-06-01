@@ -10,7 +10,7 @@ import { useAutoGenerateTitle } from "@/lib/hooks/useAutoGenerateTitle";
 import { useProjectContext, registerProjectDeletedCallback } from "@/lib/providers";
 import { processChatEvent, serializeChatMessage, deserializeChatMessages } from "@/lib/providers/chat";
 import type { ChatEffect } from "@/lib/providers/chat";
-import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, selectInitialAgent } from "@/lib/utils";
+import { getErrorMessage, fileToBase64, migrateTask, CURRENT_SCHEMA_VERSION, getApiBearerToken, internalToDisplayText, extractRagDataFromTasks, uuid, selectInitialAgent, resolveSessionLoadAgent } from "@/lib/utils";
 import { ConfirmationDialog } from "@/lib/components/common/ConfirmationDialog";
 
 import type {
@@ -375,8 +375,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             // session can't silently re-route the next message — the selector is hidden,
             // so a user couldn't detect it.
             if (agentName) {
-                const pinnedAgent = surface.variant === "embedded" ? surface.pinnedAgent : null;
-                setSelectedAgentName(pinnedAgent ?? agentName);
+                setSelectedAgentName(resolveSessionLoadAgent({ embedded: surface.variant === "embedded", pinnedAgent: surface.pinnedAgent, storedAgent: agentName }));
             }
 
             // Set taskIdInSidePanel to the most recent task for workflow visualization

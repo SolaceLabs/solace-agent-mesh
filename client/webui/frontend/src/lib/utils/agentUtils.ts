@@ -43,6 +43,17 @@ export interface InitialAgentSelection {
 }
 
 /**
+ * On session load, decide which agent the chat is pinned to. In the embedded surface the
+ * pinned `?agent=` wins over the loaded session's stored agent, so opening a cross-agent
+ * session can't silently re-route the next message (the selector is hidden, so the user
+ * couldn't detect it). Falls back to the session's stored agent in the full UI, or when no
+ * agent is pinned.
+ */
+export function resolveSessionLoadAgent({ embedded, pinnedAgent, storedAgent }: { embedded: boolean; pinnedAgent: string | null; storedAgent: string }): string {
+    return (embedded ? pinnedAgent : null) ?? storedAgent;
+}
+
+/**
  * Decide which agent to pin when a chat opens with no agent yet selected.
  *
  * Embedded surface: requires an explicit, resolvable ?agent=. It pins to that

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { selectInitialAgent } from "@/lib/utils/agentUtils";
+import { selectInitialAgent, resolveSessionLoadAgent } from "@/lib/utils/agentUtils";
 import type { AgentCardInfo } from "@/lib/types";
 
 const agent = (name: string): AgentCardInfo => ({ name, displayName: name }) as unknown as AgentCardInfo;
@@ -94,5 +94,29 @@ describe("selectInitialAgent — priority order (full UI)", () => {
         const result = selectInitialAgent({ agents: [alpha, beta], urlAgentName: null, embedded: false });
 
         expect(result.agent).toBe(alpha);
+    });
+});
+
+describe("resolveSessionLoadAgent — embedded agent-pinning isolation", () => {
+    test("embedded: pinned agent wins over the loaded session's stored (cross-)agent", () => {
+        // The load-bearing isolation guarantee: opening a session stored against another
+        // agent must not re-route the next message away from the pinned agent.
+        expect(resolveSessionLoadAgent({ embedded: true, pinnedAgent: "WeatherAgent", storedAgent: "OtherAgent" })).toBe("WeatherAgent");
+    });
+
+    test("embedded: pinned agent used even when it matches the stored agent", () => {
+        expect(resolveSessionLoadAgent({ embedded: true, pinnedAgent: "WeatherAgent", storedAgent: "WeatherAgent" })).toBe("WeatherAgent");
+    });
+
+    test("embedded with no pinned agent falls back to the stored agent", () => {
+        expect(resolveSessionLoadAgent({ embedded: true, pinnedAgent: null, storedAgent: "OtherAgent" })).toBe("OtherAgent");
+    });
+
+    test("full UI uses the loaded session's stored agent (no pinning)", () => {
+        expect(resolveSessionLoadAgent({ embedded: false, pinnedAgent: null, storedAgent: "OtherAgent" })).toBe("OtherAgent");
+    });
+
+    test("full UI ignores any pinnedAgent value", () => {
+        expect(resolveSessionLoadAgent({ embedded: false, pinnedAgent: "WeatherAgent", storedAgent: "OtherAgent" })).toBe("OtherAgent");
     });
 });

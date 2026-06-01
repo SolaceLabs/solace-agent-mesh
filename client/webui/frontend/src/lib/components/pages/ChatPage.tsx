@@ -38,9 +38,6 @@ import { ShareDialog } from "@/lib/components/share/ShareDialog";
 const COLLAPSED_STYLE = { height: 0, overflow: "hidden" } as const;
 const NO_OVERFLOW_ANCHOR_STYLE = { overflowAnchor: "none" } as const;
 const OVERFLOW_ANCHOR_AUTO_STYLE = { overflowAnchor: "auto" } as const;
-// How long the embedded surface waits for its pinned ?agent= to register before
-// showing a terminal "unavailable" message instead of spinning forever.
-const PINNED_AGENT_TIMEOUT_MS = 15000;
 const HERO_MAX_WIDTH_STYLE = { maxWidth: "900px" } as const;
 // Constants for sidepanel behavior
 const COLLAPSED_SIZE = 4; // icon-only mode size
@@ -74,6 +71,7 @@ export function ChatPage() {
     const { configWelcomeMessage } = useConfigContext();
     const {
         agents,
+        agentsLoading,
         agentsRefetch,
         sessionId,
         sessionName,
@@ -114,24 +112,18 @@ export function ChatPage() {
     const noAgentSpecified = isEmbedded && !surface.pinnedAgent && messages.length === 0;
 
     // A named pinned agent hasn't resolved yet (selectedAgentName still ""). Show a
-    // connecting state, falling back to a terminal "unavailable" error after a timeout
-    // so a bad ?agent= (typo, down, or unauthorized) doesn't spin forever.
+    // connecting state until the agent cards have loaded; if the load completes and the
+    // pinned agent still isn't among them, it's a bad ?agent= (typo/down/unauthorized).
     const isAwaitingPinnedAgent = isEmbedded && !!surface.pinnedAgent && messages.length === 0 && !selectedAgentName;
+    // Agent cards are a one-shot fetch, so once loaded with agents present and the pinned
+    // one absent, it won't appear — no timer needed. (agents.length > 0 avoids a first-paint flash.)
+    const pinnedAgentMissing = isAwaitingPinnedAgent && !agentsLoading && agents.length > 0;
 
     // Embedded hero heading. Resolve the pinned agent by its wire name only — the same
     // identifier ?agent= and message routing (agent_name) use — so the greeting label
     // can never disagree with the agent that receives messages.
     const welcomeAgent = useMemo(() => agents.find(a => a.name === selectedAgentName), [agents, selectedAgentName]);
     const heroMessage = configWelcomeMessage || (welcomeAgent ? `Hi, I'm ${welcomeAgent.displayName || welcomeAgent.name}. How can I help you?` : `Hi, I'm ${selectedAgentName}. How can I help you?`);
-    const [pinnedAgentTimedOut, setPinnedAgentTimedOut] = useState(false);
-    useEffect(() => {
-        if (!isAwaitingPinnedAgent) {
-            setPinnedAgentTimedOut(false);
-            return;
-        }
-        const timer = setTimeout(() => setPinnedAgentTimedOut(true), PINNED_AGENT_TIMEOUT_MS);
-        return () => clearTimeout(timer);
-    }, [isAwaitingPinnedAgent]);
 
     // Share notification data: each entry represents a share action (user added at a specific time)
     const [shareNotifications, setShareNotifications] = useState<
@@ -675,7 +667,7 @@ export function ChatPage() {
                                     ) : isAwaitingPinnedAgent ? (
                                         // Embedded: named agent not resolved yet. Show connecting, then a terminal
                                         // "unavailable" error if it never registers.
-                                        pinnedAgentTimedOut ? (
+                                        pinnedAgentMissing ? (
                                             <EmptyState variant="error" title="Agent unavailable" subtitle="This agent does not exist or is currently unavailable." />
                                         ) : (
                                             renderEmbeddedEmptyState(<EmptyState variant="loading" title="Agent connecting..." />)
