@@ -222,6 +222,32 @@ class SessionService:
         log.info("Updated session %s name to '%s'", session_id, name)
         return updated_session
 
+    def update_session_agent(
+        self, db: DbSession, session_id: SessionId, user_id: UserId, agent_id: str
+    ) -> bool:
+        """Backfill the agent for a session that was created without one.
+
+        Sessions created via the file-upload-before-first-message and fork
+        paths are persisted with agent_id=None, to be filled in when the first
+        message is sent. This sets that agent_id but never overwrites an agent
+        that is already set.
+
+        Returns True if the session's agent_id was backfilled, False otherwise
+        (session missing, not owned by the user, or already had an agent).
+        """
+        if not self._is_valid_session_id(session_id):
+            raise ValueError("Invalid session ID")
+
+        if not agent_id or agent_id.strip() == "":
+            raise ValueError("Agent ID cannot be empty")
+
+        session_repository = self._get_repositories(db)
+        updated = session_repository.update_agent(db, session_id, user_id, agent_id)
+
+        if updated:
+            log.info("Backfilled agent_id '%s' for session %s", agent_id, session_id)
+        return updated
+
     def mark_session_viewed(
         self, db: DbSession, session_id: SessionId, user_id: UserId
     ) -> int | None:

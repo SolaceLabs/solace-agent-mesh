@@ -283,6 +283,39 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
 
         return Session.model_validate(session_model)
 
+    def update_agent(
+        self, db_session: DBSession, session_id: SessionId, user_id: UserId, agent_id: str
+    ) -> bool:
+        """Backfill the agent_id for a session created without one.
+
+        Sessions created via the file-upload-before-first-message and fork
+        paths are persisted with agent_id=None, to be filled in when the first
+        message is sent. This sets that agent_id, but only for rows where it is
+        currently NULL so an agent already chosen is never overwritten (keeping
+        the operation idempotent and race-safe via the SQL ``agent_id IS NULL``
+        guard).
+
+        Uses a raw UPDATE -- like ``mark_viewed`` -- so the ORM's
+        ``onupdate=now_epoch_ms`` hook does not fire: this is a pure metadata
+        backfill, not user activity, so ``updated_time`` is deliberately left
+        unchanged (the message flow advances it separately via
+        ``save_task`` -> ``mark_activity``).
+
+        Returns True if a row was updated, False otherwise (session not found,
+        not owned by the user, soft-deleted, or already had an agent).
+        """
+        with MonitorLatency(DBMonitor.update(self.table_name)):
+            stmt = text(
+                "UPDATE sessions "
+                "SET agent_id = :agent_id "
+                "WHERE id = :sid AND user_id = :uid "
+                "AND deleted_at IS NULL AND agent_id IS NULL"
+            )
+            result = db_session.execute(
+                stmt, {"agent_id": agent_id, "sid": session_id, "uid": user_id}
+            )
+        return result.rowcount > 0
+
     def search(
         self,
         db_session: DBSession,
