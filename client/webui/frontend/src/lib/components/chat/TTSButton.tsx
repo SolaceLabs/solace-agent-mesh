@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { Volume2, VolumeX, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui";
-import { useTextToSpeech, useAudioSettings, useConfigContext } from "@/lib/hooks";
+import { useTextToSpeech, useAudioSettings, useConfigContext, useChatSurface } from "@/lib/hooks";
 import { useStreamingTTS } from "@/lib/hooks/useStreamingTTS";
 import { cn } from "@/lib/utils";
 import type { MessageFE, TextPart } from "@/lib/types";
@@ -35,6 +35,7 @@ function extractTextContent(message: MessageFE): string {
 export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
     const { settings, onTTSStart, onTTSEnd } = useAudioSettings();
     const { configFeatureEnablement } = useConfigContext();
+    const surface = useChatSurface();
     const messageId = message.metadata?.messageId || "";
     const content = useMemo(() => extractTextContent(message), [message]);
     const isStreaming = !message.isComplete;
@@ -248,8 +249,9 @@ export const TTSButton: React.FC<TTSButtonProps> = ({ message, className }) => {
         return "Read aloud";
     };
 
-    // Don't render if TTS feature is disabled, TTS setting is disabled, or has no content
-    if (!ttsEnabled || !settings.textToSpeech || !content) {
+    // Don't render if TTS feature is disabled, TTS setting is disabled, has no content,
+    // or in the chat-only embedded surface (no speech/voice features).
+    if (!ttsEnabled || !settings.textToSpeech || !content || surface.variant === "embedded") {
         return null;
     }
 
