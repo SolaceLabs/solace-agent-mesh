@@ -1197,8 +1197,10 @@ export const ChatInputArea: React.FC<{ agents: AgentCardInfo[]; scrollToBottom?:
                 {/* Context usage indicator - shows token usage before the microphone button */}
                 {sessionId && <ContextUsageIndicator sessionId={sessionId} messageCount={messages.length} />}
 
-                {/* Microphone button - show if STT feature enabled and STT setting enabled */}
-                {sttEnabled && settings.speechToText && <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />}
+                {/* Microphone button - show if STT feature enabled and STT setting enabled (never in the chat-only embedded surface) */}
+                {sttEnabled && settings.speechToText && surface.variant !== "embedded" && (
+                    <AudioRecorder disabled={isResponding} onTranscriptionComplete={handleTranscription} onError={handleTranscriptionError} onRecordingStateChange={setIsRecording} />
+                )}
 
                 {isResponding && !isCancelling ? (
                     <Button data-testid="cancel" className="ml-auto gap-1.5" onClick={handleCancel} variant="outline" disabled={isCancelling} tooltip="Stop">

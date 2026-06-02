@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Info, Settings, Type, Volume2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useConfigContext } from "@/lib/hooks";
+import { useChatSurface, useConfigContext } from "@/lib/hooks";
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger, LifecycleBadge, Tooltip, TooltipContent, TooltipTrigger, VisuallyHidden } from "@/lib/components/ui";
 import { SpeechSettingsPanel } from "./SpeechSettings";
@@ -48,6 +48,7 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenChange, extraTabs = [] }: Readonly<SettingsDialogProps>) {
     const { configFeatureEnablement } = useConfigContext();
+    const surface = useChatSurface();
     const [internalOpen, setInternalOpen] = useState(false);
     const [activeSection, setActiveSection] = useState<SettingsSection>("general");
 
@@ -59,7 +60,8 @@ export function SettingsDialog({ iconOnly = false, open: controlledOpen, onOpenC
     // Feature flags
     const sttEnabled = configFeatureEnablement?.speechToText ?? true;
     const ttsEnabled = configFeatureEnablement?.textToSpeech ?? true;
-    const speechEnabled = sttEnabled || ttsEnabled;
+    // The embedded surface is chat-only — no speech/voice features.
+    const speechEnabled = (sttEnabled || ttsEnabled) && surface.variant !== "embedded";
 
     const { topTabs, bottomTabs } = useMemo(
         () => ({

@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { defaultPromptGroups } from "../data/prompts";
 import { createOpenFeatureDecorator } from "../mocks/OpenFeatureDecorator";
 import type { MessageFE } from "@/lib/types/fe";
+import { ChatSurfaceContext, FULL_CHAT_SURFACE, type ChatSurface } from "@/lib/contexts";
 
 const OpenFeatureDecorator = createOpenFeatureDecorator({
     flags: {
@@ -66,6 +67,8 @@ export const Default: Story = {
 
         await canvas.findByTestId("expandPanel");
         await canvas.findByTestId("sendMessage");
+        // Full surface: the voice/mic button renders (STT is enabled in the mock).
+        await canvas.findByLabelText("Start voice recording");
     },
 };
 
@@ -448,5 +451,50 @@ export const CollaborativeChat: Story = {
         configContext: {
             persistenceEnabled: false,
         },
+    },
+};
+
+// The embedded, single-agent surface (`/embed/chat?agent=…`): pinned to one agent
+const EMBEDDED_SURFACE: ChatSurface = {
+    ...FULL_CHAT_SURFACE,
+    variant: "embedded",
+    showNav: false,
+    showRecentChatsPanel: true,
+    showAgentSelector: false,
+    showActivityPanel: false,
+    allowPrompts: false,
+    pinnedAgent: "OrchestratorAgent",
+    seedWelcomeBubble: false,
+    sessionActions: ["rename", "renameWithAI", "delete"],
+};
+
+export const EmbeddedAgent: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-embedded-session",
+            messages: [],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            agents: [{ name: "OrchestratorAgent", displayName: "Orchestrator" }],
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+            configWelcomeMessage: "How can I help you with your code today?",
+        },
+    },
+    decorators: [(Story: StoryFn, context: StoryContext) => <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>{Story(context.args, context)}</ChatSurfaceContext.Provider>],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        await canvas.findByText("How can I help you with your code today?");
+        // Embedded-only buttons
+        await canvas.findByTestId("showRecentChats");
+        await canvas.findByTestId("sendMessage");
+        // The agent selector and voice/mic are suppressed
+        expect(canvas.queryByText(content => content.trim() === "Agent:")).toBeNull();
+        expect(canvas.queryByLabelText("Start voice recording")).toBeNull();
     },
 };
