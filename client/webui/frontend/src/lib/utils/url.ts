@@ -34,7 +34,7 @@ export function getFaviconUrl(domain: string, size: number = 32): string {
 
 /**
  * Embedded chat params live in the query segment of the hash route, after the
- * route path: `/#/embed/chat?agent=Foo`. We read them from window.location.hash
+ * route path: `/#/agent-mode/chat?agent=Foo`. We read them from window.location.hash
  * (not window.location.search) so the params travel with the hash route.
  * Synchronous + read-once-at-load, so no full-UI flash.
  */
@@ -46,7 +46,7 @@ export function getHashQueryParams(): URLSearchParams {
 
 /**
  * The route path inside the hash, without the leading "#" or any query segment.
- * `/#/embed/chat?agent=Foo` → `/embed/chat`. Used to detect the embedded surface
+ * `/#/agent-mode/chat?agent=Foo` → `/agent-mode/chat`. Used to detect the embedded surface
  * route synchronously at load (read-once, no flash).
  */
 export function getHashPath(): string {

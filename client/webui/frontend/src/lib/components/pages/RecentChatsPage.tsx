@@ -98,7 +98,7 @@ export const RecentChatsPage: React.FC = () => {
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
     const newNavigationEnabled = useIsNewNavigationEnabled();
-    // Embedded "View All": agent-scoped, trimmed chrome, and navigations stay on /embed/chat.
+    // Embedded "View All": agent-scoped, trimmed chrome, and navigations stay on /agent-mode/chat.
     const surface = useChatSurface();
     const isEmbedded = surface.variant === "embedded";
     const chatRoute = useChatRoute();

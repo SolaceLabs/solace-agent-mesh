@@ -10,13 +10,13 @@ describe("getHashQueryParams", () => {
     });
 
     it("parses the query segment that follows the hash route", () => {
-        window.history.replaceState({}, "", "/#/embed/chat?agent=Foo");
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=Foo");
         const params = getHashQueryParams();
         expect(params.get("agent")).toBe("Foo");
     });
 
     it("returns no params when the hash route carries no query", () => {
-        window.history.replaceState({}, "", "/#/embed/chat");
+        window.history.replaceState({}, "", "/#/agent-mode/chat");
         const params = getHashQueryParams();
         expect(params.get("agent")).toBeNull();
     });
@@ -24,7 +24,7 @@ describe("getHashQueryParams", () => {
     it("ignores a real query string before the hash (reads hash, not search)", () => {
         // Params in window.location.search (the rejected before-# form) must not be read —
         // the embedded surface's ?agent= travels with the hash route.
-        window.history.replaceState({}, "", "/?agent=Foo#/embed/chat");
+        window.history.replaceState({}, "", "/?agent=Foo#/agent-mode/chat");
         expect(window.location.search).toBe("?agent=Foo"); // precondition
         expect(getHashQueryParams().get("agent")).toBeNull();
     });
@@ -36,8 +36,8 @@ describe("getHashPath", () => {
     });
 
     it("returns the route path without the leading # or query segment", () => {
-        window.history.replaceState({}, "", "/#/embed/chat?agent=Foo");
-        expect(getHashPath()).toBe("/embed/chat");
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=Foo");
+        expect(getHashPath()).toBe("/agent-mode/chat");
     });
 
     it("returns the path when there is no query", () => {
@@ -58,16 +58,16 @@ describe("post-login redirect stash/restore", () => {
     });
 
     it("stashes the current URL and restores it once", () => {
-        window.history.replaceState({}, "", "/#/embed/chat?agent=Foo");
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=Foo");
         stashPostLoginRedirect();
-        expect(localStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toContain("/embed/chat");
+        expect(localStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toContain("/agent-mode/chat");
 
         const restored = consumePostLoginRedirect();
-        expect(restored).toContain("/#/embed/chat?agent=Foo");
+        expect(restored).toContain("/#/agent-mode/chat?agent=Foo");
     });
 
     it("is one-shot — the key is cleared after the first read", () => {
-        window.history.replaceState({}, "", "/#/embed/chat?agent=Foo");
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=Foo");
         stashPostLoginRedirect();
 
         consumePostLoginRedirect();
@@ -81,7 +81,7 @@ describe("post-login redirect stash/restore", () => {
     });
 
     it("rejects a cross-origin stashed value (open-redirect guard)", () => {
-        localStorage.setItem(POST_LOGIN_REDIRECT_KEY, "https://evil.example.com/#/embed/chat?agent=Foo");
+        localStorage.setItem(POST_LOGIN_REDIRECT_KEY, "https://evil.example.com/#/agent-mode/chat?agent=Foo");
         expect(consumePostLoginRedirect()).toBe("/");
     });
 

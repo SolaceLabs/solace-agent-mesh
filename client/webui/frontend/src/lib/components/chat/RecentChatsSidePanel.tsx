@@ -17,7 +17,7 @@ export const RecentChatsSidePanel: React.FC = () => {
     const { pinnedAgent } = useChatSurface();
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-    const viewAllTo = pinnedAgent ? `/embed/recent-chats?agent=${encodeURIComponent(pinnedAgent)}` : "/embed/recent-chats";
+    const viewAllTo = pinnedAgent ? `/agent-mode/recent-chats?agent=${encodeURIComponent(pinnedAgent)}` : "/agent-mode/recent-chats";
 
     return (
         <div className="flex h-full w-100 flex-col border-r border-(--darkSurface-border) bg-(--darkSurface-bg)">

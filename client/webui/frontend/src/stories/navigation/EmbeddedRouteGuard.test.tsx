@@ -32,24 +32,24 @@ describe("EmbeddedRouteGuard", () => {
     beforeEach(() => vi.spyOn(console, "warn").mockImplementation(() => {}));
     afterEach(() => vi.restoreAllMocks());
 
-    test("redirects an off-embed route back to /embed/chat with the pinned agent", async () => {
+    test("redirects an off-embed route back to /agent-mode/chat with the pinned agent", async () => {
         renderAt("/projects", EMBEDDED);
-        await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("/embed/chat?agent=WeatherAgent"));
+        await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("/agent-mode/chat?agent=WeatherAgent"));
     });
 
     test("re-appends a dropped ?agent= on an embed route", async () => {
-        renderAt("/embed/chat", EMBEDDED);
-        await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("/embed/chat?agent=WeatherAgent"));
+        renderAt("/agent-mode/chat", EMBEDDED);
+        await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("/agent-mode/chat?agent=WeatherAgent"));
     });
 
     test("leaves a valid embed route (with agent) untouched", () => {
-        renderAt("/embed/recent-chats?agent=WeatherAgent", EMBEDDED);
-        expect(screen.getByTestId("loc")).toHaveTextContent("/embed/recent-chats?agent=WeatherAgent");
+        renderAt("/agent-mode/recent-chats?agent=WeatherAgent", EMBEDDED);
+        expect(screen.getByTestId("loc")).toHaveTextContent("/agent-mode/recent-chats?agent=WeatherAgent");
     });
 
-    test("no-agent embed does not loop on /embed/chat", () => {
-        renderAt("/embed/chat", EMBEDDED_NO_AGENT);
-        expect(screen.getByTestId("loc")).toHaveTextContent("/embed/chat");
+    test("no-agent embed does not loop on /agent-mode/chat", () => {
+        renderAt("/agent-mode/chat", EMBEDDED_NO_AGENT);
+        expect(screen.getByTestId("loc")).toHaveTextContent("/agent-mode/chat");
     });
 
     test("full surface never redirects (no-op off embed)", () => {

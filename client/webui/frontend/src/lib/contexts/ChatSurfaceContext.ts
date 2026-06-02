@@ -13,9 +13,9 @@ export type SessionAction = "goToProject" | "rename" | "renameWithAI" | "move" |
  * Components read *intent* (e.g. `showActivityPanel`) rather than the activation
  * mechanism, so suppression decisions live here in one struct instead of being
  * threaded as scattered `if (embedded)` checks. The activation mechanism (today the
- * `/embed/*` routes) can change without touching consumers.
+ * `/agent-mode/*` routes) can change without touching consumers.
  *
- * Derived once at load from the hash route (`/#/embed/chat?agent=Foo`), never
+ * Derived once at load from the hash route (`/#/agent-mode/chat?agent=Foo`), never
  * persisted, and deliberately NOT part of server config — so an admin on the same
  * origin can't inherit a sticky embedded surface.
  */
