@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.27.0...1.27.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* **DATAGO-138153:** removing speech settings from embedded view ([#1576](https://github.com/SolaceLabs/solace-agent-mesh/issues/1576)) ([1690565](https://github.com/SolaceLabs/solace-agent-mesh/commit/16905656a8a2b2f9b5b665371b349708c5a7bfa1))
+
 ## [1.27.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.26.1...1.27.0) (2026-06-02)
 
 
