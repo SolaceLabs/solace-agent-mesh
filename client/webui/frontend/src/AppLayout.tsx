@@ -100,7 +100,7 @@ function AppLayoutContent() {
 
     const getActiveItem = () => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat") || path.startsWith("/embed/chat") || path.startsWith("/recent-chats")) return "chat";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/agent-mode/chat") || path.startsWith("/recent-chats")) return "chat";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/prompts")) return "prompts";
@@ -152,7 +152,7 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {/* Keeps the embedded surface locked to /embed/* (redirects any drift back). No-op in full UI. */}
+            {/* Keeps the embedded surface locked to /agent-mode/* (redirects any drift back). No-op in full UI. */}
             <EmbeddedRouteGuard />
             {/* surface.showNav gates BOTH nav variants, so the embedded surface is chat-only
                 (no sidebar) regardless of the new_navigation flag. */}

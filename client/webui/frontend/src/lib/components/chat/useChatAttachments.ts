@@ -79,7 +79,7 @@ export interface UseChatAttachmentsResult {
  * `restoreFromCapture`.
  */
 export function useChatAttachments({ addNotification, displayError, handleSwitchSession, navigate }: UseChatAttachmentsOptions): UseChatAttachmentsResult {
-    // Embedded-aware chat route so "Go to Chat" keeps the /embed/chat?agent= URL.
+    // Embedded-aware chat route so "Go to Chat" keeps the /agent-mode/chat?agent= URL.
     const chatRoute = useChatRoute();
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [selectedArtifactRefs, setSelectedArtifactRefs] = useState<ArtifactWithSession[]>([]);

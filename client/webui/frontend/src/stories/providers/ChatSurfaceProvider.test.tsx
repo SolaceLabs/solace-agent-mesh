@@ -47,8 +47,8 @@ describe("ChatSurfaceProvider", () => {
         expect(surface.seedWelcomeBubble).toBe(true);
     });
 
-    test("computes an embedded surface from the /embed/chat route and captures the pinned agent", () => {
-        window.history.replaceState({}, "", "/#/embed/chat?agent=WeatherAgent");
+    test("computes an embedded surface from the /agent-mode/chat route and captures the pinned agent", () => {
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=WeatherAgent");
         render(
             <ChatSurfaceProvider>
                 <SurfaceProbe />
@@ -66,8 +66,8 @@ describe("ChatSurfaceProvider", () => {
         expect(surface.sessionActions).toEqual(["rename", "renameWithAI", "delete"]);
     });
 
-    test("treats the /embed/recent-chats route as embedded too (View All stays embedded)", () => {
-        window.history.replaceState({}, "", "/#/embed/recent-chats?agent=WeatherAgent");
+    test("treats the /agent-mode/recent-chats route as embedded too (View All stays embedded)", () => {
+        window.history.replaceState({}, "", "/#/agent-mode/recent-chats?agent=WeatherAgent");
         render(
             <ChatSurfaceProvider>
                 <SurfaceProbe />
@@ -81,7 +81,7 @@ describe("ChatSurfaceProvider", () => {
 
     test("keeps the pinned agent stable after the hash query is later stripped (issue #3)", () => {
         // Embedded tab pins to WeatherAgent...
-        window.history.replaceState({}, "", "/#/embed/chat?agent=WeatherAgent");
+        window.history.replaceState({}, "", "/#/agent-mode/chat?agent=WeatherAgent");
         render(
             <ChatSurfaceProvider>
                 <SurfaceProbe />

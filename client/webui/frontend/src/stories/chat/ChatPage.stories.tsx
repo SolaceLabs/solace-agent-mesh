@@ -454,7 +454,7 @@ export const CollaborativeChat: Story = {
     },
 };
 
-// The embedded, single-agent surface (`/embed/chat?agent=…`): pinned to one agent
+// The embedded, single-agent surface (`/agent-mode/chat?agent=…`): pinned to one agent
 const EMBEDDED_SURFACE: ChatSurface = {
     ...FULL_CHAT_SURFACE,
     variant: "embedded",

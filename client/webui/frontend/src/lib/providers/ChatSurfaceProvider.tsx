@@ -5,14 +5,14 @@ import { getHashPath, getHashQueryParams } from "@/lib/utils/url";
 
 const EMBEDDED_SESSION_ACTIONS: ReadonlyArray<SessionAction> = ["rename", "renameWithAI", "delete"];
 
-/** Hash-route prefix for embedded surfaces (`/embed/chat`, `/embed/recent-chats`, …). */
-export const EMBEDDED_ROUTE_PREFIX = "/embed/";
+/** Hash-route prefix for embedded surfaces (`/agent-mode/chat`, `/agent-mode/recent-chats`, …). */
+export const EMBEDDED_ROUTE_PREFIX = "/agent-mode/";
 
 /**
  * Compute the chat surface once at load from the hash-route path. Read-once (no
  * full-UI flash, no later recompute), so the pinned agent is stable even if
- * in-app navigation later strips the hash query. Any `/embed/*` route is embedded,
- * so View All (`/embed/recent-chats`) stays embedded on direct load / refresh.
+ * in-app navigation later strips the hash query. Any `/agent-mode/*` route is embedded,
+ * so View All (`/agent-mode/recent-chats`) stays embedded on direct load / refresh.
  */
 function computeChatSurface(): ChatSurface {
     const embedded = getHashPath().startsWith(EMBEDDED_ROUTE_PREFIX);
