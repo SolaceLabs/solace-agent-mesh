@@ -115,6 +115,42 @@ jobs:
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+  check-bypass:
+    name: Check Security Bypass Permission
+    runs-on: ubuntu-latest
+    outputs:
+      bypass_approved: ${{ steps.check.outputs.bypass_approved }}
+    steps:
+      - name: Check admin permissions for security bypass
+        id: check
+        if: ${{ fromJSON(inputs.skip_security_checks) }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const actor = context.actor;
+            const repo = context.repo;
+
+            try {
+              const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: repo.owner,
+                repo: repo.repo,
+                username: actor
+              });
+
+              console.log(`User ${actor} has permission: ${permission.permission}`);
+
+              if (permission.permission === 'admin') {
+                console.log(`Admin permission verified for ${actor}; security checks will be bypassed.`);
+                core.setOutput('bypass_approved', 'true');
+              } else {
+                core.warning(`Security bypass denied for ${actor} (permission: ${permission.permission}); security checks will still be enforced.`);
+                core.setOutput('bypass_approved', 'false');
+              }
+            } catch (error) {
+              core.warning(`Failed to check permissions for ${actor}: ${error.message}; security checks will still be enforced.`);
+              core.setOutput('bypass_approved', 'false');
+            }
+
   fossa-scan:
     name: FOSSA Scan
     needs: resolve-context
@@ -144,7 +180,7 @@ jobs:
 
   prisma-scan:
     name: Prisma Scan
-    needs: resolve-context
+    needs: [resolve-context, check-bypass]
     if: ${{ !fromJSON(inputs.check_only) }}
     runs-on: ubuntu-latest
     permissions:
@@ -190,13 +226,19 @@ jobs:
 
       - name: Enforce Prisma result
         if: ${{ steps.prisma.outcome != 'success' }}
+        env:
+          BYPASS_APPROVED: ${{ needs.check-bypass.outputs.bypass_approved }}
         run: |
+          if [[ "$BYPASS_APPROVED" == "true" ]]; then
+            echo "::warning::Prisma scan failed (bypassed by admin)."
+            exit 0
+          fi
           echo "Prisma scan failed." >&2
           exit 1
 
   sonarqube-hotspots:
     name: SonarQube Hotspots
-    needs: resolve-context
+    needs: [resolve-context, check-bypass]
     if: ${{ fromJSON(inputs.check_sonarqube_hotspots) }}
     runs-on: ubuntu-latest
     permissions:
@@ -244,18 +286,28 @@ jobs:
 
       - name: Enforce SonarQube hotspot result
         if: ${{ steps.capture.outputs.status != 'success' }}
+        env:
+          BYPASS_APPROVED: ${{ needs.check-bypass.outputs.bypass_approved }}
         run: |
+          if [[ "$BYPASS_APPROVED" == "true" ]]; then
+            echo "::warning::SonarQube hotspot check failed (bypassed by admin)."
+            exit 0
+          fi
           echo "SonarQube hotspot check failed." >&2
           exit 1
 
   guardian-gate:
     name: Guardian Vulnerability Gate
-    needs: [resolve-context, fossa-scan, prisma-scan]
+    needs: [resolve-context, check-bypass, fossa-scan, prisma-scan]
     if: |
       always() &&
       !cancelled() &&
       needs.resolve-context.result == 'success' &&
-      (fromJSON(inputs.check_only) || (needs.fossa-scan.result == 'success' && needs.prisma-scan.result == 'success'))
+      (
+        fromJSON(inputs.check_only) ||
+        (needs.fossa-scan.result == 'success' && needs.prisma-scan.result == 'success') ||
+        needs.check-bypass.outputs.bypass_approved == 'true'
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -299,7 +351,13 @@ jobs:
 
       - name: Enforce Guardian gate
         if: ${{ steps.capture.outputs.status != 'success' }}
+        env:
+          BYPASS_APPROVED: ${{ needs.check-bypass.outputs.bypass_approved }}
         run: |
+          if [[ "$BYPASS_APPROVED" == "true" ]]; then
+            echo "::warning::Guardian gate failed (bypassed by admin)."
+            exit 0
+          fi
           echo "Guardian gate failed." >&2
           exit 1
 
@@ -307,6 +365,7 @@ jobs:
     name: Release Readiness Status
     needs:
       - resolve-context
+      - check-bypass
       - fossa-scan
       - prisma-scan
       - sonarqube-hotspots
@@ -319,42 +378,12 @@ jobs:
       sonarqube_hotspots_status: ${{ steps.evaluate.outputs.sonarqube_hotspots_status }}
       guardian_status: ${{ steps.evaluate.outputs.guardian_status }}
     steps:
-      - name: Check admin permissions for security bypass
-        id: check_skip_permission
-        if: ${{ fromJSON(inputs.skip_security_checks) }}
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const actor = context.actor;
-            const repo = context.repo;
-
-            try {
-              const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
-                owner: repo.owner,
-                repo: repo.repo,
-                username: actor
-              });
-
-              console.log(`User ${actor} has permission: ${permission.permission}`);
-
-              if (permission.permission === 'admin') {
-                console.log(`Admin permission verified for ${actor}; security checks will be bypassed.`);
-                core.setOutput('bypass_approved', 'true');
-              } else {
-                core.warning(`Security bypass denied for ${actor} (permission: ${permission.permission}); security checks will still be enforced.`);
-                core.setOutput('bypass_approved', 'false');
-              }
-            } catch (error) {
-              core.warning(`Failed to check permissions for ${actor}: ${error.message}; security checks will still be enforced.`);
-              core.setOutput('bypass_approved', 'false');
-            }
-
       - name: Evaluate release readiness gates
         id: evaluate
         env:
           CHECK_ONLY: ${{ fromJSON(inputs.check_only) && 'true' || 'false' }}
           CHECK_SONARQUBE: ${{ fromJSON(inputs.check_sonarqube_hotspots) && 'true' || 'false' }}
-          SKIP_SECURITY: ${{ steps.check_skip_permission.outputs.bypass_approved || 'false' }}
+          SKIP_SECURITY: ${{ needs.check-bypass.outputs.bypass_approved || 'false' }}
           FOSSA_RESULT: ${{ needs.fossa-scan.result }}
           PRISMA_RESULT: ${{ needs.prisma-scan.result }}
           SONAR_RESULT: ${{ needs.sonarqube-hotspots.result }}
