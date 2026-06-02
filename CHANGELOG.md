@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.27.1...1.28.0) (2026-06-02)
+
+
+### Features
+
+* Rename embedded chat surface route from /embed to /agent-mode ([#1578](https://github.com/SolaceLabs/solace-agent-mesh/issues/1578)) ([91322d4](https://github.com/SolaceLabs/solace-agent-mesh/commit/91322d4ba68e857891f7446bbd94c72047c19336))
+
 ## [1.27.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.27.0...1.27.1) (2026-06-02)
 
 
