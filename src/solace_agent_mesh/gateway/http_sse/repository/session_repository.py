@@ -28,9 +28,9 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
 
     def find_by_user(
         self, session: DBSession, user_id: UserId, pagination: PaginationParams | None = None,
-        project_id: str | None = None, source: str | None = None,
+        project_id: str | None = None, source: str | None = None, agent_id: str | None = None,
     ) -> list[Session]:
-        """Find all sessions for a specific user with optional project and source filtering."""
+        """Find all sessions for a specific user with optional project, source and agent filtering."""
         query = session.query(SessionModel).filter(
             SessionModel.user_id == user_id,
             SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
@@ -43,6 +43,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Optional source filtering (e.g., "chat" or "scheduler")
         if source is not None:
             query = query.filter(SessionModel.source == source)
+
+        # Optional agent filtering (e.g., embedded single-agent chat surface)
+        if agent_id is not None:
+            query = query.filter(SessionModel.agent_id == agent_id)
 
         # Eager load project relationship
         query = query.options(joinedload(SessionModel.project))
@@ -57,8 +61,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         return [Session.model_validate(model) for model in models]
 
     @MonitorLatency(DBMonitor.query("sessions"))
-    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None, source: str | None = None) -> int:
-        """Count total sessions for a specific user with optional project and source filtering."""
+    def count_by_user(self, session: DBSession, user_id: UserId, project_id: str | None = None, source: str | None = None, agent_id: str | None = None) -> int:
+        """Count total sessions for a specific user with optional project, source and agent filtering."""
         query = session.query(SessionModel).filter(
             SessionModel.user_id == user_id,
             SessionModel.deleted_at.is_(None)  # Exclude soft-deleted sessions
@@ -71,6 +75,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Optional source filtering
         if source is not None:
             query = query.filter(SessionModel.source == source)
+
+        # Optional agent filtering (e.g., embedded single-agent chat surface)
+        if agent_id is not None:
+            query = query.filter(SessionModel.agent_id == agent_id)
 
         return query.count()
 
@@ -281,7 +289,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         user_id: UserId,
         query: str,
         pagination: PaginationParams | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
+        agent_id: str | None = None,
     ) -> list[Session]:
         """
         Search sessions by name/title only using ILIKE.
@@ -295,6 +304,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         # Optional project filtering
         if project_id is not None:
             base_query = base_query.filter(SessionModel.project_id == project_id)
+
+        # Optional agent filtering (embedded single-agent surface)
+        if agent_id is not None:
+            base_query = base_query.filter(SessionModel.agent_id == agent_id)
 
         # ILIKE search on session name
         search_pattern = f"%{query}%"
@@ -318,7 +331,8 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
         db_session: DBSession,
         user_id: UserId,
         query: str,
-        project_id: str | None = None
+        project_id: str | None = None,
+        agent_id: str | None = None,
     ) -> int:
         """
         Count search results for pagination (title-only search).
@@ -331,6 +345,10 @@ class SessionRepository(PaginatedRepository[SessionModel, Session], ISessionRepo
 
         if project_id is not None:
             base_query = base_query.filter(SessionModel.project_id == project_id)
+
+        # Optional agent filtering (embedded single-agent surface)
+        if agent_id is not None:
+            base_query = base_query.filter(SessionModel.agent_id == agent_id)
 
         # ILIKE search on session name
         search_pattern = f"%{query}%"

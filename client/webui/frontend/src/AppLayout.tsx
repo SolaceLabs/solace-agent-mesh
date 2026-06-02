@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { NavigationSidebar, CollapsibleNavigationSidebar, ToastContainer, bottomNavigationItems, getTopNavigationItems, EmptyState } from "@/lib/components";
+import { Button } from "@/lib/components/ui/button";
+import { EmbeddedRouteGuard } from "@/lib/components/navigation/EmbeddedRouteGuard";
 import { SelectionContextMenu, useTextSelection } from "@/lib/components/chat/selection";
 import { MoveSessionDialog } from "@/lib/components/chat/MoveSessionDialog";
 import { ModelSetupDialog } from "@/lib/components/models/ModelSetupDialog";
@@ -9,7 +11,7 @@ import { ModelWarningBanner } from "@/lib/components/models/ModelWarningBanner";
 import { SettingsDialog } from "@/lib/components/settings/SettingsDialog";
 import { ChatProvider } from "@/lib/providers";
 import { useBooleanFlagDetails } from "@openfeature/react-sdk";
-import { useAuthContext, useBeforeUnload, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession, useIsNewNavigationEnabled } from "@/lib/hooks";
+import { useAuthContext, useBeforeUnload, useChatSurface, useConfigContext, useChatContext, useNavigationItems, useLocalStorage, useMoveSession, useIsNewNavigationEnabled } from "@/lib/hooks";
 import { useNotificationSSE } from "@/lib/hooks/useNotificationSSE";
 import { useModelConfigStatus } from "@/lib/api/models";
 
@@ -18,6 +20,7 @@ function AppLayoutContent() {
     const navigate = useNavigate();
     const { isAuthenticated, login, logout, useAuthorization } = useAuthContext();
     const { configFeatureEnablement } = useConfigContext();
+    const surface = useChatSurface();
     const { value: modelConfigUiEnabled } = useBooleanFlagDetails("model_config_ui", false);
     const { isMenuOpen, menuPosition, selectedText, sourceTaskId, clearSelection } = useTextSelection();
     const { hasModelConfigWrite } = useChatContext();
@@ -97,7 +100,7 @@ function AppLayoutContent() {
 
     const getActiveItem = () => {
         const path = location.pathname;
-        if (path === "/" || path.startsWith("/chat") || path.startsWith("/recent-chats")) return "chat";
+        if (path === "/" || path.startsWith("/chat") || path.startsWith("/embed/chat") || path.startsWith("/recent-chats")) return "chat";
         if (path.startsWith("/projects")) return "projects";
         if (path.startsWith("/artifacts")) return "artifacts";
         if (path.startsWith("/prompts")) return "prompts";
@@ -106,6 +109,17 @@ function AppLayoutContent() {
     };
 
     if (useAuthorization && !isAuthenticated) {
+        // The embedded surface is a bare chat panel (often in an iframe/tab), so it
+        // shows just a Login button rather than the full "Welcome to SAM" splash.
+        if (surface.variant === "embedded") {
+            return (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <Button testid="Login" title="Login" variant="default" onClick={() => login()}>
+                        Login
+                    </Button>
+                </div>
+            );
+        }
         return (
             <EmptyState
                 variant="noImage"
@@ -138,11 +152,16 @@ function AppLayoutContent() {
 
     return (
         <div className={`relative flex h-screen`}>
-            {useNewNav ? (
-                <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
-            ) : (
-                <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
-            )}
+            {/* Keeps the embedded surface locked to /embed/* (redirects any drift back). No-op in full UI. */}
+            <EmbeddedRouteGuard />
+            {/* surface.showNav gates BOTH nav variants, so the embedded surface is chat-only
+                (no sidebar) regardless of the new_navigation flag. */}
+            {surface.showNav &&
+                (useNewNav ? (
+                    <CollapsibleNavigationSidebar items={items} activeItemId={activeItemId} showNewChatButton showRecentChats />
+                ) : (
+                    <NavigationSidebar items={topNavItems} bottomItems={bottomNavigationItems} activeItem={getActiveItem()} onItemChange={handleNavItemChange} onHeaderClick={handleHeaderClick} />
+                ))}
             <main className="flex h-full w-full min-w-0 flex-1 flex-col">
                 <ModelWarningBanner />
                 <Outlet />

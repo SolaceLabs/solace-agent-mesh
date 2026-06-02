@@ -101,6 +101,7 @@ class SessionService:
         pagination: PaginationParams | None = None,
         project_id: str | None = None,
         source: str | None = None,
+        agent_id: str | None = None,
     ) -> PaginatedResponse[Session]:
         """
         Get paginated sessions for a user with full metadata including project names and background task status.
@@ -113,6 +114,7 @@ class SessionService:
             pagination: Pagination parameters
             project_id: Optional project ID to filter sessions by (for project-specific views)
             source: Optional source filter ("chat", "scheduler", or None for all)
+            agent_id: Optional agent filter (wire name) for the embedded single-agent surface
         """
         if not user_id or user_id.strip() == "":
             raise ValueError("User ID cannot be empty")
@@ -120,9 +122,9 @@ class SessionService:
         pagination = get_pagination_or_default(pagination)
         session_repository = self._get_repositories(db)
 
-        # Fetch sessions with optional project and source filtering
-        sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id, source=source)
-        total_count = session_repository.count_by_user(db, user_id, project_id=project_id, source=source)
+        # Fetch sessions with optional project, source and agent filtering
+        sessions = session_repository.find_by_user(db, user_id, pagination, project_id=project_id, source=source, agent_id=agent_id)
+        total_count = session_repository.count_by_user(db, user_id, project_id=project_id, source=source, agent_id=agent_id)
 
         # Enrich sessions with project names
         # Collect unique project IDs
@@ -425,7 +427,8 @@ class SessionService:
         user_id: UserId,
         query: str,
         pagination: PaginationParams | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
+        agent_id: str | None = None,
     ) -> PaginatedResponse[Session]:
         """
         Search sessions by name/title only.
@@ -450,8 +453,8 @@ class SessionService:
         session_repository = self._get_repositories(db)
 
         # Search sessions
-        sessions = session_repository.search(db, user_id, query.strip(), pagination, project_id)
-        total_count = session_repository.count_search_results(db, user_id, query.strip(), project_id)
+        sessions = session_repository.search(db, user_id, query.strip(), pagination, project_id, agent_id=agent_id)
+        total_count = session_repository.count_search_results(db, user_id, query.strip(), project_id, agent_id=agent_id)
 
         # Enrich sessions with project names
         project_ids = [s.project_id for s in sessions if s.project_id]

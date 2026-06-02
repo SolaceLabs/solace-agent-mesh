@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { consumePostLoginRedirect } from "@/lib/utils/url";
+
 function AuthCallback() {
     useEffect(() => {
         const hash = window.location.hash.substring(1);
@@ -16,8 +18,9 @@ function AuthCallback() {
             if (refreshToken) {
                 localStorage.setItem("refresh_token", refreshToken);
             }
-            // Redirect to the main application page
-            window.location.href = "/";
+            // Redirect back to the URL the user left from (restores embedded-chat
+            // params dropped by the IdP round-trip), or "/" if none was stashed.
+            window.location.href = consumePostLoginRedirect();
         } else {
             console.error("AuthCallback: No access token found in URL hash.");
         }

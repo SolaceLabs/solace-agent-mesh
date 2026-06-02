@@ -9,8 +9,8 @@
 export const sessionKeys = {
     all: ["sessions"] as const,
     lists: () => [...sessionKeys.all, "list"] as const,
-    recent: (userId: string, maxItems: number) => [...sessionKeys.lists(), "recent", userId, maxItems] as const,
-    infinite: (userId: string, pageSize: number, source?: string) => [...sessionKeys.lists(), "infinite", userId, pageSize, source] as const,
+    recent: (userId: string, maxItems: number, agentId?: string) => [...sessionKeys.lists(), "recent", userId, maxItems, agentId ?? null] as const,
+    infinite: (userId: string, pageSize: number, source?: string, agentId?: string) => [...sessionKeys.lists(), "infinite", userId, pageSize, source, agentId ?? null] as const,
     details: () => [...sessionKeys.all, "detail"] as const,
     detail: (id: string) => [...sessionKeys.details(), id] as const,
     chatTasks: (id: string) => [...sessionKeys.detail(id), "chat-tasks"] as const,

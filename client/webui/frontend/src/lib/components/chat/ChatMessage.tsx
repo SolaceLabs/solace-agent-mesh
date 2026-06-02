@@ -7,7 +7,7 @@ import { useBooleanFlagDetails } from "@openfeature/react-sdk";
 import { ChatBubble, ChatBubbleMessage, MarkdownHTMLConverter, MarkdownWrapper, MessageBanner } from "@/lib/components";
 import { Button } from "@/lib/components/ui";
 import { ViewWorkflowButton } from "@/lib/components/ui/ViewWorkflowButton";
-import { useChatContext, useCitationClick } from "@/lib/hooks";
+import { useChatContext, useChatSurface, useCitationClick } from "@/lib/hooks";
 import type { ArtifactInfo, ArtifactPart, DataPart, FileAttachment, FilePart, MessageFE, RAGSearchResult, TextPart } from "@/lib/types";
 import type { ChatContextValue } from "@/lib/contexts";
 import { InlineResearchProgress, type ResearchProgressData } from "@/lib/components/research/InlineResearchProgress";
@@ -627,7 +627,8 @@ const getChatBubble = (
     reportContentOverride?: string,
     highlightedText?: string | null,
     inlineActivityTimelineEnabled?: boolean,
-    showThinkingContentEnabled?: boolean
+    showThinkingContentEnabled?: boolean,
+    showActivityPanel?: boolean
 ): React.ReactNode => {
     const { openSidePanelTab, setTaskIdInSidePanel, ragData, currentUserEmail } = chatContext;
 
@@ -678,7 +679,7 @@ const getChatBubble = (
         return (
             <>
                 {progressBlock}
-                {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId, undefined, undefined, undefined, undefined, undefined, undefined, inlineActivityTimelineEnabled, showThinkingContentEnabled)}
+                {getChatBubble(messageWithoutProgress, chatContext, isLastWithTaskId, undefined, undefined, undefined, undefined, undefined, undefined, inlineActivityTimelineEnabled, showThinkingContentEnabled, showActivityPanel)}
             </>
         );
     }
@@ -720,8 +721,10 @@ const getChatBubble = (
     // For alignment: current user's messages are right-aligned, other users' and agent messages are left-aligned
     const isRightAligned = message.isUser && !isOtherUser;
     // Only show workflow button in MessageActions if there are no inline progress updates
-    // (when progress updates exist and inline timeline is enabled, the button is shown in the InlineProgressUpdates header instead)
-    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId && !hasProgressUpdates;
+    // (when progress updates exist and inline timeline is enabled, the button is shown in the InlineProgressUpdates header instead).
+    // The embedded surface hides the Activity panel this button opens, so suppress it there too
+    // (showActivityPanel === undefined means "not constrained" → keep showing).
+    const showWorkflowButton = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId && !hasProgressUpdates && showActivityPanel !== false;
     const showFeedbackActions = !message.isUser && message.isComplete && !!message.taskId && !!isLastWithTaskId;
 
     // Debug logging for error messages
@@ -904,6 +907,7 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
     const { ragData, openSidePanelTab, setTaskIdInSidePanel, artifacts, sessionId, isCollaborativeSession, hasSharedEditors, currentUserEmail, agentNameDisplayNameMap } = chatContext;
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const { value: showThinkingContentEnabled } = useBooleanFlagDetails("show_thinking_content", false);
+    const surface = useChatSurface();
 
     // Determine if this is another user's message (for uploaded files alignment)
     const isOtherUser = message.isUser && isOtherUserMessage(message, currentUserEmail);
@@ -1175,7 +1179,8 @@ export const ChatMessage: React.FC<{ message: MessageFE; isLastWithTaskId?: bool
                     highlightedText,
                     // Feature flags
                     inlineActivityTimelineEnabled,
-                    showThinkingContentEnabled
+                    showThinkingContentEnabled,
+                    surface.showActivityPanel
                 )}
 
                 {/* Render images separately at the end for web search */}

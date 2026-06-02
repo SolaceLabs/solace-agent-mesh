@@ -35,6 +35,57 @@ export interface WorkflowNodeConfig {
     delay?: string;
 }
 
+export interface InitialAgentSelection {
+    /** The agent to select, or null to bail (embedded pinned agent not yet available). */
+    agent: AgentCardInfo | null;
+    /** Whether the caller should seed the welcome bubble. Always false on the embedded surface. */
+    shouldSeedWelcome: boolean;
+}
+
+/**
+ * On session load, decide which agent the chat is pinned to. In the embedded surface the
+ * pinned `?agent=` wins over the loaded session's stored agent, so opening a cross-agent
+ * session can't silently re-route the next message (the selector is hidden, so the user
+ * couldn't detect it). Falls back to the session's stored agent in the full UI, or when no
+ * agent is pinned.
+ */
+export function resolveSessionLoadAgent({ embedded, pinnedAgent, storedAgent }: { embedded: boolean; pinnedAgent: string | null; storedAgent: string }): string {
+    return (embedded ? pinnedAgent : null) ?? storedAgent;
+}
+
+/**
+ * Decide which agent to pin when a chat opens with no agent yet selected.
+ *
+ * Embedded surface: requires an explicit, resolvable ?agent=. It pins to that
+ * agent or bails (agent === null) — when none is named, or the named one hasn't
+ * registered yet. It never falls back to a default, which would be
+ * nondeterministic across deployments and invisible (the selector is hidden).
+ * The welcome bubble is never seeded.
+ *
+ * Full UI priority: URL ?agent=, then project default, then OrchestratorAgent,
+ * then first available.
+ *
+ * Callers must guarantee `agents` is non-empty.
+ */
+export function selectInitialAgent({ agents, urlAgentName, embedded, projectDefaultAgentId }: { agents: AgentCardInfo[]; urlAgentName: string | null; embedded: boolean; projectDefaultAgentId?: string | null }): InitialAgentSelection {
+    const urlAgent = urlAgentName ? agents.find(agent => agent.name === urlAgentName) : undefined;
+
+    if (embedded) {
+        return { agent: urlAgent ?? null, shouldSeedWelcome: false };
+    }
+
+    let selectedAgent = urlAgent ?? agents[0];
+    if (!urlAgent) {
+        if (projectDefaultAgentId) {
+            selectedAgent = agents.find(agent => agent.name === projectDefaultAgentId) ?? agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+        } else {
+            selectedAgent = agents.find(agent => agent.name === "OrchestratorAgent") ?? agents[0];
+        }
+    }
+
+    return { agent: selectedAgent, shouldSeedWelcome: true };
+}
+
 /**
  * Extract agent type from agent card extensions
  */

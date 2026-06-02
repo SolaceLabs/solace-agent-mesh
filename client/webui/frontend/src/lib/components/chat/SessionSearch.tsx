@@ -11,6 +11,8 @@ import type { Session } from "@/lib/types";
 interface SessionSearchProps {
     onSessionSelect: (sessionId: string) => void;
     projectId?: string | null;
+    /** When set, scope search results to a single agent (embedded surface). */
+    agentId?: string | null;
 }
 
 interface SearchResult {
@@ -23,7 +25,7 @@ interface SearchResult {
     };
 }
 
-export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps) => {
+export const SessionSearch = ({ onSessionSelect, projectId, agentId }: SessionSearchProps) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<Session[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -52,7 +54,7 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
         idPrefix: "session-search-",
     });
 
-    const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined) => {
+    const performSearch = useCallback(async (query: string, currentProjectId: string | null | undefined, currentAgentId: string | null | undefined) => {
         if (!query.trim()) {
             setSearchResults([]);
             setShowResults(false);
@@ -71,6 +73,10 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
                 params.append("projectId", currentProjectId);
             }
 
+            if (currentAgentId) {
+                params.append("agent_id", currentAgentId);
+            }
+
             const data: SearchResult = await api.webui.get(`/api/v1/sessions/search?${params.toString()}`);
             setSearchResults(data.data || []);
             setShowResults(true);
@@ -83,8 +89,8 @@ export const SessionSearch = ({ onSessionSelect, projectId }: SessionSearchProps
     }, []);
 
     useEffect(() => {
-        performSearch(debouncedSearchQuery, projectId);
-    }, [debouncedSearchQuery, projectId, performSearch]);
+        performSearch(debouncedSearchQuery, projectId, agentId);
+    }, [debouncedSearchQuery, projectId, agentId, performSearch]);
 
     const placeholder = "Search chats by title";
 

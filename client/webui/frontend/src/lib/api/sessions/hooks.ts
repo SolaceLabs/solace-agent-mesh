@@ -14,24 +14,24 @@ import { useCacheUserId } from "@/lib/hooks/useCacheUserId";
  * Hook to fetch recent sessions for the navigation sidebar.
  * Automatically invalidates on session events (new session, session updated, session moved, title updated).
  */
-export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
+export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS, agentId?: string) {
     const queryClient = useQueryClient();
     const userId = useCacheUserId();
 
     // Set up event listeners for automatic invalidation
     useEffect(() => {
         const handleSessionEvent = () => {
-            queryClient.invalidateQueries({ queryKey: sessionKeys.recent(userId, maxItems) });
+            queryClient.invalidateQueries({ queryKey: sessionKeys.recent(userId, maxItems, agentId) });
         };
 
         const events = ["new-chat-session", "session-updated", "session-title-updated", "background-task-completed"];
         events.forEach(e => window.addEventListener(e, handleSessionEvent));
         return () => events.forEach(e => window.removeEventListener(e, handleSessionEvent));
-    }, [maxItems, queryClient, userId]);
+    }, [maxItems, agentId, queryClient, userId]);
 
     return useQuery({
-        queryKey: sessionKeys.recent(userId, maxItems),
-        queryFn: () => sessionService.getRecentSessions(maxItems),
+        queryKey: sessionKeys.recent(userId, maxItems, agentId),
+        queryFn: () => sessionService.getRecentSessions(maxItems, agentId),
         refetchOnMount: "always",
     });
 }
@@ -40,10 +40,11 @@ export function useRecentSessions(maxItems: number = MAX_RECENT_CHATS) {
  * Hook to fetch paginated sessions with infinite scroll support.
  * Automatically invalidates on session events (new session, session updated, title updated, background task completed).
  */
-export function useInfiniteSessions(pageSize: number = 20, source?: string, options?: { enabled?: boolean }) {
+export function useInfiniteSessions(pageSize: number = 20, source?: string, options?: { enabled?: boolean; agentId?: string }) {
     const queryClient = useQueryClient();
     const userId = useCacheUserId();
     const enabled = options?.enabled ?? true;
+    const agentId = options?.agentId;
 
     useEffect(() => {
         if (!enabled) return;
@@ -54,8 +55,8 @@ export function useInfiniteSessions(pageSize: number = 20, source?: string, opti
     }, [queryClient, enabled]);
 
     return useInfiniteQuery({
-        queryKey: sessionKeys.infinite(userId, pageSize, source),
-        queryFn: ({ pageParam }) => sessionService.getPaginatedSessions(pageParam, pageSize, source),
+        queryKey: sessionKeys.infinite(userId, pageSize, source, agentId),
+        queryFn: ({ pageParam }) => sessionService.getPaginatedSessions(pageParam, pageSize, source, agentId),
         getNextPageParam: lastPage => lastPage.meta.pagination.nextPage ?? undefined,
         initialPageParam: 1,
         refetchOnMount: "always",

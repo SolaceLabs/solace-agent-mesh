@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useInView } from "react-intersection-observer";
 import { useNavigate, Navigate, useSearchParams } from "react-router-dom";
-import { Loader2, Check, X, Plus, MessageCircle, CalendarDays, Share2 } from "lucide-react";
+import { Loader2, Check, X, Plus, MessageCircle, CalendarDays, Share2, PanelLeftIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useInfiniteSessions, useMarkSessionViewed, useRenameSessionWithAI, sessionKeys } from "@/lib/api/sessions";
 import { useSharedWithMe } from "@/lib/api/share";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
+import { useChatContext, useChatRoute, useChatSurface, useConfigContext, useIsAutoTitleGenerationEnabled, useIsNewNavigationEnabled, useTitleGeneration, useTitleAnimation, useIsChatSharingEnabled } from "@/lib/hooks";
 import type { Session } from "@/lib/types";
 import { cn, formatRelativeTime, formatTimestamp, hasUnseenUpdates } from "@/lib/utils";
-import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
+import { ProjectBadge, SessionSearch, SessionActionMenu, ChatSessionDeleteDialog, RecentChatsSidePanel, sessionCardStyles, sessionTitleStyles } from "@/lib/components/chat";
 import { ShareDialog } from "@/lib/components/share/ShareDialog";
 import { Header } from "@/lib/components/header";
 import { EmptyState } from "@/lib/components/common/EmptyState";
@@ -98,6 +98,13 @@ export const RecentChatsPage: React.FC = () => {
     const { generateTitle } = useTitleGeneration();
     const chatSharingEnabled = useIsChatSharingEnabled();
     const newNavigationEnabled = useIsNewNavigationEnabled();
+    // Embedded "View All": agent-scoped, trimmed chrome, and navigations stay on /embed/chat.
+    const surface = useChatSurface();
+    const isEmbedded = surface.variant === "embedded";
+    const chatRoute = useChatRoute();
+    // Same toggle-able Recent Chats drawer as the embedded chat page, for consistent chrome.
+    const [isRecentChatsOpen, setIsRecentChatsOpen] = useState(false);
+    const recentChatsDrawerOpen = isEmbedded && isRecentChatsOpen;
     const inputRef = useRef<HTMLInputElement>(null);
     const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
     const [sessionToShare, setSessionToShare] = useState<Session | null>(null);
@@ -141,7 +148,7 @@ export const RecentChatsPage: React.FC = () => {
 
     // Sessions fetched only for chat/scheduler tabs; shared tab uses its own query.
     const sessionSource = activeTab === "shared" ? "chat" : activeTab;
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource, { enabled: activeTab !== "shared" });
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteSessions(PAGE_SIZE, sessionSource, { enabled: activeTab !== "shared", agentId: isEmbedded ? (surface.pinnedAgent ?? undefined) : undefined });
     const { data: sharedChats = [], isLoading: isLoadingShared } = useSharedWithMe({ enabled: activeTab === "shared" });
     const sessions = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
 
@@ -183,7 +190,7 @@ export const RecentChatsPage: React.FC = () => {
     const handleSessionClick = async (session: Session) => {
         if (editingSessionId !== session.id) {
             await handleSwitchSession(session.id);
-            navigate("/chat");
+            navigate(chatRoute);
             // Mark after switch so SSE replay / save_task bumps to updated_time
             // settle first — otherwise last_viewed_at races behind updated_time.
             markViewedMutation.mutate(session.id);
@@ -280,7 +287,7 @@ export const RecentChatsPage: React.FC = () => {
 
     const handleSessionSelect = async (sessionId: string) => {
         await handleSwitchSession(sessionId);
-        navigate("/chat");
+        navigate(chatRoute);
     };
 
     // Get unique project names from sessions, sorted alphabetically
@@ -323,30 +330,45 @@ export const RecentChatsPage: React.FC = () => {
         return sessionWithProject?.projectId || null;
     }, [selectedProject, sessions]);
 
-    // Feature flag gate: redirect to /chat if new_navigation is not enabled
-    if (!newNavigationEnabled) {
+    // Feature flag gate: redirect to /chat if new_navigation is not enabled.
+    // The embedded "View All" surface is reachable regardless of the flag.
+    if (!newNavigationEnabled && !isEmbedded) {
         return <Navigate to="/chat" replace />;
     }
 
     return (
-        <PageLayout>
-            <Header
-                title="Recent Chats"
-                buttons={[
-                    <Button
-                        key="new-chat"
-                        onClick={() => {
-                            navigate("/chat");
-                            handleNewSession();
-                        }}
-                    >
-                        <Plus size={16} className="mr-1" />
-                        New Chat
-                    </Button>,
-                ]}
-            />
+        <PageLayout className={isEmbedded ? "relative" : undefined}>
+            {isEmbedded && (
+                <div inert={!isRecentChatsOpen} className={cn("absolute top-0 left-0 z-20 h-screen transition-[transform,visibility] duration-300", isRecentChatsOpen ? "visible translate-x-0" : "invisible -translate-x-full delay-300")}>
+                    <RecentChatsSidePanel />
+                </div>
+            )}
+            <div className={isEmbedded ? cn("transition-all duration-300", recentChatsDrawerOpen ? "ml-100" : "ml-0") : "contents"}>
+                <Header
+                    title="Recent Chats"
+                    leadingAction={
+                        isEmbedded ? (
+                            <Button data-testid="showRecentChats" variant="ghost" onClick={() => setIsRecentChatsOpen(open => !open)} className="h-10 w-10 p-0" tooltip="Recent Chats">
+                                <PanelLeftIcon className="size-5" />
+                            </Button>
+                        ) : undefined
+                    }
+                    buttons={[
+                        <Button
+                            key="new-chat"
+                            onClick={() => {
+                                navigate(chatRoute);
+                                handleNewSession();
+                            }}
+                        >
+                            <Plus size={16} className="mr-1" />
+                            New Chat
+                        </Button>,
+                    ]}
+                />
+            </div>
 
-            <div className="flex flex-1 flex-col overflow-y-auto px-8 py-6">
+            <div className={cn("flex flex-1 flex-col overflow-y-auto px-8 py-6", recentChatsDrawerOpen && "ml-100 transition-all duration-300")}>
                 {/* Constrain list-item width and center the column to match the
                     pattern used by the Go repo's RecentChatsPage. Outer keeps
                     the scroll container full-width; inner is max-w-4xl. */}
@@ -354,7 +376,7 @@ export const RecentChatsPage: React.FC = () => {
                     {/* Tabs and Search/Filter Bar */}
                     <div className="flex flex-col gap-4">
                         {/* Tabs: Chats / Scheduled Tasks / Shared with Me */}
-                        {(configFeatureEnablement?.scheduler || chatSharingEnabled) && (
+                        {!isEmbedded && (configFeatureEnablement?.scheduler || chatSharingEnabled) && (
                             <div className="flex justify-center">
                                 <Tabs value={activeTab} onValueChange={handleTabChange}>
                                     <TabsList className="bg-transparent p-0">
@@ -383,10 +405,10 @@ export const RecentChatsPage: React.FC = () => {
                         {activeTab !== "shared" && sessions.length > 0 && (
                             <div className="flex items-center gap-4">
                                 <div className="flex-1">
-                                    <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} />
+                                    <SessionSearch onSessionSelect={handleSessionSelect} projectId={selectedProjectId} agentId={isEmbedded ? surface.pinnedAgent : undefined} />
                                 </div>
 
-                                {persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
+                                {!isEmbedded && persistenceEnabled && activeTab === "chat" && projectNames.length > 0 && (
                                     <div className="flex items-center gap-2">
                                         <label className="text-sm font-medium">Project:</label>
                                         <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -568,7 +590,7 @@ export const RecentChatsPage: React.FC = () => {
                                               text: "New Chat",
                                               variant: "default" as const,
                                               onClick: () => {
-                                                  navigate("/chat");
+                                                  navigate(chatRoute);
                                                   handleNewSession();
                                               },
                                           },

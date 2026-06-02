@@ -6,7 +6,7 @@ import { MessageCircle, CalendarDays, Share2 } from "lucide-react";
 import { useMarkSessionViewed, useRecentSessions } from "@/lib/api/sessions";
 import { useSharedWithMe } from "@/lib/api/share";
 import { MAX_RECENT_CHATS } from "@/lib/constants/ui";
-import { useChatContext, useConfigContext, useIsAutoTitleGenerationEnabled, useIsChatSharingEnabled, useTitleAnimation } from "@/lib/hooks";
+import { useChatContext, useChatRoute, useConfigContext, useIsAutoTitleGenerationEnabled, useIsChatSharingEnabled, useTitleAnimation } from "@/lib/hooks";
 import { Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import type { Session } from "@/lib/types";
 import type { SharedWithMeItem } from "@/lib/types/share";
@@ -87,19 +87,26 @@ function SessionName({ session, respondingSessionId, isActive, hasRunningBackgro
 
 interface RecentChatsListProps {
     maxItems?: number;
+    /**
+     * When set, scope the list to a single agent (server-side filter) and omit the
+     * cross-agent "shared with me" entries. Used by the embedded surface.
+     */
+    agentId?: string;
 }
 
 type SessionEntry = { kind: "session"; timestamp: number; session: Session };
 type SharedEntry = { kind: "shared"; timestamp: number; shared: SharedWithMeItem };
 type Entry = SessionEntry | SharedEntry;
 
-export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsListProps) {
+export function RecentChatsList({ maxItems = MAX_RECENT_CHATS, agentId }: RecentChatsListProps) {
     const navigate = useNavigate();
     const { sessionId, handleSwitchSession, currentTaskId } = useChatContext();
     const { persistenceEnabled } = useConfigContext();
     const chatSharingEnabled = useIsChatSharingEnabled();
+    // Keep navigation on the embedded route (with ?agent=) so the URL stays embedded.
+    const chatRoute = useChatRoute();
 
-    const { data: sessionsData, isLoading, isFetching } = useRecentSessions(maxItems);
+    const { data: sessionsData, isLoading, isFetching } = useRecentSessions(maxItems, agentId);
     const sessions = useMemo(() => sessionsData ?? [], [sessionsData]);
     const { data: sharedItems = [] } = useSharedWithMe();
     const markViewedMutation = useMarkSessionViewed();
@@ -156,14 +163,15 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
             session,
         }));
 
-        const sharedEntries: Entry[] = chatSharingEnabled ? sharedItems.map(shared => ({ kind: "shared", timestamp: shared.sharedAt || 0, shared })) : [];
+        // Shared-with-me items aren't agent-scoped, so omit them when filtering to one agent.
+        const sharedEntries: Entry[] = chatSharingEnabled && !agentId ? sharedItems.map(shared => ({ kind: "shared", timestamp: shared.sharedAt || 0, shared })) : [];
 
         return [...sessionEntries, ...sharedEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, maxItems);
-    }, [sessions, sharedItems, chatSharingEnabled, maxItems]);
+    }, [sessions, sharedItems, chatSharingEnabled, maxItems, agentId]);
 
     const handleSessionClick = async (clickedSession: Session) => {
         // Navigate to chat page first, then switch session
-        navigate("/chat");
+        navigate(chatRoute);
         await handleSwitchSession(clickedSession.id);
         // Mark viewed AFTER switch completes — switching can trigger SSE
         // replay / save_task calls that advance the session's updated_time
@@ -174,7 +182,7 @@ export function RecentChatsList({ maxItems = MAX_RECENT_CHATS }: RecentChatsList
     const handleSharedClick = async (item: SharedWithMeItem) => {
         const isEditor = item.accessLevel === "RESOURCE_EDITOR" && item.sessionId;
         if (isEditor && item.sessionId) {
-            navigate("/chat");
+            navigate(chatRoute);
             await handleSwitchSession(item.sessionId);
         } else {
             navigate(`/shared-chat/${item.shareId}`);

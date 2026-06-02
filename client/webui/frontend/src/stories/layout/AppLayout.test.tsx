@@ -6,6 +6,7 @@ import React from "react";
 
 import { renderWithProviders } from "@/lib/test-utils";
 import * as modelsApi from "@/lib/api/models";
+import { ChatSurfaceContext, type ChatSurface } from "@/lib/contexts";
 import AppLayout from "@/AppLayout";
 
 expect.extend(matchers);
@@ -87,5 +88,59 @@ describe("AppLayout model warning banner", () => {
             expect(screen.getByText(/Ask your administrator/)).toBeInTheDocument();
             expect(screen.queryByRole("button", { name: /Go to Models/i })).not.toBeInTheDocument();
         });
+    });
+});
+
+const EMBEDDED_SURFACE: ChatSurface = {
+    variant: "embedded",
+    showNav: false,
+    showRecentChatsPanel: true,
+    showAgentSelector: false,
+    showActivityPanel: false,
+    allowPrompts: false,
+    allowMentions: true,
+    pinnedAgent: "WeatherAgent",
+    seedWelcomeBubble: false,
+    sessionActions: ["rename", "renameWithAI", "delete"],
+};
+
+describe("AppLayout navigation gating by chat surface", () => {
+    beforeEach(() => {
+        mockModelConfigStatus.mockReturnValue({ data: { configured: true } });
+    });
+
+    test("embedded surface renders NO nav sidebar even when new_navigation is enabled (issue #1)", async () => {
+        await renderWithProviders(
+            <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>
+                <AppLayout />
+            </ChatSurfaceContext.Provider>,
+            { featureFlags: { new_navigation: true } }
+        );
+        // Neither nav variant renders: no collapsible (Recent Chats / New Chat) and no legacy rail.
+        expect(screen.queryByText("Recent Chats")).not.toBeInTheDocument();
+        expect(screen.queryByText("New Chat")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("navigation-sidebar")).not.toBeInTheDocument();
+    });
+
+    test("embedded surface renders NO nav sidebar when new_navigation is disabled", async () => {
+        await renderWithProviders(
+            <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>
+                <AppLayout />
+            </ChatSurfaceContext.Provider>,
+            { featureFlags: { new_navigation: false } }
+        );
+        expect(screen.queryByTestId("navigation-sidebar")).not.toBeInTheDocument();
+        expect(screen.queryByText("Recent Chats")).not.toBeInTheDocument();
+    });
+
+    test("full surface shows the full collapsible nav (incl. New Chat) when new_navigation is enabled", async () => {
+        await renderWithProviders(<AppLayout />, { featureFlags: { new_navigation: true } });
+        expect(screen.getByText("New Chat")).toBeInTheDocument();
+        expect(screen.getByText("Recent Chats")).toBeInTheDocument();
+    });
+
+    test("full surface still shows the legacy nav when new_navigation is disabled", async () => {
+        await renderWithProviders(<AppLayout />, { featureFlags: { new_navigation: false } });
+        expect(screen.getByTestId("navigation-sidebar")).toBeInTheDocument();
     });
 });

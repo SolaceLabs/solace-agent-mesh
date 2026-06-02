@@ -9,6 +9,7 @@ export { LoadingMessageRow } from "./LoadingMessageRow";
 export { SessionSidePanel } from "./SessionSidePanel";
 export { MoveSessionDialog } from "./MoveSessionDialog";
 export { RecentChatsList } from "./RecentChatsList";
+export { RecentChatsSidePanel } from "./RecentChatsSidePanel";
 export { VariableDialog } from "./VariableDialog";
 export { SessionSearch } from "./SessionSearch";
 export { MessageHoverButtons } from "./MessageHoverButtons";
@@ -21,6 +22,7 @@ export { MessageAttribution } from "./MessageAttribution";
 export { CollaborativeUserMessage } from "./CollaborativeUserMessage";
 export { InlineProgressUpdates } from "./InlineProgressUpdates";
 export { ContextUsageIndicator } from "./ContextUsageIndicator";
+export { EmbeddedChatWelcome } from "./EmbeddedChatWelcome";
 export * from "./file";
 export * from "./selection";
 

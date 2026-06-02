@@ -14,14 +14,17 @@ export interface PaginatedSessionsResponse {
     };
 }
 
-export const getRecentSessions = async (maxItems: number): Promise<Session[]> => {
-    const result = await api.webui.get<PaginatedSessionsResponse>(`/api/v1/sessions?pageNumber=1&pageSize=${maxItems}`);
+export const getRecentSessions = async (maxItems: number, agentId?: string): Promise<Session[]> => {
+    let url = `/api/v1/sessions?pageNumber=1&pageSize=${maxItems}`;
+    if (agentId) url += `&agent_id=${encodeURIComponent(agentId)}`;
+    const result = await api.webui.get<PaginatedSessionsResponse>(url);
     return result.data || [];
 };
 
-export const getPaginatedSessions = async (pageNumber: number = 1, pageSize: number = 20, source?: string): Promise<PaginatedSessionsResponse> => {
+export const getPaginatedSessions = async (pageNumber: number = 1, pageSize: number = 20, source?: string, agentId?: string): Promise<PaginatedSessionsResponse> => {
     let url = `/api/v1/sessions?pageNumber=${pageNumber}&pageSize=${pageSize}`;
     if (source) url += `&source=${source}`;
+    if (agentId) url += `&agent_id=${encodeURIComponent(agentId)}`;
     return api.webui.get(url);
 };
 
