@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.27.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.26.1...1.27.0) (2026-06-02)
+
+
+### Features
+
+* **DATAGO-138153:** Adding embedded agent mode ([#1574](https://github.com/SolaceLabs/solace-agent-mesh/issues/1574)) ([1adc5eb](https://github.com/SolaceLabs/solace-agent-mesh/commit/1adc5eb82547376c09189681d7bbf6d92336c627))
+
+
+### Bug Fixes
+
+* **DATAGO-130049:** workflow node agents hallucinate tool name instead of using inline artifact block ([#1551](https://github.com/SolaceLabs/solace-agent-mesh/issues/1551)) ([38d337c](https://github.com/SolaceLabs/solace-agent-mesh/commit/38d337c275c8e234cbecedcf43228fc2f1cc58ae))
+
 ## [1.26.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.26.0...1.26.1) (2026-05-25)
 
 
