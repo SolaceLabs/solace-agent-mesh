@@ -677,6 +677,21 @@ async def _submit_task(
                             log_prefix,
                             session_id,
                         )
+                    elif not existing_session.agent_id:
+                        # Backfill agent_id for sessions created without one
+                        # (file-upload-before-first-message and fork paths defer
+                        # it until the first message is sent). Without this they
+                        # stay NULL and are excluded from agent-scoped filters.
+                        backfilled = session_service.update_session_agent(
+                            db, session_id, user_id, agent_name
+                        )
+                        db.commit()
+                        if backfilled:
+                            log.info(
+                                "%sBackfilled agent_id for session: %s",
+                                log_prefix,
+                                session_id,
+                            )
                 except Exception as e:
                     db.rollback()
                     log.warning(

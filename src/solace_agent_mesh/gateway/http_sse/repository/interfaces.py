@@ -61,6 +61,17 @@ class ISessionRepository(ABC):
         pass
 
     @abstractmethod
+    def update_agent(
+        self, session: DBSession, session_id: SessionId, user_id: UserId, agent_id: str
+    ) -> bool:
+        """Backfill the agent_id for a session created without one.
+
+        Only updates rows whose agent_id is currently NULL. Returns True if a
+        row was updated, False otherwise.
+        """
+        pass
+
+    @abstractmethod
     def search(
         self,
         session: DBSession,
