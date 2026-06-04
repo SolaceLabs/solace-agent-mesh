@@ -151,23 +151,26 @@ def _claim(user_info: dict, key: str) -> str | None:
     value = user_info.get(key)
     if not isinstance(value, str):
         return None
-    if value.lower() in _INVALID_CLAIM_VALUES:
+    value = value.strip()
+    if not value or value.lower() in _INVALID_CLAIM_VALUES:
         return None
     return value
 
 
 def _extract_user_identifier(user_info: dict) -> str:
     """Extract user identifier from OAuth user info."""
-    # Sentinel values like "Unknown" (used by some upstream proxies to fill
-    # missing claims) are skipped so the walk continues to the next claim.
+    # Sentinel values like "Unknown" are skipped so the walk continues.
     for key in _USER_IDENTIFIER_CLAIM_ORDER:
         candidate = _claim(user_info, key)
         if candidate:
             return candidate
 
+    rejected = sorted(k for k in _USER_IDENTIFIER_CLAIM_ORDER if k in user_info)
     log.warning(
-        "AuthMiddleware: No valid user identifier in user_info (keys=%s). Using fallback.",
+        "AuthMiddleware: No valid user identifier in user_info "
+        "(keys=%s, rejected=%s). Using fallback.",
         sorted(user_info.keys()),
+        rejected,
     )
     return "sam_dev_user"
 
@@ -197,20 +200,11 @@ async def _create_user_state(
     user_identifier: str, email_from_auth: str, display_name: str
 ) -> dict:
     """Create user state dictionary from OAuth info."""
-    final_user_id = user_identifier or email_from_auth
-    if (
-        not final_user_id
-        or not isinstance(final_user_id, str)
-        or final_user_id.lower() in _INVALID_CLAIM_VALUES
-    ):
-        final_user_id = "sam_dev_user"
-        log.warning("AuthMiddleware: Had to use fallback user ID due to invalid identifier")
-
     return {
-        "id": final_user_id,
-        "user_id": final_user_id,
-        "email": email_from_auth or final_user_id,
-        "name": display_name or final_user_id,
+        "id": user_identifier,
+        "user_id": user_identifier,
+        "email": email_from_auth or user_identifier,
+        "name": display_name or user_identifier,
         "authenticated": True,
         "auth_method": "oidc",
     }
