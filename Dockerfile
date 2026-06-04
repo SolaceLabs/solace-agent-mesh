@@ -78,6 +78,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
+    openssl-provider-legacy=3.5.5-1~deb13u2 \
     openssl=3.5.5-1~deb13u2 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
@@ -178,6 +179,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libsqlite3-0=3.46.1-7+deb13u1 \
     libssl3t64=3.5.5-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
+    openssl-provider-legacy=3.5.5-1~deb13u2 \
     openssl=3.5.5-1~deb13u2 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \
