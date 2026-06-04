@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.1...1.28.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* **auth:** skip sentinel claim values when extracting user identifier ([#1584](https://github.com/SolaceLabs/solace-agent-mesh/issues/1584)) ([f4ffde6](https://github.com/SolaceLabs/solace-agent-mesh/commit/f4ffde68facae594f095040e52fcbb5ddb940121))
+
 ## [1.28.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.0...1.28.1) (2026-06-04)
 
 
