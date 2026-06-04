@@ -129,44 +129,69 @@ async def _get_user_info(
     return userinfo_response.json()
 
 
+_INVALID_CLAIM_VALUES = frozenset({"unknown", "null", "none", ""})
+
+_USER_IDENTIFIER_CLAIM_ORDER = (
+    "sub",
+    "client_id",
+    "username",
+    "oid",
+    "preferred_username",
+    "upn",
+    "unique_name",
+    "email",
+    "name",
+    "azp",
+    "user_id",
+)
+
+
+def _claim(user_info: dict, key: str) -> str | None:
+    """Return the claim at ``key``, treating sentinel strings as missing."""
+    value = user_info.get(key)
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or value.lower() in _INVALID_CLAIM_VALUES:
+        return None
+    return value
+
+
 def _extract_user_identifier(user_info: dict) -> str:
     """Extract user identifier from OAuth user info."""
-    user_identifier = (
-        user_info.get("sub")
-        or user_info.get("client_id")
-        or user_info.get("username")
-        or user_info.get("oid")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
-        or user_info.get("unique_name")
-        or user_info.get("email")
-        or user_info.get("name")
-        or user_info.get("azp")
-        or user_info.get("user_id")
+    # Sentinel values like "Unknown" are skipped so the walk continues.
+    for key in _USER_IDENTIFIER_CLAIM_ORDER:
+        candidate = _claim(user_info, key)
+        if candidate:
+            return candidate
+
+    rejected = sorted(k for k in _USER_IDENTIFIER_CLAIM_ORDER if k in user_info)
+    log.warning(
+        "AuthMiddleware: No valid user identifier in user_info "
+        "(keys=%s, rejected=%s). Using fallback.",
+        sorted(user_info.keys()),
+        rejected,
     )
-
-    if user_identifier and user_identifier.lower() == "unknown":
-        log.warning("AuthMiddleware: IDP returned 'Unknown' as user identifier. Using fallback.")
-        return "sam_dev_user"
-
-    return user_identifier
+    return "sam_dev_user"
 
 
 def _extract_user_details(user_info: dict, user_identifier: str) -> tuple:
     """Extract email and display name from OAuth user info."""
     email_from_auth = (
-        user_info.get("email")
-        or user_info.get("preferred_username")
-        or user_info.get("upn")
+        _claim(user_info, "email")
+        or _claim(user_info, "preferred_username")
+        or _claim(user_info, "upn")
         or user_identifier
     )
 
+    given = _claim(user_info, "given_name") or ""
+    family = _claim(user_info, "family_name") or ""
     display_name = (
-        user_info.get("name")
-        or user_info.get("given_name", "") + " " + user_info.get("family_name", "")
-        or user_info.get("preferred_username")
+        _claim(user_info, "name")
+        or (f"{given} {family}".strip() or None)
+        or _claim(user_info, "preferred_username")
         or user_identifier
-    ).strip()
+    )
 
     return email_from_auth, display_name
 
@@ -175,16 +200,11 @@ async def _create_user_state(
     user_identifier: str, email_from_auth: str, display_name: str
 ) -> dict:
     """Create user state dictionary from OAuth info."""
-    final_user_id = user_identifier or email_from_auth or "sam_dev_user"
-    if not final_user_id or final_user_id.lower() in ["unknown", "null", "none", ""]:
-        final_user_id = "sam_dev_user"
-        log.warning("AuthMiddleware: Had to use fallback user ID due to invalid identifier")
-
     return {
-        "id": final_user_id,
-        "user_id": final_user_id,
-        "email": email_from_auth or final_user_id,
-        "name": display_name or final_user_id,
+        "id": user_identifier,
+        "user_id": user_identifier,
+        "email": email_from_auth or user_identifier,
+        "name": display_name or user_identifier,
         "authenticated": True,
         "auth_method": "oidc",
     }
