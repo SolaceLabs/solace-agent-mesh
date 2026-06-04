@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.28.1](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.0...1.28.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* **DATAGO-138636:** backfill agent id for chat sessions starting with artifact uploads ([#1580](https://github.com/SolaceLabs/solace-agent-mesh/issues/1580)) ([4699068](https://github.com/SolaceLabs/solace-agent-mesh/commit/4699068e0e7289dd475f5f52162431862315abb7))
+* **DATAGO-138846:** bump pyjwt, react-router-dom, @remix-run/*, openssl to clear CVEs ([#1583](https://github.com/SolaceLabs/solace-agent-mesh/issues/1583)) ([56c6f16](https://github.com/SolaceLabs/solace-agent-mesh/commit/56c6f16b7c7e26f813bd1d9e5f002edf908448b6))
+
 ## [1.28.0](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.27.1...1.28.0) (2026-06-02)
 
 
