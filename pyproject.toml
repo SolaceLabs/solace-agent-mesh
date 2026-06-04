@@ -31,7 +31,7 @@ dependencies = [
     "idna==3.15",  # [CVE-2026-45409] Security fix (transitive from httpx, requests)
     "jwcrypto==1.5.7",  # [CVE-2026-39373] Security fix
     "python-jwt==4.1.0",
-    "pyjwt>=2.12.0",  # [CVE-2026-32597] Security fix: validates the crit (Critical) Header Parameter in JWS tokens (transitive from a2a-sdk, msal)
+    "pyjwt>=2.13.0",  # [CVE-2026-48526] Security fix: rejects JWK JSON passed as an HMAC secret
     "asteval==1.0.6",
     "pystache==0.6.8",
     "python-liquid==2.2.0",  # [CVE-2026-45017] Security fix
