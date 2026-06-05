@@ -77,8 +77,10 @@ To run Solace Agent Mesh locally, you'll need:
 
 - **Python 3.10.16 – 3.13.x**
 - **pip** (comes with Python)
-- **OS**: MacOS, Linux, or Windows (with [WSL](https://learn.microsoft.com/en-us/windows/wsl/))
-- **LLM API key** (any major provider or custom endpoint)
+- **Operating System**: macOS, Linux, or Windows (WSL recommended for Windows)
+- **LLM API Key** from any supported provider (e.g., OpenAI)
+
+> **Note:** Ensure Python and pip are properly installed and added to your system PATH before proceeding.
 
 ### 🎸 Vibe Coding
 To quickly setup and customize your Agent Mesh, check out the [Vibe Coding Quickstart Guide](docs/docs/documentation/vibe_coding.md). This guide walks you through the essential steps to get Solace Agent Mesh up and running with minimal effort.
@@ -182,6 +184,32 @@ View the full list of contributors here: [GitHub Contributors](https://github.co
 **Looking to contribute?** Check out [CONTRIBUTING.md](CONTRIBUTING.md) to get started and see how you can help!
 
 ---
+
+---
+
+## 🛠️ Troubleshooting
+
+### Common Issues and Fixes
+
+1. SAM command not found
+- Ensure the package is installed correctly using `pip3 install solace-agent-mesh`
+- Restart your terminal after installation
+
+2. Virtual environment not activating
+- Make sure you are using the correct command for your OS
+- On Windows, use:
+.venv\Scripts\activate
+
+3. Port already in use
+- Check if port `8000` or `5002` is already running
+- Stop the existing process or use a different port
+
+4. Python version issues
+- Ensure you are using a supported version (3.10.16 – 3.13.x)
+
+5. Dependencies not installing
+- Upgrade pip:
+pip install --upgrade pip
 
 ## 📄 License
 
