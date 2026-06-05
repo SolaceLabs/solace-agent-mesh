@@ -14,6 +14,7 @@ from ..services.prompt_builder_assistant import PromptBuilderAssistant
 from ..dependencies import get_db, get_user_id, get_sac_component, get_api_config, get_user_display_name
 from ..repository.models import PromptGroupModel, PromptModel, PromptGroupUserModel
 from .dto.prompt_dto import (
+    COMMAND_RE,
     PromptGroupCreate,
     PromptGroupUpdate,
     PromptGroupResponse,
@@ -1246,11 +1247,19 @@ async def import_prompt(
             warnings.append("Category was truncated to 100 characters")
         
         command = prompt_info.get("command") if options.preserve_command else None
-        # Truncate command if it exceeds max length (50 chars)
+        # Validate before truncating so a trailing invalid char isn't silently dropped.
+        if command and not COMMAND_RE.fullmatch(command):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid command '{command}': must contain only letters, "
+                    "numbers, dashes, and underscores"
+                ),
+            )
         if command and len(command) > 50:
             command = command[:50]
             warnings.append("Command was truncated to 50 characters")
-        
+
         prompt_text = prompt_info["prompt_text"]
         # Truncate prompt_text if it exceeds max length (10000 chars)
         if len(prompt_text) > 10000:
@@ -1269,7 +1278,8 @@ async def import_prompt(
                 # Generate alternative command
                 counter = 2
                 while True:
-                    new_command = f"{original_command}-{counter}"
+                    suffix = f"-{counter}"
+                    new_command = f"{original_command[:50 - len(suffix)]}{suffix}"
                     existing_alt = db.query(PromptGroupModel).filter(
                         PromptGroupModel.command == new_command,
                         PromptGroupModel.user_id == user_id,
