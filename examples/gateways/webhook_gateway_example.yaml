@@ -59,7 +59,7 @@ apps:
       # --- WebhookGatewayApp Specific Config ---
       webhook_server_host: "0.0.0.0" 
       webhook_server_port: 8088      
-      cors_allowed_origins: ["*"]    # Or specify origins like ["http://localhost:3000", "https://myfrontend.com"]
+      cors_allowed_origins: ["http://localhost:3000"]    # Specify allowed origins explicitly (avoid '*' with credentials)
 
       webhook_endpoints:
         # --- Endpoint 1: Simple JSON payload, no auth ---

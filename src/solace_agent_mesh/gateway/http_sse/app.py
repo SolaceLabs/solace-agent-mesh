@@ -58,8 +58,8 @@ class WebUIBackendApp(BaseGatewayApp):
             "name": "cors_allowed_origins",
             "required": False,
             "type": "list",
-            "default": ["*"],
-            "description": "List of allowed origins for CORS requests.",
+            "default": [],
+            "description": "List of allowed origins for CORS requests. If empty, origins are auto-constructed from the server host/port. Avoid using '*' with credentials.",
         },
         {
             "name": "cors_allowed_origin_regex",

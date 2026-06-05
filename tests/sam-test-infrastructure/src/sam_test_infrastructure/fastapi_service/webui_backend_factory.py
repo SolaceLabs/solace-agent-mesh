@@ -69,7 +69,7 @@ class WebUIBackendFactory:
                 "frontend_redirect_url": "http://localhost:3000",
             }
         )
-        mock_component.get_cors_origins.return_value = ["*"]
+        mock_component.get_cors_origins.return_value = ["http://localhost:3000"]
         mock_component.get_cors_origin_regex.return_value = ""
         mock_session_manager = Mock(secret_key="test-secret-key")
         mock_session_manager.create_new_session_id.side_effect = (
