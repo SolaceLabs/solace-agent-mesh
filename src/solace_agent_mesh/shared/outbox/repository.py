@@ -83,6 +83,24 @@ class OutboxEventRepository:
         )
         return result is not None
 
+    def get_entity_ids_with_pending_events(
+        self, session: Session, entity_type: str, entity_ids: list[str], event_type: str
+    ) -> set[str]:
+        if not entity_ids:
+            return set()
+        rows = (
+            session.query(OutboxEventModel.entity_id)
+            .filter(
+                OutboxEventModel.entity_type == entity_type,
+                OutboxEventModel.entity_id.in_(entity_ids),
+                OutboxEventModel.event_type == event_type,
+                OutboxEventModel.status == "pending",
+            )
+            .distinct()
+            .all()
+        )
+        return {row[0] for row in rows}
+
     def update_event(self, session: Session, event_id: str, data: UpdateOutboxEventModel) -> OutboxEventEntity:
         with MonitorLatency(DBMonitor.query("outbox_events")):
             event = session.query(OutboxEventModel).filter(OutboxEventModel.id == event_id).first()
