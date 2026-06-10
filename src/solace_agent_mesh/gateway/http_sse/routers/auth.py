@@ -3,6 +3,7 @@ Router for handling authentication-related endpoints.
 """
 from __future__ import annotations
 
+import html
 import logging
 import secrets
 
@@ -208,8 +209,8 @@ async def auth_tool_callback(
                 </head>
                 <body>
                     <h2>Authorization Error</h2>
-                    <p>Error: {error}</p>
-                    <p>Description: {error_description or 'No description provided'}</p>
+                    <p>Error: {html.escape(error)}</p>
+                    <p>Description: {html.escape(error_description or 'No description provided')}</p>
                     <p>Please close this window and try again.</p>
                 </body>
             </html>
