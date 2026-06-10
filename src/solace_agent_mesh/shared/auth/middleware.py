@@ -299,10 +299,13 @@ def create_oauth_middleware(component):
                     "id": "sam_dev_user",
                     "name": "Sam Dev User",
                     "email": "sam@dev.local",
-                    "authenticated": True,
+                    "authenticated": False,
                     "auth_method": "development",
                 }
-                log.debug("AuthMiddleware: Set development user (frontend_use_authorization=false)")
+                log.warning(
+                    "AuthMiddleware: Development mode active — requests treated as unauthenticated. "
+                    "Set frontend_use_authorization=true for production."
+                )
 
             await self.app(scope, receive, send)
 
