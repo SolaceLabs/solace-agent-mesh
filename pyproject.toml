@@ -49,7 +49,7 @@ dependencies = [
     "jmespath==1.0.1",
     "mermaid_cli==0.1.2",
     "playwright==1.58.0",
-    "litellm==1.84.0",  # bumped from 1.83.14 to relax its aiohttp==3.13.4 pin, allowing aiohttp 3.14.0 [CVE-2026-34993, CVE-2026-47265]
+    "litellm==1.84.0",  # bumped from 1.83.14 to relax its aiohttp==3.13.4 pin, allowing aiohttp >=3.14.0 (locked to 3.14.1) [CVE-2026-34993, CVE-2026-47265]
     "markdownify==1.2.0",
     "beautifulsoup4==4.13.5",
     "jsonpath-ng==1.7.0",
