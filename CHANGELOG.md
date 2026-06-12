@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.2...1.28.3) (2026-06-12)
+
+
+### Bug Fixes
+
+* **DATAGO-139037:** bump Python deps + image OS packages to clear vulnerability CVEs ([#1587](https://github.com/SolaceLabs/solace-agent-mesh/issues/1587)) ([475ff56](https://github.com/SolaceLabs/solace-agent-mesh/commit/475ff561280be16570174118431ac8aec2be7341))
+
 ## [1.28.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.1...1.28.2) (2026-06-04)
 
 
