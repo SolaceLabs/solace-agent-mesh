@@ -61,18 +61,19 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
     const compactMutation = useCompactSession(sessionId);
     const isCompacting = compactMutation.isPending;
 
-    // Refetch on mount and whenever a new message arrives (messageCount changes).
-    useEffect(() => {
-        if (sessionId) refetchUsage();
-    }, [sessionId, messageCount, refetchUsage]);
+    // Initial fetch is handled by useSessionContextUsage on mount / when the
+    // (sessionId, agent) query key changes. messages.length flaps multiple
+    // times per turn (status bubbles, intermediate tool/peer messages), and
+    // each flap previously triggered its own refetch — the post-response
+    // poller below already covers the only state we care about (a new task
+    // landing in the DB), so we no longer refetch on every message change.
 
-    // When the AI finishes responding (isResponding: true → false), poll until
-    // the backend reflects the new task's token usage. The TaskLoggerService
-    // writes total_input_tokens asynchronously after the task completes, so the
-    // first fetch may still return stale data. We retry up to 4 times with
-    // increasing delays (500ms, 1s, 2s, 4s) and stop as soon as totalTasks
-    // increases. Capture the baseline task count only on the false→true
-    // transition so mid-stream refetches don't inflate it.
+    // When the AI finishes responding (isResponding: true → false), poll
+    // briefly until the backend reflects the new task's token usage —
+    // TaskLoggerService writes total_input_tokens asynchronously after the
+    // task completes. We start at 1s (the write almost never lands sooner)
+    // and cap at 2 attempts (1s, 3s) so a slow/dropped write costs at most
+    // 2 calls. The loop exits as soon as totalTasks increases.
     const prevRespondingRef = useRef(false);
     const baselineTaskCountRef = useRef(0);
     useEffect(() => {
@@ -81,13 +82,12 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
         }
         if (prevRespondingRef.current && !isResponding) {
             const expectedTasks = baselineTaskCountRef.current + 1;
-            let attempt = 0;
+            const delays = [1000, 3000];
             let cancelled = false;
 
             const poll = async () => {
-                while (!cancelled && attempt < 4) {
-                    const delay = 500 * Math.pow(2, attempt); // 500, 1000, 2000, 4000
-                    attempt++;
+                for (const delay of delays) {
+                    if (cancelled) return;
                     await new Promise(r => setTimeout(r, delay));
                     if (cancelled) return;
                     const result = await refetchUsage();
