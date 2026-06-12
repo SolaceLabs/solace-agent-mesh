@@ -62,6 +62,8 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Pin libc6=2.41-12+deb13u3 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 # Pin libcap2=1:2.75-10+deb13u1+b1 to fix CVE-2026-4878 (TOCTOU race condition)
+# Pin sed=4.9-2+deb13u1 to fix CVE-2026-5958 (-i with --follow-symlinks)
+# Pin libsystemd0/libudev1=257.13-1~deb13u1 to fix multiple systemd CVEs (CVE-2026-40223..40228 et al.)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -73,18 +75,21 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     git \
     libc6=2.41-12+deb13u3 \
     libcap2=1:2.75-10+deb13u1+b1 \
+    libsystemd0=257.13-1~deb13u1 \
+    libudev1=257.13-1~deb13u1 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u5 \
     libsqlite3-0=3.46.1-7+deb13u1 \
-    libssl3t64=3.5.5-1~deb13u2 \
+    libssl3t64=3.5.6-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
-    openssl-provider-legacy=3.5.5-1~deb13u2 \
-    openssl=3.5.5-1~deb13u2 && \
+    openssl-provider-legacy=3.5.6-1~deb13u2 \
+    openssl=3.5.6-1~deb13u2 \
+    sed=4.9-2+deb13u1 && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
     mv /root/.local/bin/uv /usr/local/bin/uv && \
     rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/unstable.list /etc/apt/preferences.d/99pin-libtasn1 && \
     python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --upgrade "pip==26.1.1" && \
+    /opt/venv/bin/pip install --upgrade "pip==26.1.2" && \
     uv pip install --system "virtualenv<21" hatch
 
 WORKDIR /app
@@ -164,6 +169,8 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Pin libc6=2.41-12+deb13u3 to fix CVE-2026-0861, CVE-2026-0915, CVE-2025-15281 (glibc vulnerabilities)
 # Pin dpkg=1.22.22 to fix CVE-2026-2219 (denial of service via zstd-compressed .deb archives)
 # Pin libcap2=1:2.75-10+deb13u1+b1 to fix CVE-2026-4878 (TOCTOU race condition)
+# Pin sed=4.9-2+deb13u1 to fix CVE-2026-5958 (-i with --follow-symlinks)
+# Pin libsystemd0/libudev1=257.13-1~deb13u1 to fix multiple systemd CVEs (CVE-2026-40223..40228 et al.)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -174,13 +181,16 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libatomic1 \
     libc6=2.41-12+deb13u3 \
     libcap2=1:2.75-10+deb13u1+b1 \
+    libsystemd0=257.13-1~deb13u1 \
+    libudev1=257.13-1~deb13u1 \
     libtasn1-6/unstable \
     libpng16-16t64=1.6.48-1+deb13u5 \
     libsqlite3-0=3.46.1-7+deb13u1 \
-    libssl3t64=3.5.5-1~deb13u2 \
+    libssl3t64=3.5.6-1~deb13u2 \
     libvpx9=1.15.0-2.1+deb13u1 \
-    openssl-provider-legacy=3.5.5-1~deb13u2 \
-    openssl=3.5.5-1~deb13u2 && \
+    openssl-provider-legacy=3.5.6-1~deb13u2 \
+    openssl=3.5.6-1~deb13u2 \
+    sed=4.9-2+deb13u1 && \
     if [ "${INSTALL_LIBREOFFICE}" = "true" ]; then \
         echo "============================================================" && \
         echo "NOTICE: Installing LibreOffice - a separate open-source application" && \
@@ -206,8 +216,11 @@ RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.15.0
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached
 # We'll use the playwright from the full venv at runtime
+# Upgrade the base image's system pip to 26.1.2 to fix CVE-2026-3219, CVE-2026-6357, CVE-2026-8643
+# (the venv pip is upgraded separately in the builder stage; the system pip ships at 25.3 otherwise)
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/playwright \
+    python3 -m pip install --upgrade "pip==26.1.2" && \
     python3 -m pip install playwright && \
     playwright install-deps chromium && \
     playwright install chromium && \
