@@ -50,15 +50,20 @@ _BROKER_TOPIC_PREFIX = "scheduled-tasks/"
 
 
 def _check_ip_blocked(ip_str: str) -> None:
-    """Raise ValueError if the IP falls within a blocked network range."""
     ip = ipaddress.ip_address(ip_str)
+
+    # Normalize IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1 → 127.0.0.1)
+    # Without this, ::ffff:127.0.0.1 is treated as IPv6 and won't match
+    # IPv4 blocked networks like 127.0.0.0/8, allowing SSRF bypass.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+
     for network in _BLOCKED_IP_NETWORKS:
         if ip in network:
             raise ValueError(
                 f"Webhook URL resolves to blocked IP range ({ip}). "
                 "Private, loopback, and link-local addresses are not allowed."
             )
-
 
 def _validate_webhook_url(url: str) -> None:
     """
