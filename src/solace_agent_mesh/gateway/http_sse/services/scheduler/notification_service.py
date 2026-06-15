@@ -52,6 +52,13 @@ _BROKER_TOPIC_PREFIX = "scheduled-tasks/"
 def _check_ip_blocked(ip_str: str) -> None:
     """Raise ValueError if the IP falls within a blocked network range."""
     ip = ipaddress.ip_address(ip_str)
+    # Normalize IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1) to
+    # their embedded IPv4 address so they are matched by IPv4 blocked
+    # networks.  Without this, addresses like ::ffff:10.0.0.1 bypass
+    # the private-range check because an IPv6Address is not considered
+    # part of an IPv4 network.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
     for network in _BLOCKED_IP_NETWORKS:
         if ip in network:
             raise ValueError(
