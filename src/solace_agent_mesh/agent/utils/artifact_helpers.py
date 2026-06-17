@@ -1129,31 +1129,36 @@ async def get_artifact_info_list(
             """
             log_identifier_item = f"{log_prefix} [{filename}]"
             try:
-                # A single list_versions call yields both the count and the
-                # latest version, so the previously-separate
-                # get_latest_artifact_version() round-trip (which also listed
-                # versions) is dropped.
-                version_count: int = 0
-                latest_version_num: Optional[int] = None
-                if hasattr(artifact_service, "list_versions"):
-                    try:
-                        available_versions = await artifact_service.list_versions(
-                            app_name=app_name,
-                            user_id=user_id,
-                            session_id=session_id,
-                            filename=filename,
-                        )
-                        version_count = len(available_versions)
-                        if available_versions:
-                            latest_version_num = max(available_versions)
-                    except Exception as list_ver_err:
-                        log.error(
-                            "%s Error listing versions for count: %s.",
-                            log_identifier_item,
-                            list_ver_err,
-                        )
-
+                # Hold one semaphore permit across BOTH S3 round-trips for this
+                # artifact (version listing + metadata load) so the per-session
+                # fan-out can't exceed the shared cap and exhaust the botocore
+                # connection pool — list_versions is an S3 listing too, not just
+                # the metadata GET.
                 async with _METADATA_LOAD_SEMAPHORE:
+                    # A single list_versions call yields both the count and the
+                    # latest version, so the previously-separate
+                    # get_latest_artifact_version() round-trip (which also listed
+                    # versions) is dropped.
+                    version_count: int = 0
+                    latest_version_num: Optional[int] = None
+                    if hasattr(artifact_service, "list_versions"):
+                        try:
+                            available_versions = await artifact_service.list_versions(
+                                app_name=app_name,
+                                user_id=user_id,
+                                session_id=session_id,
+                                filename=filename,
+                            )
+                            version_count = len(available_versions)
+                            if available_versions:
+                                latest_version_num = max(available_versions)
+                        except Exception as list_ver_err:
+                            log.error(
+                                "%s Error listing versions for count: %s.",
+                                log_identifier_item,
+                                list_ver_err,
+                            )
+
                     data = await load_artifact_content_or_metadata(
                         artifact_service=artifact_service,
                         app_name=app_name,

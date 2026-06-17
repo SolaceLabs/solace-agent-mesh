@@ -1935,3 +1935,48 @@ class TestGetArtifactInfoList:
             artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
         )
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_versions_failure_is_nonfatal(self, mock_service):
+        """If list_versions raises, the artifact still resolves with
+        version_count=0 and the version sourced from the loaded metadata."""
+        mock_service.list_artifact_keys.return_value = ["a.txt"]
+        mock_service.list_versions.side_effect = RuntimeError("listing failed")
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 5},
+                "version": 4,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert len(result) == 1
+        assert result[0].filename == "a.txt"
+        assert result[0].version_count == 0
+        assert result[0].version == 4
+
+    @pytest.mark.asyncio
+    async def test_service_without_list_versions(self):
+        """A service lacking list_versions still lists: version_count stays 0
+        and the version comes from the loaded metadata (parity with the
+        original serial implementation)."""
+        # spec restricted to just list_artifact_keys → hasattr(list_versions) is False.
+        svc = AsyncMock(spec=["list_artifact_keys"])
+        svc.list_artifact_keys = AsyncMock(return_value=["a.txt"])
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 5},
+                "version": 0,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=svc, app_name="app", user_id="user", session_id="sess"
+            )
+        assert len(result) == 1
+        assert result[0].version_count == 0
+        assert result[0].version == 0
