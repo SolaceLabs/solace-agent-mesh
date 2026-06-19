@@ -564,7 +564,10 @@ async def get_app_config(
         platform_config = component.get_config("platform_service", {})
         platform_service_url = platform_config.get("url", "")
 
-        disclaimer_text = component.get_config("frontend_disclaimer_text", "") or ""
+        # Coerce to str: get_config returns the raw YAML value, so a hand-edited
+        # non-string literal (int/bool/list) would otherwise raise on len()/slice
+        # below and 500 the whole /api/v1/config endpoint.
+        disclaimer_text = str(component.get_config("frontend_disclaimer_text", "") or "")
         if len(disclaimer_text) > MAX_FRONTEND_DISCLAIMER_TEXT_LEN:
             log.warning(
                 "%sfrontend_disclaimer_text exceeds %d chars (%d); truncating.",

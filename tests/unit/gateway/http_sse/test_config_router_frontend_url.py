@@ -215,3 +215,12 @@ class TestConfigRouterDisclaimerText:
         response = await get_app_config(mock_component, mock_api_config)
 
         assert response["frontend_disclaimer_text"] == at_limit
+
+    @pytest.mark.asyncio
+    async def test_non_string_value_is_coerced_not_crashing(self, mock_component, mock_api_config):
+        """A hand-edited non-string YAML literal must be coerced, not 500 the endpoint."""
+        _set_disclaimer(mock_component, 42)
+
+        response = await get_app_config(mock_component, mock_api_config)
+
+        assert response["frontend_disclaimer_text"] == "42"
