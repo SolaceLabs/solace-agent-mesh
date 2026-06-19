@@ -17,6 +17,12 @@ export interface ConfigContextValue {
     configAuthLoginUrl: string;
     configUseAuthorization: boolean;
     configWelcomeMessage: string;
+    /**
+     * Operator-configured disclaimer rendered on the chat welcome screen.
+     * Markdown (links supported); empty string means no disclaimer is shown.
+     * Set via the gateway's `frontend_disclaimer_text` config key.
+     */
+    configDisclaimerText: string;
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;

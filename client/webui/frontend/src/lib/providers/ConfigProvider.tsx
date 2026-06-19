@@ -10,6 +10,7 @@ interface BackendConfig {
     frontend_auth_login_url: string;
     frontend_use_authorization: boolean;
     frontend_welcome_message: string;
+    frontend_disclaimer_text?: string;
     frontend_redirect_url: string;
     frontend_collect_feedback: boolean;
     frontend_bot_name: string;
@@ -115,6 +116,7 @@ export function ConfigProvider({ children }: Readonly<ConfigProviderProps>) {
                     configAuthLoginUrl: data.frontend_auth_login_url,
                     configUseAuthorization: effectiveUseAuthorization,
                     configWelcomeMessage: data.frontend_welcome_message,
+                    configDisclaimerText: data.frontend_disclaimer_text ?? "",
                     configRedirectUrl: data.frontend_redirect_url,
                     configCollectFeedback: data.frontend_collect_feedback,
                     configBotName: data.frontend_bot_name,

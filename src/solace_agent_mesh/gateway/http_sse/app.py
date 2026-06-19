@@ -125,6 +125,13 @@ class WebUIBackendApp(BaseGatewayApp):
             "description": "Enable/disable the feedback buttons in the UI.",
         },
         {
+            "name": "frontend_disclaimer_text",
+            "required": False,
+            "type": "string",
+            "default": "",
+            "description": "Operator-configured disclaimer rendered (as Markdown) on the chat welcome screen. Empty disables it. Capped at 500 chars.",
+        },
+        {
             "name": "frontend_auth_login_url",
             "required": False,
             "type": "string",

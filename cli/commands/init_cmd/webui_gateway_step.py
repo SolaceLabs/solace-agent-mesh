@@ -173,6 +173,9 @@ def create_webui_gateway_config(
             "__FRONTEND_WELCOME_MESSAGE__": str(
                 options.get("webui_frontend_welcome_message", '${FRONTEND_WELCOME_MESSAGE, "Hello, how can I assist you?"}')
             ),
+            "__FRONTEND_DISCLAIMER_TEXT__": str(
+                options.get("webui_frontend_disclaimer_text", '${FRONTEND_DISCLAIMER_TEXT, ""}')
+            ),
             "__FRONTEND_BOT_NAME__": str(
                 options.get("webui_frontend_bot_name", "${FRONTEND_BOT_NAME, Solace Agent Mesh}")
             ),

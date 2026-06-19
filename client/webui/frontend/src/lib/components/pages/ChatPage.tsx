@@ -27,6 +27,7 @@ import {
 import { Button, ChatMessageList, CHAT_STYLES, ResizablePanelGroup, ResizablePanel, ResizableHandle, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui";
 import { PageLayout } from "@/lib/components/layout";
 import { EmptyState } from "@/lib/components/common/EmptyState";
+import { MarkdownHTMLConverter } from "@/lib/components/common/MarkdownHTMLConverter";
 import type { ChatMessageListRef } from "@/lib/components/ui/chat/chat-message-list";
 import { useShareLink, useShareUsers } from "@/lib/api/share";
 import { api } from "@/lib/api";
@@ -70,7 +71,7 @@ export function ChatPage() {
     const navigate = useNavigate();
     const { value: inlineActivityTimelineEnabled } = useBooleanFlagDetails("inline_activity_timeline", false);
     const surface = useChatSurface();
-    const { configWelcomeMessage } = useConfigContext();
+    const { configWelcomeMessage, configDisclaimerText } = useConfigContext();
     const {
         agents,
         agentsRefetch,
@@ -570,6 +571,11 @@ export function ChatPage() {
                 <div className="mt-4 w-full" style={CHAT_STYLES}>
                     <ChatInputArea agents={agents} scrollToBottom={chatMessageListRef.current?.scrollToBottom} />
                 </div>
+                {configDisclaimerText && (
+                    <div className="w-full px-16 text-center">
+                        <MarkdownHTMLConverter className="inline-block text-left text-xs">{configDisclaimerText}</MarkdownHTMLConverter>
+                    </div>
+                )}
             </div>
         </div>
     );
