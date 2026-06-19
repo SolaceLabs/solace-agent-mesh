@@ -34,11 +34,38 @@ class TestCheckIPBlocked:
             "::ffff:172.16.0.1",
             "::ffff:192.168.1.1",
             "::ffff:169.254.169.254",
+            # Regression: a CIDR-only blocklist (which an earlier revision
+            # of this PR shipped) missed each of these. is_private /
+            # is_reserved catches them all.
+            "0.0.0.0",  # routes to localhost on Linux
+            "192.0.2.1",  # TEST-NET-1
+            "198.18.0.1",  # benchmarking (RFC 2544)
+            "203.0.113.1",  # TEST-NET-3
+            "240.0.0.1",  # 240/4 reserved
+            "255.255.255.255",  # limited broadcast
+            "224.0.0.1",  # IPv4 multicast
         ],
     )
     def test_blocks_private_and_reserved(self, ip):
         with pytest.raises(BlockedIPError, match="blocked IP range"):
             check_ip_blocked(ip)
+
+    @pytest.mark.parametrize("ip", ["127.0.0.1", "127.0.0.5", "0.0.0.0"])
+    def test_allow_loopback_exempts_loopback(self, ip):
+        # allow_loopback is the dev-mode escape hatch for localhost services.
+        check_ip_blocked(ip, allow_loopback=True)
+
+    @pytest.mark.parametrize(
+        "ip",
+        ["169.254.169.254", "10.0.0.1", "192.168.1.1", "172.16.0.1", "224.0.0.1"],
+    )
+    def test_allow_loopback_does_not_exempt_metadata_or_private(self, ip):
+        # Critical: enabling allow_loopback must NOT silently disable
+        # cloud-metadata / RFC1918 / multicast protection. This is the lesson
+        # from the review pass that found the coarse on/off switch in
+        # web_tools.py.
+        with pytest.raises(BlockedIPError, match="blocked IP range"):
+            check_ip_blocked(ip, allow_loopback=True)
 
     @pytest.mark.parametrize(
         "ip",

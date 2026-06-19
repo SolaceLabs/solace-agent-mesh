@@ -97,8 +97,37 @@ async def test_metadata_endpoint_is_blocked():
     assert result.message == "URL is not safe to request."
 
 
-async def test_allow_loopback_bypasses_transport(redirector):
-    """The `allow_loopback` test-only knob disables both pre-flight and transport."""
+async def test_allow_loopback_still_blocks_metadata():
+    """allow_loopback must NOT silently disable cloud-metadata protection.
+
+    Regression for the review finding that the prior shape — drop the
+    transport entirely when allow_loopback=True — removed RFC1918 /
+    metadata / redirect protection along with loopback. The transport now
+    stays installed and only the loopback predicate is exempted.
+    """
+    result = await web_tools.web_request(
+        url="http://169.254.169.254/latest/meta-data/",
+        tool_context=_Ctx(),
+        tool_config={"allow_loopback": True},
+    )
+    assert result.status == "error"
+    assert result.message == "URL is not safe to request."
+
+
+async def test_allow_loopback_still_blocks_private(redirector):
+    """allow_loopback must not exempt RFC1918 addresses."""
+    result = await web_tools.web_request(
+        url="http://10.0.0.1/",
+        tool_context=_Ctx(),
+        tool_config={"allow_loopback": True},
+    )
+    assert result.status == "error"
+    assert result.message == "URL is not safe to request."
+
+
+async def test_allow_loopback_permits_localhost(redirector):
+    """The `allow_loopback` test-only knob permits loopback while keeping
+    every other SSRF rule in force."""
     # Listener that simply returns 200 with a marker body.
     class _OK(http.server.BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802

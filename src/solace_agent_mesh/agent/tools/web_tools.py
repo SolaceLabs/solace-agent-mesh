@@ -33,11 +33,14 @@ CATEGORY_DESCRIPTION = "Access the web to find information to complete user requ
 DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB default
 ABSOLUTE_MAX_RESPONSE_SIZE = 50 * 1024 * 1024  # 50 MB hard cap (cannot be exceeded even via config)
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: str, *, allow_loopback: bool = False) -> bool:
     """
     Pre-flight check that rejects obviously unsafe URLs before opening a
     connection. The authoritative SSRF guard is :class:`SSRFSafeTransport`,
     which re-validates every hop (including HTTP redirects) at connect time.
+
+    ``allow_loopback`` exempts only loopback addresses; RFC1918 and cloud
+    metadata stay blocked.
     """
     try:
         hostname = urlparse(url).hostname
@@ -47,7 +50,7 @@ def _is_safe_url(url: str) -> bool:
 
         try:
             for *_, sockaddr in socket.getaddrinfo(hostname, None):
-                check_ip_blocked(sockaddr[0])
+                check_ip_blocked(sockaddr[0], allow_loopback=allow_loopback)
         except socket.gaierror:
             log.warning(f"Could not resolve hostname: {hostname}")
             return False
@@ -108,7 +111,7 @@ async def web_request(
             max_response_size = min(int(configured_size), ABSOLUTE_MAX_RESPONSE_SIZE)
             log.debug(f"{log_identifier} Using configured max_response_size: {max_response_size} bytes")
 
-    if not allow_loopback and not _is_safe_url(url):
+    if not _is_safe_url(url, allow_loopback=allow_loopback):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return ToolResult.error("URL is not safe to request.")
 
@@ -147,9 +150,15 @@ async def web_request(
                     # bypass. If proxy support is needed later, plumb it
                     # through tool_config with explicit destination checks.
                     "trust_env": False,
+                    # Always install the transport. allow_loopback narrows
+                    # what it permits (loopback only); RFC1918, cloud
+                    # metadata, IPv6 ULA, and redirect re-validation stay
+                    # active even in dev mode. Dropping the transport
+                    # entirely — which an earlier revision of this PR did
+                    # for allow_loopback=True — silently disabled the rest
+                    # of the SSRF guarantee.
+                    "transport": SSRFSafeTransport(allow_loopback=allow_loopback),
                 }
-                if not allow_loopback:
-                    client_kwargs["transport"] = SSRFSafeTransport()
                 async with httpx.AsyncClient(**client_kwargs) as client:
                     log.info(
                         f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
