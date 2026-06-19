@@ -67,3 +67,56 @@ class TestSSRFSafeTransport:
         ):
             with pytest.raises(BlockedIPError, match="blocked IP range"):
                 await transport.handle_async_request(request)
+
+    async def test_dns_failure_surfaces_as_httpx_connect_error(self):
+        # web_request's retry loop catches httpx.RequestError; gaierror would
+        # leak past it without this conversion.
+        transport = SSRFSafeTransport()
+        request = httpx.Request("GET", "http://nonexistent.invalid/")
+        import socket as _socket
+
+        with patch(
+            "solace_agent_mesh.common.utils.ssrf.socket.getaddrinfo",
+            side_effect=_socket.gaierror("DNS fail"),
+        ):
+            with pytest.raises(httpx.ConnectError, match="Could not resolve hostname"):
+                await transport.handle_async_request(request)
+
+    async def test_redirect_hop_to_loopback_is_blocked(self):
+        """A 302 to a loopback target must be refused at the redirect hop.
+
+        With the fix, ``SSRFSafeTransport`` and ``_is_safe_url`` both call
+        ``socket.getaddrinfo``, so the canonical end-to-end shape ("attacker
+        host appears public, redirects to loopback") cannot be simulated by
+        DNS-mocking alone — both layers see the same answer. To exercise the
+        redirect-revalidation path in isolation, this test composes the SSRF
+        check (with a fake DNS table) over an ``httpx.MockTransport`` that
+        plays the 302 response.
+        """
+
+        def upstream(request: httpx.Request) -> httpx.Response:
+            if request.url.host == "attacker.test":
+                return httpx.Response(
+                    302, headers={"Location": "http://127.0.0.1/secret"}
+                )
+            pytest.fail(
+                f"Redirect hop should have been blocked before reaching {request.url}"
+            )
+
+        fake_dns = {"attacker.test": "93.184.216.34", "127.0.0.1": "127.0.0.1"}
+
+        class _CheckThenDelegate(SSRFSafeTransport):
+            def __init__(self, inner: httpx.MockTransport):
+                super().__init__()
+                self._inner = inner
+
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                check_ip_blocked(fake_dns[request.url.host])
+                return await self._inner.handle_async_request(request)
+
+        transport = _CheckThenDelegate(httpx.MockTransport(upstream))
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=True
+        ) as client:
+            with pytest.raises(BlockedIPError, match="blocked IP range"):
+                await client.get("http://attacker.test/")

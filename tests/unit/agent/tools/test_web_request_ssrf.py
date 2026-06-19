@@ -58,13 +58,18 @@ def redirector():
         server.server_close()
 
 
-async def test_redirect_to_loopback_is_blocked(redirector):
-    """Initial URL passes the pre-flight, redirect to loopback is rejected by the transport."""
+async def test_transport_blocks_loopback_when_preflight_bypassed(redirector):
+    """Defense-in-depth: if the pre-flight check is bypassed, the transport
+    still refuses to connect to a loopback target.
+
+    With the fix, the initial connection itself goes through
+    SSRFSafeTransport, so the 302 listener is never reached. This test proves
+    the transport is authoritative; ``test_redirect_hop_to_loopback_is_blocked``
+    (in ``tests/unit/common/test_ssrf.py``) exercises the redirect-revalidation
+    path directly.
+    """
     port = redirector("http://127.0.0.1:9/should-not-be-reached")
 
-    # Simulate the attacker scenario: the initial host appears public to the
-    # pre-flight check, so the request proceeds and httpx follows the 302.
-    # The SSRFSafeTransport then re-validates the redirect hop's IP and refuses.
     with patch.object(web_tools, "_is_safe_url", return_value=True):
         result = await web_tools.web_request(
             url=f"http://127.0.0.1:{port}/", tool_context=_Ctx()
@@ -72,7 +77,6 @@ async def test_redirect_to_loopback_is_blocked(redirector):
 
     assert result.status == "error"
     assert "not safe" in result.message.lower()
-    # Nothing fetched from the loopback target should appear in the result.
     assert not result.data_objects
 
 

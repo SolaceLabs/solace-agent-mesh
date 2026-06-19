@@ -52,6 +52,14 @@ class SSRFSafeTransport(httpx.AsyncHTTPTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         hostname = request.url.host
         port = request.url.port or (443 if request.url.scheme == "https" else 80)
-        for *_, sockaddr in socket.getaddrinfo(hostname, port):
+        try:
+            addrinfos = socket.getaddrinfo(hostname, port)
+        except socket.gaierror as exc:
+            # Match httpx's own behavior so callers' httpx.RequestError handlers
+            # (including web_request's retry loop) treat DNS failures uniformly.
+            raise httpx.ConnectError(
+                f"Could not resolve hostname: {hostname}", request=request
+            ) from exc
+        for *_, sockaddr in addrinfos:
             check_ip_blocked(sockaddr[0])
         return await super().handle_async_request(request)

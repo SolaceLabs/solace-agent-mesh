@@ -130,14 +130,19 @@ async def web_request(
         # Retry logic with exponential backoff. The SSRF-safe transport
         # re-validates each redirect hop at connect time, closing the
         # follow_redirects bypass and the resolve-then-connect TOCTOU window.
-        client_kwargs: Dict[str, Any] = {"timeout": 30.0, "follow_redirects": True}
-        if not allow_loopback:
-            client_kwargs["transport"] = SSRFSafeTransport()
-
+        # A fresh transport is built per attempt because AsyncClient closes
+        # its transport on context-manager exit, and a closed transport's
+        # connection pool cannot be reused on the next retry.
         last_error = None
         response = None
         for attempt in range(1, max_retries + 1):
             try:
+                client_kwargs: Dict[str, Any] = {
+                    "timeout": 30.0,
+                    "follow_redirects": True,
+                }
+                if not allow_loopback:
+                    client_kwargs["transport"] = SSRFSafeTransport()
                 async with httpx.AsyncClient(**client_kwargs) as client:
                     log.info(
                         f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
