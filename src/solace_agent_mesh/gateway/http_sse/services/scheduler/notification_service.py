@@ -4,7 +4,6 @@ Supports multiple notification channels: SSE, webhooks, email, and broker topics
 """
 
 import asyncio
-import ipaddress
 import json
 import logging
 from typing import Any, Callable, Dict, List, Optional
@@ -13,23 +12,15 @@ from urllib.parse import urlparse
 import httpx
 from sqlalchemy.orm import Session as DBSession
 
+from .....common.utils.ssrf import (
+    SSRFSafeTransport as _SSRFSafeTransport,
+    check_ip_blocked as _check_ip_blocked,
+)
 from ...repository.models import ScheduledTaskModel, ScheduledTaskExecutionModel, ExecutionStatus
 from ...sse_manager import SSEManager
 from ...shared import now_epoch_ms
 
 log = logging.getLogger(__name__)
-
-# SSRF protection: blocked IP ranges
-_BLOCKED_IP_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),         # Private
-    ipaddress.ip_network("172.16.0.0/12"),      # Private
-    ipaddress.ip_network("192.168.0.0/16"),     # Private
-    ipaddress.ip_network("169.254.0.0/16"),     # Link-local / cloud metadata
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 unique local
-    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
-]
 
 _ALLOWED_SCHEMES = {"http", "https"}
 
@@ -47,17 +38,6 @@ _DENIED_WEBHOOK_HEADERS = frozenset({
 
 # Broker topics must start with this user-scoped prefix
 _BROKER_TOPIC_PREFIX = "scheduled-tasks/"
-
-
-def _check_ip_blocked(ip_str: str) -> None:
-    """Raise ValueError if the IP falls within a blocked network range."""
-    ip = ipaddress.ip_address(ip_str)
-    for network in _BLOCKED_IP_NETWORKS:
-        if ip in network:
-            raise ValueError(
-                f"Webhook URL resolves to blocked IP range ({ip}). "
-                "Private, loopback, and link-local addresses are not allowed."
-            )
 
 
 def _validate_webhook_url(url: str) -> None:
@@ -89,24 +69,6 @@ def _validate_webhook_url(url: str) -> None:
             _check_ip_blocked(sockaddr[0])
     except socket.gaierror:
         raise ValueError(f"Could not resolve hostname: {hostname}")
-
-
-class _SSRFSafeTransport(httpx.AsyncHTTPTransport):
-    """Transport that enforces IP restrictions at connection time to prevent DNS rebinding."""
-
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        import socket
-
-        url = request.url
-        hostname = url.host
-        port = url.port or (443 if url.scheme == b"https" else 80)
-
-        # Resolve and validate at connection time
-        resolved_ips = socket.getaddrinfo(hostname, port)
-        for family, _type, _proto, _canonname, sockaddr in resolved_ips:
-            _check_ip_blocked(sockaddr[0])
-
-        return await super().handle_async_request(request)
 
 
 class NotificationService:
