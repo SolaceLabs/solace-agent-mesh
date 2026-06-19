@@ -4,7 +4,12 @@ from typing import Optional, List, Dict, Any
 from collections import defaultdict
 
 from cli.utils import error_exit
+from cli.lazy_group import LazyGroup
 
+
+# ---------------------------------------------------------------------------
+# Formatting helpers (only called from the lazily-loaded ``list`` command)
+# ---------------------------------------------------------------------------
 
 def format_parameter_schema(schema) -> str:
     """
@@ -231,13 +236,27 @@ def tools_to_json(tools: List, detailed: bool = False) -> str:
     return json.dumps(result, indent=2)
 
 
-@click.group("tools")
+# ---------------------------------------------------------------------------
+# CLI group — uses LazyGroup to defer ``list`` subcommand import
+# ---------------------------------------------------------------------------
+
+_SUBCOMMANDS = {
+    "list": ("cli.commands.tools_cmd:list_tools",
+             "List all built-in tools available in Solace Agent Mesh."),
+}
+
+
+@click.group("tools", cls=LazyGroup, lazy_commands=_SUBCOMMANDS)
 def tools():
     """Manage and explore SAM built-in tools."""
     pass
 
 
-@tools.command("list")
+# ---------------------------------------------------------------------------
+# ``sam tools list`` command — the heavy import is inside the function body
+# ---------------------------------------------------------------------------
+
+@click.command("list")
 @click.option(
     "--category", "-c",
     type=str,
