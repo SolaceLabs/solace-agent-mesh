@@ -16,14 +16,14 @@ import socket
 import httpx
 
 _BLOCKED_IP_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),         # Private
-    ipaddress.ip_network("172.16.0.0/12"),      # Private
-    ipaddress.ip_network("192.168.0.0/16"),     # Private
-    ipaddress.ip_network("169.254.0.0/16"),     # Link-local / cloud metadata
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 unique local
-    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # Private
+    ipaddress.ip_network("172.16.0.0/12"),  # Private
+    ipaddress.ip_network("192.168.0.0/16"),  # Private
+    ipaddress.ip_network("169.254.0.0/16"),  # Link-local / cloud metadata
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
 ]
 
 
@@ -32,8 +32,18 @@ class BlockedIPError(ValueError):
 
 
 def check_ip_blocked(ip_str: str) -> None:
-    """Raise :class:`BlockedIPError` if ``ip_str`` falls within a blocked range."""
+    """Raise :class:`BlockedIPError` if ``ip_str`` falls within a blocked range.
+
+    IPv4-mapped IPv6 literals (``::ffff:a.b.c.d``, RFC 4291 §2.5.5.2) route to
+    the underlying IPv4 destination on dual-stack hosts. Without unwrapping,
+    ``http://[::ffff:127.0.0.1]/`` and ``http://[::ffff:169.254.169.254]/``
+    bypass the IPv4 blocklist because membership comparisons across address
+    families always return False. Unwrap the mapped form so the IPv4
+    blocklist applies.
+    """
     ip = ipaddress.ip_address(ip_str)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
     for network in _BLOCKED_IP_NETWORKS:
         if ip in network:
             raise BlockedIPError(

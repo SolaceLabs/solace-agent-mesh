@@ -12,7 +12,6 @@ IP at every connection (initial request and each redirect hop).
 import http.server
 import socketserver
 import threading
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -42,7 +41,7 @@ class _RedirectToLoopback(http.server.BaseHTTPRequestHandler):
 def redirector():
     """Spawns a localhost listener that 302s to a configurable URL."""
     socketserver.TCPServer.allow_reuse_address = True
-    server: Optional[socketserver.TCPServer] = None
+    server: socketserver.TCPServer | None = None
 
     def _start(redirect_to: str) -> int:
         nonlocal server

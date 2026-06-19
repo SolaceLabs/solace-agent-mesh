@@ -25,11 +25,29 @@ class TestCheckIPBlocked:
             "::1",
             "fc00::1",
             "fe80::1",
+            # IPv4-mapped IPv6 (RFC 4291 §2.5.5.2). These route to the
+            # embedded IPv4 destination on dual-stack hosts and must be
+            # blocked, or `http://[::ffff:169.254.169.254]/` is a free pass
+            # to cloud metadata.
+            "::ffff:127.0.0.1",
+            "::ffff:10.0.0.1",
+            "::ffff:172.16.0.1",
+            "::ffff:192.168.1.1",
+            "::ffff:169.254.169.254",
         ],
     )
     def test_blocks_private_and_reserved(self, ip):
         with pytest.raises(BlockedIPError, match="blocked IP range"):
             check_ip_blocked(ip)
+
+    @pytest.mark.parametrize(
+        "ip",
+        ["::ffff:8.8.8.8", "::ffff:93.184.216.34"],
+    )
+    def test_allows_public_via_ipv4_mapped(self, ip):
+        # Sanity check that the IPv4-mapped unwrap doesn't over-block
+        # legitimately-public addresses.
+        check_ip_blocked(ip)
 
     @pytest.mark.parametrize("ip", ["8.8.8.8", "93.184.216.34"])
     def test_allows_public(self, ip):
@@ -64,9 +82,8 @@ class TestSSRFSafeTransport:
         with patch(
             "solace_agent_mesh.common.utils.ssrf.socket.getaddrinfo",
             return_value=[(2, 1, 6, "", ("10.1.2.3", 80))],
-        ):
-            with pytest.raises(BlockedIPError, match="blocked IP range"):
-                await transport.handle_async_request(request)
+        ), pytest.raises(BlockedIPError, match="blocked IP range"):
+            await transport.handle_async_request(request)
 
     async def test_dns_failure_surfaces_as_httpx_connect_error(self):
         # web_request's retry loop catches httpx.RequestError; gaierror would
@@ -78,9 +95,8 @@ class TestSSRFSafeTransport:
         with patch(
             "solace_agent_mesh.common.utils.ssrf.socket.getaddrinfo",
             side_effect=_socket.gaierror("DNS fail"),
-        ):
-            with pytest.raises(httpx.ConnectError, match="Could not resolve hostname"):
-                await transport.handle_async_request(request)
+        ), pytest.raises(httpx.ConnectError, match="Could not resolve hostname"):
+            await transport.handle_async_request(request)
 
     async def test_redirect_hop_to_loopback_is_blocked(self):
         """A 302 to a loopback target must be refused at the redirect hop.
