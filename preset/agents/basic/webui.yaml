@@ -63,6 +63,7 @@ apps:
 
       # --- Frontend Config Passthrough ---
       frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE, "Hello, how can I assist you?"}
+      frontend_disclaimer_text: ${FRONTEND_DISCLAIMER_TEXT, ""}
       frontend_bot_name: ${FRONTEND_BOT_NAME, Solace Agent Mesh}
       frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK, false}
       frontend_logo_url: "${WEBUI_FRONTEND_LOGO_URL}"

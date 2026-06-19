@@ -17,6 +17,7 @@ export interface ConfigContextValue {
     configAuthLoginUrl: string;
     configUseAuthorization: boolean;
     configWelcomeMessage: string;
+    configDisclaimerText: string;
     configRedirectUrl: string;
     configCollectFeedback: boolean;
     configBotName: string;

@@ -498,3 +498,59 @@ export const EmbeddedAgent: Story = {
         expect(canvas.queryByLabelText("Start voice recording")).toBeNull();
     },
 };
+
+export const WithDisclaimer: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-embedded-disclaimer-session",
+            messages: [],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            agents: [{ name: "OrchestratorAgent", displayName: "Orchestrator" }],
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+            configWelcomeMessage: "How can I help you with your code today?",
+            configDisclaimerText: "AI can make mistakes. See our [terms](https://example.com/terms).",
+        },
+    },
+    decorators: [(Story: StoryFn, context: StoryContext) => <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>{Story(context.args, context)}</ChatSurfaceContext.Provider>],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        const link = await canvas.findByRole("link", { name: "terms" });
+        expect(link).toHaveAttribute("href", "https://example.com/terms");
+        expect(link).toHaveAttribute("target", "_blank");
+        expect(link.getAttribute("rel")).toContain("noopener");
+    },
+};
+
+export const WithBulletedDisclaimer: Story = {
+    parameters: {
+        chatContext: {
+            sessionId: "mock-embedded-bulleted-disclaimer-session",
+            messages: [],
+            isResponding: false,
+            isCancelling: false,
+            selectedAgentName: "OrchestratorAgent",
+            agents: [{ name: "OrchestratorAgent", displayName: "Orchestrator" }],
+            isSidePanelCollapsed: true,
+            activeSidePanelTab: "files",
+        },
+        configContext: {
+            persistenceEnabled: false,
+            configWelcomeMessage: "How can I help you with your code today?",
+            configDisclaimerText: "- Do not share secrets\n- Responses may be inaccurate",
+        },
+    },
+    decorators: [(Story: StoryFn, context: StoryContext) => <ChatSurfaceContext.Provider value={EMBEDDED_SURFACE}>{Story(context.args, context)}</ChatSurfaceContext.Provider>],
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+
+        const item = await canvas.findByText("Do not share secrets");
+        expect(item.closest("ul")).not.toBeNull();
+    },
+};

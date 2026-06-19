@@ -26,6 +26,11 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# Bounds the operator-configured disclaimer shown on the chat welcome screen.
+# Over-long values are truncated (with a warning) rather than rejected so a
+# cosmetic misconfiguration can't block startup.
+MAX_FRONTEND_DISCLAIMER_TEXT_LEN = 500
+
 router = APIRouter()
 
 
@@ -559,6 +564,17 @@ async def get_app_config(
         platform_config = component.get_config("platform_service", {})
         platform_service_url = platform_config.get("url", "")
 
+        # Coerce to str: get_config returns the raw YAML value, so a hand-edited
+        # non-string literal (int/bool/list) would otherwise raise on len()/slice
+        # below and 500 the whole /api/v1/config endpoint.
+        disclaimer_text = str(component.get_config("frontend_disclaimer_text", "") or "")
+        if len(disclaimer_text) > MAX_FRONTEND_DISCLAIMER_TEXT_LEN:
+            log.warning(
+                "%sfrontend_disclaimer_text exceeds %d chars (%d); truncating.",
+                log_prefix, MAX_FRONTEND_DISCLAIMER_TEXT_LEN, len(disclaimer_text),
+            )
+            disclaimer_text = disclaimer_text[:MAX_FRONTEND_DISCLAIMER_TEXT_LEN]
+
         config_data = {
             "frontend_server_url": component.frontend_server_url,
             "frontend_platform_server_url": platform_service_url,
@@ -573,6 +589,7 @@ async def get_app_config(
             "frontend_collect_feedback": feedback_enabled,
             "frontend_bot_name": component.get_config("frontend_bot_name", "A2A Agent"),
             "frontend_logo_url": component.get_config("frontend_logo_url", ""),
+            "frontend_disclaimer_text": disclaimer_text,
             "frontend_feature_enablement": feature_enablement,
             "persistence_enabled": api_config.get("persistence_enabled", False),
             "validation_limits": _get_validation_limits(component),

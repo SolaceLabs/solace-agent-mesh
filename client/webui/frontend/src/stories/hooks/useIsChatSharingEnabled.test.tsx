@@ -16,6 +16,7 @@ function makeConfigValue(overrides: Partial<ConfigContextValue> = {}): ConfigCon
         configAuthLoginUrl: "",
         configUseAuthorization: false,
         configWelcomeMessage: "",
+        configDisclaimerText: "",
         configRedirectUrl: "",
         configCollectFeedback: false,
         configBotName: "",
