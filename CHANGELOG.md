@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.28.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.2...1.28.3) (2026-06-19)
+
+
+### Bug Fixes
+
+* **DATAGO-139037:** bump Python deps + image OS packages to clear vulnerability CVEs ([#1587](https://github.com/SolaceLabs/solace-agent-mesh/issues/1587)) ([475ff56](https://github.com/SolaceLabs/solace-agent-mesh/commit/475ff561280be16570174118431ac8aec2be7341))
+* **DATAGO-141037:** re-validate SSRF guard on every connection in web_request ([#1592](https://github.com/SolaceLabs/solace-agent-mesh/issues/1592)) ([40202f1](https://github.com/SolaceLabs/solace-agent-mesh/commit/40202f12bb48c74d043a2dc1afbc6a25de7653eb))
+* **security:** upgrade turbo-stream to 3.0.0 (CVE-2026-3407) ([#1595](https://github.com/SolaceLabs/solace-agent-mesh/issues/1595)) ([271646d](https://github.com/SolaceLabs/solace-agent-mesh/commit/271646d7e13b18e68a02536afa0e9035fedce646))
+
 ## [1.28.2](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.1...1.28.2) (2026-06-04)
 
 
