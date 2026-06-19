@@ -140,6 +140,13 @@ async def web_request(
                 client_kwargs: Dict[str, Any] = {
                     "timeout": 30.0,
                     "follow_redirects": True,
+                    # Ignore HTTP_PROXY/HTTPS_PROXY/NO_PROXY env. With those
+                    # set, httpx would connect to the proxy host instead of
+                    # the origin, and SSRFSafeTransport only validates the
+                    # origin's DNS — leaving an unvalidated proxy as a
+                    # bypass. If proxy support is needed later, plumb it
+                    # through tool_config with explicit destination checks.
+                    "trust_env": False,
                 }
                 if not allow_loopback:
                     client_kwargs["transport"] = SSRFSafeTransport()

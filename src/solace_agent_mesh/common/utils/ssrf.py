@@ -10,6 +10,7 @@ check — so HTTP redirects are re-validated on every hop and DNS rebinding
 cannot bypass the guard.
 """
 
+import asyncio
 import ipaddress
 import socket
 
@@ -63,7 +64,10 @@ class SSRFSafeTransport(httpx.AsyncHTTPTransport):
         hostname = request.url.host
         port = request.url.port or (443 if request.url.scheme == "https" else 80)
         try:
-            addrinfos = socket.getaddrinfo(hostname, port)
+            # socket.getaddrinfo is a blocking syscall; run it in a worker
+            # thread so a slow resolver doesn't stall the event loop for every
+            # other in-flight coroutine.
+            addrinfos = await asyncio.to_thread(socket.getaddrinfo, hostname, port)
         except socket.gaierror as exc:
             # Match httpx's own behavior so callers' httpx.RequestError handlers
             # (including web_request's retry loop) treat DNS failures uniformly.
