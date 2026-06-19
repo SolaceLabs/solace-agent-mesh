@@ -48,6 +48,7 @@
   },
   "overrides": {
     "undici": ">=6.24.0",
+    "//turbo-stream": "CVE-2026-3407: major-version pin is safe here because vite.config.ts sets ssr:false (SPA mode). turbo-stream's encode/decode are only invoked by Remix for SSR deferred streaming; with no server runtime those code paths are never reached. @remix-run 2.17.5 is the latest release and has no compatible update; React Router v7 (the migration target) drops this dep entirely.",
     "turbo-stream": "3.0.0"
   },
   "engines": {
