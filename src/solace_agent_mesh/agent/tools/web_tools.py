@@ -8,7 +8,6 @@ import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-import ipaddress
 from urllib.parse import urlparse
 import socket
 
@@ -23,6 +22,7 @@ from .tool_definition import BuiltinTool
 from .tool_result import ToolResult, DataObject, DataDisposition
 from .registry import tool_registry
 from ...common.constants import ARTIFACT_TAG_WORKING
+from ...common.utils.ssrf import BlockedIPError, SSRFSafeTransport, check_ip_blocked
 
 log = logging.getLogger(__name__)
 
@@ -33,27 +33,29 @@ CATEGORY_DESCRIPTION = "Access the web to find information to complete user requ
 DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB default
 ABSOLUTE_MAX_RESPONSE_SIZE = 50 * 1024 * 1024  # 50 MB hard cap (cannot be exceeded even via config)
 
-def _is_safe_url(url: str) -> bool:
+def _is_safe_url(url: str, *, allow_loopback: bool = False) -> bool:
     """
-    Checks if a URL is safe to request by resolving its hostname and checking
-    if the IP address is in a private, reserved, or loopback range.
+    Pre-flight check that rejects obviously unsafe URLs before opening a
+    connection. The authoritative SSRF guard is :class:`SSRFSafeTransport`,
+    which re-validates every hop (including HTTP redirects) at connect time.
+
+    ``allow_loopback`` exempts only loopback addresses; RFC1918 and cloud
+    metadata stay blocked.
     """
     try:
-        parsed_url = urlparse(url)
-        hostname = parsed_url.hostname
+        hostname = urlparse(url).hostname
         if not hostname:
             log.warning(f"URL has no hostname: {url}")
             return False
 
         try:
-            ip_str = socket.gethostbyname(hostname)
-            ip = ipaddress.ip_address(ip_str)
+            for *_, sockaddr in socket.getaddrinfo(hostname, None):
+                check_ip_blocked(sockaddr[0], allow_loopback=allow_loopback)
         except socket.gaierror:
             log.warning(f"Could not resolve hostname: {hostname}")
             return False
-
-        if ip.is_private or ip.is_reserved or ip.is_loopback:
-            log.warning(f"URL {url} resolved to a blocked IP: {ip}")
+        except BlockedIPError as block_error:
+            log.warning(f"URL {url} blocked: {block_error}")
             return False
 
         return True
@@ -109,7 +111,7 @@ async def web_request(
             max_response_size = min(int(configured_size), ABSOLUTE_MAX_RESPONSE_SIZE)
             log.debug(f"{log_identifier} Using configured max_response_size: {max_response_size} bytes")
 
-    if not allow_loopback and not _is_safe_url(url):
+    if not _is_safe_url(url, allow_loopback=allow_loopback):
         log.error(f"{log_identifier} URL is not safe to request: {url}")
         return ToolResult.error("URL is not safe to request.")
 
@@ -128,12 +130,36 @@ async def web_request(
         if body:
             request_body_bytes = body.encode("utf-8")
 
-        # Retry logic with exponential backoff
+        # Retry logic with exponential backoff. The SSRF-safe transport
+        # re-validates each redirect hop at connect time, closing the
+        # follow_redirects bypass and the resolve-then-connect TOCTOU window.
+        # A fresh transport is built per attempt because AsyncClient closes
+        # its transport on context-manager exit, and a closed transport's
+        # connection pool cannot be reused on the next retry.
         last_error = None
         response = None
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                client_kwargs: Dict[str, Any] = {
+                    "timeout": 30.0,
+                    "follow_redirects": True,
+                    # Ignore HTTP_PROXY/HTTPS_PROXY/NO_PROXY env. With those
+                    # set, httpx would connect to the proxy host instead of
+                    # the origin, and SSRFSafeTransport only validates the
+                    # origin's DNS — leaving an unvalidated proxy as a
+                    # bypass. If proxy support is needed later, plumb it
+                    # through tool_config with explicit destination checks.
+                    "trust_env": False,
+                    # Always install the transport. allow_loopback narrows
+                    # what it permits (loopback only); RFC1918, cloud
+                    # metadata, IPv6 ULA, and redirect re-validation stay
+                    # active even in dev mode. Dropping the transport
+                    # entirely — which an earlier revision of this PR did
+                    # for allow_loopback=True — silently disabled the rest
+                    # of the SSRF guarantee.
+                    "transport": SSRFSafeTransport(allow_loopback=allow_loopback),
+                }
+                async with httpx.AsyncClient(**client_kwargs) as client:
                     log.info(
                         f"{log_identifier} Attempt {attempt}/{max_retries}: Making {method} request to {url}"
                     )
@@ -189,7 +215,15 @@ async def web_request(
                     
                     # Success - break out of retry loop
                     break
-                    
+
+            except BlockedIPError as block_error:
+                # Raised by SSRFSafeTransport on the initial connection or any
+                # redirect hop. Do not retry — the destination is not safe.
+                log.error(
+                    f"{log_identifier} Request blocked by SSRF guard while fetching {url}: {block_error}"
+                )
+                return ToolResult.error("URL is not safe to request.")
+
             except (httpx.ReadTimeout, httpx.ConnectTimeout) as timeout_error:
                 last_error = timeout_error
                 log.warning(

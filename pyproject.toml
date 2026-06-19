@@ -188,6 +188,7 @@ markers = [
     "default: marks tests that are basic or foundational",
     "stress: marks tests as stress tests (long-running, resource-intensive)",
     "long_soak: marks tests as very long-running soak tests for memory leak detection",
+    "slow: marks tests as slow-running (used by integration migration suites)",
 
     # Core Components
     # Markers for the main components of the Solace Agent Mesh.
