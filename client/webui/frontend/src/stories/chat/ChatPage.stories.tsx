@@ -499,9 +499,6 @@ export const EmbeddedAgent: Story = {
     },
 };
 
-// Operator-configured disclaimer (frontend_disclaimer_text) rendered as Markdown
-// below the embedded hero input. A Markdown link must open in a new tab with a
-// safe rel.
 export const WithDisclaimer: Story = {
     parameters: {
         chatContext: {
@@ -531,7 +528,6 @@ export const WithDisclaimer: Story = {
     },
 };
 
-// A Markdown bulleted disclaimer renders as a <ul> list.
 export const WithBulletedDisclaimer: Story = {
     parameters: {
         chatContext: {
