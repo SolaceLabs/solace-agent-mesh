@@ -17,6 +17,20 @@ Object.defineProperty(window, "matchMedia", {
     }),
 });
 
+// Polyfill Blob.prototype.text for older jsdom versions
+if (typeof Blob.prototype.text === "undefined") {
+    Object.defineProperty(Blob.prototype, "text", {
+        value: function (this: Blob) {
+            return new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsText(this);
+            });
+        },
+    });
+}
+
 // Polyfill ResizeObserver for JSDOM (used by @radix-ui/react-use-size)
 if (typeof globalThis.ResizeObserver === "undefined") {
     globalThis.ResizeObserver = class ResizeObserver {

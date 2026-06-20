@@ -2,8 +2,12 @@
 Pydantic models for prompt library API.
 """
 
+import re
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+COMMAND_PATTERN = r"^[a-zA-Z0-9_-]+$"
+COMMAND_RE = re.compile(COMMAND_PATTERN)
 
 
 class PromptBase(BaseModel):
@@ -66,9 +70,16 @@ class PromptGroupBase(BaseModel):
         None,
         min_length=1,
         max_length=50,
-        pattern="^[a-zA-Z0-9_-]+$",
+        pattern=COMMAND_PATTERN,
         description="Shorthand command (alphanumeric, dash, underscore only)"
     )
+
+    @field_validator("command")
+    @classmethod
+    def _validate_command(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not COMMAND_RE.fullmatch(v):
+            raise ValueError("command must contain only letters, numbers, dashes, and underscores")
+        return v
 
 
 class PromptGroupCreate(PromptGroupBase):
@@ -90,8 +101,16 @@ class PromptGroupUpdate(BaseModel):
         None,
         min_length=1,
         max_length=50,
-        pattern="^[a-zA-Z0-9_-]+$"
+        pattern=COMMAND_PATTERN,
     )
+
+    @field_validator("command")
+    @classmethod
+    def _validate_command(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not COMMAND_RE.fullmatch(v):
+            raise ValueError("command must contain only letters, numbers, dashes, and underscores")
+        return v
+
     initial_prompt: Optional[str] = Field(
         None,
         min_length=1,
