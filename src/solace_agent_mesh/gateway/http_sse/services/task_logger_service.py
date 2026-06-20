@@ -339,6 +339,7 @@ class TaskLoggerService:
                 if message:
                     return a2a.get_text_from_message(message)
         except Exception:
+            log.warning("Failed to extract message text from A2A event", exc_info=True)
             return None
         return None
 
