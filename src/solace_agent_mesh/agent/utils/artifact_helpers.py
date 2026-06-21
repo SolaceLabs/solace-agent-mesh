@@ -1102,7 +1102,6 @@ async def get_artifact_info_list(
         A list of ArtifactInfo objects.
     """
     log_prefix = f"[ArtifactHelper:get_info_list] App={app_name}, User={user_id}, Session={session_id} -"
-    artifact_info_list: List[ArtifactInfo] = []
 
     try:
         list_keys_method = getattr(artifact_service, "list_artifact_keys")
@@ -1113,93 +1112,82 @@ async def get_artifact_info_list(
             "%s Found %d artifact keys. Fetching details...", log_prefix, len(keys)
         )
 
-        for filename in keys:
-            if filename.endswith(METADATA_SUFFIX):
-                continue
+        artifact_filenames = [
+            filename for filename in keys if not filename.endswith(METADATA_SUFFIX)
+        ]
+        if not artifact_filenames:
+            return []
 
+        async def _load_single_info(filename: str) -> Optional[ArtifactInfo]:
+            """Load version count + latest metadata for one artifact.
+
+            Returns an ArtifactInfo on success, None to skip (file not found),
+            or a placeholder ArtifactInfo on unexpected error. Bounded by the
+            shared metadata-load semaphore so these run concurrently rather than
+            one-at-a-time — the previous serial loop issued 1 + 3N sequential S3
+            round-trips per session and starved the gateway worker pool.
+            """
             log_identifier_item = f"{log_prefix} [{filename}]"
             try:
+                # Hold one semaphore permit across BOTH S3 round-trips for this
+                # artifact (version listing + metadata load) so the per-session
+                # fan-out can't exceed the shared cap and exhaust the botocore
+                # connection pool — list_versions is an S3 listing too, not just
+                # the metadata GET.
+                async with _METADATA_LOAD_SEMAPHORE:
+                    # A single list_versions call yields both the count and the
+                    # latest version, so the previously-separate
+                    # get_latest_artifact_version() round-trip (which also listed
+                    # versions) is dropped.
+                    version_count: int = 0
+                    latest_version_num: Optional[int] = None
+                    if hasattr(artifact_service, "list_versions"):
+                        try:
+                            available_versions = await artifact_service.list_versions(
+                                app_name=app_name,
+                                user_id=user_id,
+                                session_id=session_id,
+                                filename=filename,
+                            )
+                            version_count = len(available_versions)
+                            if available_versions:
+                                latest_version_num = max(available_versions)
+                        except Exception as list_ver_err:
+                            log.error(
+                                "%s Error listing versions for count: %s.",
+                                log_identifier_item,
+                                list_ver_err,
+                            )
 
-                version_count: int = 0
-                latest_version_num: Optional[int] = await get_latest_artifact_version(
-                    artifact_service, app_name, user_id, session_id, filename
+                    data = await load_artifact_content_or_metadata(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=filename,
+                        version="latest",
+                        load_metadata_only=True,
+                        log_identifier_prefix=log_identifier_item,
+                    )
+
+                info = _metadata_to_artifact_info(
+                    filename,
+                    data.get("metadata", {}),
+                    version=data.get("version", latest_version_num),
+                    version_count=version_count,
                 )
-
-                if hasattr(artifact_service, "list_versions"):
-                    try:
-                        available_versions = await artifact_service.list_versions(
-                            app_name=app_name,
-                            user_id=user_id,
-                            session_id=session_id,
-                            filename=filename,
-                        )
-                        version_count = len(available_versions)
-                    except Exception as list_ver_err:
-                        log.error(
-                            "%s Error listing versions for count: %s.",
-                            log_identifier_item,
-                            list_ver_err,
-                        )
-
-                data = await load_artifact_content_or_metadata(
-                    artifact_service=artifact_service,
+                # Omit `?version=N` so the translator resolves "latest" at fetch
+                # time (same rationale as the fast path).
+                info.uri = _format_artifact_path_uri(
                     app_name=app_name,
                     user_id=user_id,
                     session_id=session_id,
                     filename=filename,
-                    version="latest",
-                    load_metadata_only=True,
-                    log_identifier_prefix=log_identifier_item,
-                )
-
-                metadata = data.get("metadata", {})
-                mime_type = metadata.get("mime_type", "application/data")
-                size = metadata.get("size_bytes", 0)
-                schema_definition = metadata.get("schema", {})
-                description = metadata.get("description", "No description provided")
-                loaded_version_num = data.get("version", latest_version_num)
-
-                last_modified_ts = metadata.get("timestamp_utc")
-                last_modified_ts = metadata.get("timestamp_utc")
-                last_modified_iso = (
-                    datetime.fromtimestamp(
-                        last_modified_ts, tz=timezone.utc
-                    ).isoformat()
-                    if last_modified_ts
-                    else None
-                )
-
-                # Extract source and tags from metadata
-                source = metadata.get("source")
-                tags = metadata.get("tags")
-                source_project_id = metadata.get("source_project_id")
-
-                artifact_info_list.append(
-                    ArtifactInfo(
-                        filename=filename,
-                        mime_type=mime_type,
-                        size=size,
-                        last_modified=last_modified_iso,
-                        schema_definition=schema_definition,
-                        description=description,
-                        version=loaded_version_num,
-                        version_count=version_count,
-                        source=source,
-                        tags=tags,
-                        source_project_id=source_project_id,
-                        # Same rationale as the fast path: omit `?version=N`
-                        # so the translator resolves "latest" at fetch time.
-                        uri=_format_artifact_path_uri(
-                            app_name=app_name,
-                            user_id=user_id,
-                            session_id=session_id,
-                            filename=filename,
-                        ),
-                    )
                 )
                 log.debug(
                     "%s Successfully processed artifact info.", log_identifier_item
                 )
+                return info
 
             except FileNotFoundError:
                 log.warning(
@@ -1207,6 +1195,7 @@ async def get_artifact_info_list(
                     log_prefix,
                     filename,
                 )
+                return None
             except Exception as detail_e:
                 log.error(
                     "%s Error processing details for artifact '%s': %s\n%s",
@@ -1215,14 +1204,30 @@ async def get_artifact_info_list(
                     detail_e,
                     traceback.format_exc(),
                 )
-                artifact_info_list.append(
-                    ArtifactInfo(
-                        filename=filename,
-                        size=0,
-                        description=f"Error loading details: {detail_e}",
-                        mime_type="application/octet-stream",
-                    )
+                return ArtifactInfo(
+                    filename=filename,
+                    size=0,
+                    description=f"Error loading details: {detail_e}",
+                    mime_type="application/octet-stream",
                 )
+
+        # gather preserves input order, so the returned list keeps key order.
+        results = await asyncio.gather(
+            *(_load_single_info(f) for f in artifact_filenames),
+            return_exceptions=True,
+        )
+
+        artifact_info_list: List[ArtifactInfo] = []
+        for result in results:
+            if isinstance(result, Exception):
+                log.warning(
+                    "%s Artifact info task failed with %s",
+                    log_prefix,
+                    type(result).__name__,
+                )
+                continue
+            if result is not None:
+                artifact_info_list.append(result)
 
     except Exception as e:
         log.exception(

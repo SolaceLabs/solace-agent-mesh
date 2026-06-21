@@ -28,6 +28,7 @@ from solace_agent_mesh.agent.utils.artifact_helpers import (
     decode_and_get_bytes,
     get_latest_artifact_version,
     get_artifact_counts_batch,
+    get_artifact_info_list,
     get_artifact_info_list_fast,
     load_artifact_content_or_metadata,
     DEFAULT_SCHEMA_MAX_KEYS,
@@ -1799,3 +1800,183 @@ class TestGetArtifactInfoListFast:
             )
 
         assert mock_load.call_args.kwargs["version"] == "latest"
+
+
+# ---------------------------------------------------------------------------
+# get_artifact_info_list (per-session list — now parallel)
+# ---------------------------------------------------------------------------
+
+class TestGetArtifactInfoList:
+    """Tests for the per-session artifact listing after the serial->parallel fix.
+
+    Same response shape as before (incl. version + version_count); the change is
+    that per-artifact metadata loads run concurrently and the redundant
+    get_latest_artifact_version() round-trip is dropped.
+    """
+
+    @pytest.fixture
+    def mock_service(self):
+        svc = AsyncMock(spec=BaseArtifactService)
+        svc.list_artifact_keys = AsyncMock(return_value=[])
+        svc.list_versions = AsyncMock(return_value=[0])
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_empty_session(self, mock_service):
+        mock_service.list_artifact_keys.return_value = []
+        result = await get_artifact_info_list(
+            artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+        )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_preserves_version_and_count_and_filters_metadata(self, mock_service):
+        """version_count comes from list_versions; version from the loaded metadata.
+        Metadata sidecar keys are excluded."""
+        mock_service.list_artifact_keys.return_value = [
+            "report.csv",
+            "report.csv.metadata.json",
+        ]
+        mock_service.list_versions.return_value = [0, 1, 2]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/csv", "size_bytes": 100},
+                "version": 2,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert len(result) == 1
+        assert result[0].filename == "report.csv"
+        assert result[0].mime_type == "text/csv"
+        assert result[0].version == 2
+        assert result[0].version_count == 3
+
+    @pytest.mark.asyncio
+    async def test_parallel_loading_preserves_order(self, mock_service):
+        """All artifacts load (concurrently) and key order is preserved."""
+        mock_service.list_artifact_keys.return_value = ["a.txt", "b.csv", "c.json"]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 50},
+                "version": 0,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert [r.filename for r in result] == ["a.txt", "b.csv", "c.json"]
+        assert mock_load.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_redundant_latest_version_call_dropped(self, mock_service):
+        """The old per-artifact get_latest_artifact_version() round-trip is gone;
+        the latest version is derived from the single list_versions call."""
+        mock_service.list_artifact_keys.return_value = ["a.txt"]
+        mock_service.list_versions.return_value = [0, 1]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load, patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.get_latest_artifact_version",
+            new_callable=AsyncMock,
+        ) as mock_latest:
+            mock_load.return_value = {"metadata": {"mime_type": "text/plain"}, "version": 1}
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        mock_latest.assert_not_called()
+        assert result[0].version == 1
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_returns_placeholder(self, mock_service):
+        """One artifact failing yields an error placeholder; others still succeed."""
+        mock_service.list_artifact_keys.return_value = ["good.txt", "bad.txt"]
+
+        async def _side_effect(**kwargs):
+            if kwargs.get("filename") == "bad.txt":
+                raise RuntimeError("storage error")
+            return {"metadata": {"mime_type": "text/plain", "size_bytes": 10}, "version": 0}
+
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+            side_effect=_side_effect,
+        ):
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert {r.filename for r in result} == {"good.txt", "bad.txt"}
+        bad = next(r for r in result if r.filename == "bad.txt")
+        assert "Error" in bad.description
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_skipped(self, mock_service):
+        mock_service.list_artifact_keys.return_value = ["gone.txt"]
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError("not found"),
+        ):
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_keys_failure_returns_empty(self, mock_service):
+        mock_service.list_artifact_keys.side_effect = RuntimeError("S3 down")
+        result = await get_artifact_info_list(
+            artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+        )
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_list_versions_failure_is_nonfatal(self, mock_service):
+        """If list_versions raises, the artifact still resolves with
+        version_count=0 and the version sourced from the loaded metadata."""
+        mock_service.list_artifact_keys.return_value = ["a.txt"]
+        mock_service.list_versions.side_effect = RuntimeError("listing failed")
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 5},
+                "version": 4,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=mock_service, app_name="app", user_id="user", session_id="sess"
+            )
+        assert len(result) == 1
+        assert result[0].filename == "a.txt"
+        assert result[0].version_count == 0
+        assert result[0].version == 4
+
+    @pytest.mark.asyncio
+    async def test_service_without_list_versions(self):
+        """A service lacking list_versions still lists: version_count stays 0
+        and the version comes from the loaded metadata (parity with the
+        original serial implementation)."""
+        # spec restricted to just list_artifact_keys → hasattr(list_versions) is False.
+        svc = AsyncMock(spec=["list_artifact_keys"])
+        svc.list_artifact_keys = AsyncMock(return_value=["a.txt"])
+        with patch(
+            "solace_agent_mesh.agent.utils.artifact_helpers.load_artifact_content_or_metadata",
+            new_callable=AsyncMock,
+        ) as mock_load:
+            mock_load.return_value = {
+                "metadata": {"mime_type": "text/plain", "size_bytes": 5},
+                "version": 0,
+            }
+            result = await get_artifact_info_list(
+                artifact_service=svc, app_name="app", user_id="user", session_id="sess"
+            )
+        assert len(result) == 1
+        assert result[0].version_count == 0
+        assert result[0].version == 0
