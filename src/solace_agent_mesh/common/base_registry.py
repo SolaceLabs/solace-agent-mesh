@@ -189,7 +189,7 @@ class BaseRegistry:
             last_seen_time = self._last_seen.get(item_id)
             current_time = time.time()
             time_since_last_seen = (
-                int(current_time - last_seen_time) if last_seen_time else "unknown"
+                int(current_time - last_seen_time) if last_seen_time else 0
             )
 
             log.info(
