@@ -78,7 +78,7 @@ def mock_sql_component_config():
                 "fastapi_host": "127.0.0.1",
                 "fastapi_port": 8000,
                 "session_secret_key": "test_secret_key_12345",
-                "cors_allowed_origins": ["*"],
+                "cors_allowed_origins": ["http://localhost:3000"],
                 "session_service": {
                     "type": "sql",
                     "database_url": "sqlite:///test.db"
