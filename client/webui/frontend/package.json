@@ -139,8 +139,8 @@
         "@types/react-dom": "19.0.0",
         "@types/react-pdf": "7.0.0",
         "@vitejs/plugin-react": "^4.4.1",
-        "@vitest/browser-playwright": "^4.0.8",
-        "@vitest/coverage-v8": "^4.0.8",
+        "@vitest/browser-playwright": "^4.1.8",
+        "@vitest/coverage-v8": "^4.1.8",
         "cypress": "^14.5.4",
         "eslint": "^9.25.0",
         "eslint-plugin-react-hooks": "^5.2.0",
@@ -159,8 +159,8 @@
         "tw-animate-css": "^1.3.3",
         "typescript": "~5.8.3",
         "typescript-eslint": "^8.30.1",
-        "vite": "^6.4.2",
-        "vitest": "^4.0.8"
+        "vite": "^6.4.3",
+        "vitest": "^4.1.8"
     },
     "optionalDependencies": {
         "@esbuild/darwin-arm64": "0.25.5",
@@ -182,7 +182,10 @@
         "lodash-es": "^4.18.0",
         "lodash": ">=4.18.0",
         "flatted": ">=3.4.2",
-        "serialize-javascript": ">=7.0.3"
+        "serialize-javascript": ">=7.0.3",
+        "form-data": ">=4.0.6",
+        "tmp": ">=0.2.6",
+        "ws": ">=8.21.0"
     },
     "msw": {
         "workerDirectory": [
