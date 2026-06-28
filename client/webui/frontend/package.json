@@ -160,7 +160,7 @@
         "typescript": "~5.8.3",
         "typescript-eslint": "^8.30.1",
         "vite": "^6.4.3",
-        "vitest": "^4.1.8"
+        "vitest": "^4.1.9"
     },
     "optionalDependencies": {
         "@esbuild/darwin-arm64": "0.25.5",
