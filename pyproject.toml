@@ -24,7 +24,7 @@ dependencies = [
     "google-adk==1.18.0",
     "a2a-sdk[http-server]==0.3.7",
     "pydantic==2.12.5",
-    "click==8.1.8",
+    "click==8.3.3",  # [CVE-2026-7246] Security fix
     "python-dotenv==1.2.2",
     "google-genai==1.49.0",
     "httpx==0.28.1",
