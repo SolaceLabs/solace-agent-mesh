@@ -101,7 +101,7 @@
         "react-json-view-lite": "^2.4.1",
         "react-pdf": "9.2.1",
         "react-resizable-panels": "^3.0.3",
-        "react-router-dom": "7.15.0",
+        "react-router-dom": "7.15.1",
         "tailwind-merge": "^3.3.0",
         "tailwind-scrollbar-hide": "^4.0.0",
         "tailwindcss": "^4.1.17",
@@ -116,7 +116,7 @@
         "@types/react-dom": "19.0.0",
         "react": "19.0.0",
         "react-dom": "19.0.0",
-        "react-router-dom": "7.15.0"
+        "react-router-dom": "7.15.1"
     },
     "devDependencies": {
         "@a2a-js/sdk": "^0.3.2",
