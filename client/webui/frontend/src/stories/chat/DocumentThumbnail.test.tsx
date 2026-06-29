@@ -35,6 +35,18 @@ const renderWithProviders = (props = {}, configOverrides = {}) => {
 describe("DocumentThumbnail", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // DocumentThumbnail fetches a PDF conversion on mount when preview is
+        // enabled. Stub a benign default so render-only tests don't fire real
+        // network requests that reject after the test ends and surface as
+        // unhandled errors (which fail the whole vitest run). Tests that assert
+        // on the conversion re-stub fetch themselves; afterEach unstubs.
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({ success: true, pdf_content: "JVBER0xQREYtMS40" }),
+            })
+        );
     });
 
     afterEach(() => {
