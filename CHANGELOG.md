@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.4](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.3...1.28.4) (2026-06-29)
+
+
+### Bug Fixes
+
+* **security:** patch Critical/High dependency vulnerabilities ([#1597](https://github.com/SolaceLabs/solace-agent-mesh/issues/1597)) ([95048d0](https://github.com/SolaceLabs/solace-agent-mesh/commit/95048d0252a3dbd9e64253e560b124e21e9e3603))
+
 ## [1.28.3](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.2...1.28.3) (2026-06-19)
 
 
