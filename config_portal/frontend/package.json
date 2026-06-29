@@ -47,7 +47,7 @@
     "@rollup/rollup-linux-x64-gnu": "4.36.0"
   },
   "overrides": {
-    "undici": ">=6.24.0",
+    "undici": "^7.28.0",
     "turbo-stream": "3.0.0"
   },
   "engines": {

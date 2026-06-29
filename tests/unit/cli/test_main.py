@@ -234,7 +234,10 @@ class TestCLIInvocation:
         """Test CLI invocation with no arguments shows help"""
         runner = CliRunner()
         result = runner.invoke(cli, [])
-        assert result.exit_code == 0
+        # click >=8.2 exits 2 (instead of 0) when a group is invoked with no
+        # subcommand, while still printing help. Accept both so the contract
+        # tested here (help is shown) holds across click versions.
+        assert result.exit_code in (0, 2)
         assert 'Solace CLI Application' in result.output
 
     def test_cli_invalid_command(self):

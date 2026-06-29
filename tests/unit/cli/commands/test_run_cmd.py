@@ -28,7 +28,8 @@ from cli.commands.run_cmd import run, _execute_with_solace_ai_connector
 @pytest.fixture
 def runner():
     """Create a Click CLI runner for testing with logging capture"""
-    return CliRunner(mix_stderr=False)
+    # click >=8.2 removed the mix_stderr arg; stderr is separate from stdout by default
+    return CliRunner()
 
 
 @pytest.fixture

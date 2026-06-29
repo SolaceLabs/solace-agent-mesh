@@ -1,6 +1,7 @@
 import importlib
 import os
 import re
+import sys
 from pathlib import Path
 from time import sleep
 from sqlalchemy import create_engine, event
@@ -11,20 +12,37 @@ import requests
 
 def ask_yes_no_question(question: str, default=False) -> bool:
     """Ask a yes/no question and return the answer."""
-    return click.confirm(question, default=default)
+    try:
+        return click.confirm(question, default=default)
+    except click.Abort:
+        # click >=8.2 raises Abort on EOF (non-interactive stdin) instead of
+        # falling back to the default like 8.1 did. Restore the fallback when not
+        # attached to a TTY (CI/automation) so an interactive Ctrl-C still aborts.
+        if not sys.stdin.isatty():
+            return default
+        raise
 
 
 def ask_question(
     question: str, default=None, hide_input=False, type=None, show_choices=None
 ) -> str:
     """General purpose question asking function."""
-    return click.prompt(
-        question,
-        default=default,
-        hide_input=hide_input,
-        type=type,
-        show_choices=show_choices,
-    )
+    try:
+        return click.prompt(
+            question,
+            default=default,
+            hide_input=hide_input,
+            type=type,
+            show_choices=show_choices,
+        )
+    except click.Abort:
+        # click >=8.2 raises Abort on EOF (non-interactive stdin) instead of
+        # falling back to the default like 8.1 did. Restore the fallback when a
+        # default exists and we're not attached to a TTY (CI/automation); an
+        # interactive Ctrl-C (TTY) still aborts.
+        if default is not None and not sys.stdin.isatty():
+            return default
+        raise
 
 
 def ask_if_not_provided(
