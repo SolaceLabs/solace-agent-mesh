@@ -211,6 +211,7 @@ class TestCaseService:
         try:
             return load_test_case(test_case_id)
         except Exception:
+            log.warning("Failed to load test case '%s'", test_case_id, exc_info=True)
             return None
 
     @staticmethod
