@@ -11,7 +11,6 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic_subscription import TopicSubscription
 
@@ -25,11 +24,12 @@ from .shared import (
     ConnectionState,
     MessageProcessingError,
 )
+from .shared.helpers import load_dotenv_from_cwd
 
 log = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from the project working directory
+load_dotenv_from_cwd()
 
 
 @dataclass

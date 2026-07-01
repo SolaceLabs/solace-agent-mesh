@@ -23,6 +23,7 @@
 </p>
 <p align="center">
   <a href="#-key-features">Key Features</a> •
+  <a href="#-developing-locally">Developing Locally</a> •
   <a href="#-quick-start-5-minutes">Quickstart</a> •
   <a href="#️-next-steps">Next Steps</a> •
   <a href="https://solacelabs.github.io/solace-agent-mesh/">Docs</a>
@@ -54,6 +55,50 @@ The result? A fully asynchronous, event-driven and decoupled AI agent architectu
 
 
 ---
+
+## 🛠️ Developing Locally
+
+If you want to work from the source tree, set up a local environment and use the bundled VS Code launch configurations.
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/SolaceLabs/solace-agent-mesh.git
+cd solace-agent-mesh
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install the project dependencies
+
+```bash
+pip install -e ".[test]"
+pip install -e tests/sam-test-infrastructure
+playwright install
+```
+
+If you prefer `uv`, the repo also provides a one-command setup:
+
+```bash
+make dev-setup
+```
+
+### 4. Open the project in VS Code and run the debugger
+
+Use the **Run and Debug** panel and select the `SAM` launch configuration from [`.vscode/launch.json`](.vscode/launch.json). That is the recommended local debug entry point and starts the example agent and gateway stack with the source checkout on the Python path.
+
+### 5. Run from the terminal when needed
+
+```bash
+sam run examples/agents/orchestrator_example.yaml examples/agents/a2a_agents_example.yaml examples/gateways/webui_gateway_example.yaml examples/services/platform_service_example.yaml
+```
+
+You can swap in other YAML files under `examples/` or `preset/` to debug a narrower slice of the system.
 
 ## 🔑 Key Features 
 - **[Multi-Agent Event-Driven Architecture](https://solacelabs.github.io/solace-agent-mesh/docs/documentation/getting-started/architecture)** – Agents communicate via the Solace Event Mesh for true scalability
