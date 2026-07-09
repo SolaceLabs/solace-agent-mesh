@@ -1,0 +1,143 @@
+# Agent Insights — Autonomous Feedback Loop Daemon
+#
+# This agent runs as a background daemon. It does not wait for user input.
+# On startup, it registers a repeating timer. Each time the timer fires it
+# self-publishes an A2A task to its own request topic, the LLM calls the
+# analysis tools, and saves a structured improvement report as an artifact.
+#
+# To start:
+#   sam run --config preset/agents/agent_insights.yaml
+#
+# Required environment variables:
+#   NAMESPACE                     — same namespace as the rest of your mesh
+#   SOLACE_BROKER_URL / _USERNAME / _PASSWORD / _VPN
+#   LLM_SERVICE_ENDPOINT / _API_KEY / LLM_SERVICE_GENERAL_MODEL_NAME
+#   INSIGHTS_DATABASE_URL         — connection string for the gateway task DB
+#                                   e.g. sqlite:///path/to/gateway.db
+#                                        postgresql://user:pass@host/dbname
+#   INSIGHTS_AGENT_DATABASE_URL   — session DB for this agent (can be separate)
+#                                   e.g. sqlite:///agent-insights.db
+#
+# Optional tuning:
+#   INSIGHTS_INTERVAL_S   — seconds between reports (default: 86400 = daily)
+#   INSIGHTS_LOOKBACK_H   — hours of history each report covers (default: 24)
+#
+# Set INSIGHTS_INTERVAL_S=604800 for weekly reports.
+# Set INSIGHTS_INTERVAL_S=0 to disable autonomous scheduling (on-demand only).
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: agent_insights.log
+
+!include ../shared_config.yaml
+
+apps:
+  - name: agent_insights_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "AgentInsights"
+      display_name: "Agent Insights"
+      model: *general_model
+      instruction: |
+        You are an autonomous feedback-loop daemon for a Solace Agent Mesh deployment.
+        You run on a schedule and produce improvement reports — no human prompts you.
+
+        When you receive your scheduled analysis trigger, always follow this exact sequence:
+
+        1. Call query_agent_stats with the appropriate lookback_hours to get task
+           completion rates, latency, token usage, and negative-feedback counts.
+
+        2. Call query_tool_stats to identify flaky tools (≥20% error rate) and
+           slow tools (p95 latency ≥5 s).
+
+        3. Call query_recent_failures to surface failed/cancelled tasks and tasks
+           with thumbs-down feedback, including the user's original request text.
+
+        4. Synthesise the findings into a Markdown report saved as an artifact named
+           insights_report_YYYY-MM-DD.md (use today's date). Structure it as:
+
+           ## Executive Summary
+           Two or three sentences covering the overall health of the mesh.
+
+           ## Key Metrics
+           Table of: total tasks, completion rate, avg latency, negative feedback rate,
+           top token consumers.
+
+           ## Issues Detected
+           For each issue (flaky tool, slow tool, failure pattern, missing capability):
+           - Severity: Critical / High / Medium / Low
+           - Description of the problem with supporting numbers
+           - Representative example (task request text, anonymised)
+
+           ## Recommendations
+           Numbered, concrete actions, e.g.:
+           1. Add a calendar/scheduling tool — N users asked about scheduling this period.
+           2. Investigate web_request errors — 35% failure rate on 42 calls.
+           3. Update the SQL agent's instruction to handle aggregate queries — 6 failures
+              all shared the pattern "total / sum / count".
+           4. Consider user education: N users asked questions outside agent scope.
+
+           ## Next Steps
+           What to watch in the next period.
+
+        5. If there are no issues, write a brief "all clear" report. Never skip the report.
+
+        Rules:
+        - Keep raw user text to a short excerpt (≤ 80 chars) to avoid PII exposure.
+        - Be specific with numbers. Avoid vague statements.
+        - If a tool call fails, note it in the report and continue with available data.
+
+      tools:
+        - tool_type: builtin
+          tool_name: "query_agent_stats"
+          tool_config:
+            database_url: "${INSIGHTS_DATABASE_URL, sqlite:///gateway.db}"
+            report_interval_s: ${INSIGHTS_INTERVAL_S, 86400}
+            report_lookback_h: ${INSIGHTS_LOOKBACK_H, 24}
+
+        - tool_type: builtin
+          tool_name: "query_tool_stats"
+          tool_config:
+            database_url: "${INSIGHTS_DATABASE_URL, sqlite:///gateway.db}"
+
+        - tool_type: builtin
+          tool_name: "query_recent_failures"
+          tool_config:
+            database_url: "${INSIGHTS_DATABASE_URL, sqlite:///gateway.db}"
+
+        - tool_type: builtin-group
+          group_name: "artifact_management"
+
+      session_service:
+        type: "${PERSISTENCE_TYPE, sql}"
+        database_url: "${INSIGHTS_AGENT_DATABASE_URL, sqlite:///agent-insights.db}"
+        default_behavior: "PERSISTENT"
+
+      artifact_service: *default_artifact_service
+
+      agent_card:
+        description: >
+          Autonomous feedback-loop daemon. Runs on a configurable schedule,
+          analyses task history and tool events, and saves structured improvement
+          reports as artifacts. No user interaction required.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text", "file"]
+        skills:
+          - id: "scheduled_analysis"
+            name: "Scheduled Improvement Analysis"
+            description: >
+              Periodically analyses task outcomes, tool error rates, and user
+              feedback to produce actionable improvement reports.
+
+      agent_card_publishing: { interval_seconds: 30 }
+
+      # Admin-only: do not expose to ordinary agents or users.
+      agent_discovery: { enabled: false }
+      inter_agent_communication:
+        allow_list: []
