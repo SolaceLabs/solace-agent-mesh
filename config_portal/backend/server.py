@@ -1,4 +1,3 @@
-import sys
 from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 import os
@@ -20,8 +19,12 @@ import logging
 
 log = logging.getLogger("werkzeug")
 log.disabled = True
-cli_flask = sys.modules["flask.cli"]
-cli_flask.show_server_banner = lambda *x: None
+try:
+    import flask.cli as flask_cli
+
+    flask_cli.show_server_banner = lambda *x: None
+except ImportError:
+    pass
 litellm.suppress_debug_info = True
 
 config_portal_host = "CONFIG_PORTAL_HOST"
