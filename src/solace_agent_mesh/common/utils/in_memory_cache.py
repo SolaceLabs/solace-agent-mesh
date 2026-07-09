@@ -77,7 +77,7 @@ class InMemoryCache:
                 return default
             return self._cache_data.get(key, default)
 
-    def delete(self, key: str) -> None:
+    def delete(self, key: str) -> bool:
         """Delete a specific key-value pair from a cache.
 
         Args:
@@ -95,14 +95,8 @@ class InMemoryCache:
                 return True
             return False
 
-    def clear(self) -> bool:
-        """Remove all data.
-
-        Returns:
-            True if the data was cleared, False otherwise.
-        """
+    def clear(self) -> None:
+        """Remove all data from the cache."""
         with self._data_lock:
             self._cache_data.clear()
             self._ttl.clear()
-            return True
-        return False
