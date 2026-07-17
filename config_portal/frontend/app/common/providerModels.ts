@@ -1,5 +1,6 @@
 export const PROVIDER_ENDPOINTS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
+  atlascloud: "https://api.atlascloud.ai/v1",
   anthropic: "https://api.anthropic.com",
   google: "https://generativelanguage.googleapis.com/v1beta/openai",
   aws: "https://bedrock-runtime.us-east-1.amazonaws.com",
@@ -9,6 +10,7 @@ export const PROVIDER_ENDPOINTS: Record<string, string> = {
 export const LLM_PROVIDER_OPTIONS = [
   { value: "", label: "Setup Later" },
   { value: "openai", label: "OpenAI" },
+  { value: "atlascloud", label: "Atlas Cloud" },
   { value: "anthropic", label: "Anthropic" },
   { value: "google", label: "Google Gemini" },
   { value: "azure", label: "Azure" },
@@ -17,6 +19,7 @@ export const LLM_PROVIDER_OPTIONS = [
 ];
 export const PROVIDER_PREFIX_MAP: Record<string, string> = {
   openai: "openai",
+  atlascloud: "openai",
   anthropic: "anthropic",
   google: "openai", //using googles open ai compatible endpoint
   openai_compatible: "openai",
@@ -34,6 +37,10 @@ export const PROVIDER_MODELS: Record<string, string[]> = {
     "gpt-4.1-nano",
     "o4-mini",
     "o3",
+  ],
+  atlascloud: [
+    "qwen/qwen3.5-flash",
+    "deepseek-ai/deepseek-v4-pro",
   ],
   anthropic: [
     "claude-sonnet-4-5-20250929",
@@ -71,6 +78,7 @@ export const PROVIDER_MODELS: Record<string, string[]> = {
 
 export const PROVIDER_NAMES: Record<string, string> = {
   openai: "OpenAI",
+  atlascloud: "Atlas Cloud",
   anthropic: "Anthropic",
   google: "Google Vertex AI",
   aws: "AWS Bedrock",

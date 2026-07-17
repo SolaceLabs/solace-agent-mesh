@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 class ModelProviders:
     """Provider ID constants."""
     OPENAI = "openai"
+    ATLAS_CLOUD = "atlascloud"
     ANTHROPIC = "anthropic"
     GOOGLE_AI_STUDIO = "google_ai_studio"
     VERTEX_AI = "vertex_ai"
@@ -29,6 +30,12 @@ class ModelProviders:
     BEDROCK = "bedrock"
     OLLAMA = "ollama"
     CUSTOM = "custom"
+
+
+ATLAS_CLOUD_MODELS = [
+    "qwen/qwen3.5-flash",
+    "deepseek-ai/deepseek-v4-pro",
+]
 
 
 class ModelListService:
@@ -170,6 +177,7 @@ class ModelListService:
         """Get the default API base URL for a provider."""
         api_bases = {
             ModelProviders.OPENAI: "https://api.openai.com/v1",
+            ModelProviders.ATLAS_CLOUD: "https://api.atlascloud.ai/v1",
             ModelProviders.ANTHROPIC: "https://api.anthropic.com",
             ModelProviders.GOOGLE_AI_STUDIO: "https://generativelanguage.googleapis.com/v1beta/models",
             ModelProviders.AZURE_OPENAI: None,  # Requires custom api_base
@@ -234,7 +242,7 @@ class ModelListService:
 
         # Build endpoint URL and prepare query params based on provider
         query_params = {}
-        if provider == ModelProviders.OPENAI or provider == ModelProviders.CUSTOM:
+        if provider in (ModelProviders.OPENAI, ModelProviders.ATLAS_CLOUD, ModelProviders.CUSTOM):
             endpoint = f"{api_base}/models"
         elif provider == ModelProviders.ANTHROPIC:
             endpoint = f"{api_base}/v1/models"
@@ -258,7 +266,7 @@ class ModelListService:
                 response.raise_for_status()
 
                 # Parse response based on provider format
-                if provider == ModelProviders.OPENAI or provider == ModelProviders.CUSTOM:
+                if provider in (ModelProviders.OPENAI, ModelProviders.ATLAS_CLOUD, ModelProviders.CUSTOM):
                     data = response.json()
                     return [model["id"] for model in data.get("data", [])]
 
@@ -412,6 +420,7 @@ class ModelListService:
 
         # Map our provider IDs to litellm's where they differ
         litellm_provider_map = {
+            ModelProviders.ATLAS_CLOUD: "openai",
             ModelProviders.GOOGLE_AI_STUDIO: "gemini",
             ModelProviders.AZURE_OPENAI: "azure",
         }
@@ -435,6 +444,9 @@ class ModelListService:
         Used as a fallback when the provider's API cannot be reached or doesn't
         support listing models (e.g., Vertex AI Model Garden not enabled).
         """
+        if provider == ModelProviders.ATLAS_CLOUD:
+            return ATLAS_CLOUD_MODELS
+
         if litellm is None:
             return []
         try:

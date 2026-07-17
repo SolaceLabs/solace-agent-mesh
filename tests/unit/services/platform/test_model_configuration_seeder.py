@@ -66,6 +66,11 @@ class TestInferProvider:
         assert _infer_provider("https://api.openai.com/v1") == "openai"
         assert _infer_provider("https://api.openai.com/v1/chat/completions") == "openai"
 
+    def test_known_provider_atlascloud(self):
+        """Detect Atlas Cloud from api.atlascloud.ai hostname."""
+        assert _infer_provider("https://api.atlascloud.ai/v1") == "atlascloud"
+        assert _infer_provider("https://api.atlascloud.ai/v1/chat/completions") == "atlascloud"
+
     def test_known_provider_anthropic(self):
         """Detect Anthropic from api.anthropic.com hostname."""
         assert _infer_provider("https://api.anthropic.com/v1") == "anthropic"
