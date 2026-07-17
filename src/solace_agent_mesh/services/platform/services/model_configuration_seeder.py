@@ -50,6 +50,8 @@ def _infer_provider(api_base: str, model_name: str = "") -> str:
         # Exact hostname matches
         if hostname == "api.openai.com":
             return "openai"
+        elif hostname == "api.atlascloud.ai":
+            return "atlascloud"
         elif hostname == "api.anthropic.com":
             return "anthropic"
         elif ".openai.azure.com" in hostname:
@@ -90,7 +92,7 @@ def _get_default_auth_type(provider: str) -> str:
     """
     provider_lower = provider.lower()
 
-    if provider_lower in ("openai", "anthropic", "google_ai_studio", "azure_openai"):
+    if provider_lower in ("openai", "atlascloud", "anthropic", "google_ai_studio", "azure_openai"):
         return "apikey"
     elif provider_lower == "vertex_ai":
         return "gcp_service_account"
@@ -118,6 +120,8 @@ def _get_default_api_base(provider: str) -> Optional[str]:
     # Providers with standard endpoints
     if provider_lower == "openai":
         return "https://api.openai.com/v1"
+    elif provider_lower == "atlascloud":
+        return "https://api.atlascloud.ai/v1"
     elif provider_lower == "anthropic":
         return "https://api.anthropic.com/v1"
     elif provider_lower == "google_ai_studio":

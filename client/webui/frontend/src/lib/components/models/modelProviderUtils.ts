@@ -308,6 +308,15 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         modelNamePlaceholder: "gpt-4o-mini",
         allowedAuthTypes: ["apikey"],
     },
+    atlascloud: {
+        id: "atlascloud",
+        label: "Atlas Cloud",
+        description: "OpenAI-compatible hosted models through Atlas Cloud",
+        showApiBase: false,
+        fields: [],
+        modelNamePlaceholder: "qwen/qwen3.5-flash",
+        allowedAuthTypes: ["apikey"],
+    },
     anthropic: {
         id: "anthropic",
         label: "Anthropic",
