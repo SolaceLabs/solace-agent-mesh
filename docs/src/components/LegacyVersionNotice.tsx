@@ -6,16 +6,18 @@ import Admonition from '@theme/Admonition';
 // the whole legacy site is clearly marked as deprecated.
 export default function LegacyVersionNotice(): JSX.Element {
   return (
-    <Admonition type="warning" title="This documentation is for Solace Agent Mesh 1.x">
+    <Admonition type="warning" title="The information on this page is for Solace Agent Mesh 1.x">
       <p>
-        You are viewing the documentation for <strong>Solace Agent Mesh 1.x</strong>. The
-        latest documentation for <strong>Solace Agent Mesh 2.x</strong> and later is now
-        hosted on docs.solace.com.
+        Visit the{' '}
+        <a href="https://docs.solace.com/Agent-Mesh/agent-mesh.htm">
+          Solace Documentation site
+        </a>{' '}
+        for information about <strong>Solace Agent Mesh 2.x</strong> and later.
       </p>
       <a
         className="button button--primary"
         href="https://docs.solace.com/Agent-Mesh/agent-mesh.htm">
-        Go to the Solace Agent Mesh 2.x documentation →
+        Explore the Agent Mesh 2.x docs →
       </a>
     </Admonition>
   );
