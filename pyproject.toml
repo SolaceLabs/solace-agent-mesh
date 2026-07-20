@@ -34,7 +34,7 @@ dependencies = [
     "pyjwt>=2.13.0",  # [CVE-2026-48526] Security fix: rejects JWK JSON passed as an HMAC secret
     "asteval==1.0.6",
     "pystache==0.6.8",
-    "python-liquid==2.2.0",  # [CVE-2026-45017] Security fix
+    "python-liquid==2.2.1",  # [CVE-2026-45017, CVE-2026-55865] Security fix: 2.2.1 also fixes parse-time infinite loop on malformed {% case %} tag
     "pandas==2.3.2",
     "numpy==2.2.6",
     "plotly==6.3.0",
