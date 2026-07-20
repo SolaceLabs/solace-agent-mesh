@@ -74,6 +74,7 @@ dependencies = [
     "rich==13.9.4",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
+    "asyncpg==0.31.0",  # ADK 2.x session service is async-only; async Postgres driver for translated database_url
     "azure-cognitiveservices-speech==1.41.1",
     "cryptography==48.0.1",  # [CVE-2026-39892, GHSA-537c-gmf6-5ccf] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
     "pillow==12.2.0",  # [CVE-2026-25990, CVE-2026-40192] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)

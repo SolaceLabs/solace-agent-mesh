@@ -24,7 +24,10 @@ def alembic_config(dialect_db) -> Config:
     Returns:
         Alembic Config object configured for ADK
     """
-    from google.adk.sessions.database_session_service import Base
+    # BaseV0 = the pre-ADK-2.x schema layout; migration e2902798564d targets a
+    # database created by older ADK versions, so the fixture must build that
+    # layout, not the new v1 schema.
+    from google.adk.sessions.database_session_service import BaseV0 as Base
     from sqlalchemy import event
 
     # Create the ADK base schema (sessions, events, app_states, user_states)
