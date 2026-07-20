@@ -52,6 +52,7 @@ dependencies = [
     "litellm==1.84.0",  # bumped from 1.83.14 to relax its aiohttp==3.13.4 pin, allowing aiohttp >=3.14.0 (locked to 3.14.1) [CVE-2026-34993, CVE-2026-47265]
     "markdownify==1.2.0",
     "beautifulsoup4==4.13.5",
+    "soupsieve==2.8.4",  # [CVE-2026-49476, CVE-2026-49477] Security fix (transitive from beautifulsoup4)
     "jsonpath-ng==1.7.0",
     "pydub==0.25.1",
     "toml==0.10.2",
@@ -76,7 +77,7 @@ dependencies = [
     "psycopg2-binary==2.9.10",
     "azure-cognitiveservices-speech==1.41.1",
     "cryptography==48.0.1",  # [CVE-2026-39892, GHSA-537c-gmf6-5ccf] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
-    "pillow==12.2.0",  # [CVE-2026-25990, CVE-2026-40192] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
+    "pillow==12.3.0",  # [CVE-2026-59198, CVE-2026-59203, CVE-2026-59204] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
     "pypdf==6.10.2",  # [CVE-2026-40260, GHSA-jj6c-8h6c-hppx] Security fix: multiple vulnerabilities resolved in 6.10.2
     "lxml==6.1.0",
@@ -86,6 +87,7 @@ dependencies = [
     "azure-identity>=1.17.0",
     "azure-storage-blob==12.28.0",
     "authlib>=1.6.12",  # [CVE-2026-27962, CVE-2026-41425, CVE-2026-44681] Security fixes
+    "joserfc==1.6.8",  # [CVE-2026-49852] Security fix (transitive from authlib)
     "pyasn1>=0.6.3",  # [CVE-2026-30922] Security fix: Prevents DoS via unbounded recursion in ASN.1 decoder
     "cachetools==7.0.1",
     "openfeature-sdk==0.8.4",
