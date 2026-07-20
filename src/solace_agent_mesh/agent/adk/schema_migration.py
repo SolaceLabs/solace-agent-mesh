@@ -34,10 +34,17 @@ def run_migrations(db_service, component):
     """
     from solace_agent_mesh.shared.database.sqlite_version_check import check_sqlite_version
 
+    from sqlalchemy import create_engine
+
+    from solace_agent_mesh.shared.database.database_helpers import to_sync_db_url
+
     try:
         # Verify SQLite version before running migrations
-        # Extract database URL from the engine
-        database_url = str(db_service.db_engine.url)
+        # Extract database URL from the engine. ADK 2.x engines are async;
+        # Alembic (and the version check) need the sync-driver form.
+        database_url = to_sync_db_url(
+            db_service.db_engine.url.render_as_string(hide_password=False)
+        )
         check_sqlite_version(database_url, "ADK")
     except Exception as e:
         log.error(
@@ -75,17 +82,23 @@ def run_migrations(db_service, component):
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
         
         # IMPORTANT: Store the engine in config attributes so env.py can access it
-        # This avoids URL encoding issues entirely
-        alembic_cfg.attributes['connection'] = db_service.db_engine
+        # This avoids URL encoding issues entirely. Alembic runs synchronously,
+        # and ADK 2.x's service engine is async, so build a short-lived sync
+        # engine for the migration instead of handing over db_service.db_engine.
+        sync_engine = create_engine(database_url)
+        alembic_cfg.attributes['connection'] = sync_engine
 
         log.info(
             "%s Running Alembic migrations for ADK schema compatibility...",
             component.log_identifier
         )
 
-        # Run migrations (equivalent to: alembic upgrade head)
-        # Run migrations (env.py will use the engine from attributes)
-        command.upgrade(alembic_cfg, "head")
+        try:
+            # Run migrations (equivalent to: alembic upgrade head)
+            # Run migrations (env.py will use the engine from attributes)
+            command.upgrade(alembic_cfg, "head")
+        finally:
+            sync_engine.dispose()
 
         log.info(
             "%s Database schema migration complete",

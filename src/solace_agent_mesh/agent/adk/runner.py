@@ -1797,6 +1797,16 @@ async def run_adk_async_task(
             except StopAsyncIteration:
                 break
 
+            # ADK 2.x node execution converts agent exceptions into error events
+            # instead of raising them out of run_async. Re-raise the LLM-call
+            # limit as its typed exception so the existing finalization path
+            # sends the user-facing "processing limit" guidance rather than a
+            # generic agent error.
+            if event.error_code == LlmCallsLimitExceededError.__name__:
+                raise LlmCallsLimitExceededError(
+                    event.error_message or "Max number of llm calls limit exceeded"
+                )
+
             if event.long_running_tool_ids:
                 # Track which long-running tool calls are pending (waiting for async response)
                 pending_long_running_tools = pending_long_running_tools.union(
