@@ -19,6 +19,13 @@ _ASYNC_DRIVER_BY_BACKEND = {
     "mysql": "aiomysql",
 }
 _ASYNC_DRIVERS = {"aiosqlite", "asyncpg", "aiomysql", "asyncmy"}
+# Bare "mysql://" selects the mysqlclient/MySQLdb driver, which is not a
+# dependency anywhere in this repo — PyMySQL is the driver used throughout,
+# so MySQL must translate back to an explicit +pymysql. sqlite/postgresql
+# bare-backend defaults (pysqlite/psycopg2) are the drivers we ship.
+_SYNC_DRIVER_BY_BACKEND = {
+    "mysql": "mysql+pymysql",
+}
 
 
 def to_async_db_url(db_url: str) -> str:
@@ -41,16 +48,16 @@ def to_async_db_url(db_url: str) -> str:
 
 
 def to_sync_db_url(db_url: str) -> str:
-    """Return db_url with the backend's default sync driver.
+    """Return db_url with a sync driver we actually ship.
 
     Inverse of to_async_db_url, for sync-only consumers (e.g. Alembic).
     """
     url: URL = make_url(db_url)
     if url.get_driver_name() not in _ASYNC_DRIVERS:
         return db_url
-    return url.set(drivername=url.get_backend_name()).render_as_string(
-        hide_password=False
-    )
+    backend = url.get_backend_name()
+    drivername = _SYNC_DRIVER_BY_BACKEND.get(backend, backend)
+    return url.set(drivername=drivername).render_as_string(hide_password=False)
 
 
 class SimpleJSON(TypeDecorator):

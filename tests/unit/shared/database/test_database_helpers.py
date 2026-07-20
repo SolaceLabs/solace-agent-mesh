@@ -61,7 +61,14 @@ class TestToSyncDbUrl:
                 "postgresql+asyncpg://user:pass@host:5432/db",
                 "postgresql://user:pass@host:5432/db",
             ),
-            ("mysql+aiomysql://user:pass@host/db", "mysql://user:pass@host/db"),
+            (
+                "mysql+aiomysql://user:pass@host/db",
+                "mysql+pymysql://user:pass@host/db",
+            ),
+            (
+                "mysql+asyncmy://user:pass@host/db",
+                "mysql+pymysql://user:pass@host/db",
+            ),
         ],
     )
     def test_translates_async_drivers(self, async_url, expected):
