@@ -16,7 +16,12 @@ const config: Config = {
   url: "https://solacelabs.github.io",
   baseUrl: "/solace-agent-mesh",
   organizationName: "SolaceLabs",
-  projectName: "solace-agent-mesh", 
+  projectName: "solace-agent-mesh",
+
+  // Deprecation (DATAGO-139020): the 1.x docs have moved to docs.solace.com.
+  // Keep search engines from indexing this legacy site so users land on the
+  // current docs. Emits <meta name="robots" content="noindex, nofollow"> site-wide.
+  noIndex: true,
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
