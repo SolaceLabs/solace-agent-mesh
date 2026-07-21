@@ -1,6 +1,5 @@
 """Tests for SamAppBase health check methods."""
 
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -383,65 +382,6 @@ class TestSamAppBaseDatabaseHealthChecks:
         # Use a very short timeout (0.1 seconds)
         result = app._is_database_connected(timeout=0.1)
         assert result is False
-
-    @patch("solace_agent_mesh.common.app_base.App.__init__")
-    def test_is_database_connected_with_real_async_engine_returns_true(
-        self, mock_app_init
-    ):
-        """Regression (DATAGO-138845 / #1602): a real async session engine is healthy.
-
-        ADK 2.x's DatabaseSessionService is async-only, so an agent's
-        session_service.db_engine is a real SQLAlchemy AsyncEngine. The health
-        check must probe it without raising "'AsyncConnection' object does not
-        support the context manager protocol".
-        """
-        mock_app_init.return_value = None
-
-        from sqlalchemy.ext.asyncio import create_async_engine
-
-        from solace_agent_mesh.common.app_base import SamAppBase
-
-        async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        try:
-            app = object.__new__(SamAppBase)
-
-            # Agent pattern: component exposes session_service.db_engine (async).
-            mock_session_service = MagicMock()
-            mock_session_service.db_engine = async_engine
-
-            mock_component = MagicMock(spec=[])  # No get_db_engine method
-            mock_component.session_service = mock_session_service
-
-            mock_wrapper = MagicMock()
-            mock_wrapper.component = mock_component
-
-            mock_flow = MagicMock()
-            mock_flow.component_groups = [[mock_wrapper]]
-            app.flows = [mock_flow]
-
-            result = app._is_database_connected()
-            assert result is True
-        finally:
-            asyncio.run(async_engine.dispose())
-
-    @patch("solace_agent_mesh.common.app_base.App.__init__")
-    def test_test_single_db_connection_accepts_async_engine(self, mock_app_init):
-        """_test_single_db_connection routes an AsyncEngine through the async probe."""
-        mock_app_init.return_value = None
-
-        from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
-        from solace_agent_mesh.common.app_base import SamAppBase
-
-        async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        try:
-            assert isinstance(async_engine, AsyncEngine)
-
-            app = object.__new__(SamAppBase)
-
-            assert app._test_single_db_connection(async_engine) is True
-        finally:
-            asyncio.run(async_engine.dispose())
 
 
 class TestSamAppBaseDatabaseTimeoutConfig:

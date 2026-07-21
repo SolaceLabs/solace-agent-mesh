@@ -1,6 +1,5 @@
 """Base App class for all SAM applications with broker and database health checks."""
 
-import asyncio
 import importlib
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -10,8 +9,6 @@ from solace_ai_connector.common.messaging.solace_messaging import ConnectionStat
 from solace_ai_connector.common.monitoring import Monitoring
 from solace_ai_connector.flow.app import App
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.pool import NullPool
 
 log = logging.getLogger(__name__)
 
@@ -176,46 +173,15 @@ class SamAppBase(App):
         """
         Test a single database connection.
 
-        Supports both synchronous ``Engine`` and asynchronous ``AsyncEngine``
-        objects. ADK 2.x's ``DatabaseSessionService`` is async-only, so an
-        agent's ``session_service.db_engine`` is an ``AsyncEngine`` that cannot
-        be used with a synchronous ``with engine.connect()`` — doing so raises
-        "'AsyncConnection' object does not support the context manager
-        protocol". Async engines are probed over a short-lived connection on a
-        throwaway event loop instead.
-
         Args:
-            engine: SQLAlchemy Engine or AsyncEngine to test.
+            engine: SQLAlchemy engine to test
 
         Returns:
-            True if the connection succeeds.
+            True if connection successful, False otherwise.
         """
-        if isinstance(engine, AsyncEngine):
-            asyncio.run(self._test_single_async_db_connection(engine.url))
-        else:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
         return True
-
-    @staticmethod
-    async def _test_single_async_db_connection(url) -> None:
-        """
-        Probe an async database URL by opening a short-lived connection.
-
-        A throwaway ``NullPool`` engine is used so the connection is bound only
-        to this temporary event loop and is never returned to a shared pool —
-        a pooled async connection reused on a later probe's (different) event
-        loop would raise "Event loop is closed"/"attached to a different loop".
-
-        Args:
-            url: SQLAlchemy URL of the async engine to test.
-        """
-        probe_engine = create_async_engine(url, poolclass=NullPool)
-        try:
-            async with probe_engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-        finally:
-            await probe_engine.dispose()
 
     def _get_health_check_executor(self) -> ThreadPoolExecutor:
         """
