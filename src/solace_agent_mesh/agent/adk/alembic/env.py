@@ -9,9 +9,7 @@ config = context.config
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# ADK 2.x split the session schema into v0/v1 (auto-detected at runtime);
-# this migration chain was written against the original (v0) layout.
-from google.adk.sessions.database_session_service import BaseV0 as Base
+from google.adk.sessions.database_session_service import Base
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 

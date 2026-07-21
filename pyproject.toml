@@ -21,12 +21,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
-    "google-adk==2.5.0",
+    "google-adk==1.18.0",
     "a2a-sdk[http-server]==0.3.7",
     "pydantic==2.12.5",
     "click==8.3.3",  # [CVE-2026-7246] Security fix
     "python-dotenv==1.2.2",
-    "google-genai==2.12.1",  # bumped with google-adk 2.5.0 (requires google-genai >=2.9,<3)
+    "google-genai==1.49.0",
     "httpx==0.28.1",
     "idna==3.15",  # [CVE-2026-45409] Security fix (transitive from httpx, requests)
     "jwcrypto==1.5.7",  # [CVE-2026-39373] Security fix
@@ -34,7 +34,7 @@ dependencies = [
     "pyjwt>=2.13.0",  # [CVE-2026-48526] Security fix: rejects JWK JSON passed as an HMAC secret
     "asteval==1.0.6",
     "pystache==0.6.8",
-    "python-liquid==2.2.1",  # [CVE-2026-45017, CVE-2026-55865] Security fix: 2.2.1 also fixes parse-time infinite loop on malformed {% case %} tag
+    "python-liquid==2.2.0",  # [CVE-2026-45017] Security fix
     "pandas==2.3.2",
     "numpy==2.2.6",
     "plotly==6.3.0",
@@ -52,7 +52,6 @@ dependencies = [
     "litellm==1.84.0",  # bumped from 1.83.14 to relax its aiohttp==3.13.4 pin, allowing aiohttp >=3.14.0 (locked to 3.14.1) [CVE-2026-34993, CVE-2026-47265]
     "markdownify==1.2.0",
     "beautifulsoup4==4.13.5",
-    "soupsieve==2.8.4",  # [CVE-2026-49476, CVE-2026-49477] Security fix (transitive from beautifulsoup4)
     "jsonpath-ng==1.7.0",
     "pydub==0.25.1",
     "toml==0.10.2",
@@ -60,8 +59,8 @@ dependencies = [
     "Flask==3.1.3",
     "flask-cors==6.0.1",
     "werkzeug==3.1.6",
-    "fastapi==0.139.2",  # bumped with google-adk 2.5.0; >=0.135 drops the starlette <0.50 cap
-    "starlette==1.3.1",  # [CVE-2026-48818, CVE-2026-54283, CVE-2026-48817, CVE-2026-48710, CVE-2026-54282] Security fix (DATAGO-138845); unblocked by google-adk 2.x
+    "fastapi==0.120.1",
+    "starlette==0.49.1",  # [CVE-2026-48818, CVE-2026-54283] only fixed in starlette 1.x, which google-adk caps out (<1.0.0); cannot upgrade until google-adk supports it
     "uvicorn[standard]==0.37.0",
     "sse-starlette==3.0.2",
     "itsdangerous==2.2.0",
@@ -75,21 +74,18 @@ dependencies = [
     "rich==13.9.4",
     "boto3==1.40.37",
     "psycopg2-binary==2.9.10",
-    "asyncpg==0.31.0",  # ADK 2.x session service is async-only; async Postgres driver for translated database_url
     "azure-cognitiveservices-speech==1.41.1",
     "cryptography==48.0.1",  # [CVE-2026-39892, GHSA-537c-gmf6-5ccf] Security fix: addresses vulnerabilities in older versions (transitive dependency from multiple packages)
-    "pillow==12.3.0",  # [CVE-2026-59198, CVE-2026-59203, CVE-2026-59204] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
+    "pillow==12.2.0",  # [CVE-2026-25990, CVE-2026-40192] Security fix: addresses vulnerabilities in older versions (transitive dependency from python-pptx)
     "bm25s==0.2.14",
     "pypdf==6.10.2",  # [CVE-2026-40260, GHSA-jj6c-8h6c-hppx] Security fix: multiple vulnerabilities resolved in 6.10.2
     "lxml==6.1.0",
     "python-pptx==1.0.2",
     "python-docx==1.2.0",
-    "google-cloud-storage==3.13.0",  # bumped for google-cloud-aiplatform 1.161.0 (requires >=3.10.0)
+    "google-cloud-storage==3.9.0",
     "azure-identity>=1.17.0",
     "azure-storage-blob==12.28.0",
     "authlib>=1.6.12",  # [CVE-2026-27962, CVE-2026-41425, CVE-2026-44681] Security fixes
-    "joserfc==1.6.8",  # [CVE-2026-49852] Security fix (transitive from authlib)
-    "mcp==1.28.1",  # [CVE-2026-52869, CVE-2026-52870, CVE-2026-59950] Security fix (transitive from google-adk, fastmcp)
     "pyasn1>=0.6.3",  # [CVE-2026-30922] Security fix: Prevents DoS via unbounded recursion in ASN.1 decoder
     "cachetools==7.0.1",
     "openfeature-sdk==0.8.4",
@@ -101,7 +97,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-vertex = ["google-cloud-aiplatform==1.161.0"]  # bumped with google-genai 2.x (1.153.1+ allows google-genai <3)
+vertex = ["google-cloud-aiplatform==1.133.0"]
 employee_tools = ["holidays==0.81.0"]
 test = [
     "pytest-asyncio",
