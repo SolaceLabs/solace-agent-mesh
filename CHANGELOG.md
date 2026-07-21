@@ -5,8 +5,6 @@
 
 ### Bug Fixes
 
-* **DATAGO-138845:** handle async session DB engine in readiness health check ([#1605](https://github.com/SolaceLabs/solace-agent-mesh/issues/1605)) ([b7ce8cc](https://github.com/SolaceLabs/solace-agent-mesh/commit/b7ce8cc28b9b789e15614b9dbf78169d62534d58))
-* **DATAGO-138845:** upgrade google-adk to 2.5.0 to fix starlette CVEs ([#1602](https://github.com/SolaceLabs/solace-agent-mesh/issues/1602)) ([4c96454](https://github.com/SolaceLabs/solace-agent-mesh/commit/4c96454f7660201c12441e92e9ef9e7a8e0b39aa))
 * **DATAGO-144737:** bump pillow to 12.3.0 (9 CVEs) ([#1609](https://github.com/SolaceLabs/solace-agent-mesh/issues/1609)) ([42263c6](https://github.com/SolaceLabs/solace-agent-mesh/commit/42263c66d24812ad5b5add1cb233ee67b73c67c8))
 * **DATAGO-144858:** bump mcp to 1.28.1 for CVE-2026-59950/52870/52869 ([#1607](https://github.com/SolaceLabs/solace-agent-mesh/issues/1607)) ([49ee1ea](https://github.com/SolaceLabs/solace-agent-mesh/commit/49ee1ea79d90d73a9548e9e963a18754a76da518))
 * **DATAGO-145006:** bump httplib2 to 0.32.0 for CVE-2026-59939 ([#1611](https://github.com/SolaceLabs/solace-agent-mesh/issues/1611)) ([e0657ce](https://github.com/SolaceLabs/solace-agent-mesh/commit/e0657ce9980ebba08735c0b87d732505c68f5aac))
@@ -14,15 +12,9 @@
 * **DATAGO-145096:** bump joserfc to 1.7.4 for CVE-2026-49852 ([#1612](https://github.com/SolaceLabs/solace-agent-mesh/issues/1612)) ([8080e00](https://github.com/SolaceLabs/solace-agent-mesh/commit/8080e001fd09ba39c2fed304862193199b1b2dbe))
 * **DATAGO-145097:** bump soupsieve to 2.8.4 for CVE-2026-49476, CVE-2026-49477 ([#1610](https://github.com/SolaceLabs/solace-agent-mesh/issues/1610)) ([336e724](https://github.com/SolaceLabs/solace-agent-mesh/commit/336e72459e78daea683539c24fc4583e3fde47ba))
 
-
-### Reverts
-
-* **DATAGO-138845:** roll back google-adk 2.5.0 ([#1602](https://github.com/SolaceLabs/solace-agent-mesh/issues/1602)) and readiness fix ([#1605](https://github.com/SolaceLabs/solace-agent-mesh/issues/1605)) ([#1606](https://github.com/SolaceLabs/solace-agent-mesh/issues/1606)) ([6b49f10](https://github.com/SolaceLabs/solace-agent-mesh/commit/6b49f10c247fb572915aa40b04050369386b053b))
-
-
 ### Documentation
 
-* deprecate legacy 1.x docs site with version notice and noindex (DATAGO-139020) ([#1601](https://github.com/SolaceLabs/solace-agent-mesh/issues/1601)) ([2b98c7a](https://github.com/SolaceLabs/solace-agent-mesh/commit/2b98c7a68763c8bec392dbf209ed2d583c352bc9))
+* **DATAGO-139020:** deprecate legacy 1.x docs site with version notice and noindex ([#1601](https://github.com/SolaceLabs/solace-agent-mesh/issues/1601)) ([2b98c7a](https://github.com/SolaceLabs/solace-agent-mesh/commit/2b98c7a68763c8bec392dbf209ed2d583c352bc9))
 
 ## [1.28.4](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.3...1.28.4) (2026-06-29)
 
