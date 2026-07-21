@@ -22,6 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "google-adk==1.18.0",
+    "mcp==1.28.1",  # [CVE-2026-59950, CVE-2026-52870, CVE-2026-52869] Security fix: pins transitive dep (from google-adk) to 1.28.1
     "a2a-sdk[http-server]==0.3.7",
     "pydantic==2.12.5",
     "click==8.3.3",  # [CVE-2026-7246] Security fix
