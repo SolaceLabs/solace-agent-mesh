@@ -1,5 +1,6 @@
 """Tests for SamAppBase health check methods."""
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -400,26 +401,28 @@ class TestSamAppBaseDatabaseHealthChecks:
 
         from solace_agent_mesh.common.app_base import SamAppBase
 
-        async_engine = create_async_engine("sqlite+aiosqlite://")
+        async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        try:
+            app = object.__new__(SamAppBase)
 
-        app = object.__new__(SamAppBase)
+            # Agent pattern: component exposes session_service.db_engine (async).
+            mock_session_service = MagicMock()
+            mock_session_service.db_engine = async_engine
 
-        # Agent pattern: component exposes session_service.db_engine (async).
-        mock_session_service = MagicMock()
-        mock_session_service.db_engine = async_engine
+            mock_component = MagicMock(spec=[])  # No get_db_engine method
+            mock_component.session_service = mock_session_service
 
-        mock_component = MagicMock(spec=[])  # No get_db_engine method
-        mock_component.session_service = mock_session_service
+            mock_wrapper = MagicMock()
+            mock_wrapper.component = mock_component
 
-        mock_wrapper = MagicMock()
-        mock_wrapper.component = mock_component
+            mock_flow = MagicMock()
+            mock_flow.component_groups = [[mock_wrapper]]
+            app.flows = [mock_flow]
 
-        mock_flow = MagicMock()
-        mock_flow.component_groups = [[mock_wrapper]]
-        app.flows = [mock_flow]
-
-        result = app._is_database_connected()
-        assert result is True
+            result = app._is_database_connected()
+            assert result is True
+        finally:
+            asyncio.run(async_engine.dispose())
 
     @patch("solace_agent_mesh.common.app_base.App.__init__")
     def test_test_single_db_connection_accepts_async_engine(self, mock_app_init):
@@ -430,12 +433,15 @@ class TestSamAppBaseDatabaseHealthChecks:
 
         from solace_agent_mesh.common.app_base import SamAppBase
 
-        async_engine = create_async_engine("sqlite+aiosqlite://")
-        assert isinstance(async_engine, AsyncEngine)
+        async_engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        try:
+            assert isinstance(async_engine, AsyncEngine)
 
-        app = object.__new__(SamAppBase)
+            app = object.__new__(SamAppBase)
 
-        assert app._test_single_db_connection(async_engine) is True
+            assert app._test_single_db_connection(async_engine) is True
+        finally:
+            asyncio.run(async_engine.dispose())
 
 
 class TestSamAppBaseDatabaseTimeoutConfig:
