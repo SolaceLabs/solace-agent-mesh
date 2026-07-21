@@ -623,11 +623,7 @@ def create_session_service_from_config(
                 f"{log_identifier} 'database_url' is required for sql session service."
             )
         try:
-            from ...shared.database.database_helpers import to_async_db_url
-
-            # ADK 2.x's DatabaseSessionService requires an async driver in the
-            # URL; translate classic sync URLs so existing configs keep working.
-            base_service = DatabaseSessionService(db_url=to_async_db_url(db_url))
+            base_service = DatabaseSessionService(db_url=db_url)
         except ImportError:
             log.error(
                 "%s SQLAlchemy not installed. Please install 'google-adk[database]' or 'sqlalchemy'.",

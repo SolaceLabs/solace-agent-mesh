@@ -7,57 +7,7 @@ Separated from dependencies.py to avoid circular imports.
 
 import json
 from sqlalchemy import Text, TypeDecorator
-from sqlalchemy.engine import URL, make_url
 from ..exceptions.exceptions import DataIntegrityError
-
-# ADK 2.x's DatabaseSessionService is async-only (create_async_engine), while
-# deployment configs and SAM's own SQLAlchemy usage carry classic sync URLs.
-# These maps translate between the two so existing configs keep working.
-_ASYNC_DRIVER_BY_BACKEND = {
-    "sqlite": "aiosqlite",
-    "postgresql": "asyncpg",
-    "mysql": "aiomysql",
-}
-_ASYNC_DRIVERS = {"aiosqlite", "asyncpg", "aiomysql", "asyncmy"}
-# Bare "mysql://" selects the mysqlclient/MySQLdb driver, which is not a
-# dependency anywhere in this repo — PyMySQL is the driver used throughout,
-# so MySQL must translate back to an explicit +pymysql. sqlite/postgresql
-# bare-backend defaults (pysqlite/psycopg2) are the drivers we ship.
-_SYNC_DRIVER_BY_BACKEND = {
-    "mysql": "mysql+pymysql",
-}
-
-
-def to_async_db_url(db_url: str) -> str:
-    """Return db_url with an async driver, translating well-known sync drivers.
-
-    URLs already naming an async driver — and backends with no known async
-    driver — pass through unchanged.
-    """
-    url: URL = make_url(db_url)
-    backend = url.get_backend_name()
-    driver = url.get_driver_name()
-    if driver in _ASYNC_DRIVERS:
-        return db_url
-    async_driver = _ASYNC_DRIVER_BY_BACKEND.get(backend)
-    if async_driver is None:
-        return db_url
-    return url.set(drivername=f"{backend}+{async_driver}").render_as_string(
-        hide_password=False
-    )
-
-
-def to_sync_db_url(db_url: str) -> str:
-    """Return db_url with a sync driver we actually ship.
-
-    Inverse of to_async_db_url, for sync-only consumers (e.g. Alembic).
-    """
-    url: URL = make_url(db_url)
-    if url.get_driver_name() not in _ASYNC_DRIVERS:
-        return db_url
-    backend = url.get_backend_name()
-    drivername = _SYNC_DRIVER_BY_BACKEND.get(backend, backend)
-    return url.set(drivername=drivername).render_as_string(hide_password=False)
 
 
 class SimpleJSON(TypeDecorator):
