@@ -136,10 +136,10 @@ export const formatModelName = (
   modelName: string,
   provider: string
 ): string => {
-  if (modelName.includes("/")) {
+  const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
+  if (modelName.startsWith(`${providerPrefix}/`)) {
     return modelName;
   }
 
-  const providerPrefix = PROVIDER_PREFIX_MAP[provider] || provider;
   return `${providerPrefix}/${modelName}`;
 };

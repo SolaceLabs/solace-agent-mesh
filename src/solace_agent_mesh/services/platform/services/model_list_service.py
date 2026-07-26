@@ -173,7 +173,7 @@ class ModelListService:
                 return [{"id": m, "label": m, "provider": provider} for m in fallback_models]
             raise RuntimeError(f"Failed to fetch models from {provider} API and LiteLLM registry: {str(e)}")
 
-    def _get_provider_api_base(self, provider: str) -> str:
+    def _get_provider_api_base(self, provider: str) -> Optional[str]:
         """Get the default API base URL for a provider."""
         api_bases = {
             ModelProviders.OPENAI: "https://api.openai.com/v1",
