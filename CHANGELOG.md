@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.6](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.5...1.28.6) (2026-07-28)
+
+
+### Bug Fixes
+
+* **DATAGO-145099,DATAGO-142507:** bump npm to 11.18.0 and js-yaml to 4.3.0 ([#1614](https://github.com/SolaceLabs/solace-agent-mesh/issues/1614)) ([36fa9bb](https://github.com/SolaceLabs/solace-agent-mesh/commit/36fa9bb84ac3a8d4ef1fda4d995ea5d1896cf5a3))
+
 ## [1.28.5](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.4...1.28.5) (2026-07-21)
 
 
