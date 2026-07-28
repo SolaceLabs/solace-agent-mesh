@@ -11,12 +11,12 @@ function AuthCallback() {
         const refreshToken = params.get("refresh_token");
 
         if (samAccessToken) {
-            localStorage.setItem("sam_access_token", samAccessToken);
+            sessionStorage.setItem("sam_access_token", samAccessToken);
         }
         if (accessToken) {
-            localStorage.setItem("access_token", accessToken);
+            sessionStorage.setItem("access_token", accessToken);
             if (refreshToken) {
-                localStorage.setItem("refresh_token", refreshToken);
+                sessionStorage.setItem("refresh_token", refreshToken);
             }
             // Redirect back to the URL the user left from (restores embedded-chat
             // params dropped by the IdP round-trip), or "/" if none was stashed.
