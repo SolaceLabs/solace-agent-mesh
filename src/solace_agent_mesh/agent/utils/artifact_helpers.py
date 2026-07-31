@@ -10,6 +10,7 @@ import csv
 import io
 import inspect
 import os
+import threading
 import yaml
 import traceback
 from datetime import datetime, timezone
@@ -38,13 +39,35 @@ BM25_INDEX_FILENAME = "project_bm25_index.zip"
 DEFAULT_SCHEMA_MAX_KEYS = 20
 DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 
-# Caps concurrent artifact-metadata S3 loads across the whole process. Without
-# this, get_artifact_info_list_fast does an unbounded asyncio.gather over every
+# Caps concurrent artifact-metadata S3 loads on each event loop. Without this,
+# get_artifact_info_list_fast does an unbounded asyncio.gather over every
 # artifact in a session, and the /api/v1/artifacts/all router fans out across
-# many sessions in parallel. Under multi-user load the combined fan-out
-# exhausts the botocore connection pool (default 200), discards connections,
-# and stalls the FastAPI event loop on TLS handshakes for unrelated requests.
-_METADATA_LOAD_SEMAPHORE = asyncio.Semaphore(50)
+# many sessions in parallel. A separate semaphore is required per loop because
+# asyncio synchronization primitives cannot safely serve waiters from another
+# loop once bound under contention.
+_METADATA_LOAD_LIMIT = 50
+_METADATA_LOAD_SEMAPHORES: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+_METADATA_LOAD_SEMAPHORES_LOCK = threading.Lock()
+
+
+def _get_metadata_load_semaphore() -> asyncio.Semaphore:
+    """Return the metadata-load semaphore for the current event loop."""
+    loop = asyncio.get_running_loop()
+
+    with _METADATA_LOAD_SEMAPHORES_LOCK:
+        closed_loops = [
+            cached_loop
+            for cached_loop in _METADATA_LOAD_SEMAPHORES
+            if cached_loop.is_closed()
+        ]
+        for closed_loop in closed_loops:
+            del _METADATA_LOAD_SEMAPHORES[closed_loop]
+
+        semaphore = _METADATA_LOAD_SEMAPHORES.get(loop)
+        if semaphore is None:
+            semaphore = asyncio.Semaphore(_METADATA_LOAD_LIMIT)
+            _METADATA_LOAD_SEMAPHORES[loop] = semaphore
+        return semaphore
 
 
 def is_internal_artifact(filename: str) -> bool:
@@ -1141,16 +1164,17 @@ async def get_artifact_info_list(
                             list_ver_err,
                         )
 
-                data = await load_artifact_content_or_metadata(
-                    artifact_service=artifact_service,
-                    app_name=app_name,
-                    user_id=user_id,
-                    session_id=session_id,
-                    filename=filename,
-                    version="latest",
-                    load_metadata_only=True,
-                    log_identifier_prefix=log_identifier_item,
-                )
+                async with _get_metadata_load_semaphore():
+                    data = await load_artifact_content_or_metadata(
+                        artifact_service=artifact_service,
+                        app_name=app_name,
+                        user_id=user_id,
+                        session_id=session_id,
+                        filename=filename,
+                        version="latest",
+                        load_metadata_only=True,
+                        log_identifier_prefix=log_identifier_item,
+                    )
 
                 metadata = data.get("metadata", {})
                 mime_type = metadata.get("mime_type", "application/data")
@@ -1344,7 +1368,7 @@ async def get_artifact_info_list_fast(
                 version_to_load: int | str = latest_metadata_version_by_filename.get(
                     filename, "latest"
                 )
-                async with _METADATA_LOAD_SEMAPHORE:
+                async with _get_metadata_load_semaphore():
                     data = await load_artifact_content_or_metadata(
                         artifact_service=artifact_service,
                         app_name=app_name,
