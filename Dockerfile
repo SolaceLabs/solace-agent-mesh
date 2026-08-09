@@ -171,6 +171,7 @@ COPY --from=node-binaries /usr/local/lib/node_modules /usr/local/lib/node_module
 # Pin libcap2=1:2.75-10+deb13u1+b1 to fix CVE-2026-4878 (TOCTOU race condition)
 # Pin sed=4.9-2+deb13u1 to fix CVE-2026-5958 (-i with --follow-symlinks)
 # Pin libsystemd0/libudev1=257.13-1~deb13u1 to fix multiple systemd CVEs (CVE-2026-40223..40228 et al.)
+# Pin libnss3=2:3.110-1+deb13u4 to fix CVE-2026-16389 (NSS integer overflow, DATAGO-146589)
 RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.list.d/unstable.list && \
     printf "Package: *\nPin: release a=unstable\nPin-Priority: 50\n\nPackage: libtasn1-6\nPin: release a=unstable\nPin-Priority: 900\n" > /etc/apt/preferences.d/99pin-libtasn1 && \
     apt-get update && \
@@ -181,6 +182,7 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
     libatomic1 \
     libc6=2.41-12+deb13u3 \
     libcap2=1:2.75-10+deb13u1+b1 \
+    libnss3=2:3.110-1+deb13u4 \
     libsystemd0=257.13-1~deb13u1 \
     libudev1=257.13-1~deb13u1 \
     libtasn1-6/unstable \
