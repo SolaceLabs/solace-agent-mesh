@@ -149,11 +149,6 @@ test-integration:
 	@echo "Running integration tests..."
 	uv run pytest tests/integration -v
 
-# Run OS/container CVE-pin regression tests (requires Docker; excluded from `make test` by default)
-test-security:
-	@echo "Running security/Docker CVE-pin tests..."
-	uv run pytest tests/security -v -o addopts=""
-
 # Run database migration tests (auto-installs deps, auto-manages containers)
 test-migrations: check-uv
 	@echo "Installing migration test dependencies..."
