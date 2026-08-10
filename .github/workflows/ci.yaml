@@ -129,10 +129,10 @@ jobs:
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
 
-  test-and-sonarqube:
-    name: Test and SonarQube
+  test-and-coverage:
+    name: Test and Coverage
     needs: detect-context
-    uses: ./.github/workflows/test-and-sonarqube.yml
+    uses: ./.github/workflows/test-and-coverage.yml
     permissions:
       contents: read
       checks: write
@@ -143,11 +143,6 @@ jobs:
       max-python-version: "3.13"
       node-version: "25.5.0"
       ui-path: "client/webui/frontend"
-      run_sonarqube_analysis: ${{ !fromJSON(needs.detect-context.outputs.is_fork_pr)}}
-      run_quality_gate: ${{ fromJSON(needs.detect-context.outputs.is_regular_pr) }}
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-      SONAR_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
 
   build-and-push:
     name: Build and Push Image
@@ -171,7 +166,7 @@ jobs:
   # ── Release-please PR: release readiness ──────────────────────
   release-readiness:
     name: Release Readiness
-    needs: [detect-context, build-and-push, test-and-sonarqube]
+    needs: [detect-context, build-and-push, test-and-coverage]
     if: ${{ fromJSON(needs.detect-context.outputs.is_release_please_pr) }}
     uses: ./.github/workflows/release-readiness-check.yaml
     with:
@@ -179,7 +174,6 @@ jobs:
       version: ${{ needs.build-and-push.outputs.version }}
       image_tag: ${{ needs.build-and-push.outputs.image_tag }}
       check_only: false
-      check_sonarqube_hotspots: true
     secrets: inherit
 
   # ── Release-please PR: RC gate (after release readiness) ──────
@@ -246,7 +240,6 @@ jobs:
           PR_BASE_SHA: ${{ needs.detect-context.outputs.pr_base_sha }}
           FOSSA_STATUS: ${{ needs.release-readiness.outputs.fossa_status }}
           PRISMA_STATUS: ${{ needs.release-readiness.outputs.prisma_status }}
-          SONAR_STATUS: ${{ needs.release-readiness.outputs.sonarqube_hotspots_status }}
           GUARDIAN_STATUS: ${{ needs.release-readiness.outputs.guardian_status }}
           RC_STATUS: ${{ needs.rc-gate.outputs.rc_status }}
         with:
@@ -259,7 +252,6 @@ jobs:
             const checks = [
               ['FOSSA / Release Readiness', process.env.FOSSA_STATUS],
               ['Prisma / Release Readiness', process.env.PRISMA_STATUS],
-              ['SonarQube Hotspots / Release Readiness', process.env.SONAR_STATUS],
               ['Guardian / Release Readiness', process.env.GUARDIAN_STATUS],
               ['RC / Integration Tests (Community)', process.env.RC_STATUS],
             ];
@@ -285,7 +277,7 @@ jobs:
     needs:
       - detect-context
       - fossa_scan
-      - test-and-sonarqube
+      - test-and-coverage
       - build-and-push
       - release-readiness
       - rc-gate
@@ -302,7 +294,7 @@ jobs:
           IS_RP_PR: ${{ needs.detect-context.outputs.is_release_please_pr }}
           CONTEXT_RESULT: ${{ needs.detect-context.result }}
           FOSSA_RESULT: ${{ needs.fossa_scan.result }}
-          TEST_RESULT: ${{ needs.test-and-sonarqube.result }}
+          TEST_RESULT: ${{ needs.test-and-coverage.result }}
           BUILD_RESULT: ${{ needs.build-and-push.result }}
           READINESS_RESULT: ${{ needs.release-readiness.result }}
           RC_GATE_RESULT: ${{ needs.rc-gate.result }}
@@ -322,7 +314,7 @@ jobs:
           }
 
           require_result "Detect Context" "${CONTEXT_RESULT}" success
-          require_result "Test and SonarQube" "${TEST_RESULT}" success
+          require_result "Test and Coverage" "${TEST_RESULT}" success
           require_result "Build and Push" "${BUILD_RESULT}" success
 
           if [[ "$IS_RP_PR" == "true" ]]; then

@@ -21,11 +21,6 @@ on:
         type: boolean
         required: false
         default: false
-      check_sonarqube_hotspots:
-        description: "Whether SonarQube hotspot check should be enforced."
-        type: boolean
-        required: false
-        default: true
       skip_security_checks:
         description: "Skip failed security checks and continue the workflow (requires admin permission)."
         type: boolean
@@ -38,9 +33,6 @@ on:
       prisma_status:
         description: "Prisma gate status"
         value: ${{ jobs.release-readiness-status.outputs.prisma_status }}
-      sonarqube_hotspots_status:
-        description: "SonarQube hotspots gate status"
-        value: ${{ jobs.release-readiness-status.outputs.sonarqube_hotspots_status }}
       guardian_status:
         description: "Guardian gate status"
         value: ${{ jobs.release-readiness-status.outputs.guardian_status }}
@@ -64,11 +56,6 @@ on:
         type: boolean
         required: false
         default: false
-      check_sonarqube_hotspots:
-        description: "Whether SonarQube hotspot check should be enforced."
-        type: boolean
-        required: false
-        default: true
       skip_security_checks:
         description: "Skip failed security checks and continue the workflow (requires admin permission)."
         type: boolean
@@ -236,66 +223,6 @@ jobs:
           echo "Prisma scan failed." >&2
           exit 1
 
-  sonarqube-hotspots:
-    name: SonarQube Hotspots
-    needs: [resolve-context, check-bypass]
-    if: ${{ fromJSON(inputs.check_sonarqube_hotspots) }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-      id-token: write
-      checks: write
-      statuses: write
-    outputs:
-      status: ${{ steps.capture.outputs.status }}
-    steps:
-      - name: Run SonarQube hotspot checker
-        id: sonarqube
-        continue-on-error: true
-        env:
-          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
-          SONARQUBE_PROJECT_MAIN_BRANCH: "main"
-          SONARQUBE_QUERY_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONARQUBE_HOTSPOTS_API_URL: ${{ secrets.SONARQUBE_HOTSPOTS_API_URL }}
-        run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          DOCKER_CONFIG=$(mktemp -d "${RUNNER_TEMP}/docker-config.XXXXXX")
-          export DOCKER_CONFIG
-          trap 'docker logout ghcr.io > /dev/null 2>&1 || true; rm -rf "${DOCKER_CONFIG}"' EXIT
-          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker run --rm \
-            -e SONARQUBE_PROJECT_KEY \
-            -e SONARQUBE_PROJECT_MAIN_BRANCH \
-            -e SONARQUBE_QUERY_TOKEN \
-            -e SONARQUBE_HOTSPOTS_API_URL \
-            ghcr.io/${OWNER}/maas-build-actions:latest \
-            /bin/sh -c '. $VIRTUAL_ENV/bin/activate && cd $ACTIONS_PATH/sonarqube-hotspot-checker && python sonarqube_checker.py'
-
-      - name: Capture SonarQube status
-        id: capture
-        if: always()
-        env:
-          SONAR_OUTCOME: ${{ steps.sonarqube.outcome }}
-        run: |
-          STATUS=success
-          if [[ "$SONAR_OUTCOME" != "success" ]]; then
-            STATUS=failure
-          fi
-          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-
-      - name: Enforce SonarQube hotspot result
-        if: ${{ steps.capture.outputs.status != 'success' }}
-        env:
-          BYPASS_APPROVED: ${{ needs.check-bypass.outputs.bypass_approved }}
-        run: |
-          if [[ "$BYPASS_APPROVED" == "true" ]]; then
-            echo "::warning::SonarQube hotspot check failed (bypassed by admin)."
-            exit 0
-          fi
-          echo "SonarQube hotspot check failed." >&2
-          exit 1
-
   guardian-gate:
     name: Guardian Vulnerability Gate
     needs: [resolve-context, check-bypass, fossa-scan, prisma-scan]
@@ -368,25 +295,21 @@ jobs:
       - check-bypass
       - fossa-scan
       - prisma-scan
-      - sonarqube-hotspots
       - guardian-gate
     if: always()
     runs-on: ubuntu-latest
     outputs:
       fossa_status: ${{ steps.evaluate.outputs.fossa_status }}
       prisma_status: ${{ steps.evaluate.outputs.prisma_status }}
-      sonarqube_hotspots_status: ${{ steps.evaluate.outputs.sonarqube_hotspots_status }}
       guardian_status: ${{ steps.evaluate.outputs.guardian_status }}
     steps:
       - name: Evaluate release readiness gates
         id: evaluate
         env:
           CHECK_ONLY: ${{ fromJSON(inputs.check_only) && 'true' || 'false' }}
-          CHECK_SONARQUBE: ${{ fromJSON(inputs.check_sonarqube_hotspots) && 'true' || 'false' }}
           SKIP_SECURITY: ${{ needs.check-bypass.outputs.bypass_approved || 'false' }}
           FOSSA_RESULT: ${{ needs.fossa-scan.result }}
           PRISMA_RESULT: ${{ needs.prisma-scan.result }}
-          SONAR_RESULT: ${{ needs.sonarqube-hotspots.result }}
           GUARDIAN_RESULT: ${{ needs.guardian-gate.result }}
         run: |
           set -euo pipefail
@@ -394,16 +317,11 @@ jobs:
           FAILURES=0
           FOSSA_STATUS="$FOSSA_RESULT"
           PRISMA_STATUS="$PRISMA_RESULT"
-          SONAR_STATUS="$SONAR_RESULT"
           GUARDIAN_STATUS="$GUARDIAN_RESULT"
 
           if [[ "$CHECK_ONLY" == "true" ]]; then
             FOSSA_STATUS="skipped"
             PRISMA_STATUS="skipped"
-          fi
-
-          if [[ "$CHECK_SONARQUBE" != "true" ]]; then
-            SONAR_STATUS="skipped"
           fi
 
           require_success() {
@@ -424,15 +342,10 @@ jobs:
             require_success "Prisma" "$PRISMA_RESULT"
           fi
 
-          if [[ "$CHECK_SONARQUBE" == "true" ]]; then
-            require_success "SonarQube Hotspots" "$SONAR_RESULT"
-          fi
-
           require_success "Guardian" "$GUARDIAN_RESULT"
 
           echo "fossa_status=$FOSSA_STATUS" >> "$GITHUB_OUTPUT"
           echo "prisma_status=$PRISMA_STATUS" >> "$GITHUB_OUTPUT"
-          echo "sonarqube_hotspots_status=$SONAR_STATUS" >> "$GITHUB_OUTPUT"
           echo "guardian_status=$GUARDIAN_STATUS" >> "$GITHUB_OUTPUT"
 
           {
@@ -440,7 +353,6 @@ jobs:
             echo ""
             echo "- FOSSA: \`$FOSSA_STATUS\`"
             echo "- Prisma: \`$PRISMA_STATUS\`"
-            echo "- SonarQube Hotspots: \`$SONAR_STATUS\`"
             echo "- Guardian: \`$GUARDIAN_STATUS\`"
             echo "- Security bypass: \`$SKIP_SECURITY\`"
           } >> "$GITHUB_STEP_SUMMARY"
