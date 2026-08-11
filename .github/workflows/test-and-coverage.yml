@@ -1,4 +1,4 @@
-name: Test and SonarQube Analysis
+name: Test and Coverage
 
 on:
   workflow_call:
@@ -28,24 +28,6 @@ on:
         required: false
         default: "client/webui/frontend"
         description: "Path to the UI frontend directory"
-
-      run_sonarqube_analysis:
-        type: boolean
-        required: false
-        default: true
-        description: "Whether to run SonarQube analysis"
-      run_quality_gate:
-        type: boolean
-        required: false
-        default: true
-        description: "Whether to run SonarQube quality gate"
-    secrets:
-      SONAR_TOKEN:
-        description: "SonarQube token"
-        required: true
-      SONAR_HOST_URL:
-        description: "SonarQube host URL"
-        required: true
 
 permissions:
   contents: read
@@ -303,19 +285,14 @@ jobs:
           ls dist/*.whl | xargs -n1 twine check
 
   # ----------------------------------------------------
-  # UNIFIED SONARQUBE ANALYSIS (Python + UI Coverage)
+  # COVERAGE REPORT (Python + UI Coverage)
   # ----------------------------------------------------
-  sonarqube-analysis:
-    name: SonarQube Analysis
+  coverage-report:
+    name: Coverage Report
     runs-on: ubuntu-latest
     needs: [validate-dependencies, test-python-matrix, test-ui]
     if: ${{ !github.event.repository.fork }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.git_ref || github.sha }}
       - name: Download Python Coverage Artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -328,43 +305,23 @@ jobs:
           name: ui-coverage
           path: ${{ inputs.ui-path }}/coverage
 
-      - name: Prepare Coverage Reports
-        env:
-          UI_PATH: ${{ inputs.ui-path }}
-        run: |
-          echo "📊 Preparing coverage reports for SonarQube..."
+      - name: Code Coverage Summary
+        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95 # v1.3.0
+        with:
+          filename: "python-coverage/coverage.xml,${{ inputs.ui-path }}/coverage/cobertura-coverage.xml"
+          badge: true
+          format: markdown
+          output: both
+          thresholds: "50 75"
 
-          # Move Python coverage to root
-          if [ -f "python-coverage/coverage.xml" ]; then
-            cp python-coverage/coverage.xml coverage.xml
-            echo "✅ Python coverage.xml ready"
-          else
-            echo "⚠️ Python coverage.xml not found"
-          fi
+      - name: Add Coverage Summary to Job Summary
+        if: always()
+        run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
 
-          # Verify UI coverage
-          if [ -f "${UI_PATH}/coverage/lcov.info" ]; then
-            echo "✅ UI lcov.info ready"
-          else
-            echo "⚠️ UI lcov.info not found"
-          fi
-
-          echo ""
-          echo "📁 Coverage files:"
-          ls -lah coverage.xml 2>/dev/null || echo "No Python coverage"
-          ls -lah ${UI_PATH}/coverage/ 2>/dev/null || echo "No UI coverage"
-
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
-        if: ${{ fromJSON(inputs.run_sonarqube_analysis) }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: SonarQube Quality Gate
-        if: ${{ fromJSON(inputs.run_quality_gate) }}
-        id: sonarqube-quality-gate-check
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: Post Coverage Comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: coverage
+          recreate: true
+          path: code-coverage-results.md

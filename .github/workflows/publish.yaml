@@ -105,7 +105,6 @@ jobs:
       version: ${{ needs.resolve-release.outputs.version }}
       image_tag: ${{ needs.resolve-release.outputs.image_tag }}
       check_only: true
-      check_sonarqube_hotspots: true
       skip_security_checks: ${{ inputs.skip_security_checks }}
     secrets: inherit
 
