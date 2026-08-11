@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.28.7](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.6...1.28.7) (2026-08-11)
+
+
+### Bug Fixes
+
+* **DATAGO-130675:** bump pypdf to 6.15.0 ([#1624](https://github.com/SolaceLabs/solace-agent-mesh/issues/1624)) ([4854d03](https://github.com/SolaceLabs/solace-agent-mesh/commit/4854d035019c8b522ce459f7d0e160810cbe28c5))
+* **DATAGO-145440:** bump GitPython to 3.1.59 ([#1622](https://github.com/SolaceLabs/solace-agent-mesh/issues/1622)) ([d5645b0](https://github.com/SolaceLabs/solace-agent-mesh/commit/d5645b0ef1a3883fbd7a70384f65ce02c776ddac))
+* **DATAGO-146160:** bump pyasn1 to 0.6.4 for CVE-2026-59884, CVE-2026-59885, CVE-2026-59886 ([#1620](https://github.com/SolaceLabs/solace-agent-mesh/issues/1620)) ([f25e003](https://github.com/SolaceLabs/solace-agent-mesh/commit/f25e0032d905cb0aaa21d34af89c54782286f708))
+* **DATAGO-146589:** pin libnss3 to 2:3.110-1+deb13u4 for CVE-2026-16389 ([#1618](https://github.com/SolaceLabs/solace-agent-mesh/issues/1618)) ([52f5277](https://github.com/SolaceLabs/solace-agent-mesh/commit/52f5277e80414144a27704614327b6146abdea38))
+* **DATAGO-147141:** bump undici override to 7.29.0 ([#1621](https://github.com/SolaceLabs/solace-agent-mesh/issues/1621)) ([0bd6e02](https://github.com/SolaceLabs/solace-agent-mesh/commit/0bd6e022e290df2c281653e432b8447cbace8618))
+
 ## [1.28.6](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.5...1.28.6) (2026-07-28)
 
 
