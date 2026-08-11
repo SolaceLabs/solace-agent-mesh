@@ -7,7 +7,7 @@ Release Please, CI-driven release readiness checks, and the publish pipeline.
 
 ```
 Push to main
-  ├── CI: tests, SonarQube, FOSSA (PRs only), Docker build
+  ├── CI: tests, coverage, FOSSA (PRs only), Docker build
   └── Release Please (independent, does not wait for CI)
         ├── Creates/updates release-please PR (if releasable commits exist)
         └── Creates GitHub Release (if release-please PR was just merged)
@@ -16,9 +16,9 @@ Push to main
 
 Release-please PR (opened by Release Please)
   └── CI (triggered by PR event, detects release-please context)
-        ├── Tests + SonarQube
+        ├── Tests + Coverage
         ├── Docker build + push to ECR
-        ├── Release Readiness (FOSSA, Prisma, SonarQube Hotspots, Guardian)
+        ├── Release Readiness (FOSSA, Prisma, Guardian)
         ├── RC Gate (integration tests, dispatched after readiness passes)
         └── Propagate statuses to PR for branch protection
 ```
@@ -30,7 +30,7 @@ Release-please PR (opened by Release Please)
 | `ci.yaml` | Push to `main`, PRs | Tests, FOSSA scan (PRs), Docker build; on release-please PRs also runs release readiness + RC gate |
 | `release-please.yaml` | Push to `main` | Independently creates/updates release-please PRs and creates GitHub Releases |
 | `publish.yaml` | `workflow_dispatch` | Publishes to PyPI and promotes Docker image to DockerHub |
-| `release-readiness-check.yaml` | Called by CI and publish | Runs security/compliance gates (FOSSA, Prisma, SonarQube, Guardian) |
+| `release-readiness-check.yaml` | Called by CI and publish | Runs security/compliance gates (FOSSA, Prisma, Guardian) |
 | `build-push-image.yaml` | Called by CI | Reusable multi-platform Docker build with ECR push and caching |
 | `fossa-scan.yaml` | Manual dispatch | Ad-hoc FOSSA scan (wraps `sca-scan-and-guard.yaml`) |
 
@@ -82,7 +82,7 @@ the execution context (`detect-context` job) to determine the flow:
 ```
 detect-context
   ├── fossa_pr_scan (diff mode, PR comment, status check)
-  ├── test-and-sonarqube
+  ├── test-and-coverage
   ├── build-and-push (build only, no ECR push)
   └── ci-status (gate)
 ```
@@ -96,12 +96,12 @@ detect-context
 
 ```
 detect-context
-  ├── test-and-sonarqube
+  ├── test-and-coverage
   ├── build-and-push (build + push to ECR + multi-arch manifest + DynamoDB update)
   └── ci-status (gate)
 ```
 
-- Tests and SonarQube analysis run.
+- Tests run with coverage reporting.
 - Docker images are built, pushed to ECR, and a multi-arch manifest is created.
 - FOSSA does **not** run on push (it runs on PRs and inside release readiness).
 - Release Please runs independently in its own workflow &mdash; CI does not call it.
@@ -113,9 +113,9 @@ runs the full release readiness pipeline instead of the regular PR flow:
 
 ```
 detect-context
-  ├── test-and-sonarqube
+  ├── test-and-coverage
   ├── build-and-push (build + push to ECR for scanning)
-  ├── release-readiness (FOSSA, Prisma, SonarQube Hotspots, Guardian)
+  ├── release-readiness (FOSSA, Prisma, Guardian)
   │     └── rc-gate (dispatch RC workflow and wait)
   └── propagate-release-statuses
         └── Commit statuses written to PR head + base SHAs
@@ -126,7 +126,7 @@ detect-context
 - Release readiness runs the full security/compliance suite.
 - After readiness passes, the RC gate dispatches integration tests in
   `rc-sam-community` and waits for completion (up to 2 hours).
-- All results (FOSSA, Prisma, SonarQube, Guardian, RC) are propagated as
+- All results (FOSSA, Prisma, Guardian, RC) are propagated as
   **GitHub commit statuses** on the PR, making them visible in the PR UI and
   available for branch protection rules.
 
@@ -139,7 +139,6 @@ the following security and compliance gates:
 |------|---------------|
 | **FOSSA Scan** | Open-source licensing compliance and known vulnerabilities |
 | **Prisma Scan** | Container image vulnerability scanning |
-| **SonarQube Hotspots** | Security hotspot review status |
 | **Guardian Gate** | Unified vulnerability gate across FOSSA and Prisma findings |
 
 The RC gate is **not** part of this workflow. It runs as a separate job in
@@ -160,7 +159,7 @@ The workflow supports two modes controlled by `check_only`:
 When `skip_security_checks: true` is passed, the workflow verifies that the
 triggering GitHub actor has **admin** permission on the repository. If confirmed:
 
-- Failing security gates (FOSSA, Prisma, SonarQube, Guardian) emit warnings
+- Failing security gates (FOSSA, Prisma, Guardian) emit warnings
   instead of errors and do not cause the workflow to fail.
 
 If the actor is not an admin, the bypass is denied and all gates are enforced
@@ -181,7 +180,6 @@ base SHAs:
 
 - `FOSSA / Release Readiness`
 - `Prisma / Release Readiness`
-- `SonarQube Hotspots / Release Readiness`
 - `Guardian / Release Readiness`
 - `RC / Integration Tests (Community)`
 
@@ -234,12 +232,12 @@ Only repository admins can use this bypass.
 
 ```
  1. Developer merges feature PR to main
- 2. CI runs on main: tests, SonarQube, Docker build + push to ECR
+ 2. CI runs on main: tests, coverage, Docker build + push to ECR
  3. Release Please (independent) creates/updates release-please PR
  4. CI runs on release-please PR:
-    a. Tests + SonarQube
+    a. Tests + Coverage
     b. Docker build + push to ECR
-    c. Release readiness: FOSSA, Prisma, SonarQube Hotspots, Guardian
+    c. Release readiness: FOSSA, Prisma, Guardian
     d. RC gate: dispatches and waits for integration tests
     e. Statuses propagated to PR for branch protection
  5. Reviewer approves and merges the release-please PR
@@ -257,7 +255,7 @@ Only repository admins can use this bypass.
 ### Release readiness failing on the release-please PR
 
 Check the individual gates in the workflow run summary. Each gate (FOSSA, Prisma,
-SonarQube, Guardian) reports its status. If a gate is failing due to a known
+Guardian) reports its status. If a gate is failing due to a known
 issue, an admin can use `skip_security_checks` on the publish workflow to proceed
 with publishing despite the failure.
 
