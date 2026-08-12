@@ -260,8 +260,9 @@ jobs:
         uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
 
       - name: Install Hatch and Twine
+        # hatchling>=1.32 defaults core metadata to 2.5, which current twine/PyPI upload tooling rejects
         run: |
-          uv tool install hatch
+          uv tool install --with "hatchling<1.32" hatch
           uv tool install twine
 
       - name: Run Lint
