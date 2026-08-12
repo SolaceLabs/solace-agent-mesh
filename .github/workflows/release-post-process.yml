@@ -92,7 +92,8 @@ jobs:
 
       - name: Install Hatch
         if: steps.resolve-commit.outputs.is_release_please_tag == 'true'
-        run: uv tool install --with virtualenv==20.26.6 hatch
+        # hatchling>=1.32 defaults core metadata to 2.5, which current PyPI upload tooling rejects
+        run: uv tool install --with virtualenv==20.26.6 --with "hatchling<1.32" hatch
 
       - name: Build package artifacts
         if: steps.resolve-commit.outputs.is_release_please_tag == 'true'

@@ -3,6 +3,7 @@ Helper functions for artifact management, including metadata handling and schema
 """
 
 import asyncio
+import weakref as weak
 import logging
 import base64
 import json
@@ -44,7 +45,26 @@ DEFAULT_SCHEMA_INFERENCE_DEPTH = 4
 # many sessions in parallel. Under multi-user load the combined fan-out
 # exhausts the botocore connection pool (default 200), discards connections,
 # and stalls the FastAPI event loop on TLS handshakes for unrelated requests.
-_METADATA_LOAD_SEMAPHORE = asyncio.Semaphore(50)
+_METADATA_LOAD_SEMAPHORE_CAP = 50
+_metadata_load_semaphores: weak.WeakKeyDictionary = weak.WeakKeyDictionary()
+
+
+def _get_metadata_load_semaphore() -> asyncio.Semaphore:
+    """Return this event loop's metadata-load semaphore, creating one on first use.
+
+    A single ``asyncio.Semaphore`` created at import time binds its internal
+    waiter futures to whichever event loop first acquires it. When multiple
+    long-lived loops coexist in one process (e.g. uvicorn's loop and a SAC
+    component's ``async_loop``), acquiring from a second loop raises
+    ``RuntimeError: ... bound to a different event loop`` under contention.
+    Keying on the running loop keeps each loop's waiters inside that loop.
+    """
+    loop = asyncio.get_running_loop()
+    sem = _metadata_load_semaphores.get(loop)
+    if sem is None:
+        sem = asyncio.Semaphore(_METADATA_LOAD_SEMAPHORE_CAP)
+        _metadata_load_semaphores[loop] = sem
+    return sem
 
 
 def is_internal_artifact(filename: str) -> bool:
@@ -1344,7 +1364,7 @@ async def get_artifact_info_list_fast(
                 version_to_load: int | str = latest_metadata_version_by_filename.get(
                     filename, "latest"
                 )
-                async with _METADATA_LOAD_SEMAPHORE:
+                async with _get_metadata_load_semaphore():
                     data = await load_artifact_content_or_metadata(
                         artifact_service=artifact_service,
                         app_name=app_name,
