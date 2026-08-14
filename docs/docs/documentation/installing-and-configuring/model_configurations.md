@@ -239,6 +239,8 @@ The indicator is only rendered when the model's context window is known. The pla
 
 If none of these resolve, the indicator is hidden rather than displayed against a guessed limit. Set `Max Input Tokens` explicitly in the Models UI whenever you connect a Custom provider or a model the registry does not recognize, and check the provider's documentation for the current value — providers publish this per model and can change it over time.
 
+The model itself is identified from the selected agent's most recent completed task in the session, which is the point at which the agent reports the model it used. The indicator is therefore hidden until that agent completes its first task in a session, and stays hidden for providers that do not return token usage metadata. In the latter case the gateway logs a warning naming the session and agent.
+
 ## Next Steps
 
 - For details on LLM provider configuration options and prompt caching, see [Configuring LLMs](./large_language_models.md)

@@ -1173,11 +1173,6 @@ async def trigger_title_generation(
 # Context Usage & Manual Compaction Endpoints
 # =============================================================================
 
-# Fallback model used for token counting when neither the request nor the
-# component config specifies a model.  Callers should prefer the component's
-# configured model (component.model_config) over this constant.
-DEFAULT_MODEL = "claude-sonnet-4-5"
-
 
 class ContextUsageResponse(BaseModel):
     """Response model for session context window usage."""
@@ -1188,7 +1183,10 @@ class ContextUsageResponse(BaseModel):
     cached_tokens: int = Field(default=0, alias="cachedTokens")
     max_input_tokens: Optional[int] = Field(default=None, alias="maxInputTokens")
     usage_percentage: float = Field(alias="usagePercentage")
-    model: str
+    # None when the model could not be attributed to the selected agent (no
+    # completed task yet, or the provider never reported usage metadata). The
+    # client hides the indicator rather than showing an invented model.
+    model: Optional[str] = None
     total_events: int = Field(alias="totalEvents")
     total_messages: int = Field(default=0, alias="totalMessages")
     total_tasks: int = Field(default=0, alias="totalTasks")
@@ -1356,14 +1354,13 @@ async def get_session_context_usage(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
         # Resolve the model to use for context limit lookup:
-        # 1. Explicit model from request query param
-        # 2. Model configured on the gateway component
-        # 3. Hardcoded fallback constant
-        component_model = None
-        if hasattr(component, "model_config") and isinstance(component.model_config, dict):
-            component_model = component.model_config.get("model")
-        resolved_default_model = component_model or DEFAULT_MODEL
-        effective_model = model or resolved_default_model
+        # 1. Explicit model from the request query param (caller override)
+        # 2. The model the selected agent actually used, read from its latest
+        #    completed task's token_usage_details.by_model further below
+        # 3. None — unknown. Never fall back to the gateway component's own
+        #    `model:` config: that is the gateway's model, not the agent's, and
+        #    inventing a name here produces a confidently wrong context limit.
+        effective_model: Optional[str] = model
 
         prompt_tokens = 0
         completion_tokens = 0
@@ -1434,16 +1431,22 @@ async def get_session_context_usage(
                 except AttributeError:
                     return None
 
-            # Find the most recent real (non-compaction) task's agent — that's the
-            # ADK session currently active for this gateway session.
-            current_agent: Optional[str] = None
-            for t in completed_tasks:
-                if (t.id or "").startswith("compaction-cost-"):
-                    continue
-                current_agent = _task_agent(t.id)
-                if current_agent:
-                    break
-            if current_agent is None:
+            # The agent the caller says the user is talking to wins — the UI
+            # passes ?agent_name= for exactly this, and it is authoritative in a
+            # way history is not: right after an agent switch the most recent
+            # task still belongs to the *previous* agent. Fall back to the
+            # historical inference for callers that omit the parameter.
+            current_agent: Optional[str] = agent_name
+            if not current_agent:
+                # Find the most recent real (non-compaction) task's agent — that's the
+                # ADK session currently active for this gateway session.
+                for t in completed_tasks:
+                    if (t.id or "").startswith("compaction-cost-"):
+                        continue
+                    current_agent = _task_agent(t.id)
+                    if current_agent:
+                        break
+            if not current_agent:
                 current_agent = gateway_session.agent_id
 
             if current_agent:
@@ -1455,6 +1458,15 @@ async def get_session_context_usage(
                     for t in completed_tasks
                     if t.id.startswith("compaction-cost-") or _task_agent(t.id) == current_agent
                 ]
+
+                # Compaction-cost rows are kept unconditionally above because they
+                # belong to the session rather than to any one agent. On their own,
+                # though, they are not an agent's context: if no real task survived
+                # the filter, this agent has no history in this session yet, and
+                # reporting the previous agent's post-compaction remaining tokens
+                # as this agent's context would be wrong.
+                if all((t.id or "").startswith("compaction-cost-") for t in completed_tasks):
+                    completed_tasks = []
 
         current_tokens = 0
 
@@ -1502,6 +1514,19 @@ async def get_session_context_usage(
                     dominant = max(valid_entries, key=lambda kv: kv[1].get("input_tokens", 0))
                     effective_model = dominant[0]
 
+            if not effective_model:
+                # The agent has completed work in this session but never reported
+                # which model it used — typically a provider that omits usage
+                # metadata. Surface it: the indicator will be hidden, and without
+                # this the failure is silent.
+                log.warning(
+                    "Context usage for session %s: completed tasks exist for agent %s "
+                    "but no model could be attributed (token_usage_details.by_model "
+                    "is empty) — hiding the context indicator.",
+                    session_id,
+                    current_agent,
+                )
+
         stamped_limit: Optional[int] = None
         if completed_tasks:
             real_latest_for_limit = next(
@@ -1517,7 +1542,11 @@ async def get_session_context_usage(
                 except (TypeError, ValueError):
                     stamped_limit = None
 
-        max_input_tokens = _get_model_context_limit(effective_model, db=db, stamped=stamped_limit)
+        max_input_tokens = (
+            _get_model_context_limit(effective_model, db=db, stamped=stamped_limit)
+            if effective_model
+            else None
+        )
         usage_pct = (
             min(100.0, round((current_tokens / max_input_tokens) * 100, 1))
             if max_input_tokens and current_tokens > 0
