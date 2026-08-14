@@ -241,7 +241,7 @@ export function ContextUsageIndicator({ sessionId, onCompacted, messageCount = 0
                                 <span className="text-muted-foreground shrink-0">Model:</span>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="min-w-0 truncate font-mono font-semibold">{formatModelName(usage.model)}</span>
+                                        <span className="min-w-0 truncate font-mono font-semibold">{formatModelName(usage.model ?? "")}</span>
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs break-all">{usage.model}</TooltipContent>
                                 </Tooltip>
