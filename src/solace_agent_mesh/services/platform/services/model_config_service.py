@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 # Without the correct prefix, LiteLLM may route to the wrong provider
 # (e.g., a bare "gemini-pro" routes to Vertex AI instead of Google AI Studio).
 _LITELLM_PROVIDER_PREFIXES = {
+    "atlascloud": "openai/",
     "google_ai_studio": "gemini/",
     "vertex_ai": "vertex_ai/",
     "bedrock": "bedrock/",
@@ -60,7 +61,7 @@ def _resolve_litellm_model_name(provider: Optional[str], model_name: str) -> str
     if not provider or not model_name:
         return model_name
     required_prefix = _LITELLM_PROVIDER_PREFIXES.get(provider)
-    if required_prefix and not model_name.startswith(required_prefix) and "/" not in model_name:
+    if required_prefix and not model_name.startswith(required_prefix):
         return f"{required_prefix}{model_name}"
     return model_name
 
@@ -68,6 +69,7 @@ def _resolve_litellm_model_name(provider: Optional[str], model_name: str) -> str
 # Default API bases for known providers
 _DEFAULT_API_BASES = {
     "openai": "https://api.openai.com/v1",
+    "atlascloud": "https://api.atlascloud.ai/v1",
     "anthropic": "https://api.anthropic.com",
     "google_ai_studio": "https://generativelanguage.googleapis.com/v1beta",
     "vertex_ai": "https://us-central1-aiplatform.googleapis.com/v1",
