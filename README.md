@@ -222,3 +222,36 @@ pytest
 <h3 align="center">
   <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/main/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
+
+
+---
+
+## 🪟 Windows Troubleshooting
+
+### Create Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+### Activate Virtual Environment
+
+```bash
+venv\Scripts\activate
+```
+
+### Common PATH Fix
+
+If `pip` or `python` is not recognized:
+
+- Reinstall Python
+- Enable "Add Python to PATH" during installation
+- Restart terminal after installation
+
+### Verify Installation
+
+```bash
+python --version
+pip --version
+```
+
