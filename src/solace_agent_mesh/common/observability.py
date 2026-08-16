@@ -177,6 +177,8 @@ class RemoteAgentProxyMonitor(OperationMonitor):
         )
         instance.error_parser = cls.parse_error
         return instance
+
+
 class ArtifactMonitor(RemoteRequestMonitor):
     """
     Type-safe monitor for artifact service operation duration.

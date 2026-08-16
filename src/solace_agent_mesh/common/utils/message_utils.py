@@ -38,15 +38,17 @@ def calculate_message_size(payload: Dict[str, Any]) -> int:
     except (TypeError, ValueError) as e:
         # Graceful fallback if JSON serialization fails
         log.warning(
-            f"Failed to serialize payload to JSON for size calculation: {e}. "
-            f"Using string representation fallback."
+            "Failed to serialize payload to JSON for size calculation: %s. "
+            "Using string representation fallback.",
+            e,
         )
         try:
             return len(str(payload).encode("utf-8"))
         except Exception as fallback_error:
             log.error(
-                f"Fallback size calculation also failed: {fallback_error}. "
-                f"Returning conservative estimate."
+                "Fallback size calculation also failed: %s. "
+                "Returning conservative estimate.",
+                fallback_error,
             )
             # Conservative estimate using maximum UTF-8 bytes per character
             return len(str(payload)) * MAX_UTF8_BYTES_PER_CHARACTER
