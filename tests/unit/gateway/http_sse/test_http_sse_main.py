@@ -456,3 +456,112 @@ class TestHealthCheck:
         response = await main.read_root()
         
         assert response["status"] == "A2A Web UI Backend is running"
+
+
+# ============================================================================
+# CORS Wildcard Security Tests
+# ============================================================================
+
+class TestCORSWildcardHandling:
+    """Test that wildcard CORS origins are handled securely."""
+
+    @pytest.fixture(autouse=True)
+    def mock_fastapi_app(self):
+        with patch("solace_agent_mesh.gateway.http_sse.main.app") as mock_app:
+            yield mock_app
+
+    @pytest.fixture(autouse=True)
+    def mock_oauth_middleware(self):
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.main.create_oauth_middleware"
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def mock_dependencies(self):
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.main.dependencies"
+        ) as mock_deps:
+            mock_deps.get_api_config.return_value = {
+                "frontend_use_authorization": False
+            }
+            yield mock_deps
+
+    @pytest.fixture(autouse=True)
+    def mock_observability(self):
+        with patch(
+            "solace_agent_mesh.gateway.http_sse.main.GatewayObservabilityMiddleware",
+            create=True,
+        ):
+            # The import is inside the function, so patch the module attribute
+            with patch(
+                "solace_agent_mesh.gateway.http_sse.middleware.observability.GatewayObservabilityMiddleware",
+                create=True,
+            ):
+                yield
+
+    def _make_component(self, origins, host="127.0.0.1", port=8000):
+        comp = MagicMock()
+        comp.get_cors_origins.return_value = origins
+        comp.get_cors_origin_regex.return_value = ""
+        comp.fastapi_host = host
+        comp.fastapi_port = port
+        comp.fastapi_https_port = 8443
+        comp.ssl_keyfile = ""
+        comp.ssl_certfile = ""
+        comp.get_session_manager.return_value = MagicMock(
+            secret_key="test_secret"
+        )
+        comp.get_config.return_value = False
+        comp.identity_service = None
+        comp.log_identifier = "[test]"
+        return comp
+
+    def _get_cors_origins(self, mock_fastapi_app):
+        cors_call = mock_fastapi_app.add_middleware.call_args_list[0]
+        return cors_call[1]["allow_origins"]
+
+    def test_wildcard_origin_is_stripped(self, mock_fastapi_app):
+        """Wildcard '*' must not reach CORSMiddleware when credentials are enabled."""
+        component = self._make_component(["*"])
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert "*" not in origins
+
+    def test_wildcard_replaced_with_auto_constructed_origin(self, mock_fastapi_app):
+        """When '*' is stripped and no other origins remain, auto-construct from host/port."""
+        component = self._make_component(["*"])
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert "http://localhost:8000" in origins
+
+    def test_wildcard_stripped_but_explicit_origins_kept(self, mock_fastapi_app):
+        """Explicit origins survive when '*' is removed."""
+        component = self._make_component(["http://myapp.com", "*"])
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert "*" not in origins
+        assert "http://myapp.com" in origins
+
+    def test_empty_origins_auto_constructs(self, mock_fastapi_app):
+        """Empty origin list triggers auto-construction from server config."""
+        component = self._make_component([])
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert "http://localhost:8000" in origins
+
+    def test_auto_construct_uses_https_when_ssl_configured(self, mock_fastapi_app):
+        """Auto-construction picks HTTPS when SSL certs are present."""
+        component = self._make_component([])
+        component.ssl_keyfile = "/path/to/key.pem"
+        component.ssl_certfile = "/path/to/cert.pem"
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert "https://localhost:8443" in origins
+
+    def test_explicit_origins_not_modified(self, mock_fastapi_app):
+        """Explicit origins (no wildcard) pass through unchanged."""
+        component = self._make_component(["http://localhost:3000"])
+        main._setup_middleware(component)
+        origins = self._get_cors_origins(mock_fastapi_app)
+        assert origins == ["http://localhost:3000"]

@@ -54,7 +54,7 @@ class PlatformServiceFactory:
             return config_values.get(key, default)
 
         mock_component.get_config.side_effect = mock_get_config
-        mock_component.get_cors_origins.return_value = ["*"]
+        mock_component.get_cors_origins.return_value = ["http://localhost:3000"]
         mock_component.service_id = service_id
         mock_component.log_identifier = f"[{service_id}]"
         mock_component.namespace = "test_namespace"
