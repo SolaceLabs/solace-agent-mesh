@@ -20,8 +20,11 @@ import logging
 
 log = logging.getLogger("werkzeug")
 log.disabled = True
-cli_flask = sys.modules["flask.cli"]
-cli_flask.show_server_banner = lambda *x: None
+try:
+    import flask.cli
+    flask.cli.show_server_banner = lambda *x: None
+except ImportError:
+    pass
 litellm.suppress_debug_info = True
 
 config_portal_host = "CONFIG_PORTAL_HOST"
