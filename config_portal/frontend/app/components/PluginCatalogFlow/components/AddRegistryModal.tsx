@@ -55,7 +55,7 @@ const Label: React.FC<
 interface AddRegistryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddRegistry: (pathOrUrl: string, name?: string) => Promise<void>;
+  onAddRegistry: (pathOrUrl: string, name?: string, gitBranch?: string) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -67,6 +67,7 @@ const AddRegistryModal: React.FC<AddRegistryModalProps> = ({
 }) => {
   const [registryPathOrUrl, setRegistryPathOrUrl] = useState("");
   const [registryName, setRegistryName] = useState("");
+  const [gitBranch, setGitBranch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) {
@@ -77,21 +78,33 @@ const AddRegistryModal: React.FC<AddRegistryModalProps> = ({
     e.preventDefault();
     const trimmedPathOrUrl = registryPathOrUrl.trim();
     const trimmedName = registryName.trim();
+    const trimmedBranch = gitBranch.trim();
 
     if (!trimmedPathOrUrl) {
       setError("Registry Path or URL is required.");
       return;
     }
+
+    // Validate branch name if provided (basic validation)
+    if (trimmedBranch && !/^[a-zA-Z0-9._\/-]+$/.test(trimmedBranch)) {
+      setError(
+        "Branch name contains invalid characters. Use alphanumeric, dots, dashes, slashes, and underscores only."
+      );
+      return;
+    }
+
     setError(null);
     await onAddRegistry(
       trimmedPathOrUrl,
-      trimmedName === "" ? undefined : trimmedName
+      trimmedName === "" ? undefined : trimmedName,
+      trimmedBranch === "" ? undefined : trimmedBranch
     );
   };
 
   const handleClose = () => {
     setRegistryPathOrUrl("");
     setRegistryName("");
+    setGitBranch("");
     setError(null);
     onClose();
   };
@@ -149,11 +162,6 @@ const AddRegistryModal: React.FC<AddRegistryModalProps> = ({
               disabled={isLoading}
               required
             />
-            {error && (
-              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                {error}
-              </p>
-            )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Enter a Git URL (HTTPS/Git) or an absolute local filesystem path.
             </p>
@@ -174,6 +182,31 @@ const AddRegistryModal: React.FC<AddRegistryModalProps> = ({
               derived.
             </p>
           </div>
+
+          <div>
+            <Label htmlFor="gitBranch">Git Branch (Optional):</Label>
+            <Input
+              type="text"
+              id="gitBranch"
+              value={gitBranch}
+              onChange={(e) => {
+                setGitBranch(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="main, develop, feature/my-branch"
+              disabled={isLoading}
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Branch name for Git repositories. Defaults to repository's default
+              branch if not specified.
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+              {error}
+            </p>
+          )}
 
           <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
             <Button
