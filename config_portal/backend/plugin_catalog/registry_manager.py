@@ -20,6 +20,8 @@ class RegistryManager:
 
     def _generate_registry_id(self, path_or_url: str, git_branch: Optional[str] = None) -> str:
         """Generates a consistent ID for a registry based on its path or URL and optional branch."""
+        if git_branch is None and path_or_url == DEFAULT_OFFICIAL_REGISTRY_URL:
+            git_branch = OFFICIAL_REGISTRY_GIT_BRANCH
         id_source = f"{path_or_url}@{git_branch}" if git_branch else path_or_url
         return hashlib.md5(id_source.encode("utf-8")).hexdigest()
 
