@@ -1,0 +1,54 @@
+# Solace AI Connector Configuration for Evaluation Backend
+
+log:
+  stdout_log_level: INFO
+  log_file_level: DEBUG
+  log_file: eval_backend.log
+
+# Shared SAM config
+!include ./shared_config.yaml
+
+apps:
+  - name: a2a_eval_backend_app
+    app_base_path: .
+    app_module: sam_rest_gateway.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      session_secret_key: ${SESSION_SECRET_KEY, please_change_me_in_production}
+      
+      artifact_service:
+        type: "filesystem"
+        base_path: "/tmp/samv2"
+        artifact_scope: namespace
+
+      enforce_authentication: false
+      default_user_identity: "eval-user"
+      sync_mode_timeout_seconds: 300
+      rest_api_server_host: ${REST_API_HOST, 0.0.0.0}
+      rest_api_server_port: ${REST_API_PORT, 8080}
+      cors_allowed_origins:
+        - "http://localhost:3000"
+        - "http://127.0.0.1:3000"
+
+      enable_embed_resolution: ${ENABLE_EMBED_RESOLUTION, true}
+      gateway_artifact_content_limit_bytes: ${GATEWAY_ARTIFACT_LIMIT_BYTES, 10000000}
+
+      system_purpose: >
+            The system is an AI Chatbot with agentic capabilities.
+            It will use the agents available to provide information,
+            reasoning and general assistance for the users in this system.
+            **Always return useful artifacts and files that you create to the user.**
+            Provide a status update before each tool call.
+            Your external name is Agent Mesh.    
+
+      response_format: >
+            Responses should be clear, concise, and professionally toned. 
+            Format responses to the user in Markdown using appropriate formatting.
+
+      frontend_welcome_message: ${FRONTEND_WELCOME_MESSAGE, ""}
+      frontend_bot_name: ${FRONTEND_BOT_NAME, "Solace Agent Mesh"}
+      frontend_collect_feedback: ${FRONTEND_COLLECT_FEEDBACK, false}
