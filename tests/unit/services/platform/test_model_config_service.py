@@ -15,6 +15,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from solace_agent_mesh.services.platform.api.routers.dto.requests import (
+    ModelConfigurationCreateRequest,
+)
 from solace_agent_mesh.services.platform.services.model_config_service import (
     ModelConfigService,
     _resolve_litellm_model_name,
@@ -144,6 +147,19 @@ class TestToRawLitellmConfig:
         result = ModelConfigService._to_raw_litellm_config(db_model)
         assert result["model"] == "bedrock/anthropic.claude-3"
 
+    def test_atlascloud_model_with_vendor_slash_gets_openai_prefix(self):
+        db_model = _make_db_model(
+            provider="atlascloud",
+            model_name="qwen/qwen3.5-flash",
+            api_base="https://api.atlascloud.ai/v1",
+            model_auth_config=None,
+            model_params=None,
+        )
+
+        result = ModelConfigService._to_raw_litellm_config(db_model)
+
+        assert result["model"] == "openai/qwen/qwen3.5-flash"
+
     def test_gcp_vertex_credentials_passed_through(self):
         """GCP vertex_credentials is passed through directly to LiteLLM config."""
         db_model = _make_db_model(
@@ -157,6 +173,26 @@ class TestToRawLitellmConfig:
         )
         result = ModelConfigService._to_raw_litellm_config(db_model)
         assert result["vertex_credentials"] == '{"project_id": "test"}'
+
+
+class TestCreate:
+    def test_atlascloud_uses_default_api_base(self):
+        service = ModelConfigService()
+        service.repository = Mock()
+        service.repository.exists_by_alias.return_value = False
+        service._to_response = Mock(return_value="created")
+        request = ModelConfigurationCreateRequest(
+            alias="atlas-model",
+            provider="atlascloud",
+            model_name="qwen/qwen3.5-flash",
+            auth_config={"type": "apikey", "api_key": "test-key"},
+        )
+
+        result = service.create(Mock(), request, "admin")
+
+        created = service.repository.create.call_args.args[1]
+        assert created.api_base == "https://api.atlascloud.ai/v1"
+        assert result == "created"
 
 
 class TestGetByAlias:
@@ -602,5 +638,4 @@ class TestToRawLitellmConfigPlaceholderStripping:
         result = ModelConfigService._to_raw_litellm_config(db_model)
         # _resolve_litellm_model_name(None, None) returns None
         assert result["model"] is None
-
 

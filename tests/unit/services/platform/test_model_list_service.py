@@ -22,6 +22,11 @@ class TestModelListServiceAuthHeaders:
         headers = self.service._build_auth_headers("openai", "apikey", {"api_key": "sk-test"})
         assert headers["Authorization"] == "Bearer sk-test"
 
+    def test_atlascloud_uses_bearer_token(self):
+        """Atlas Cloud uses OpenAI-compatible Bearer token auth."""
+        headers = self.service._build_auth_headers("atlascloud", "apikey", {"api_key": "ac-test"})
+        assert headers["Authorization"] == "Bearer ac-test"
+
     def test_anthropic_uses_x_api_key_header(self):
         """Anthropic uses X-API-Key header instead of Bearer."""
         headers = self.service._build_auth_headers("anthropic", "apikey", {"api_key": "sk-test"})
@@ -62,6 +67,7 @@ class TestModelListServiceApiBase:
     def test_known_providers_return_correct_urls(self):
         """Each known provider returns its correct API base."""
         assert self.service._get_provider_api_base("openai") == "https://api.openai.com/v1"
+        assert self.service._get_provider_api_base("atlascloud") == "https://api.atlascloud.ai/v1"
         assert self.service._get_provider_api_base("anthropic") == "https://api.anthropic.com"
         assert self.service._get_provider_api_base("ollama") is None
         assert self.service._get_provider_api_base("google_ai_studio") == "https://generativelanguage.googleapis.com/v1beta/models"
@@ -203,6 +209,37 @@ class TestModelListServiceResponseParsing:
 
             assert len(result) == 1
             assert result[0]["id"] == "gemini-pro"
+
+    def test_parse_atlascloud_openai_compatible_response(self):
+        """Atlas Cloud returns OpenAI-compatible model list responses."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__enter__.return_value = mock_client
+            mock_client.__exit__.return_value = None
+
+            mock_response = MagicMock()
+            mock_response.json.return_value = {
+                "data": [
+                    {"id": "qwen/qwen3.5-flash"},
+                    {"id": "deepseek-ai/deepseek-v4-pro"},
+                ]
+            }
+            mock_response.status_code = 200
+            mock_client.get.return_value = mock_response
+            mock_client_class.return_value = mock_client
+
+            result = self.service.get_models_by_provider_with_config(
+                provider="atlascloud",
+                api_base=None,
+                auth_type="apikey",
+                auth_config={"api_key": "ac-test"},
+            )
+
+            assert [model["id"] for model in result] == [
+                "qwen/qwen3.5-flash",
+                "deepseek-ai/deepseek-v4-pro",
+            ]
+            assert all(model["provider"] == "atlascloud" for model in result)
 
 
 class TestModelListServiceValidation:
@@ -457,6 +494,44 @@ class TestModelListServiceTrailingSlash:
             url = mock_client.get.call_args[0][0]
             assert url == "https://custom.example.com/models"
 
+    def test_atlascloud_trailing_slash_stripped(self):
+        """Atlas Cloud api_base with trailing slash should not produce double-slash URL."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = self._mock_http_client({"data": [{"id": "qwen/qwen3.5-flash"}]})
+            mock_cls.return_value = mock_client
+
+            self.service.get_models_by_provider_with_config(
+                provider="atlascloud",
+                api_base="https://api.atlascloud.ai/v1/",
+                auth_type="apikey",
+                auth_config={"api_key": "ac-test"},
+            )
+
+            url = mock_client.get.call_args[0][0]
+            assert url == "https://api.atlascloud.ai/v1/models"
+
+    def test_atlascloud_falls_back_to_curated_models(self):
+        """Atlas Cloud has a curated fallback when live model listing fails."""
+        with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
+            mock_client = MagicMock()
+            mock_client.__enter__.return_value = mock_client
+            mock_client.__exit__.return_value = None
+            mock_client.get.side_effect = RuntimeError("network unavailable")
+            mock_cls.return_value = mock_client
+
+            result = self.service.get_models_by_provider_with_config(
+                provider="atlascloud",
+                api_base=None,
+                auth_type="apikey",
+                auth_config={"api_key": "ac-test"},
+            )
+
+            assert [model["id"] for model in result] == [
+                "qwen/qwen3.5-flash",
+                "deepseek-ai/deepseek-v4-pro",
+            ]
+            assert all(model["provider"] == "atlascloud" for model in result)
+
     def test_anthropic_trailing_slash_stripped(self):
         """Anthropic api_base with trailing slash should not produce double-slash URL."""
         with patch("solace_agent_mesh.services.platform.services.model_list_service.httpx.Client") as mock_cls:
@@ -488,3 +563,25 @@ class TestModelListServiceTrailingSlash:
 
             url = mock_client.get.call_args[0][0]
             assert url == "http://localhost:11434/api/tags"
+
+
+class TestModelListServiceSupportedParams:
+    """Tests for LiteLLM provider mapping when fetching supported params."""
+
+    def setup_method(self):
+        self.service = ModelListService()
+
+    def test_atlascloud_uses_openai_param_mapping(self):
+        """Atlas Cloud is OpenAI-compatible for supported parameter lookup."""
+        with patch(
+            "solace_agent_mesh.services.platform.services.model_list_service.litellm"
+        ) as mock_litellm:
+            mock_litellm.get_supported_openai_params.return_value = ["temperature", "max_tokens"]
+
+            result = self.service.get_supported_params("atlascloud", "qwen/qwen3.5-flash")
+
+            assert result == ["max_tokens", "temperature"]
+            mock_litellm.get_supported_openai_params.assert_called_once_with(
+                model="qwen/qwen3.5-flash",
+                custom_llm_provider="openai",
+            )
