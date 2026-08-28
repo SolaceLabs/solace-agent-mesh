@@ -27,5 +27,5 @@ async def get_latest_artifact_version(
         if versions:
             return max(versions)
     except Exception as e:
-        log.error(f"Error listing versions for artifact '{filename}': {e}")
+        log.error("Error listing versions for artifact '%s': %s", filename, e)
     return None
