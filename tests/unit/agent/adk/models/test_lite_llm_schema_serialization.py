@@ -45,12 +45,14 @@ class TestSchemaToDict:
         assert isinstance(result["type"], str)
 
     def test_simple_array_type(self):
-        """Test conversion of simple array type schema."""
+        """Test conversion of simple array type schema gets default items."""
         schema = types.Schema(type=types.Type.ARRAY)
         result = _schema_to_dict(schema)
 
         assert result["type"] == "array"
         assert isinstance(result["type"], str)
+        # Array without items should get default string items (required by OpenAI)
+        assert result["items"] == {"type": "string"}
 
     def test_simple_object_type(self):
         """Test conversion of simple object type schema."""
@@ -488,6 +490,43 @@ class TestFunctionDeclarationToToolParam:
 
         assert filters["properties"]["include_hidden"]["type"] == "boolean"
         assert isinstance(filters["properties"]["include_hidden"]["type"], str)
+
+    def test_function_with_array_params_missing_items(self):
+        """Test function with array parameters that have no items schema.
+
+        This simulates MCP tools like getMsgVpns from the Solace Monitoring MCP server
+        where array parameters (e.g. 'where', 'select') lack an items definition.
+        OpenAI rejects schemas with array types missing items.
+        """
+        func = types.FunctionDeclaration(
+            name="getMsgVpns",
+            description="Get a list of Message VPN objects.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "count": types.Schema(type=types.Type.STRING, description="Limit count"),
+                    "cursor": types.Schema(type=types.Type.STRING, description="Cursor"),
+                    "where": types.Schema(type=types.Type.ARRAY, description="Filter conditions"),
+                    "select": types.Schema(type=types.Type.ARRAY, description="Select attributes"),
+                },
+            ),
+        )
+        result = _function_declaration_to_tool_param(func)
+
+        params = result["function"]["parameters"]
+
+        # Verify array params get default items
+        assert params["properties"]["where"]["type"] == "array"
+        assert "items" in params["properties"]["where"]
+        assert params["properties"]["where"]["items"] == {"type": "string"}
+
+        assert params["properties"]["select"]["type"] == "array"
+        assert "items" in params["properties"]["select"]
+        assert params["properties"]["select"]["items"] == {"type": "string"}
+
+        # Non-array params should be unaffected
+        assert params["properties"]["count"]["type"] == "string"
+        assert "items" not in params["properties"]["count"]
 
     def test_function_without_description(self):
         """Test that function without description gets empty string."""
