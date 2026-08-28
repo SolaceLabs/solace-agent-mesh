@@ -250,6 +250,17 @@ def _setup_middleware(component: "PlatformServiceComponent"):
     # Combine and deduplicate
     allowed_origins = list(set(auto_trusted_origins + configured_origins))
 
+    # Security: wildcard CORS with allow_credentials=True lets any website
+    # make authenticated cross-origin requests. Strip the wildcard; the
+    # auto-constructed origins above already provide safe defaults.
+    if "*" in allowed_origins:
+        log.warning(
+            "CORS wildcard origin '*' detected with allow_credentials=True. "
+            "This is insecure — removing '*'. Set explicit origins in "
+            "cors_allowed_origins to suppress this warning."
+        )
+        allowed_origins = [o for o in allowed_origins if o != "*"]
+
     # Get optional regex pattern for CORS origins (useful for local dev with dynamic ports)
     cors_origin_regex = component.get_cors_origin_regex()
 
