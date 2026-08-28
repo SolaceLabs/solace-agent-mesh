@@ -1,6 +1,8 @@
 """Unit tests for context usage and manual compaction endpoints."""
 
 import asyncio
+import logging
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -86,6 +88,93 @@ def _make_mock_db():
     query_mock.first.return_value = None
     db.query.return_value = query_mock
     return db
+
+
+def _make_query_chain(all_rows=None, count=0):
+    """A stubbed SQLAlchemy query chain.
+
+    `first()` must return None: `_lookup_configured_context_limit` calls it, and
+    a bare MagicMock would be truthy, making `row[0]` a MagicMock that Pydantic
+    then rejects as `max_input_tokens: int`.
+    """
+    q = MagicMock()
+    q.filter.return_value = q
+    q.order_by.return_value = q
+    q.count.return_value = count
+    q.all.return_value = all_rows or []
+    q.first.return_value = None
+    return q
+
+
+def _make_mock_db_with_agents(tasks, events, chat_task_count=0):
+    """Like _make_mock_db, but routes TaskEventModel queries separately from
+    TaskModel ones, so tests can attribute tasks to different agents."""
+    from solace_agent_mesh.gateway.http_sse.repository.models import (
+        ChatTaskModel,
+        TaskEventModel,
+        TaskModel,
+    )
+
+    def _dispatch(entity, *_args):
+        if entity is ChatTaskModel:
+            return _make_query_chain(count=chat_task_count)
+        if entity is TaskModel:
+            return _make_query_chain(all_rows=tasks)
+        if entity is TaskEventModel:
+            return _make_query_chain(all_rows=events)
+        # ModelConfiguration column lookups fall through to a first() of None.
+        return _make_query_chain()
+
+    db = MagicMock()
+    db.query.side_effect = _dispatch
+    return db
+
+
+def _make_task(
+    task_id, input_tokens=0, output_tokens=0, cached_tokens=0, details=None
+):
+    task = MagicMock()
+    task.id = task_id
+    task.total_input_tokens = input_tokens
+    task.total_output_tokens = output_tokens
+    task.total_cached_input_tokens = cached_tokens
+    task.token_usage_details = details
+    return task
+
+
+def _make_request_event(task_id, agent_name):
+    event = MagicMock()
+    event.task_id = task_id
+    event.direction = "request"
+    event.payload = {"params": {"message": {"metadata": {"agent_name": agent_name}}}}
+    return event
+
+
+async def _call_context_usage(
+    db, session_service, model=None, agent_name=None, component=None
+):
+    """Invoke the endpoint the way the rest of this module does."""
+    if component is None:
+        component = MagicMock()
+        component.model_config = None
+
+    with patch(
+        "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
+        return_value=component,
+    ):
+        from solace_agent_mesh.gateway.http_sse.routers.sessions import (
+            get_session_context_usage,
+        )
+
+        return await get_session_context_usage(
+            session_id="test-session-id",
+            model=model,
+            agent_name=agent_name,
+            db=db,
+            user={"id": "user-1"},
+            session_service=session_service,
+            component=component,
+        )
 
 
 class TestGetSessionContextUsage:
@@ -662,16 +751,20 @@ class TestContextUsageModelResolution:
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_uses_component_model_config_as_default(
+    async def test_ignores_component_model_config(
         self, mock_db, mock_session_service
     ):
-        """When no model param given, should use component.model_config['model']."""
+        """The gateway's own `model:` config must never leak into the response.
+
+        `component` here is the WebUI gateway, not the agent, so its model bears
+        no relationship to the model the agent runs.
+        """
         mock_session = MagicMock()
         mock_session.agent_id = "test-agent"
         mock_session_service.get_session_details.return_value = mock_session
 
         mock_component = MagicMock()
-        mock_component.model_config = {"model": "my-custom-model"}
+        mock_component.model_config = {"model": "gateway-model"}
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
@@ -691,19 +784,18 @@ class TestContextUsageModelResolution:
                 component=mock_component,
             )
 
-        assert result.model == "my-custom-model"
+        assert result.model is None
+        assert result.max_input_tokens is None
 
     @pytest.mark.asyncio
-    async def test_explicit_model_param_overrides_component_config(
-        self, mock_db, mock_session_service
-    ):
-        """Explicit model query param should take priority over component.model_config."""
+    async def test_explicit_model_param_wins(self, mock_db, mock_session_service):
+        """An explicit ?model= query param overrides everything else."""
         mock_session = MagicMock()
         mock_session.agent_id = "test-agent"
         mock_session_service.get_session_details.return_value = mock_session
 
         mock_component = MagicMock()
-        mock_component.model_config = {"model": "component-model"}
+        mock_component.model_config = {"model": "gateway-model"}
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
@@ -726,16 +818,20 @@ class TestContextUsageModelResolution:
         assert result.model == "explicit-model"
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_default_model_when_no_config(
+    async def test_returns_null_model_when_no_completed_tasks(
         self, mock_db, mock_session_service
     ):
-        """Falls back to DEFAULT_MODEL when component has no model_config."""
+        """With nothing to attribute a model to, report null rather than inventing one.
+
+        The client hides the indicator on a null limit, which beats showing a
+        real denominator for a model the agent never ran.
+        """
         mock_session = MagicMock()
         mock_session.agent_id = "test-agent"
         mock_session_service.get_session_details.return_value = mock_session
 
         mock_component = MagicMock()
-        mock_component.model_config = None  # No model configured
+        mock_component.model_config = None
 
         with patch(
             "solace_agent_mesh.gateway.http_sse.dependencies.get_sac_component",
@@ -743,7 +839,6 @@ class TestContextUsageModelResolution:
         ):
             from solace_agent_mesh.gateway.http_sse.routers.sessions import (
                 get_session_context_usage,
-                DEFAULT_MODEL,
             )
 
             result = await get_session_context_usage(
@@ -756,7 +851,251 @@ class TestContextUsageModelResolution:
                 component=mock_component,
             )
 
-        assert result.model == DEFAULT_MODEL
+        assert result.model is None
+        assert result.max_input_tokens is None
+        assert result.usage_percentage == 0.0
+
+    @pytest.mark.asyncio
+    async def test_model_from_latest_task_by_model(self, mock_session_service):
+        """The model comes from the agent's latest completed task."""
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        task = _make_task(
+            "task-1",
+            input_tokens=1000,
+            details={
+                "by_model": {
+                    "openai/gpt-4o": {"input_tokens": 1000, "max_input_tokens": 128_000}
+                }
+            },
+        )
+        db = _make_mock_db_with_agents(tasks=[task], events=[])
+
+        result = await _call_context_usage(db, mock_session_service)
+
+        assert result.model == "openai/gpt-4o"
+        # Resolved via the agent-stamped max_input_tokens, not the LiteLLM registry.
+        assert result.max_input_tokens == 128_000
+
+    @pytest.mark.asyncio
+    async def test_dominant_model_wins_when_multiple(self, mock_session_service):
+        """When a task used several models, the one with most input tokens wins."""
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        task = _make_task(
+            "task-1",
+            input_tokens=1000,
+            details={
+                "by_model": {
+                    "minor-model": {"input_tokens": 100},
+                    "dominant-model": {"input_tokens": 900, "max_input_tokens": 64_000},
+                }
+            },
+        )
+        db = _make_mock_db_with_agents(tasks=[task], events=[])
+
+        result = await _call_context_usage(db, mock_session_service)
+
+        assert result.model == "dominant-model"
+
+    @pytest.mark.asyncio
+    async def test_null_model_when_by_model_empty(self, mock_session_service, caplog):
+        """A provider that omits usage metadata leaves by_model empty.
+
+        The token totals still come through; only the model is unknown. This is
+        the case the issue reports as failing silently, so it must also warn.
+        """
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        task = _make_task("task-1", input_tokens=5000, output_tokens=700, details={})
+        db = _make_mock_db_with_agents(tasks=[task], events=[])
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="solace_agent_mesh.gateway.http_sse.routers.sessions",
+        ):
+            result = await _call_context_usage(db, mock_session_service)
+
+        assert result.model is None
+        assert result.max_input_tokens is None
+        assert result.usage_percentage == 0.0
+        # Token math must survive an unresolvable model.
+        assert result.prompt_tokens == 5000
+        assert result.completion_tokens == 700
+        assert "no model could be attributed" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_by_model_ignores_non_dict_entries(self, mock_session_service):
+        """Malformed by_model entries are skipped rather than crashing."""
+        mock_session = MagicMock()
+        mock_session.agent_id = None
+        mock_session_service.get_session_details.return_value = mock_session
+
+        task = _make_task(
+            "task-1",
+            input_tokens=1000,
+            details={
+                "by_model": {
+                    "good-model": {"input_tokens": 10, "max_input_tokens": 50_000},
+                    "bad-model": "oops",
+                }
+            },
+        )
+        db = _make_mock_db_with_agents(tasks=[task], events=[])
+
+        result = await _call_context_usage(db, mock_session_service)
+
+        assert result.model == "good-model"
+
+
+class TestContextUsageAgentScoping:
+    """Tests for scoping context usage to the caller-supplied agent_name."""
+
+    @pytest.fixture
+    def mock_session_service(self):
+        service = MagicMock()
+        session = MagicMock()
+        session.agent_id = None
+        service.get_session_details.return_value = session
+        return service
+
+    @staticmethod
+    def _two_agent_db(chat_task_count=0):
+        """Newest-first: agent-a ran most recently, agent-b before it."""
+        task_a = _make_task(
+            "task-a",
+            input_tokens=5000,
+            details={
+                "by_model": {
+                    "openai/gpt-4o": {"input_tokens": 5000, "max_input_tokens": 128_000}
+                }
+            },
+        )
+        task_b = _make_task(
+            "task-b",
+            input_tokens=300,
+            details={
+                "by_model": {
+                    "anthropic/claude-x": {
+                        "input_tokens": 300,
+                        "max_input_tokens": 100_000,
+                    }
+                }
+            },
+        )
+        events = [
+            _make_request_event("task-a", "agent-a"),
+            _make_request_event("task-b", "agent-b"),
+        ]
+        return _make_mock_db_with_agents(
+            tasks=[task_a, task_b], events=events, chat_task_count=chat_task_count
+        )
+
+    @pytest.mark.asyncio
+    async def test_agent_name_scopes_model_and_tokens(self, mock_session_service):
+        """agent_name selects the agent, and model and tokens agree with each other.
+
+        Reporting agent A's tokens beside agent B's model would be worse than
+        either being wrong on its own.
+        """
+        db = self._two_agent_db()
+
+        result = await _call_context_usage(
+            db, mock_session_service, agent_name="agent-b"
+        )
+
+        assert result.model == "anthropic/claude-x"
+        assert result.max_input_tokens == 100_000
+        assert result.prompt_tokens == 300
+        assert result.current_context_tokens == 300
+
+    @pytest.mark.asyncio
+    async def test_agent_name_with_no_matching_tasks_returns_empty(
+        self, mock_session_service
+    ):
+        """A newly-selected agent has no context in this session yet."""
+        task_a = _make_task(
+            "task-a",
+            input_tokens=5000,
+            details={"by_model": {"openai/gpt-4o": {"input_tokens": 5000}}},
+        )
+        db = _make_mock_db_with_agents(
+            tasks=[task_a], events=[_make_request_event("task-a", "agent-a")]
+        )
+
+        result = await _call_context_usage(
+            db, mock_session_service, agent_name="agent-b"
+        )
+
+        assert result.model is None
+        assert result.max_input_tokens is None
+        assert result.current_context_tokens == 0
+        assert result.prompt_tokens == 0
+
+    @pytest.mark.asyncio
+    async def test_compaction_cost_row_alone_does_not_leak_into_other_agent(
+        self, mock_session_service
+    ):
+        """Compaction-cost rows survive agent filtering but are not an agent's context.
+
+        Regression test: a session compacted under agent A must not report A's
+        post-compaction remaining tokens as newly-selected agent B's context.
+        """
+        compaction_row = _make_task(
+            "compaction-cost-1",
+            input_tokens=1000,
+            details={"post_compaction_remaining_tokens": 42_000},
+        )
+        task_a = _make_task(
+            "task-a",
+            input_tokens=5000,
+            details={"by_model": {"openai/gpt-4o": {"input_tokens": 5000}}},
+        )
+        db = _make_mock_db_with_agents(
+            tasks=[compaction_row, task_a],
+            events=[_make_request_event("task-a", "agent-a")],
+        )
+
+        result = await _call_context_usage(
+            db, mock_session_service, agent_name="agent-b"
+        )
+
+        assert result.current_context_tokens == 0
+        assert result.model is None
+
+    @pytest.mark.asyncio
+    async def test_omitting_agent_name_falls_back_to_latest_task_agent(
+        self, mock_session_service
+    ):
+        """Callers that don't send agent_name keep the previous behaviour."""
+        db = self._two_agent_db()
+
+        result = await _call_context_usage(db, mock_session_service, agent_name=None)
+
+        assert result.model == "openai/gpt-4o"
+        assert result.prompt_tokens == 5000
+
+    @pytest.mark.asyncio
+    async def test_totals_remain_session_wide(self, mock_session_service):
+        """totalTasks/totalMessages stay session-wide, deliberately.
+
+        The client polls after each response until totalTasks increases; making
+        these agent-scoped would stall that loop on an agent's first message.
+        """
+        db = self._two_agent_db(chat_task_count=4)
+
+        result = await _call_context_usage(
+            db, mock_session_service, agent_name="agent-unknown"
+        )
+
+        assert result.total_tasks == 4
+        assert result.total_messages == 8
 
 
 class TestCreateSessionServiceFromConfig:

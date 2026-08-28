@@ -11,7 +11,8 @@ export interface ContextUsage {
     /** null when the model's context limit is unknown (e.g. LiteLLM has no info) */
     maxInputTokens: number | null;
     usagePercentage: number;
-    model: string;
+    /** null when the model could not be attributed to the selected agent (no completed task yet) */
+    model: string | null;
     totalEvents: number;
     totalMessages: number;
     totalTasks: number;
