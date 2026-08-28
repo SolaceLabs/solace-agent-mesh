@@ -213,8 +213,9 @@ RUN echo "deb http://deb.debian.org/debian unstable main" > /etc/apt/sources.lis
 
 # Node 25.5.0 ships with npm 11.8.0; upgrade to pick up security fixes in bundled dependencies
 # Upgrade npm to fix CVE-2026-42338 (ip-address XSS vulnerability) and
-# CVE-2026-48815 (sigstore ignores certificateOIDs; needs bundled sigstore >= 4.1.1, first in npm 11.16.0)
-RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.18.0
+# CVE-2026-48815 (sigstore ignores certificateOIDs; needs bundled sigstore >= 4.1.1, first in npm 11.16.0) and
+# CVE-2026-73566 (node-tar stack-overflow DoS; needs bundled tar >= 7.5.21, first in npm 11.19.1 which bundles tar 7.5.22)
+RUN node /usr/local/lib/node_modules/npm/bin/npm-cli.js install -g npm@11.19.1
 
 # Install playwright temporarily just for browser installation (cached layer)
 # This is separate from the full venv to keep this layer cached
