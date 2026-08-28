@@ -67,7 +67,7 @@ Model Configurations support the following LLM providers through the UI:
 
 ### The Custom Provider
 
-The **Custom** provider is designed for any LLM endpoint that implements the OpenAI-compatible API protocol. This includes services like Mistral, Groq, OpenRouter, Together AI, and self-hosted inference servers.
+The **Custom** provider is designed for any LLM endpoint that implements the OpenAI-compatible API protocol. This includes services like Mistral, Groq, OpenRouter, Together AI, [EmpirioLabs AI](https://empiriolabs.ai/models), and self-hosted inference servers.
 
 When using the Custom provider:
 - Provide the API base URL of your endpoint
@@ -78,6 +78,12 @@ For example, to connect to Groq:
 - **Provider**: Custom
 - **API Base**: `https://api.groq.com/openai/v1`
 - **Model Name**: `openai/llama-3.3-70b-versatile`
+- **Auth Type**: API Key
+
+To connect to EmpirioLabs AI:
+- **Provider**: Custom
+- **API Base**: `https://api.empiriolabs.ai/v1`
+- **Model Name**: `openai/qwen3-max`
 - **Auth Type**: API Key
 
 ## Creating a Model Configuration
