@@ -18,9 +18,32 @@ class RegistryManager:
         self.user_registries_file = Path(os.path.expanduser(USER_REGISTRIES_PATH))
         self.user_registries_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def _generate_registry_id(self, path_or_url: str) -> str:
-        """Generates a consistent ID for a registry based on its path or URL."""
-        return hashlib.md5(path_or_url.encode("utf-8")).hexdigest()
+    def _generate_registry_id(self, path_or_url: str, git_branch: Optional[str] = None) -> str:
+        """Generates a consistent ID for a registry based on its path or URL and optional branch."""
+        if git_branch is None and path_or_url == DEFAULT_OFFICIAL_REGISTRY_URL:
+            git_branch = OFFICIAL_REGISTRY_GIT_BRANCH
+        id_source = f"{path_or_url}@{git_branch}" if git_branch else path_or_url
+        return hashlib.md5(id_source.encode("utf-8")).hexdigest()
+
+    def _parse_git_url_with_branch(self, url: str) -> Tuple[str, Optional[str]]:
+        """
+        Parse a git URL to extract branch if specified using @ syntax.
+        
+        Args:
+            url: Git URL potentially containing branch specification (e.g., https://github.com/user/repo@branch-name)
+            
+        Returns:
+            Tuple of (url_without_branch, branch_name or None)
+        """
+        if "@" in url and url.startswith(("http://", "https://", "git@")):
+            # Only split on the last @ to handle git@ URLs properly
+            parts = url.rsplit("@", 1)
+            if len(parts) == 2:
+                base_url, potential_branch = parts
+                # Validate branch name (not a domain part of a git@ URL)
+                if potential_branch and not potential_branch.startswith("github.com") and "/" not in potential_branch.split(":")[0]:
+                    return base_url, potential_branch
+        return url, None
 
     def get_all_registries(self) -> List[Registry]:
         default_id = self._generate_registry_id(DEFAULT_OFFICIAL_REGISTRY_URL)
@@ -82,13 +105,14 @@ class RegistryManager:
 
         return list(registries_map.values())
 
-    def add_registry(self, path_or_url: str, name: Optional[str] = None) -> Tuple[bool, bool]:
+    def add_registry(self, path_or_url: str, name: Optional[str] = None, git_branch: Optional[str] = None) -> Tuple[bool, bool]:
         """
         Add or update a registry.
         
         Args:
-            path_or_url: Path or URL to the registry
+            path_or_url: Path or URL to the registry. For git URLs, can include branch using @ syntax (e.g., https://github.com/user/repo@branch)
             name: Optional name for the registry
+            git_branch: Optional git branch name (overrides branch in URL if both provided)
             
         Returns:
             Tuple[bool, bool]: (success, is_update)
@@ -96,11 +120,22 @@ class RegistryManager:
                 - is_update: True if existing registry was updated, False if new
         """
         original_path_or_url = path_or_url
+        extracted_branch = None
 
         if path_or_url.startswith(("http://", "https://", "git@")):
             registry_type = "git"
+            # Try to extract branch from URL if not explicitly provided
+            if not git_branch:
+                path_or_url, extracted_branch = self._parse_git_url_with_branch(path_or_url)
+                git_branch = extracted_branch
         else:
             registry_type = "local"
+            # Local registries don't support branches
+            if git_branch:
+                print(
+                    f"Warning: Branch specified for local registry '{original_path_or_url}'. Branches are only supported for git registries. Branch will be ignored."
+                )
+                git_branch = None
             try:
                 expanded_path = Path(os.path.expanduser(path_or_url))
                 if not expanded_path.exists() or not expanded_path.is_dir():
@@ -113,12 +148,12 @@ class RegistryManager:
                 print(f"Error processing local path '{original_path_or_url}': {e_path}")
                 return False, False
 
-        registry_id = self._generate_registry_id(path_or_url)
-   
+        registry_id = self._generate_registry_id(path_or_url, git_branch)
+    
         final_name = name
         if not final_name:
             if registry_type == "git":
-                final_name = Path(original_path_or_url).name.replace(".git", "")
+                final_name = Path(original_path_or_url.split("@")[0]).name.replace(".git", "")
             else:
                 final_name = Path(path_or_url).name
 
@@ -134,6 +169,7 @@ class RegistryManager:
                 type=registry_type,
                 is_default=False,
                 is_official_source=is_official_src,
+                git_branch=git_branch,
             )
         except ValidationError as ve:
             print(f"Invalid registry data for '{path_or_url}': {ve}")
@@ -167,15 +203,17 @@ class RegistryManager:
         if existing_index is not None:
             # Update existing registry
             current_registries_data[existing_index] = new_registry.model_dump()
+            branch_info = f" (branch: {git_branch})" if git_branch else ""
             print(
-                f"Updated existing registry '{path_or_url}' (ID: {new_registry.id})"
+                f"Updated existing registry '{path_or_url}'{branch_info} (ID: {new_registry.id})"
             )
             is_update = True
         else:
             # Add new registry
             current_registries_data.append(new_registry.model_dump())
+            branch_info = f" (branch: {git_branch})" if git_branch else ""
             print(
-                f"Added new registry '{path_or_url}' (ID: {new_registry.id})"
+                f"Added new registry '{path_or_url}'{branch_info} (ID: {new_registry.id})"
             )
             is_update = False
 
