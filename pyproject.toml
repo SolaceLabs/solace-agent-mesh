@@ -34,7 +34,7 @@ dependencies = [
     "jwcrypto==1.5.7",  # [CVE-2026-39373] Security fix
     "python-jwt==4.1.0",
     "pyjwt>=2.13.0",  # [CVE-2026-48526] Security fix: rejects JWK JSON passed as an HMAC secret
-    "asteval==1.0.6",
+    "asteval==1.0.9",
     "pystache==0.6.8",
     "python-liquid==2.2.1",  # [CVE-2026-55865] Security fix: DoS via malformed {% case %} tag (parse-time infinite loop)
     "pandas==2.3.2",
