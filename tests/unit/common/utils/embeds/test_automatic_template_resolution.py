@@ -3,13 +3,14 @@ Test that template resolution happens automatically when resolving late embeds.
 """
 
 import pytest
+from sam_test_infrastructure.artifact_service.service import TestInMemoryArtifactService
+
 from solace_agent_mesh.common.utils.embeds import (
     LATE_EMBED_TYPES,
     evaluate_embed,
     resolve_embeds_recursively_in_string,
 )
 from solace_agent_mesh.common.utils.embeds.types import ResolutionMode
-from tests.integration.conftest import TestInMemoryArtifactService
 
 
 @pytest.mark.asyncio
@@ -30,10 +31,17 @@ Bob,25,Sales"""
         user_id="test_user",
         session_id="test_session",
         filename="employees.csv",
-        artifact=type('Part', (), {'inline_data': type('InlineData', (), {
-            'data': csv_content.encode('utf-8'),
-            'mime_type': 'text/csv'
-        })})()
+        artifact=type(
+            "Part",
+            (),
+            {
+                "inline_data": type(
+                    "InlineData",
+                    (),
+                    {"data": csv_content.encode("utf-8"), "mime_type": "text/csv"},
+                )
+            },
+        )(),
     )
 
     # Create an artifact with a template block
@@ -55,10 +63,20 @@ End of report."""
         user_id="test_user",
         session_id="test_session",
         filename="report.md",
-        artifact=type('Part', (), {'inline_data': type('InlineData', (), {
-            'data': artifact_content.encode('utf-8'),
-            'mime_type': 'text/markdown'
-        })})()
+        artifact=type(
+            "Part",
+            (),
+            {
+                "inline_data": type(
+                    "InlineData",
+                    (),
+                    {
+                        "data": artifact_content.encode("utf-8"),
+                        "mime_type": "text/markdown",
+                    },
+                )
+            },
+        )(),
     )
 
     # Now embed the artifact using artifact_content (a late embed)
@@ -70,7 +88,7 @@ End of report."""
             "app_name": "test_app",
             "user_id": "test_user",
             "session_id": "test_session",
-        }
+        },
     }
 
     config = {
@@ -113,7 +131,10 @@ async def test_no_template_resolution_with_early_embeds_only():
     Test that templates are NOT resolved when only early embeds are being resolved
     (since templates are considered late embeds).
     """
-    from solace_agent_mesh.common.utils.embeds import EARLY_EMBED_TYPES, resolve_embeds_recursively_in_string
+    from solace_agent_mesh.common.utils.embeds import (
+        EARLY_EMBED_TYPES,
+        resolve_embeds_recursively_in_string,
+    )
 
     artifact_service = TestInMemoryArtifactService()
 
@@ -132,7 +153,7 @@ Some template content
             "app_name": "test_app",
             "user_id": "test_user",
             "session_id": "test_session",
-        }
+        },
     }
 
     result = await resolve_embeds_recursively_in_string(
