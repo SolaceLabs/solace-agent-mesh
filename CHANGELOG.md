@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.28.8](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.7...1.28.8) (2026-08-28)
+
+
+### Bug Fixes
+
+* deprecate SAM v1 — banner, classifier, docs (DATAGO-147013) [13db4608] ([#1644](https://github.com/SolaceLabs/solace-agent-mesh/issues/1644)) ([52c0f81](https://github.com/SolaceLabs/solace-agent-mesh/commit/52c0f81ab7ccc832918f3d5c02581f60591aca20))
+* pin hatchling below 1.32 to avoid core-metadata 2.5 upload breakage ([#1625](https://github.com/SolaceLabs/solace-agent-mesh/issues/1625)) ([2b4ef6a](https://github.com/SolaceLabs/solace-agent-mesh/commit/2b4ef6ab54e796bc77f12d5edb84dbb656e36610))
+
 ## [1.28.7](https://github.com/SolaceLabs/solace-agent-mesh/compare/1.28.6...1.28.7) (2026-08-11)
 
 
