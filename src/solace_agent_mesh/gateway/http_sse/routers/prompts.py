@@ -25,6 +25,7 @@ from .dto.prompt_dto import (
     PromptExportResponse,
     PromptExportData,
     PromptExportMetadata,
+    PromptImportOptions,
     PromptImportRequest,
     PromptImportResponse,
 )
