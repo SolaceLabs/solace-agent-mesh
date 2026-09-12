@@ -2327,7 +2327,7 @@ async def artifact_search_and_replace_regex(
                 "; ".join(decode_errors),
             )
             return ToolResult.error(
-                f"Failed to decode artifact content as UTF-8: {decode_err}",
+                f"Failed to decode artifact content as UTF-8: {'; '.join(decode_errors)}",
                 data={"filename": artifact_filename, "version": actual_version}
             )
 
