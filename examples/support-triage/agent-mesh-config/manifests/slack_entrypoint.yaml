@@ -1,0 +1,11 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: manifest
+name: support-triage-slack
+description: Slack bot for the ticket-triage agent. Apply local.yaml first, so the agent exists.
+target:
+  name: desktop
+resources:
+  entrypoints:
+    - support-triage-slack

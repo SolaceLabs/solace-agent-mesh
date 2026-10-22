@@ -1,0 +1,15 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: manifest
+name: support-triage-classification
+description: High-throughput ticket classification with a decision model. Apply local.yaml first, so the connector and support-responder agent exist.
+target:
+  name: desktop
+resources:
+  models:
+    - ticket-router
+  workflows:
+    - ticket-decision
+  entrypoints:
+    - acme-helpdesk-decisions

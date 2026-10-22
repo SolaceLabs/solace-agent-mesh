@@ -1,0 +1,6 @@
+toolsets/*/.sam-cache/
+toolsets/*/dist/
+# Added by sam config — per-toolset build cache and outputs.
+toolsets/*/src/vendor/
+skills/*/.sam-cache/
+skills/*/tools/*/dist/

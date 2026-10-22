@@ -1,0 +1,98 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.0.3
+info:
+  title: Acme Help Desk API (demo)
+  version: 1.0.0
+  description: The operations Agent Mesh needs to write a triage or a decision back to the help desk.
+paths:
+  /api/tickets/{ticket_id}:
+    put:
+      operationId: updateTicket
+      summary: Write the triage result back to a ticket.
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, priority, category, team, summary, internal_note, respond_by]
+              properties:
+                status:
+                  type: string
+                  enum: [triaged, escalated]
+                priority:
+                  type: string
+                  enum: [P1, P2, P3, P4]
+                category:
+                  type: string
+                team:
+                  type: string
+                summary:
+                  type: string
+                internal_note:
+                  type: string
+                  description: The drafted first reply, for a support agent to review and send.
+                respond_by:
+                  type: string
+                  format: date-time
+                  description: When the customer must get the first response, ISO 8601 with a UTC offset.
+      responses:
+        "200":
+          description: The updated ticket.
+        "404":
+          description: No ticket with that ID.
+  /api/decisions:
+    post:
+      operationId: recordDecision
+      summary: Record a decision-model classification for a high-throughput ticket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_ticket, path, priority, model_ms]
+              properties:
+                source_ticket:
+                  type: string
+                  description: The ticket JSON exactly as the help desk sent it. The help desk reads the ticket ID from it.
+                path:
+                  type: string
+                  enum: [decision, llm]
+                  description: decision when the decision model's answer was written back directly; llm when an agent wrote a brief first.
+                priority:
+                  type: string
+                department:
+                  type: string
+                sentiment_score:
+                  type: number
+                  description: 0 (angry) to 3 (positive); can land between two levels.
+                churn_risk:
+                  type: boolean
+                needs_human:
+                  type: boolean
+                confidence:
+                  type: number
+                  description: The decision model's confidence in the priority, 0 to 1.
+                model_ms:
+                  type: number
+                  description: How long the decision model call took, in milliseconds.
+                escalation_reason:
+                  type: string
+                  description: low_confidence or provider_error when the decision node escalated; empty otherwise.
+                response:
+                  type: string
+                  description: The LLM agent's drafted reply, on the llm path only.
+      responses:
+        "200":
+          description: The recorded decision.
+        "404":
+          description: No high-throughput ticket matches source_ticket.

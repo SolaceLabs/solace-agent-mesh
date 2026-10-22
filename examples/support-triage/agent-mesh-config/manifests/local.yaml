@@ -1,0 +1,31 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: manifest
+name: support-triage
+description: Support-ticket triage for the Acme Help Desk. The Slack bot and the decision model have their own manifests.
+target:
+  name: desktop
+variables:
+  ACME_HELPDESK_API_URL: http://127.0.0.1:8900
+resources:
+  connectors:
+    - acme-helpdesk-api
+  toolsets:
+    - sla-clock
+  skills:
+    - support-playbook
+  agents:
+    - ticket-triage
+    - support-responder
+    - ticket-escalation
+  workflows:
+    - ticket-intake
+  entrypoints:
+    - acme-helpdesk-webhook
+  datasets:
+    - ticket-triage-cases
+  evaluators:
+    - triage-fields-judge
+  experiments:
+    - ticket-triage-regression

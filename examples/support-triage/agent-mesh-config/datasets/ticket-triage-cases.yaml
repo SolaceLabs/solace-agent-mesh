@@ -1,0 +1,8 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: dataset
+name: ticket-triage-cases
+description: Representative support tickets with the category, severity and owning team the triage rubric should produce.
+spec:
+  examples_file: ticket-triage-cases.examples.csv
