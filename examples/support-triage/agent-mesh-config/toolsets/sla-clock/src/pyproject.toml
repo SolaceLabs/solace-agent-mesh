@@ -1,0 +1,24 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sla_clock"
+version = "0.1.0"
+description = "First-response deadlines in the support team's business hours"
+requires-python = ">=3.10"
+dependencies = [
+    "sam-tool-sdk>=0.1,<0.2",
+    "tzdata>=2024.1",
+]
+
+[project.scripts]
+sla-clock = "sla_clock:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sla_clock"]
+
+# SAM CLI version that scaffolded this tool: main-v2.381.0

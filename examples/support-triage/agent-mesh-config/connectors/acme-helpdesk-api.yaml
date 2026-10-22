@@ -1,0 +1,13 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: connector
+name: acme-helpdesk-api
+description: The Acme Help Desk's REST API, used to write triage results back to tickets.
+spec:
+  type: api
+  subtype: openapi
+  values:
+    specification_file: acme-helpdesk-openapi.yaml
+    base_url: ${ACME_HELPDESK_API_URL}
+    auth_type: none

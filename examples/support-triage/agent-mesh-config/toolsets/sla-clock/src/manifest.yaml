@@ -1,0 +1,10 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+version: 1
+tools:
+  compute_response_due:
+    runtime: python
+    executable: python/bin/sla-clock
+    timeout_seconds: 30
+    sandbox_profile: restrictive

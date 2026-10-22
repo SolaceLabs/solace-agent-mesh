@@ -1,0 +1,1159 @@
+<!doctype html>
+<!-- Copyright Solace Corporation -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Space+Mono&display=swap" rel="stylesheet">
+<title>Acme Help Desk (demo)</title>
+<style>
+/* Solace 2025 brand tokens, light mode. Values marked "suggestion" are not
+   defined by the brand guidelines. */
+:root {
+  --green: #00c895;          /* Classic Green: primary fill, never text on white */
+  --green-bright: #abff88;   /* Bright Green: accent fills */
+  --green-dark: #009193;     /* Dark Green: secondary accent */
+  --blue-deep: #093b5f;      /* Deep Blue: text, links, lines, focus */
+  --blue-dark: #03213b;      /* Dark Blue: strongest text, button labels */
+  --spring: #c7ffcb;
+  --sky: #c2f7ff;
+  --sunrise: #fff7c2;
+  --orange: #fca829;
+  --error: #c62828;          /* suggestion: the palette has no red */
+  --error-soft: #fde8e8;     /* suggestion */
+
+  --bg: #f4f4f4;
+  --surface: #ffffff;
+  --subtle: #eaeaea;
+  --divider: #d6d6d6;
+  --text: #03213b;
+  --text-2: #093b5f;
+
+  --radius: 12px;            /* suggestion */
+  --radius-sm: 8px;          /* suggestion */
+  --shadow: 0 1px 2px rgba(9, 59, 95, 0.06), 0 4px 16px rgba(9, 59, 95, 0.06);
+  --mono: "Space Mono", "Cascadia Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.5 "Figtree", "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea { font: inherit; color: inherit; }
+
+:focus-visible { outline: 2px solid var(--blue-deep); outline-offset: 2px; }
+
+/* Top bar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 64px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--divider);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand img { display: block; }
+.demo-tag {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--sunrise);
+  border: 1px solid var(--orange);
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+/* Page */
+.page { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; display: grid; gap: 32px; }
+.section { display: grid; gap: 12px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue-deep);
+}
+.eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--green);
+  vertical-align: 1px;
+}
+h1 { margin: 6px 0 4px; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { margin: 8px 0 4px; font-size: 18px; font-weight: 700; }
+.lede { margin: 0 0 20px; color: var(--text-2); }
+.hint { margin: 0; font-size: 14px; color: var(--text-2); }
+.empty { margin: 0; padding: 20px; text-align: center; color: var(--text-2); border: 1px dashed var(--divider); border-radius: var(--radius); }
+.label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.grow { flex: 1; }
+
+/* Form */
+.samples { margin-bottom: 20px; display: grid; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  cursor: pointer;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  transition: border-color 0.15s, background 0.15s;
+}
+.chip:hover { border-color: var(--green); background: var(--spring); }
+
+.form { display: grid; gap: 16px; }
+.field { display: grid; gap: 6px; }
+.field input, .field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--blue-deep);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: box-shadow 0.15s;
+}
+.field textarea { resize: vertical; min-height: 96px; }
+.field input:focus, .field textarea:focus { outline: none; box-shadow: 0 0 0 3px rgba(0, 200, 149, 0.35); }
+
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+.btn {
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.05s;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { cursor: default; opacity: 0.6; }
+.btn-primary { background: var(--green); color: var(--blue-dark); }
+.btn-primary:hover:not(:disabled) { background: #00b386; }
+.btn-ghost { background: transparent; color: var(--text-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--subtle); }
+
+.banner { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 14px; }
+.banner-error { background: var(--error-soft); color: var(--error); border: 1px solid var(--error); }
+
+/* Tickets */
+.tickets { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.ticket { padding: 20px 24px; border-left: 4px solid var(--green); }
+.ticket.is-waiting { border-left-color: var(--divider); }
+.ticket-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.key { font-family: var(--mono); font-size: 14px; color: var(--blue-deep); }
+.meta { font-size: 13px; color: var(--text-2); }
+.desc { margin: 0; white-space: pre-wrap; color: var(--text-2); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--blue-dark);
+}
+.status { text-transform: uppercase; letter-spacing: 0.04em; }
+.status-new { background: var(--subtle); }
+.status-triaged { background: var(--green); }
+.status-escalated { background: var(--error); color: #fff; }
+.priority-p1 { background: var(--error-soft); color: var(--error); }
+.priority-p2 { background: var(--orange); }
+.priority-p3 { background: var(--sunrise); }
+.priority-p4 { background: var(--sky); }
+.priority-other { background: var(--subtle); }
+
+.waiting { margin: 16px 0 0; display: flex; align-items: center; gap: 10px; font-style: italic; color: var(--text-2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+
+.fields {
+  margin: 16px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+.fields .wide { grid-column: 1 / -1; }
+.fields dt { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.fields dd { margin: 2px 0 0; }
+
+.note {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(171, 255, 136, 0.25), rgba(0, 200, 149, 0.12));
+  border: 1px solid var(--green);
+}
+.note p { margin: 6px 0 0; white-space: pre-wrap; }
+
+@media (max-width: 640px) {
+  .topbar { padding: 0 16px; }
+  .demo-tag { display: none; }
+  .page { padding: 20px 16px 48px; }
+  .fields { grid-template-columns: 1fr; }
+}
+
+/* Tabs */
+.topbar .brand { flex: none; }
+.tabs { display: flex; gap: 4px; margin-left: 24px; height: 100%; }
+.tab {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  border-bottom: 3px solid transparent;
+}
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--text); border-bottom-color: var(--green); }
+
+/* Classification */
+.page-wide { max-width: 1100px; }
+.burst-controls { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: end; }
+.burst-controls .actions { align-self: end; }
+
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.stat { padding: 14px 16px; display: grid; gap: 4px; }
+.stat-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat.is-bad .stat-value { color: var(--error); }
+
+.burst-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.burst-row { padding: 10px 16px; border-left: 4px solid var(--green); }
+.burst-row.is-pending { border-left-color: var(--divider); }
+.burst-row.is-llm { border-left-color: var(--blue-deep); }
+.burst-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.burst-subject { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
+.burst-response {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+.burst-response p { margin: 4px 0 0; white-space: pre-wrap; }
+.burst-response.is-drafted {
+  background: linear-gradient(135deg, rgba(171, 255, 136, 0.25), rgba(0, 200, 149, 0.12));
+  border: 1px solid var(--green);
+}
+.burst-response.is-ack { background: var(--bg); border: 1px dashed var(--divider); }
+.waiting-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-style: italic; color: var(--text-2); }
+
+.tag { background: var(--subtle); font-weight: 600; text-transform: capitalize; }
+.flag { background: var(--sunrise); border: 1px solid var(--orange); }
+.priority-critical { background: var(--error); color: #fff; text-transform: uppercase; }
+.priority-high { background: var(--orange); text-transform: uppercase; }
+.priority-medium { background: var(--sunrise); text-transform: uppercase; }
+.priority-low { background: var(--sky); text-transform: uppercase; }
+.path-decision { background: var(--spring); border: 1px solid var(--green); }
+.path-llm { background: var(--blue-deep); color: #fff; }
+.latency { font-family: var(--mono); font-weight: 400; font-size: 12px; }
+.latency-fast { background: var(--green); }
+.latency-ok { background: var(--sunrise); border: 1px solid var(--orange); }
+.latency-slow { background: var(--error-soft); color: var(--error); border: 1px solid var(--error); }
+
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tabs { margin-left: 8px; }
+}
+
+/* Decision filters */
+.filters .collapsible-body { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; }
+.filter-group { display: grid; gap: 6px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; text-transform: capitalize; }
+.filter-chip:disabled { cursor: default; opacity: 0.45; }
+.filter-chip:disabled:hover { border-color: var(--divider); background: var(--surface); }
+.filter-chip.is-on { background: var(--green); border-color: var(--green); color: var(--blue-dark); font-weight: 600; }
+.filter-chip.is-on:hover { background: #00b386; }
+.chip-count { font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--subtle); }
+.filter-chip.is-on .chip-count { background: rgba(255, 255, 255, 0.6); }
+.filters-clear { align-self: flex-end; margin-left: auto; font-size: 14px; padding: 6px 12px; }
+
+/* Decision model explainer */
+.info .collapsible-body { display: grid; gap: 14px; }
+.info-blurb { margin: 0; color: var(--text-2); }
+.info code { font-family: var(--mono); font-size: 14px; background: var(--subtle); padding: 1px 6px; border-radius: 4px; }
+.questions { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.question { padding: 14px; border-radius: var(--radius-sm); background: var(--bg); border-top: 3px solid var(--green); display: grid; gap: 8px; align-content: start; }
+.question-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.question-head .pill { text-transform: none; font-size: 11px; white-space: nowrap; flex: none; }
+.question-asks { margin: 0; font-size: 14px; font-style: italic; }
+.question dl { margin: 0; display: grid; gap: 2px; font-size: 13px; }
+.question dt { font-weight: 600; color: var(--text-2); margin-top: 4px; }
+.question dd { margin: 0; }
+
+/* Collapsible cards */
+.collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+.collapsible > summary::-webkit-details-marker { display: none; }
+.collapsible > summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-right: 2px solid var(--blue-deep);
+  border-bottom: 2px solid var(--blue-deep);
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+.collapsible:not([open]) > summary::after { transform: rotate(-45deg); }
+.collapsible > summary:hover { color: var(--text); }
+.collapsible[open] > .collapsible-body { margin-top: 14px; }
+
+/* Decision model animation */
+.anim { border-top: 1px solid var(--divider); padding-top: 16px; display: grid; gap: 12px; }
+.anim-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.anim-note { font-size: 12px; color: var(--text-2); font-style: italic; }
+.anim-dots { display: flex; gap: 6px; }
+.anim-dot { width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 1px solid var(--blue-deep); background: var(--surface); cursor: pointer; }
+.anim-dot.is-on { background: var(--green); border-color: var(--green); }
+.anim-pause { font-size: 13px; padding: 4px 10px; }
+
+.anim-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 0.8fr) 28px minmax(0, 1.2fr) 28px minmax(0, 1.2fr);
+  align-items: stretch;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  min-height: 250px;
+}
+.anim-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  opacity: 0.25;
+  transform: translateY(6px);
+  transition: opacity 0.4s, transform 0.4s, box-shadow 0.4s, border-color 0.4s;
+}
+.anim-col.is-in { opacity: 1; transform: none; }
+.anim-step { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-deep); }
+.anim-ticket p { margin: 0; font-size: 13px; color: var(--text-2); }
+
+.anim-model { align-items: flex-start; justify-content: center; }
+.anim-model.is-in { border-color: var(--blue-deep); }
+.anim-model.is-busy { box-shadow: 0 0 0 4px rgba(0, 200, 149, 0.35); animation: anim-glow 0.9s ease-in-out infinite; }
+.anim-call { font-size: 13px; color: var(--text-2); }
+@keyframes anim-glow { 50% { box-shadow: 0 0 0 9px rgba(0, 200, 149, 0.12); } }
+
+.anim-arrow { align-self: center; height: 2px; margin: 0 4px; background: var(--divider); position: relative; overflow: hidden; }
+.anim-arrow span { position: absolute; inset: 0; background: var(--green); transform: scaleX(0); transform-origin: left; transition: transform 0.5s; }
+.anim-arrow.is-on span { transform: scaleX(1); }
+
+.anim-answers { font-size: 13px; gap: 7px; }
+.anim-answer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.anim-answer .pill { font-size: 11px; padding: 4px 8px; }
+.anim-conf { display: grid; gap: 3px; margin: -2px 0 2px; }
+.anim-bar { position: relative; height: 8px; border-radius: 999px; background: var(--subtle); overflow: visible; }
+.anim-fill { height: 100%; border-radius: 999px; background: var(--green); transition: width 0.9s ease-out; }
+.anim-fill.is-low { background: var(--orange); }
+.anim-threshold { position: absolute; top: -3px; bottom: -3px; left: 70%; width: 2px; background: var(--blue-dark); }
+.anim-conf-label { font-size: 11px; color: var(--text-2); text-align: right; }
+.anim-scale { display: inline-flex; align-items: center; gap: 3px; }
+.anim-scale i { width: 10px; height: 10px; border-radius: 2px; background: var(--subtle); }
+.anim-scale i.is-on { background: var(--blue-deep); }
+.anim-scale em { font-style: normal; margin-left: 4px; font-size: 12px; }
+.anim-bool { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--subtle); }
+.anim-bool.is-yes { background: var(--sunrise); border: 1px solid var(--orange); }
+
+.anim-routes { gap: 8px; }
+.anim-lane {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--divider);
+  transition: background 0.4s, border-color 0.4s, opacity 0.4s;
+}
+.anim-lane b { font-size: 13px; }
+.anim-lane.is-taken { border: 1px solid var(--green); background: var(--spring); }
+.anim-lane.is-llm.is-taken { border-color: var(--blue-deep); background: var(--sky); }
+.anim-lane.is-skipped { opacity: 0.35; }
+.anim-done { margin-top: 4px; font-weight: 700; color: var(--blue-dark); animation: anim-pop 0.35s ease-out; }
+.anim-reason { margin: 0; font-size: 12px; color: var(--text-2); font-style: italic; }
+@keyframes anim-pop { from { opacity: 0; transform: scale(0.9); } }
+
+@media (max-width: 900px) {
+  .anim-stage { grid-template-columns: 1fr; gap: 8px; }
+  .anim-arrow { width: 2px; height: 16px; justify-self: center; margin: 0; }
+  .anim-arrow span { transform: scaleY(0); transform-origin: top; }
+  .anim-arrow.is-on span { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-col, .anim-fill, .anim-arrow span, .anim-lane { transition: none; }
+  .anim-model.is-busy, .anim-done { animation: none; }
+}
+
+/* Ticket-intake walkthrough */
+.intake-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.intake-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.intake-step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  opacity: 0.45;
+  transition: opacity 0.35s, border-color 0.35s, box-shadow 0.35s;
+}
+.intake-step p { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
+.intake-step.is-done { opacity: 1; }
+.intake-step.is-active { opacity: 1; border-color: var(--green); box-shadow: 0 0 0 3px rgba(0, 200, 149, 0.25); animation: anim-glow 1s ease-in-out infinite; }
+.intake-marker {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--subtle);
+  color: var(--blue-dark);
+}
+.intake-step.is-active .intake-marker { background: var(--blue-deep); color: #fff; }
+.intake-step.is-done .intake-marker { background: var(--green); }
+.intake-step-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.intake-step-head b { font-family: var(--mono); font-size: 13px; font-weight: 400; }
+.intake-kind { font-size: 10px; padding: 3px 7px; text-transform: none; }
+.kind-entrypoint, .kind-connector { background: var(--sky); }
+.kind-llm-agent { background: var(--blue-deep); color: #fff; }
+.kind-code, .kind-rule { background: var(--spring); border: 1px solid var(--green); }
+.intake-branch { font-family: var(--mono); font-size: 12px !important; color: var(--blue-deep) !important; font-weight: 700; animation: anim-pop 0.35s ease-out; }
+
+.intake-ticket {
+  align-self: start;
+  position: sticky;
+  top: 80px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--blue-deep);
+}
+.intake-subject { font-size: 16px; }
+.intake-ticket dl { margin: 0; display: grid; gap: 8px; }
+.intake-field { display: grid; gap: 1px; }
+.intake-field dt { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.intake-field dd { margin: 0; font-size: 14px; }
+.intake-field.is-in dd { animation: anim-pop 0.35s ease-out; }
+.intake-pending { color: var(--divider); font-style: italic; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .intake-stage { grid-template-columns: 1fr; }
+  .intake-ticket { position: static; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .intake-step { transition: none; }
+  .intake-step.is-active, .intake-branch, .intake-field.is-in dd { animation: none; }
+}
+
+/* Section heading with an action */
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.btn-small { font-size: 14px; padding: 4px 12px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img src="/favicon.svg" alt="" width="28" height="28"><span>Acme Help Desk</span></div>
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" class="tab is-active" aria-selected="true" data-tab="triage">Triage</button>
+    <button type="button" role="tab" class="tab" aria-selected="false" data-tab="throughput">Classification</button>
+  </nav>
+  <span class="grow"></span>
+  <span class="demo-tag">Fictional demo. Not part of Agent Mesh.</span>
+</header>
+
+<!-- Triage tab: one ticket at a time, through the ticket-intake workflow -->
+<main class="page" id="tab-triage">
+  <p class="banner banner-error" role="alert" id="triage-error" hidden>Lost contact with the help desk server. Retrying...</p>
+
+  <section class="card">
+    <p class="eyebrow">New ticket</p>
+    <h1>Create a ticket</h1>
+    <p class="lede">Agent Mesh receives each new ticket, triages it, and writes the result back below.</p>
+    <div class="samples" id="samples" hidden>
+      <span class="label">Start from a sample</span>
+      <div class="chips" id="sample-chips"></div>
+    </div>
+    <form class="form" id="ticket-form">
+      <label class="field"><span class="label">Summary</span><input name="subject" required></label>
+      <label class="field"><span class="label">Description</span><textarea name="description" rows="4" required></textarea></label>
+      <label class="field"><span class="label">Reporter email</span><input name="requester" type="email" placeholder="customer@example.com"></label>
+      <p class="banner banner-error" id="form-error" hidden></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="form-reset">Reset</button>
+        <button type="submit" class="btn btn-primary" id="form-submit">Create ticket</button>
+      </div>
+    </form>
+  </section>
+
+  <details class="card collapsible info">
+    <summary class="eyebrow">How it works</summary>
+    <div class="collapsible-body">
+      <p class="info-blurb">
+        When you create a ticket, the help desk sends it to Agent Mesh as a signed webhook. The <b>ticket-intake</b>
+        workflow then triages it, works out when the customer must hear back, drafts a first reply, and decides whether
+        to escalate. Two steps use an LLM; the deadline, the routing and the write-back are plain code and rules, so
+        they give the same result every time. The ticket updates below in 15 to 30 seconds.
+      </p>
+      <div class="anim" id="intake-anim">
+        <div class="anim-head">
+          <span class="label">One ticket, step by step</span>
+          <span class="anim-note">Example results from a test run, not live</span>
+          <span class="grow"></span>
+          <div class="anim-dots"></div>
+          <button type="button" class="btn btn-ghost anim-pause">Pause</button>
+        </div>
+        <div class="anim-slot"></div>
+      </div>
+    </div>
+  </details>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="eyebrow">Agent Mesh responses</p>
+      <button type="button" class="btn btn-ghost btn-small" id="clear-tickets" hidden>Clear</button>
+    </div>
+    <div id="tickets"><p class="empty">No tickets yet. Create one above to see how Agent Mesh triages it.</p></div>
+  </section>
+</main>
+
+<!-- Classification tab: a burst of tickets through the ticket-decision workflow -->
+<main class="page page-wide" id="tab-throughput" hidden>
+  <section class="card">
+    <p class="eyebrow">Classification</p>
+    <h1>Classify a burst of tickets</h1>
+    <p class="lede">
+      Sends tickets to the <b>ticket-decision</b> workflow at a steady rate. A decision model classifies each one in a
+      single call. Critical and uncertain tickets also get a drafted reply from the support-responder agent.
+    </p>
+    <form class="burst-controls" id="burst-form">
+      <label class="field"><span class="label">Tickets per second</span><input name="rate" type="number" min="1" max="50" value="10"></label>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="burst-reset">Reset</button>
+        <button type="submit" class="btn btn-primary" id="burst-send">Send 50 tickets</button>
+      </div>
+    </form>
+    <p class="banner banner-error" id="burst-error" hidden></p>
+    <p class="banner banner-error" id="burst-conn" hidden>Lost contact with the help desk server. Retrying...</p>
+  </section>
+
+  <details class="card collapsible info">
+    <summary class="eyebrow">How the decision model works</summary>
+    <div class="collapsible-body">
+      <p class="info-blurb">
+        Each ticket goes to the <b>classify</b> decision node in the <b>ticket-decision</b> workflow. The node sends
+        the ticket to a decision model (<code>ticket-router</code>) in <b>one call</b>, and the model answers all five
+        questions below at once, with typed answers and confidence scores. A decision model only classifies; it does
+        not write text. So most tickets get a canned acknowledgement for their department and are written back without
+        an LLM, and only critical or uncertain tickets go on to the <b>support-responder</b> agent for a drafted reply.
+      </p>
+      <ul class="questions" id="questions"></ul>
+      <div class="anim" id="decision-anim">
+        <div class="anim-head">
+          <span class="label">One decision, step by step</span>
+          <span class="anim-note">Illustrative examples, not live results</span>
+          <span class="grow"></span>
+          <div class="anim-dots"></div>
+          <button type="button" class="btn btn-ghost anim-pause">Pause</button>
+        </div>
+        <div class="anim-slot"></div>
+      </div>
+    </div>
+  </details>
+
+  <section class="stats" id="stats" hidden></section>
+
+  <section class="section">
+    <p class="empty" id="burst-empty">No run yet. Send a burst to see each decision as it arrives.</p>
+    <details class="card collapsible filters" id="filters" hidden>
+      <summary class="eyebrow">Filters</summary>
+      <div class="collapsible-body" id="filter-groups"></div>
+    </details>
+    <div id="burst-list"></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+async function getJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+  return response.json();
+}
+
+/** Formats an ISO timestamp in the browser's time zone, e.g. "Tue 20 Oct, 17:42 PDT". */
+function when(iso) {
+  return new Date(iso).toLocaleString([], {
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+  });
+}
+
+function fmtMs(ms) {
+  if (ms == null) return "-";
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${Math.round(ms)} ms`;
+}
+
+/* ---------- Tabs ---------- */
+
+let tab = "triage";
+
+function showTab(next) {
+  tab = next;
+  for (const button of $$(".tab")) {
+    const on = button.dataset.tab === next;
+    button.classList.toggle("is-active", on);
+    button.setAttribute("aria-selected", on);
+  }
+  $("#tab-triage").hidden = next !== "triage";
+  $("#tab-throughput").hidden = next !== "throughput";
+  next === "triage" ? refreshTickets() : refreshThroughput();
+}
+
+for (const button of $$(".tab")) button.onclick = () => showTab(button.dataset.tab);
+
+/* ---------- Triage: create form ---------- */
+
+const form = $("#ticket-form");
+let samples = [];
+
+getJson("/api/samples").then((list) => {
+  samples = list;
+  $("#samples").hidden = !list.length;
+  $("#sample-chips").innerHTML = list
+    .map((s, i) => `<button type="button" class="chip" data-i="${i}">${esc(s.subject)}</button>`).join("");
+}).catch(() => {});
+
+$("#sample-chips").onclick = (e) => {
+  const chip = e.target.closest("[data-i]");
+  if (!chip) return;
+  const s = samples[chip.dataset.i];
+  form.subject.value = s.subject;
+  form.description.value = s.description;
+  form.requester.value = s.requester;
+};
+
+$("#form-reset").onclick = () => form.reset();
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  const error = $("#form-error");
+  const submit = $("#form-submit");
+  submit.disabled = $("#form-reset").disabled = true;
+  submit.textContent = "Creating...";
+  error.hidden = true;
+  try {
+    const response = await fetch("/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: form.subject.value, description: form.description.value, requester: form.requester.value }),
+    });
+    if (!response.ok) throw new Error(`Could not create the ticket: HTTP ${response.status}`);
+    form.reset();
+    refreshTickets();
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  } finally {
+    submit.disabled = $("#form-reset").disabled = false;
+    submit.textContent = "Create ticket";
+  }
+};
+
+/* ---------- Triage: Agent Mesh responses ---------- */
+
+const PRIORITY_NAMES = { P1: "Highest", P2: "High", P3: "Medium", P4: "Low" };
+
+function priorityBadge(p) {
+  if (!p) return "";
+  const known = p in PRIORITY_NAMES;
+  return `<span class="pill priority priority-${known ? p.toLowerCase() : "other"}">${esc(p)}${known ? " " + PRIORITY_NAMES[p] : ""}</span>`;
+}
+
+const statusBadge = (s) => `<span class="pill status status-${esc(s)}">${esc(s)}</span>`;
+const field = (label, value, wide) => `<div${wide ? ' class="wide"' : ""}><dt>${label}</dt><dd>${esc(value) || "-"}</dd></div>`;
+
+function ticketCard(t) {
+  const waiting = t.status === "new";
+  const body = waiting
+    ? `<p class="waiting"><span class="dot" aria-hidden="true"></span> Waiting for Agent Mesh to triage...</p>`
+    : `<dl class="fields">${field("Category", t.category)}${field("Team", t.team)}${field("Respond by", t.respond_by && when(t.respond_by))}${field("Summary", t.summary, true)}</dl>` +
+      (t.internal_note ? `<div class="note"><span class="label">Drafted reply from Agent Mesh</span><p>${esc(t.internal_note)}</p></div>` : "");
+  return `<li class="card ticket ${waiting ? "is-waiting" : ""}">
+    <div class="ticket-head"><span class="key">${esc(t.ticket_id)}</span>${statusBadge(t.status)}${priorityBadge(t.priority)}
+      <span class="grow"></span><span class="meta">${esc(t.requester)} · ${esc(when(t.created_at))}</span></div>
+    <h2>${esc(t.subject)}</h2><p class="desc">${esc(t.description)}</p>${body}</li>`;
+}
+
+let lastTickets = null;
+
+async function refreshTickets() {
+  let tickets;
+  try {
+    tickets = await getJson("/api/tickets");
+    $("#triage-error").hidden = true;
+  } catch {
+    $("#triage-error").hidden = false;
+    return;
+  }
+  const json = JSON.stringify(tickets);
+  if (json === lastTickets) return; // unchanged; keep the DOM, and its animations, as they are
+  lastTickets = json;
+  $("#clear-tickets").hidden = !tickets.length;
+  $("#tickets").innerHTML = tickets.length
+    ? `<ul class="tickets">${tickets.map(ticketCard).join("")}</ul>`
+    : `<p class="empty">No tickets yet. Create one above to see how Agent Mesh triages it.</p>`;
+}
+
+$("#clear-tickets").onclick = async () => {
+  await fetch("/api/tickets", { method: "DELETE" }).catch(() => {});
+  refreshTickets();
+};
+
+/* ---------- Classification ---------- */
+
+const TICKET_COUNT = 50;
+let throughput = { run: null, tickets: [] };
+let lastThroughput = null;
+let selection = {}; // filter group ID -> selected option values
+
+const QUESTIONS = [
+  { name: "Priority", type: "choice", asks: "How urgently does this ticket need a response?",
+    answers: "critical, high, medium or low, with a confidence score",
+    use: "Routes the ticket. Critical goes to the LLM agent; high, medium and low are written straight back. If the confidence is below 70%, the ticket goes to the LLM agent instead." },
+  { name: "Department", type: "choice", asks: "Which team should own this ticket?",
+    answers: "technical, billing, account, product or other",
+    use: "Labels the ticket's owning queue, and picks the acknowledgement message on the decision-model path." },
+  { name: "Sentiment", type: "score", asks: "How does the customer feel?",
+    answers: "A position on the scale angry → frustrated → neutral → positive", use: "Shows how carefully to handle the reply." },
+  { name: "Churn risk", type: "yes / no", asks: "Might the customer cancel or move to a competitor over this?",
+    answers: "true or false, with a probability", use: "Flags accounts to watch." },
+  { name: "Wants a person", type: "yes / no", asks: "Does the customer ask for a call, a manager or a named employee?",
+    answers: "true or false, with a probability", use: "Flags tickets that need a human touch." },
+];
+
+$("#questions").innerHTML = QUESTIONS.map((q) => `<li class="question">
+  <div class="question-head"><b>${q.name}</b><span class="pill tag">${q.type}</span></div>
+  <p class="question-asks">“${q.asks}”</p>
+  <dl><dt>Answers</dt><dd>${q.answers}</dd><dt>Used for</dt><dd>${q.use}</dd></dl></li>`).join("");
+
+// Filter chips over the decision model's answers. Chips in one group are
+// alternatives (OR); groups combine (AND). With any chip on, tickets still
+// waiting for a decision are hidden.
+const byField = (name, values) => values.map((value) => ({ value, label: value, match: (t) => t[name] === value }));
+const GROUPS = [
+  { id: "path", label: "Path", options: [
+    { value: "decision", label: "Decision model", match: (t) => t.path === "decision" },
+    { value: "llm", label: "LLM agent", match: (t) => t.path === "llm" },
+  ] },
+  { id: "priority", label: "Priority", options: byField("priority", ["critical", "high", "medium", "low"]) },
+  { id: "department", label: "Department", options: byField("department", ["technical", "billing", "account", "product", "other"]) },
+  { id: "sentiment", label: "Sentiment", options: byField("sentiment", ["angry", "frustrated", "neutral", "positive"]) },
+  { id: "flags", label: "Flags", options: [
+    { value: "churn_risk", label: "churn risk", match: (t) => !!t.churn_risk },
+    { value: "needs_human", label: "wants a person", match: (t) => !!t.needs_human },
+  ] },
+];
+
+function applyFilters(tickets) {
+  const active = GROUPS.filter((g) => selection[g.id]?.length);
+  if (!active.length) return tickets;
+  return tickets.filter((t) => t.status === "classified" &&
+    active.every((g) => g.options.some((o) => selection[g.id].includes(o.value) && o.match(t))));
+}
+
+function renderFilters() {
+  const classified = throughput.tickets.filter((t) => t.status === "classified");
+  const anyActive = Object.values(selection).some((v) => v.length);
+  $("#filter-groups").innerHTML = GROUPS.map((g) => `<div class="filter-group"><span class="label">${g.label}</span>
+    <div class="chips">${g.options.map((o) => {
+      const count = classified.filter(o.match).length;
+      const on = selection[g.id]?.includes(o.value) ?? false;
+      return `<button type="button" class="chip filter-chip ${on ? "is-on" : ""}" aria-pressed="${on}"
+        data-group="${g.id}" data-value="${o.value}" ${!count && !on ? "disabled" : ""}>${o.label}<span class="chip-count">${count}</span></button>`;
+    }).join("")}</div></div>`).join("") +
+    (anyActive ? `<button type="button" class="btn btn-ghost filters-clear" data-clear>Clear filters</button>` : "");
+}
+
+$("#filter-groups").onclick = (e) => {
+  if (e.target.closest("[data-clear]")) selection = {};
+  const chip = e.target.closest("[data-group]");
+  if (chip) {
+    const { group, value } = chip.dataset;
+    const current = selection[group] ?? [];
+    selection = { ...selection, [group]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] };
+  }
+  renderFilters();
+  renderBurstList();
+};
+
+const latencyClass = (ms) => (ms < 2000 ? "fast" : ms < 5000 ? "ok" : "slow");
+
+function burstRow(t) {
+  const done = t.status === "classified";
+  let tags;
+  if (done) {
+    const latencyTitle = "From the webhook being sent to the result arriving from Agent Mesh." +
+      (typeof t.model_ms === "number" ? ` Decision model: ${fmtMs(t.model_ms)}.` : "");
+    tags = [
+      t.priority && `<span class="pill priority-${esc(t.priority)}">${esc(t.priority)}</span>`,
+      t.department && `<span class="pill tag">${esc(t.department)}</span>`,
+      t.sentiment && `<span class="pill tag">${esc(t.sentiment)}</span>`,
+      t.churn_risk && `<span class="pill flag">churn risk</span>`,
+      t.needs_human && `<span class="pill flag">wants a person</span>`,
+      typeof t.confidence === "number" && `<span class="pill tag" title="Decision model confidence in the priority">${Math.round(t.confidence * 100)}%</span>`,
+      `<span class="pill path path-${t.path === "llm" ? "llm" : "decision"}">${t.path === "llm" ? "LLM agent" : "Decision model"}</span>`,
+      typeof t.latency_ms === "number" && `<span class="pill latency latency-${latencyClass(t.latency_ms)}" title="${esc(latencyTitle)}">${fmtMs(t.latency_ms)}</span>`,
+    ].filter(Boolean).join("");
+  } else if (t.status === "failed") {
+    tags = `<span class="pill status-escalated" title="${esc(t.error)}">send failed</span>`;
+  } else {
+    tags = `<span class="waiting-inline"><span class="dot" aria-hidden="true"></span> ${t.status === "sending" ? "Sending" : "Drafting response from SAM"}</span>`;
+  }
+  const llm = t.path === "llm";
+  const response = done && t.response
+    ? `<div class="burst-response ${llm ? "is-drafted" : "is-ack"}"><span class="label">${llm ? "Drafted reply · support-responder" : "Auto-acknowledgement · no LLM"}</span><p>${esc(t.response)}</p></div>`
+    : "";
+  return `<li class="burst-row card ${done ? "" : "is-pending"} ${llm ? "is-llm" : ""}">
+    <div class="burst-main"><span class="key">${esc(t.ticket_id)}</span>
+      <span class="burst-subject" title="${esc(t.description)}">${esc(t.subject)}</span><span class="grow"></span>${tags}</div>${response}</li>`;
+}
+
+function renderBurstList() {
+  const { tickets } = throughput;
+  const shown = applyFilters(tickets);
+  $("#burst-list").innerHTML = !tickets.length ? ""
+    : !shown.length ? `<p class="empty">No decisions match these filters.</p>`
+    : `<ul class="burst-list">${shown.map(burstRow).join("")}</ul>`;
+}
+
+function renderStats() {
+  const { run, tickets } = throughput;
+  $("#stats").hidden = !run;
+  if (!run) return;
+  const sent = tickets.filter((t) => t.status !== "sending" && t.status !== "failed").length;
+  const done = tickets.filter((t) => t.status === "classified");
+  const failed = tickets.filter((t) => t.status === "failed").length;
+  const ms = done.map((t) => t.latency_ms).filter((v) => typeof v === "number");
+  const stats = [
+    ["Sent", `${sent} / ${run.count}`],
+    ["Classified", done.length],
+    ["LLM replies", done.filter((t) => t.path === "llm").length],
+    ["Failed", failed, failed ? "is-bad" : ""],
+    ["Avg SAM latency", fmtMs(ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : undefined)],
+  ];
+  $("#stats").innerHTML = stats.map(([label, value, cls]) =>
+    `<div class="stat card ${cls ?? ""}"><span class="label">${label}</span><span class="stat-value">${value}</span></div>`).join("");
+}
+
+function renderThroughput() {
+  const { run, tickets } = throughput;
+  const sending = !!run?.sending;
+  $("#burst-send").disabled = $("#burst-reset").disabled = sending;
+  $("#burst-send").textContent = sending ? "Sending..." : `Send ${TICKET_COUNT} tickets`;
+  $("#burst-empty").hidden = tickets.length > 0;
+  $("#filters").hidden = !tickets.length;
+  renderStats();
+  renderFilters();
+  renderBurstList();
+}
+
+async function refreshThroughput() {
+  let state;
+  try {
+    state = await getJson("/api/throughput");
+    $("#burst-conn").hidden = true;
+  } catch {
+    $("#burst-conn").hidden = false;
+    return;
+  }
+  const json = JSON.stringify(state);
+  if (json === lastThroughput) return;
+  lastThroughput = json;
+  throughput = state;
+  renderThroughput();
+}
+
+$("#burst-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const error = $("#burst-error");
+  error.hidden = true;
+  try {
+    const response = await fetch("/api/throughput/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: TICKET_COUNT, rate: Number($("#burst-form").rate.value) }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.message ?? `Could not start the run: HTTP ${response.status}`);
+    }
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+  refreshThroughput();
+};
+
+$("#burst-reset").onclick = async () => {
+  await fetch("/api/throughput", { method: "DELETE" }).catch(() => {});
+  refreshThroughput();
+};
+
+/* ---------- Walkthrough animations ---------- */
+
+/**
+ * Plays scripted examples through numbered phases. build(example) returns the
+ * stage HTML once per example; apply(stage, example, phase) updates it in
+ * place, so CSS transitions run between phases.
+ */
+function walkthrough(root, { examples, durations, build, apply }) {
+  const slot = $(".anim-slot", root);
+  const dots = $(".anim-dots", root);
+  const pause = $(".anim-pause", root);
+  const last = durations.length - 1;
+  let example = 0, phase = reducedMotion ? last : 0, paused = reducedMotion, timer;
+
+  function render() {
+    slot.innerHTML = build(examples[example]);
+    apply(slot, examples[example], phase);
+    $$(".anim-dot", dots).forEach((d, i) => d.classList.toggle("is-on", i === example));
+  }
+  function schedule() {
+    clearTimeout(timer);
+    if (paused) return;
+    timer = setTimeout(() => {
+      if (phase < last) {
+        phase++;
+        apply(slot, examples[example], phase);
+      } else {
+        example = (example + 1) % examples.length;
+        phase = 0;
+        render();
+      }
+      schedule();
+    }, durations[phase]);
+  }
+
+  dots.innerHTML = examples.map((e, i) =>
+    `<button type="button" class="anim-dot" data-i="${i}" aria-label="Show example: ${esc(e.subject)}"></button>`).join("");
+  dots.onclick = (e) => {
+    const dot = e.target.closest("[data-i]");
+    if (!dot) return;
+    example = Number(dot.dataset.i);
+    phase = paused ? last : 0;
+    render();
+    schedule();
+  };
+  pause.textContent = paused ? "Play" : "Pause";
+  pause.onclick = () => {
+    paused = !paused;
+    pause.textContent = paused ? "Play" : "Pause";
+    schedule();
+  };
+  render();
+  schedule();
+}
+
+// The ticket-intake workflow. Keep in step with workflows/ticket-intake.yaml;
+// the example results are from the support-triage README's test run.
+const INTAKE_STEPS = [
+  { id: "webhook", name: "acme-helpdesk-webhook", kind: "Entrypoint", does: "Checks the signature on the new ticket, answers 202 at once, and starts the workflow." },
+  { id: "triage", name: "ticket-triage", kind: "LLM agent", does: "Classifies the ticket against a fixed rubric: category, severity and owning team." },
+  { id: "sla", name: "sla-clock", kind: "Code", does: "Works out the first-response deadline in business hours, skipping weekends and holidays." },
+  { id: "reply", name: "support-responder", kind: "LLM agent", does: "Loads the support-playbook skill, searches its knowledge base, and drafts the first reply." },
+  { id: "switch", name: "route_by_severity", kind: "Rule", does: "A switch with no LLM: P1 tickets are escalated, every other ticket is queued." },
+  { id: "write", name: "acme-helpdesk-api", kind: "Connector", does: "Writes the triage, deadline and reply back to the ticket with PUT /api/tickets/{id}." },
+];
+const INTAKE_EXAMPLES = [
+  { subject: "Nobody can log in - Error 503", category: "Outage", severity: "P1", team: "Platform",
+    respondBy: "1 hour after it arrived", reply: "Points the customer to the status page for updates.", status: "escalated" },
+  { subject: "Export invoices as CSV?", category: "How-to", severity: "P4", team: "Customer Success",
+    respondBy: "3 business days later", reply: "Gives the CSV export steps from the knowledge base.", status: "triaged" },
+  { subject: "Charged twice this month", category: "Billing", severity: "P3", team: "Billing",
+    respondBy: "1 business day later", reply: "Explains the refund policy and asks for the last four digits of the card.", status: "triaged" },
+];
+
+// Each field shows once the step named in `after` has finished.
+const intakeFields = (ex) => [
+  { label: "Category", after: "triage", html: esc(ex.category) },
+  { label: "Priority", after: "triage", html: `<span class="pill priority priority-${ex.severity.toLowerCase()}">${ex.severity}</span>` },
+  { label: "Team", after: "triage", html: esc(ex.team) },
+  { label: "Respond by", after: "sla", html: esc(ex.respondBy) },
+  { label: "Drafted reply", after: "reply", html: esc(ex.reply) },
+];
+
+walkthrough($("#intake-anim"), {
+  examples: INTAKE_EXAMPLES,
+  // Phase i means step i is running; the last phase means every step is done.
+  durations: [...INTAKE_STEPS.map(() => 1500), 2200],
+  build: (ex) => `<div class="intake-stage">
+    <ol class="intake-steps">${INTAKE_STEPS.map((s) => `<li class="intake-step">
+      <span class="intake-marker"></span>
+      <div><div class="intake-step-head"><b>${s.name}</b><span class="pill intake-kind kind-${s.kind.replace(" ", "-").toLowerCase()}">${s.kind}</span></div>
+        <p>${s.does}</p>
+        ${s.id === "switch" ? `<p class="intake-branch" hidden>${ex.severity === "P1" ? "P1 → escalate_ticket" : `${ex.severity} → queue_ticket (default)`}</p>` : ""}
+      </div></li>`).join("")}</ol>
+    <div class="intake-ticket">
+      <span class="anim-step">The ticket</span>
+      <b class="intake-subject">${esc(ex.subject)}</b>
+      <dl>
+        <div class="intake-field"><dt>Status</dt><dd class="intake-status"></dd></div>
+        ${intakeFields(ex).map((f) => `<div class="intake-field" data-after="${f.after}" data-html="${esc(f.html)}"><dt>${f.label}</dt><dd></dd></div>`).join("")}
+      </dl>
+      <span class="anim-done" hidden>✓ ${ex.severity === "P1" ? "Escalated to Platform" : `Queued for ${esc(ex.team)}`}</span>
+    </div></div>`,
+  apply: (stage, ex, step) => {
+    const done = (id) => step > INTAKE_STEPS.findIndex((s) => s.id === id);
+    $$(".intake-step", stage).forEach((li, i) => {
+      li.classList.toggle("is-done", i < step);
+      li.classList.toggle("is-active", i === step);
+      $(".intake-marker", li).textContent = i < step ? "✓" : i + 1;
+    });
+    $(".intake-branch", stage).hidden = !done("switch");
+    const status = done("write") ? ex.status : "new";
+    $(".intake-status", stage).innerHTML = `<span class="pill status status-${status}">${status}</span>`;
+    for (const f of $$("[data-after]", stage)) {
+      const show = done(f.dataset.after);
+      if (f.classList.contains("is-in") === show && f.dataset.ready) continue;
+      f.dataset.ready = "1";
+      f.classList.toggle("is-in", show);
+      $("dd", f).innerHTML = show ? f.dataset.html : `<span class="intake-pending">waiting</span>`;
+    }
+    $(".anim-done", stage).hidden = step < INTAKE_STEPS.length;
+  },
+});
+
+// One decision-model call. Keep in step with workflows/ticket-decision.yaml.
+const THRESHOLD = 0.7;
+const SENTIMENT = ["angry", "frustrated", "neutral", "positive"];
+const DECISION_EXAMPLES = [
+  { subject: "Dashboard is down for everyone", description: "No one on our team of 300 can load the dashboard. Production is stopped.",
+    priority: "critical", confidence: 0.94, department: "technical", sentiment: 1, churnRisk: true, needsHuman: false },
+  { subject: "Export invoices as CSV?", description: "How do I export last month's invoices as a CSV? I only see a PDF download.",
+    priority: "low", confidence: 0.91, department: "product", sentiment: 2, churnRisk: false, needsHuman: false },
+  { subject: "Charged twice in October", description: "Our card was charged twice for the October subscription. Please refund the duplicate.",
+    priority: "medium", confidence: 0.86, department: "billing", sentiment: 1, churnRisk: false, needsHuman: false },
+  { subject: "Not working", description: "It does not work again. Call me.",
+    priority: "medium", confidence: 0.48, department: "other", sentiment: 1, churnRisk: false, needsHuman: true },
+];
+// Phases: 0 ticket, 1 calling, 2 answers, 3 confidence, 4 route, 5 written.
+const toLlm = (ex) => ex.priority === "critical" || ex.confidence < THRESHOLD;
+const bool = (yes) => `<span class="anim-bool ${yes ? "is-yes" : ""}">${yes ? "yes" : "no"}</span>`;
+
+walkthrough($("#decision-anim"), {
+  examples: DECISION_EXAMPLES,
+  durations: [900, 1100, 1300, 1200, 1300, 1800],
+  build: (ex) => {
+    const pct = Math.round(ex.confidence * 100);
+    const reason = ex.confidence < THRESHOLD ? `Confidence ${pct}% is below 70%, so the answer is not trusted`
+      : ex.priority === "critical" ? "Priority is critical" : `Priority is ${ex.priority} at ${pct}% confidence`;
+    const ack = ex.department === "other" ? "general" : ex.department;
+    return `<div class="anim-stage">
+      <div class="anim-col anim-ticket" data-on="0"><span class="anim-step">1 · Ticket</span><b>${esc(ex.subject)}</b><p>${esc(ex.description)}</p></div>
+      <div class="anim-arrow" data-on="1" aria-hidden="true"><span></span></div>
+      <div class="anim-col anim-model" data-on="1"><span class="anim-step">2 · Decision model</span><b>TypeSafe Jev</b><span class="anim-call"></span></div>
+      <div class="anim-arrow" data-on="2" aria-hidden="true"><span></span></div>
+      <div class="anim-col anim-answers" data-on="2"><span class="anim-step">3 · Answers</span>
+        <div class="anim-answer"><span>Priority</span><span class="pill priority-${ex.priority}">${ex.priority}</span></div>
+        <div class="anim-conf"><div class="anim-bar"><div class="anim-fill ${ex.confidence < THRESHOLD ? "is-low" : ""}" style="width:0%"></div><div class="anim-threshold" title="70% threshold"></div></div>
+          <span class="anim-conf-label"></span></div>
+        <div class="anim-answer"><span>Department</span><span class="pill tag">${ex.department}</span></div>
+        <div class="anim-answer"><span>Sentiment</span><span class="anim-scale">${SENTIMENT.map((s, i) => `<i class="${i === ex.sentiment ? "is-on" : ""}" title="${s}"></i>`).join("")}<em>${SENTIMENT[ex.sentiment]}</em></span></div>
+        <div class="anim-answer"><span>Churn risk</span>${bool(ex.churnRisk)}</div>
+        <div class="anim-answer"><span>Wants a person</span>${bool(ex.needsHuman)}</div>
+      </div>
+      <div class="anim-arrow" data-on="4" aria-hidden="true"><span></span></div>
+      <div class="anim-col anim-routes" data-on="4"><span class="anim-step">4 · Route</span>
+        <div class="anim-lane" data-lane="decision"><b>Decision model</b><span>A ${ack} acknowledgement is written back, no LLM</span><span class="anim-done" hidden>✓ Acknowledged and written back</span></div>
+        <div class="anim-lane is-llm" data-lane="llm"><b>LLM agent</b><span>support-responder drafts a reply, then it is written back</span><span class="anim-done" hidden>✓ Reply drafted and written back</span></div>
+        <p class="anim-reason" hidden>${reason}</p>
+      </div></div>`;
+  },
+  apply: (stage, ex, phase) => {
+    for (const el of $$("[data-on]", stage)) {
+      el.classList.toggle(el.classList.contains("anim-arrow") ? "is-on" : "is-in", phase >= Number(el.dataset.on));
+    }
+    $(".anim-model", stage).classList.toggle("is-busy", phase === 1);
+    $(".anim-call", stage).textContent = phase === 1 ? "Classifying..." : phase >= 2 ? "1 call · 5 answers" : "Waiting";
+    const pct = Math.round(ex.confidence * 100);
+    $(".anim-fill", stage).style.width = phase >= 3 ? `${pct}%` : "0%";
+    $(".anim-conf-label", stage).textContent = phase >= 3 ? `${pct}% confident` : "confidence";
+    const routed = phase >= 4, llm = toLlm(ex);
+    for (const lane of $$("[data-lane]", stage)) {
+      const taken = (lane.dataset.lane === "llm") === llm;
+      lane.classList.toggle("is-taken", routed && taken);
+      lane.classList.toggle("is-skipped", routed && !taken);
+      $(".anim-done", lane).hidden = !(phase >= 5 && taken);
+    }
+    $(".anim-reason", stage).hidden = !routed;
+  },
+});
+
+/* ---------- Start ---------- */
+
+showTab("triage");
+setInterval(() => tab === "triage" && refreshTickets(), 1500);
+setInterval(() => tab === "throughput" && refreshThroughput(), 500);
+</script>
+</body>
+</html>

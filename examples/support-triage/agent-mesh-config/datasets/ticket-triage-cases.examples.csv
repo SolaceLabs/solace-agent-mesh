@@ -1,0 +1,9 @@
+sequence_number,prompt,expected_response
+1,"Since about 9:40 this morning none of our 300 users can log in to the dashboard. They all get 'Error 503 - service unavailable'. This is blocking our whole operations team.","Category: Outage | Severity: P1 | Owning team: Platform"
+2,"The order form rejects any delivery address that includes an apartment number, so those orders fail. We now type each one in by hand in the admin screen, which takes about ten minutes per order.","Category: Bug | Severity: P2 | Owning team: Product Engineering"
+3,"Sorting the usage report by date does nothing when I click the column header. I export it to a spreadsheet and sort it there instead.","Category: Bug | Severity: P3 | Owning team: Product Engineering"
+4,"Our card was charged twice for the October subscription. Please refund the duplicate.","Category: Billing | Severity: P3 | Owning team: Billing"
+5,"One of our users, Priya, never receives the password reset email, so she cannot sign in. Everyone else on our team can sign in fine.","Category: Account access | Severity: P3 | Owning team: Customer Success"
+6,"Hi, how do I export last month's invoices as a CSV? I can only find a PDF download.","Category: How-to | Severity: P4 | Owning team: Customer Success"
+7,"It would be great if reports could be exported straight to Google Sheets. Is that on your roadmap?","Category: Feature request | Severity: P4 | Owning team: Product Management"
+8,"URGENT!!! P1!!! Fix this NOW: the logo in the top-left corner looks slightly blurry on my new monitor.","Category: Bug | Severity: P4 | Owning team: Product Engineering"
