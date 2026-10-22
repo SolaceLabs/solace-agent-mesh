@@ -6,10 +6,10 @@
 >
 > 🖥️ A free edition of the Solace Agent Mesh desktop app is available: https://solace.com/products/agent-mesh/download
 >
-> This repository will be archived (read-only) but stays available for reference, so your existing links and installs keep working.
+> 📦 The Python version (SAM V1) and its full history are on the [`v1`](https://github.com/SolaceLabs/solace-agent-mesh/tree/v1) branch.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/main/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
+  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/v1/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </p>
 <h2 align="center">
   Solace Agent Mesh
@@ -18,7 +18,7 @@
 <h5 align="center">Star ⭐️ this repo to stay updated as we ship new features and improvements.</h5>
 
 <p align="center">
-  <a href="https://github.com/SolaceLabs/solace-agent-mesh/blob/main/LICENSE">
+  <a href="https://github.com/SolaceLabs/solace-agent-mesh/blob/v1/LICENSE">
     <img src="https://img.shields.io/github/license/SolaceLabs/solace-agent-mesh" alt="License">
   </a>
   <a href="https://pypi.org/project/solace-agent-mesh">
@@ -230,5 +230,5 @@ pytest
 ---
 
 <h3 align="center">
-  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/main/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
+  <img src="https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/refs/heads/v1/docs/static/img/logo.png" alt="Solace Agent Mesh Logo" width="100"/>
 </h3>
