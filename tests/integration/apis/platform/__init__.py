@@ -1,1 +1,0 @@
-# Platform Service integration tests

@@ -1,2 +1,0 @@
-This is the content of the sample document.
-It contains important information that the agent needs to process.
