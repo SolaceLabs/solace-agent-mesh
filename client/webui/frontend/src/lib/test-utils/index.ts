@@ -1,1 +1,0 @@
-export { renderWithProviders } from "./renderWithProviders";
