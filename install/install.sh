@@ -5,7 +5,7 @@
 # Install Agent Mesh Desktop Application (Solace Agent Mesh) on macOS or Linux,
 # from the latest GitHub release.
 #
-#   curl -fsSL https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/install/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/SolaceProducts/solace-agent-mesh/main/install/install.sh | sh
 #
 # Options (flags, or the matching environment variables):
 #   --format deb|rpm|tarball   Linux package format      (SAM_INSTALL_FORMAT; default: detected)
@@ -20,7 +20,7 @@
 # the release asset. On macOS the app's Apple notarization is also verified.
 set -eu
 
-REPO="${SAM_INSTALL_REPO:-SolaceLabs/solace-agent-mesh}"
+REPO="${SAM_INSTALL_REPO:-SolaceProducts/solace-agent-mesh}"
 TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
 RELEASE_API="https://api.github.com/repos/$REPO/releases/latest"
 FORMAT="${SAM_INSTALL_FORMAT:-}"

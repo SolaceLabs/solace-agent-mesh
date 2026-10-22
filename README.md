@@ -28,13 +28,13 @@ Agent Mesh Desktop runs on the following platforms:
 On macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/install/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/SolaceProducts/solace-agent-mesh/main/install/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/install/install.ps1 | iex
+irm https://raw.githubusercontent.com/SolaceProducts/solace-agent-mesh/main/install/install.ps1 | iex
 ```
 
 The script selects the download that matches your operating system and
@@ -47,7 +47,7 @@ To preview what the script does without installing, run it with `--dry-run`. On
 macOS and Linux, pass the flag through `sh -s --`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/install/install.sh | sh -s -- --dry-run
+curl -fsSL https://raw.githubusercontent.com/SolaceProducts/solace-agent-mesh/main/install/install.sh | sh -s -- --dry-run
 ```
 
 On Windows, set `$env:SAM_INSTALL_DRY_RUN=1` instead.

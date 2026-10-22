@@ -4,7 +4,7 @@
 # Install Agent Mesh Desktop Application (Solace Agent Mesh) on Windows, from the
 # latest GitHub release.
 #
-#   irm https://raw.githubusercontent.com/SolaceLabs/solace-agent-mesh/main/install/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/SolaceProducts/solace-agent-mesh/main/install/install.ps1 | iex
 #
 # Per-user install (no administrator rights) to %LOCALAPPDATA%\Programs\Solace Agent Mesh.
 # The download is checked against the SHA-256 digest that GitHub publishes for the
@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$Repo = if ($env:SAM_INSTALL_REPO) { $env:SAM_INSTALL_REPO } else { 'SolaceLabs/solace-agent-mesh' }
+$Repo = if ($env:SAM_INSTALL_REPO) { $env:SAM_INSTALL_REPO } else { 'SolaceProducts/solace-agent-mesh' }
 $Token = if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN } else { $null }
 $AssetSuffix = '-desktop-free-windows-x64.zip'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Programs\Solace Agent Mesh'
