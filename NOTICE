@@ -1,0 +1,32 @@
+Solace Agent Mesh
+Copyright Solace Corporation.
+
+What this repository contains, and the terms each part is under:
+
+1. Repository contents (documentation, install scripts, and every other file,
+   excluding the examples/ directory and the Agent Mesh Desktop Application
+   binaries attached to this repository's GitHub releases):
+   licensed under the Business Source License 1.1 (SPDX: BUSL-1.1) in the
+   LICENSE file. The Business Source License does NOT cover the examples/
+   directory or the Agent Mesh Desktop Application binaries attached to this
+   repository's GitHub releases.
+
+   The examples/ directory and its subdirectories: licensed under the Apache
+   License, Version 2.0 (SPDX: Apache-2.0) in the examples/LICENSE file.
+
+   A file that has no SPDX-License-Identifier header, such as an image or a
+   CSV file, is under the license of the directory that contains it.
+
+2. Solace Agent Mesh product source code: not yet published here. When it is
+   published, it is intended to be licensed under the LICENSE file.
+
+3. Solace Agent Mesh binaries (the free Agent Mesh Desktop Application
+   installers and packages attached to this repository's GitHub releases):
+   NOT part of the repository contents and NOT licensed under the LICENSE
+   file. Each one includes, in its LICENSE file, the end user license
+   agreement under which Solace distributes it. The agreement is also
+   available at:
+   https://legal.solace.com/solace-agent-mesh-desktop-eula/48229153
+
+"Solace", "Solace Agent Mesh" and related logos are trademarks of Solace
+Corporation. No trademark rights are granted by this repository.

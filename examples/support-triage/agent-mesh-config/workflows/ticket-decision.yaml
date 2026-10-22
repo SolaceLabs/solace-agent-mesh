@@ -1,0 +1,209 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: workflow
+name: ticket-decision
+description: Classifies a ticket with a decision model in one call, writes the decision straight back, and drafts an LLM reply only for critical or uncertain tickets.
+spec:
+  appConfig:
+    description: Classify a ticket's priority, department, sentiment and risk flags with the ticket-router decision model, then write the result back to the Acme Help Desk.
+    decision:
+      model_alias: ticket-router
+    output_mapping:
+      priority: "{{classify.output.answers.priority.choice}}"
+      department: "{{classify.output.answers.department.choice}}"
+      model_ms: "{{classify.output.duration_ms}}"
+      escalated: "{{classify.output.escalated}}"
+    nodes:
+      # One call to the decision model answers every question. Only `priority`
+      # routes: critical tickets, and any priority answer below min_confidence,
+      # go to the LLM agent; every other ticket is written back directly.
+      - id: classify
+        type: decision
+        input:
+          ticket: "{{workflow.input.text}}"
+        questions:
+          priority:
+            type: choice
+            instructions: How urgently does this ticket need a response?
+            criteria:
+              critical: Production is down, data is lost or at risk, or there is a security breach, for many users and with no workaround
+              high: A core feature is broken or badly degraded, and any workaround is painful
+              medium: A non-core feature is broken, a workaround exists, or a billing error costs the customer money
+              low: A question, a how-to, a feature request, or a cosmetic issue
+          department:
+            type: choice
+            instructions: Which team should own this ticket?
+            criteria:
+              technical: Outages, errors, bugs, performance, or data problems
+              billing: Charges, refunds, invoices, tax, or billing dates
+              account: Sign-in, passwords, security, or managing users
+              product: Feature requests, how-to questions, or feedback
+              other: Anything that fits none of the other teams
+          sentiment:
+            type: score
+            instructions: How does the customer feel?
+            criteria:
+              - angry: Hostile, shouting, or threatening to leave
+              - frustrated: Clearly annoyed or stressed
+              - neutral: Matter of fact
+              - positive: Friendly or appreciative
+          churn_risk:
+            type: boolean
+            instructions: The customer may cancel or move to a competitor because of this issue.
+          needs_human:
+            type: boolean
+            instructions: The customer asks to speak to a person.
+            criteria:
+              "true": The customer asks for a call, a manager, or a named employee
+              "false": The customer asks only for a fix or an answer
+        route_on: priority
+        routes:
+          critical: escalate_brief
+        default: by_department
+        min_confidence: 0.7
+        escalate: escalate_brief
+        escalation_mode: handoff   # the escalate node is also a route; its brief is the result
+
+      # Decision-model path: no LLM. A switch on the department the decision
+      # model chose picks a canned acknowledgement, and it goes straight back.
+      - id: by_department
+        type: switch
+        depends_on:
+          - classify
+        cases:
+          - condition: "'{{classify.output.answers.department.choice}}' == 'technical'"
+            node: ack_technical
+          - condition: "'{{classify.output.answers.department.choice}}' == 'billing'"
+            node: ack_billing
+          - condition: "'{{classify.output.answers.department.choice}}' == 'account'"
+            node: ack_account
+          - condition: "'{{classify.output.answers.department.choice}}' == 'product'"
+            node: ack_product
+        default: ack_general
+      - id: ack_technical
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - by_department
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: decision
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "Thanks for reporting this. Our technical team has your ticket and is looking into it. If you have error messages or screenshots, reply with them, as they help us find the cause faster.\n\nThe Support Team"
+      - id: ack_billing
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - by_department
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: decision
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "Thanks for getting in touch about your bill. Our billing team will review the charges on your account and follow up. Please never send your full card number; the last four digits are enough.\n\nThe Support Team"
+      - id: ack_account
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - by_department
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: decision
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "Thanks for letting us know. Our account team will help you with access to your account. We will never ask for your password.\n\nThe Support Team"
+      - id: ack_product
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - by_department
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: decision
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "Thanks for your question. Our product team has it and will get back to you, often with a link to the steps you need.\n\nThe Support Team"
+      - id: ack_general
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - by_department
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: decision
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "Thanks for your ticket. Our support team has it and will follow up shortly.\n\nThe Support Team"
+
+      # LLM path: critical or uncertain tickets get a drafted first reply,
+      # written by support-responder from the support-playbook skill.
+      - id: escalate_brief
+        type: agent
+        agent_name: support-responder
+        depends_on:
+          - classify
+        input:
+          message: "Draft the first reply for this issue. No first-response deadline was given. Triage from the decision model: priority {{classify.output.answers.priority.choice}}, department {{classify.output.answers.department.choice}}. Ticket JSON: {{workflow.input.text}}"
+        output_schema_override:
+          type: object
+          required: [reply]
+          properties:
+            reply:
+              type: string
+              description: The email body to send the customer.
+      - id: record_escalation
+        type: tool
+        connector: acme-helpdesk-api
+        tool: recordDecision
+        depends_on:
+          - escalate_brief
+        input:
+          source_ticket: "{{workflow.input.text}}"
+          path: llm
+          priority: "{{classify.output.answers.priority.choice}}"
+          department: "{{classify.output.answers.department.choice}}"
+          sentiment_score: "{{classify.output.answers.sentiment.score}}"
+          churn_risk: "{{classify.output.answers.churn_risk.value}}"
+          needs_human: "{{classify.output.answers.needs_human.value}}"
+          confidence: "{{classify.output.answers.priority.confidence}}"
+          model_ms: "{{classify.output.duration_ms}}"
+          escalation_reason: "{{classify.output.escalation_reason}}"
+          response: "{{escalate_brief.output.reply}}"
+  deploy: true

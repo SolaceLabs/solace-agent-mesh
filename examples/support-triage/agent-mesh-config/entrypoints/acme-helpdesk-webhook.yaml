@@ -1,0 +1,21 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: entrypoint
+name: acme-helpdesk-webhook
+description: Receives a signed webhook for every new Acme Help Desk ticket and starts the ticket-intake workflow.
+spec:
+  type: webhook
+  slug: acme-helpdesk
+  deploy: true
+  values:
+    routePath: /tickets
+    method: POST
+    authMode: hmac
+    hmacSecret: ${ACME_HELPDESK_WEBHOOK_SECRET}
+    hmacHeader: X-Hub-Signature-256
+    hmacAlgorithm: sha256
+    hmacPrefix: "sha256="
+    hmacEncoding: hex
+    inputExpression: "input.payload:"
+    targetWorkflowName: ticket-intake

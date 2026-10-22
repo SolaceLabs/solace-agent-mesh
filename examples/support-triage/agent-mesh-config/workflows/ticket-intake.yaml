@@ -1,0 +1,113 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: workflow
+name: ticket-intake
+description: Triages a new customer issue, works out its response deadline, drafts the first reply, then escalates P1s and queues the rest.
+spec:
+  appConfig:
+    description: Triage, compute the response deadline, draft the first reply, then escalate P1 tickets or queue the rest in the Acme Help Desk.
+    toolsets:
+      - sla-clock
+    output_mapping:
+      ticket_id: "{{triage.output.ticket_id}}"
+      priority: "{{triage.output.severity}}"
+      team: "{{triage.output.owning_team}}"
+      respond_by: "{{respond_by.output.respond_by}}"
+      reply: "{{draft_reply.output.reply}}"
+    nodes:
+      - id: triage
+        type: agent
+        agent_name: ticket-triage
+        input:
+          message: "Triage this new ticket. It is the JSON body the Acme Help Desk sent: {{workflow.input.text}}"
+        output_schema_override:
+          type: object
+          required: [ticket_id, created_at, summary, category, severity, product_area, owning_team, missing_information, next_step]
+          properties:
+            ticket_id:
+              type: string
+              description: The ticket_id field from the ticket JSON, copied exactly.
+            created_at:
+              type: string
+              description: The created_at field from the ticket JSON, copied exactly.
+            summary:
+              type: string
+            category:
+              type: string
+              enum: [Outage, Bug, How-to, Billing, Feature request, Account access]
+            severity:
+              type: string
+              enum: [P1, P2, P3, P4]
+            product_area:
+              type: string
+            owning_team:
+              type: string
+              enum: [Platform, Product Engineering, Customer Success, Billing, Product Management]
+            missing_information:
+              type: array
+              items:
+                type: string
+            next_step:
+              type: string
+      - id: respond_by
+        type: tool
+        tool_name: sla-clock__compute_response_due
+        depends_on:
+          - triage
+        input:
+          priority: "{{triage.output.severity}}"
+          created_at: "{{triage.output.created_at}}"
+      - id: draft_reply
+        type: agent
+        agent_name: support-responder
+        depends_on:
+          - respond_by
+        input:
+          message: "Draft the first reply for this triaged issue. Our first-response deadline (the time by which the customer hears back from us): {{respond_by.output.respond_by_text}}. Triage: {{triage.output}}"
+        output_schema_override:
+          type: object
+          required: [reply]
+          properties:
+            reply:
+              type: string
+              description: The email body to send the customer.
+      - id: route_by_severity
+        type: switch
+        depends_on:
+          - draft_reply
+        cases:
+          - condition: "'{{triage.output.severity}}' == 'P1'"
+            node: escalate_ticket
+        default: queue_ticket
+      - id: escalate_ticket
+        type: tool
+        connector: acme-helpdesk-api
+        tool: updateTicket
+        depends_on:
+          - route_by_severity
+        input:
+          ticket_id: "{{triage.output.ticket_id}}"
+          status: escalated
+          priority: "{{triage.output.severity}}"
+          category: "{{triage.output.category}}"
+          team: "{{triage.output.owning_team}}"
+          summary: "{{triage.output.summary}}"
+          internal_note: "{{draft_reply.output.reply}}"
+          respond_by: "{{respond_by.output.respond_by}}"
+      - id: queue_ticket
+        type: tool
+        connector: acme-helpdesk-api
+        tool: updateTicket
+        depends_on:
+          - route_by_severity
+        input:
+          ticket_id: "{{triage.output.ticket_id}}"
+          status: triaged
+          priority: "{{triage.output.severity}}"
+          category: "{{triage.output.category}}"
+          team: "{{triage.output.owning_team}}"
+          summary: "{{triage.output.summary}}"
+          internal_note: "{{draft_reply.output.reply}}"
+          respond_by: "{{respond_by.output.respond_by}}"
+  deploy: true

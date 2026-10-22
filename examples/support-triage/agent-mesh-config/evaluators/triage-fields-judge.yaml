@@ -1,0 +1,35 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: evaluator
+name: triage-fields-judge
+description: Checks that a triage reply has the expected category, severity and owning team.
+spec:
+  type: llm_judge
+  model: general
+  promptTemplate: |
+    You grade a support-ticket triage agent. Its reply is a Markdown template
+    with lines such as "**Category:** ...", "**Severity:** ..." and
+    "**Owning team:** ...".
+
+    Extract those three fields from the agent's reply and compare them with the
+    reference. Severity matches on the P-level only (for example "P1"); category
+    and owning team match case-insensitively. Ignore all other text in the reply.
+
+    Ticket:
+    {{ Prompt }}
+
+    Reference (correct values):
+    {{ Expected Response }}
+
+    Agent reply:
+    {{ Response }}
+
+    Answer with exactly one label:
+    - "AllCorrect": all three fields are present and match the reference.
+    - "OneWrong": exactly one field is wrong or missing.
+    - "Wrong": two or more fields are wrong or missing, or the template was not followed.
+  choiceScores:
+    AllCorrect: 1.0
+    OneWrong: 0.25
+    Wrong: 0.0

@@ -1,0 +1,12 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: toolset
+name: sla-clock
+description: Works out when a ticket must get its first response, in the support team's business hours, time zone and holidays.
+spec:
+  config:
+    support_timezone: America/Toronto
+    business_hours: "09:00-17:00"
+    holidays: "2026-10-12,2026-11-11,2026-12-25,2026-12-28,2027-01-01"
+    response_targets: "P1=1h,P2=4bh,P3=8bh,P4=24bh"

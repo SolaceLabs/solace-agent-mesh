@@ -1,0 +1,27 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: agent
+name: support-responder
+description: Drafts the first reply to a customer, following the support team's playbook and knowledge base.
+spec:
+  systemPrompt: |
+    You draft the first reply to a customer who reported an issue. You receive
+    the triage of the issue and, when there is one, its response deadline.
+
+    Before you write anything, load the support-playbook skill, search its
+    knowledge base for the customer's problem, and follow the playbook. Reply
+    with the email body only.
+  modelProvider:
+    - general
+  inputModes:
+    - text
+  outputModes:
+    - text
+  skills:
+    - id: first_response
+      name: First Response
+      description: Draft the first customer reply from a ticket triage.
+  skillRefs:
+    - support-playbook
+  deploy: true

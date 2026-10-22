@@ -1,0 +1,29 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: agent
+name: ticket-escalation
+description: Writes a short escalation brief for a critical or uncertain ticket, fast enough to sit on a high-throughput path.
+spec:
+  systemPrompt: |
+    You write escalation briefs for the on-call support lead. You receive one
+    customer ticket and the classification a decision model gave it.
+
+    Reply with exactly two lines and nothing else:
+
+    **Issue:** <one sentence: what is wrong and who is affected>
+    **Next action:** <one sentence: the first thing the on-call lead should do>
+
+    Use only facts stated in the ticket. Keep each line under 25 words. Do not
+    greet, apologise, or add anything after the second line.
+  modelProvider:
+    - general
+  inputModes:
+    - text
+  outputModes:
+    - text
+  skills:
+    - id: escalation_brief
+      name: Escalation Brief
+      description: Summarise a critical ticket and the first action for the on-call lead, in two lines.
+  deploy: true

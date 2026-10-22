@@ -1,0 +1,15 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: model
+name: ticket-router
+description: TypeSafe Jev decision model that classifies tickets for the ticket-decision workflow's decision node.
+spec:
+  alias: ticket-router
+  modelType: decision
+  provider: typesafe
+  modelName: jev-1.13.0             # pin a version; the provider can move an alias such as jev-latest
+  apiBase: https://api.typesafe.ai  # set it explicitly; if omitted, every plan reports a change
+  authConfig:
+    type: apikey
+    api_key: ${TYPESAFE_API_KEY}

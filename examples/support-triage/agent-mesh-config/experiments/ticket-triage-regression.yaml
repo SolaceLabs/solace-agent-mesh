@@ -1,0 +1,14 @@
+# Copyright Solace Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+kind: experiment
+name: ticket-triage-regression
+description: Runs every triage case three times and checks category, severity and owning team each time.
+spec:
+  datasetId: ticket-triage-cases
+  targetAgent: ticket-triage
+  evaluatorIds:
+    - triage-fields-judge
+  primaryEvaluatorId: triage-fields-judge
+  runsPerExample: 3
+  maxWorkers: 4
