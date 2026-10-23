@@ -11,7 +11,7 @@ then escalates the ticket or queues it.
 The tickets come from the Acme Help Desk, a fictional ticketing system that runs
 on your computer. It is not part of Agent Mesh.
 
-![A new ticket in the Acme Help Desk, the ticket-intake workflow running in Agent Mesh, and the ticket coming back triaged](media/flow.gif)
+[![Watch the demo](media/cover.png)](https://youtu.be/aaxh2UDjpSA)
 
 ## Prerequisites
 
